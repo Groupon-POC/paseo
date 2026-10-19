@@ -11,6 +11,9 @@
  *
  * Nothing here is logged except the derivation's duration. Signing out deletes the session and
  * the vault key from the keychain.
+ *
+ * The signed-in Core is also the relay every Paseo host can be reached through
+ * (`core-relay.ts`): this module names it there, with a token getter that refreshes first.
  */
 
 import { create } from "zustand";
@@ -33,6 +36,7 @@ import {
   VaultError,
   type Pbkdf2Engine,
 } from "./crypto";
+import { setCoreRelayRoute } from "./core-relay";
 import {
   defaultEnvironmentId,
   environmentById,
@@ -257,6 +261,15 @@ async function freshSession(): Promise<GrouponSession> {
     return refreshSession(session);
   return session;
 }
+
+setCoreRelayRoute(() => {
+  const session = useGrouponStore.getState().session;
+  if (!session) return null;
+  return {
+    coreUrl: session.coreUrl,
+    accessToken: async () => (await freshSession()).accessToken,
+  };
+});
 
 /** A read of the signed-in person's Core, with one refresh and retry on a 401. */
 export async function grouponRequest<T>(path: string): Promise<T> {

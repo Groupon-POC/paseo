@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a relay probe uses the app's socket factory, so Core's relay is probed through Core.
 import {
   DaemonAuthenticationError,
   DaemonClient,
@@ -18,6 +19,7 @@ import {
   createDesktopDaemonTransportFactory,
 } from "@/desktop/daemon/desktop-daemon-transport";
 import type { DesktopDaemonTransportTarget } from "@/desktop/daemon/desktop-daemon";
+import { createAppWebSocketFactory } from "@/runtime/websocket-factory";
 
 export interface DaemonProbeClient {
   readonly lastError: string | null;
@@ -195,6 +197,9 @@ export async function buildClientConfig(
 
   return {
     ...base,
+    // The app's factory, as the host runtime's own client uses: a relay that is Groupon's Core
+    // goes over Core's relay stream (`@/groupon/core-relay`).
+    webSocketFactory: createAppWebSocketFactory(),
     url: buildRelayWebSocketUrl({
       endpoint: connection.relayEndpoint,
       useTls: connection.useTls ?? shouldUseTlsForDefaultHostedRelay(connection.relayEndpoint),

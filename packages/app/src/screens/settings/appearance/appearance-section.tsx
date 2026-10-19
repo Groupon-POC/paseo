@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme's name in the theme picker.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -41,6 +42,7 @@ import {
 import {
   DEFAULT_MONO_FONT_STACK,
   DEFAULT_UI_FONT_STACK,
+  GROUPON_DARK_THEME_LABEL,
   ICON_SIZE,
   PLUGIN_THEME_PREFERENCE,
   THEME_OPTIONS,
@@ -67,6 +69,7 @@ const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMut
 type BuiltInThemePreference = Exclude<AppSettings["theme"], typeof PLUGIN_THEME_PREFERENCE>;
 
 function getThemeLabel(t: TFunction, value: BuiltInThemePreference): string {
+  if (value === "grouponDark") return GROUPON_DARK_THEME_LABEL;
   return t(`settings.appearance.theme.options.${value}`);
 }
 

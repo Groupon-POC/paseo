@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme (Paseo's dark surfaces, the Groupon green as the accent), first in the picker.
 import { Platform } from "react-native";
 import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
 
@@ -739,6 +740,41 @@ const pureBlackDarkColors = buildDarkSemanticColors({
 
 export const darkPureBlackTheme = buildDarkTheme(pureBlackDarkColors);
 
+// Groupon dark (Groupon Desk's default): Paseo's dark surfaces with the Groupon green as the
+// accent. The fill is MBNXT "Groupon Green 600" (#007C1F), which carries white text at 5.4:1; the
+// text-on-dark variant is the favicon mark's lighter green (#53A318, 5.4:1 on surface0), the same
+// pair the Desk's menu-bar app uses (tools/groupon-desk BrandColor.swift). The selected sidebar row
+// carries the green at 12% over the sidebar surface, so the active row reads as the brand.
+export const GROUPON_GREEN = "#007C1F";
+export const GROUPON_GREEN_ON_DARK = "#53A318";
+
+const grouponDarkColors = {
+  ...buildDarkSemanticColors({
+    surface0: "#181B1A",
+    surface1: "#1E2120",
+    surface2: "#272A29",
+    surface3: "#434645",
+    surface4: "#595B5B",
+    surfaceDiffEmpty: "#252827",
+    surfaceSidebar: "#141716",
+    foregroundMuted: "#A1A5A4",
+    foregroundExtraMuted: "#717574",
+    border: "#252B2A",
+    borderAccent: "#2F3534",
+    accent: GROUPON_GREEN,
+    accentBright: GROUPON_GREEN_ON_DARK,
+    destructive: "#c64f43",
+    terminalBlack: "#141716",
+    terminalBrightBlack: "#434645",
+  }),
+  surfaceSidebarSelected: "#1C2816",
+};
+
+export const darkGrouponTheme = buildDarkTheme(grouponDarkColors);
+
+/** A brand name, shown as is in every language (GROUPON-FORK.md: Groupon screens are English). */
+export const GROUPON_DARK_THEME_LABEL = "Groupon dark";
+
 const lightShadow = {
   sm: {
     shadowColor: "rgba(0, 0, 0, 0.08)",
@@ -779,6 +815,13 @@ export const lightTheme = buildLightTheme(lightSemanticColors);
 export const theme = darkTheme;
 
 export const THEME_OPTIONS = [
+  {
+    name: "grouponDark",
+    group: "groupon",
+    unistylesName: "grouponDark",
+    theme: darkGrouponTheme,
+    swatch: GROUPON_GREEN_ON_DARK,
+  },
   {
     name: "light",
     group: "primary",

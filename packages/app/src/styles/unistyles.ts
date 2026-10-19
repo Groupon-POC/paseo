@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the app opens in the Groupon dark theme, not the system one.
 import { StyleSheet } from "react-native-unistyles";
 import { REGISTERED_THEMES } from "./theme";
 
@@ -11,7 +12,10 @@ StyleSheet.configure({
     xl: 1200,
   },
   settings: {
-    adaptiveThemes: true,
+    // The theme before the stored choice is read, so the Groupon sign-in gate (outside the
+    // AppearanceProvider) and a fresh install open in Groupon dark (DEFAULT_THEME_PREFERENCE).
+    // AppearanceProvider then applies the stored preference, "auto" included.
+    initialTheme: "grouponDark",
   },
 });
 

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a fresh install defaults to the Groupon dark theme; a stored choice is kept.
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import {
@@ -131,8 +132,20 @@ describe("loadAppSettingsFromStorage", () => {
     expect((await loadAppSettingsFromStorage(deps)).sendBehavior).toBe("interrupt");
   });
 
-  it("defaults theme to auto when storage is empty", async () => {
+  it("defaults theme to Groupon dark when storage is empty", async () => {
     const deps = makeDeps();
+
+    const result = await loadAppSettingsFromStorage(deps);
+
+    expect(result.theme).toBe("grouponDark");
+  });
+
+  it("honours a stored auto theme over the Groupon dark default", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ theme: "auto" }),
+      }),
+    });
 
     const result = await loadAppSettingsFromStorage(deps);
 

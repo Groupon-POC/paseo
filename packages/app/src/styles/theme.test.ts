@@ -1,8 +1,12 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme leads the catalog and has its own expectations.
 import { describe, expect, it } from "vitest";
 import {
+  darkGrouponTheme,
   darkPureBlackTheme,
   darkTheme,
   FONT_SIZE,
+  GROUPON_GREEN,
+  GROUPON_GREEN_ON_DARK,
   getNextThemePreference,
   lightTheme,
   THEME_OPTIONS,
@@ -27,6 +31,7 @@ describe("Typography scale", () => {
 describe("Theme catalog", () => {
   it("owns the picker and shortcut order", () => {
     expect(THEME_OPTIONS.map((option) => option.name)).toEqual([
+      "grouponDark",
       "light",
       "dark",
       "auto",
@@ -37,7 +42,29 @@ describe("Theme catalog", () => {
       "pureBlack",
     ]);
     expect(getNextThemePreference("dark")).toBe("auto");
-    expect(getNextThemePreference("pureBlack")).toBe("light");
+    expect(getNextThemePreference("pureBlack")).toBe("grouponDark");
+    expect(getNextThemePreference("grouponDark")).toBe("light");
+  });
+});
+
+describe("Groupon dark theme", () => {
+  it("keeps Paseo's dark surfaces", () => {
+    expect(darkGrouponTheme.colorScheme).toBe("dark");
+    expect(darkGrouponTheme.colors.surface0).toBe(darkTheme.colors.surface0);
+    expect(darkGrouponTheme.colors.surfaceSidebar).toBe(darkTheme.colors.surfaceSidebar);
+    expect(darkGrouponTheme.colors.foreground).toBe(darkTheme.colors.foreground);
+  });
+
+  it("uses the Groupon green as the accent, the lighter green for text on dark", () => {
+    expect(darkGrouponTheme.colors.accent).toBe(GROUPON_GREEN);
+    expect(darkGrouponTheme.colors.success).toBe(GROUPON_GREEN);
+    expect(darkGrouponTheme.colors.accentForeground).toBe("#ffffff");
+    expect(darkGrouponTheme.colors.accentBright).toBe(GROUPON_GREEN_ON_DARK);
+  });
+
+  it("tints the selected sidebar row green, apart from hover", () => {
+    expect(darkGrouponTheme.colors.surfaceSidebarSelected).toBe("#1C2816");
+    expect(darkGrouponTheme.colors.surfaceSidebarHover).toBe(darkGrouponTheme.colors.surface1);
   });
 });
 

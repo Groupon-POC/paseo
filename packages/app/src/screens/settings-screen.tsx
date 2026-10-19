@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the About line naming Paseo and its author.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the About line naming Paseo and its author; the Groupon section.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -28,6 +28,7 @@ import {
   Keyboard,
   Stethoscope,
   Info,
+  Building2,
   Bell,
   Shield,
   Puzzle,
@@ -92,7 +93,8 @@ import { isElectronRuntime } from "@/desktop/host";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
-import { GROUPON_ABOUT } from "@/groupon/strings";
+import { GROUPON_ABOUT, GROUPON_SETTINGS } from "@/groupon/strings";
+import { GrouponSettingsPage } from "@/groupon/settings-section";
 import { openChangelog } from "@/changelog";
 import { useAppDiagnosticStore } from "@/diagnostics/store";
 import { settingsStyles } from "@/styles/settings";
@@ -145,6 +147,8 @@ import { isNative, isWeb } from "@/constants/platform";
 interface SidebarSectionItem {
   id: SettingsSectionSlug;
   labelKey: string;
+  /** A label that is not one of Paseo's translated keys (the Groupon section). */
+  label?: string;
   icon: ComponentType<{ size: number; color: string; strokeWidth?: number }>;
   desktopOnly?: boolean;
   webOnly?: boolean;
@@ -153,6 +157,13 @@ interface SidebarSectionItem {
 }
 
 const SIDEBAR_SECTION_ITEMS: SidebarSectionItem[] = [
+  {
+    id: "groupon",
+    labelKey: "",
+    label: GROUPON_SETTINGS.section,
+    icon: Building2,
+    Content: GrouponSettingsPage,
+  },
   { id: "general", labelKey: "settings.sections.general", icon: Settings },
   {
     id: "appearance",
@@ -999,7 +1010,7 @@ function SettingsSidebar({
           <SidebarSectionButton
             key={item.id}
             itemId={item.id}
-            label={t(item.labelKey)}
+            label={item.label ?? t(item.labelKey)}
             icon={item.icon}
             isSelected={selectedSectionId === item.id}
             onSelect={onSelectSection}
@@ -1350,7 +1361,7 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
     }
     if (view.kind === "section") {
       const item = SIDEBAR_SECTION_ITEMS.find((s) => s.id === view.section);
-      return item ? t(item.labelKey) : undefined;
+      return item ? (item.label ?? t(item.labelKey)) : undefined;
     }
     if (view.kind === "project") {
       return t("settings.projects");

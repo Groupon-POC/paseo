@@ -6,3 +6,38 @@ export const GROUPON_ABOUT = {
   builtOn: "Built on Paseo (Apache-2.0) by Mohamed Boudra",
   builtOnHint: "Groupon Desk is a fork of Paseo. Paseo's licence and copyright notice are kept.",
 } as const;
+
+export const GROUPON_GATE = {
+  title: "Groupon Desk",
+  signInIntro:
+    "Sign in with your Groupon account. Your Macs, their workspaces and your saved history come from the Core you choose.",
+  badLocalUrl:
+    "Type a Core address such as http://localhost:4100 (plain http only on this machine).",
+  codeIntro: "Approve this code on Groupon's sign-in page:",
+  openPage: "Open the sign-in page",
+  signIn: "Sign in with Groupon",
+  waiting: "Waiting for approval",
+  denied: "The sign-in was denied.",
+  expired: "The code expired before it was approved. Try again.",
+  signedInAs: "Signed in as",
+  vaultIntro:
+    "Type your vault passphrase once. The key is made on this device and kept in its keychain; it opens what your Macs sealed on the hub. The passphrase never leaves this device.",
+  passphrasePlaceholder: "Vault passphrase",
+  openVault: "Open the vault",
+  deriving: "Making the key (600,000 rounds)",
+  signOut: "Sign out",
+} as const;
+
+export const GROUPON_SETTINGS = {
+  section: "Groupon",
+  account: "Groupon account",
+  signedInAs: "Signed in as",
+  core: "Core",
+  vault: "Vault key",
+  vaultKept: "Kept in this device's keychain; type the passphrase again only after signing out.",
+  vaultKeptWeb:
+    "Kept in this browser's local storage (development builds only); type the passphrase again only after signing out.",
+  vaultMeasured: (ms: number, iterations: number, engine: string) =>
+    `Made on this device in ${ms.toLocaleString("en-US")} ms (PBKDF2-SHA256, ${iterations.toLocaleString("en-US")} rounds, ${engine}); kept in its keychain.`,
+  signOut: "Sign out of Groupon",
+} as const;

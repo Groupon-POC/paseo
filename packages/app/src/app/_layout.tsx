@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in gate in front of the host runtime.
 import { ComposerEditingSessionsProvider } from "@/composer/editing-session";
 import "@/styles/unistyles";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
@@ -89,6 +90,7 @@ import { useActiveWorktreeNewAction } from "@/hooks/use-active-worktree-new-acti
 import { useGlobalNewWorkspaceAction } from "@/hooks/use-global-new-workspace-action";
 import { useLatchedBoolean } from "@/hooks/use-latched-boolean";
 import { useFaviconStatus } from "@/hooks/use-favicon-status";
+import { GrouponGate } from "@/groupon/gate";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 import { resolveExplorerSidebarPresentation } from "@/workspace-tabs/explorer-sidebar";
 import { KeyboardShiftProvider } from "@/keyboard/shift";
@@ -978,9 +980,11 @@ function RootAppTree() {
       <View style={layoutStyles.surfaceFill}>
         <LucideProvider strokeWidth={ICON_STROKE_WIDTH}>
           <RootProviders>
-            <RuntimeProviders>
-              <AppShell />
-            </RuntimeProviders>
+            <GrouponGate>
+              <RuntimeProviders>
+                <AppShell />
+              </RuntimeProviders>
+            </GrouponGate>
           </RootProviders>
         </LucideProvider>
       </View>

@@ -56,3 +56,26 @@ export const GROUPON_MACHINES = {
   noRelay: "not on the relay",
   lastSeen: (when: string) => `last seen ${when}`,
 } as const;
+
+export const GROUPON_HISTORY = {
+  title: "History",
+  intro:
+    "Saved on the hub, so it reads while your Macs sleep. Every message was sealed on the Mac and is opened here with your vault key.",
+  open: "Open history",
+  openHint: "Every workspace and chat on the hub, readable while your Macs sleep",
+  loading: "Opening your history",
+  empty: "Nothing on the hub yet. Chats your Macs run through Groupon Desk appear here.",
+  noChats: "No chat in this workspace yet",
+  retry: "Try again",
+  sealedElsewhere: "This message does not open with your vault key.",
+  thinking: "Thinking",
+  result: "Result",
+  resultError: "Result (failed)",
+  asked: (tool: string) => `Asked to run ${tool}`,
+  allowed: "Allowed",
+  allowedAlways: "Allowed for this chat",
+  denied: "Denied",
+  withdrawn: "Withdrawn",
+  notAllowed: (what: string) => `Not allowed: ${what}`,
+  messages: (count: number) => `${count} ${count === 1 ? "message" : "messages"}`,
+} as const;

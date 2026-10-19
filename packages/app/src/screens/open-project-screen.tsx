@@ -1,12 +1,14 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the History tile.
 import { useHosts, useHostRuntimeLastError } from "@/runtime/host-runtime";
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useRouter } from "expo-router";
-import { FolderOpen, Inbox, Plug, Smartphone } from "lucide-react-native";
+import { FolderOpen, History, Inbox, Plug, Smartphone } from "lucide-react-native";
 import { GrouponDeskLogo } from "@/components/icons/groupon-desk-logo";
+import { HUB_HISTORY_ROUTE } from "@/groupon/history-screen";
+import { GROUPON_HISTORY } from "@/groupon/strings";
 import { CommunityLinks } from "@/components/community-links";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { useOpenAddProject } from "@/hooks/use-open-add-project";
@@ -48,6 +50,7 @@ export function OpenProjectScreen() {
     void openProjectPicker();
   }, [openProjectPicker]);
 
+  const handleOpenHistory = useCallback(() => router.push(HUB_HISTORY_ROUTE), [router]);
   const handleOpenPairDevice = useCallback(() => setIsPairDeviceOpen(true), []);
   const handleClosePairDevice = useCallback(() => setIsPairDeviceOpen(false), []);
 
@@ -83,6 +86,13 @@ export function OpenProjectScreen() {
               onPress={handleOpenPicker}
               testID="open-project-submit"
               accent
+            />
+            <HomeTile
+              icon={History}
+              title={GROUPON_HISTORY.title}
+              description={GROUPON_HISTORY.openHint}
+              onPress={handleOpenHistory}
+              testID="open-project-hub-history"
             />
             <HomeTile
               icon={Inbox}

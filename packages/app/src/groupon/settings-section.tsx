@@ -1,6 +1,7 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): Settings > Groupon, the account and the vault.
 import { useCallback } from "react";
 import { Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { StyleSheet } from "react-native-unistyles";
 import { isWeb } from "@/constants/platform";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
@@ -9,7 +10,8 @@ import { settingsStyles } from "@/styles/settings";
 import { environmentById } from "./environments";
 import { useHubMachinesStore, type HubMachineState, type HubMachineView } from "./hub-sync";
 import { useGrouponStore } from "./session";
-import { GROUPON_MACHINES, GROUPON_SETTINGS } from "./strings";
+import { GROUPON_HISTORY, GROUPON_MACHINES, GROUPON_SETTINGS } from "./strings";
+import { HUB_HISTORY_ROUTE } from "./history-screen";
 
 function Row({
   title,
@@ -132,10 +134,28 @@ export function GrouponMachinesSection() {
   );
 }
 
+export function GrouponHistorySection() {
+  const router = useRouter();
+  const handleOpen = useCallback(() => router.push(HUB_HISTORY_ROUTE), [router]);
+  return (
+    <SettingsSection title={GROUPON_HISTORY.title}>
+      <View style={settingsStyles.card}>
+        <Row title={GROUPON_HISTORY.openHint} />
+        <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
+          <Button variant="outline" size="sm" onPress={handleOpen} testID="groupon-open-history">
+            {GROUPON_HISTORY.open}
+          </Button>
+        </View>
+      </View>
+    </SettingsSection>
+  );
+}
+
 export function GrouponSettingsPage() {
   return (
     <>
       <GrouponAccountSection />
+      <GrouponHistorySection />
       <GrouponMachinesSection />
     </>
   );

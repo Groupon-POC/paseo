@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the engine's site named as such.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the engine's site named as such; History.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, ScrollView } from "react-native";
@@ -10,6 +10,7 @@ import {
   ClipboardPaste,
   ExternalLink,
   Settings,
+  History,
   Terminal,
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,6 +24,8 @@ import { resolveAppVersion } from "@/utils/app-version";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { buildOpenProjectRoute } from "@/utils/host-routes";
 import { GrouponDeskLogo } from "@/components/icons/groupon-desk-logo";
+import { HUB_HISTORY_ROUTE } from "@/groupon/history-screen";
+import { GROUPON_HISTORY } from "@/groupon/strings";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { isFdroidBuild } from "@/constants/build-profile";
 import { isWeb, isNative } from "@/constants/platform";
@@ -193,6 +196,10 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
     void openExternalUrl("https://paseo.sh");
   }, []);
 
+  const handleOpenHistory = useCallback(() => {
+    router.push(HUB_HISTORY_ROUTE);
+  }, [router]);
+
   const handleOpenSettings = useCallback(() => {
     router.push("/settings");
   }, [router]);
@@ -304,6 +311,16 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
               <WelcomeActionButton key={action.key} action={action} />
             ))}
           </View>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={History}
+            onPress={handleOpenHistory}
+            testID="welcome-open-history"
+          >
+            {GROUPON_HISTORY.title}
+          </Button>
 
           <Button
             variant="ghost"

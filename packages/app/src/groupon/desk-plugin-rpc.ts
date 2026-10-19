@@ -23,6 +23,8 @@ export const GROUPON_RPC = {
   job: "groupon.job",
   ticketFlow: "groupon.ticket-flow",
   projectSettings: "groupon.project-settings",
+  encoreState: "groupon.encore-state",
+  requestEncoreAccess: "groupon.encore-request-access",
 } as const;
 
 export type PluginRpcClient = Pick<DaemonClient, "invokePluginRpc">;
@@ -133,6 +135,59 @@ export interface ProjectSettingsAnswer {
   hasPaseoJson: boolean;
 }
 
+export interface EncoreRollout {
+  rolloutId: string;
+  /** Encore Cloud's status: pending, queued, running, completed. */
+  status: string;
+  /** pending until completed, then success, failure, canceled. */
+  conclusion: string;
+  commitShort: string | null;
+  queuedAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  dashboardUrl: string;
+}
+
+export type EncoreStanding = "member" | "invited" | "not-member" | "unknown" | "not-handed-out";
+
+export interface EncoreAppState {
+  key: string;
+  slug: string;
+  name: string;
+  standing: EncoreStanding;
+  role: string | null;
+  requestPending: boolean | null;
+  approver: string | null;
+  environments: { environment: string; rollout: EncoreRollout | null }[];
+}
+
+export interface ReleaseTrain {
+  number: number;
+  title: string;
+  url: string;
+  checks: "passing" | "failing" | "pending" | "none";
+  createdAt: string | null;
+}
+
+/** A project's Encore card, as the plugin's `groupon.encore-state` answers it. */
+export interface EncoreStateAnswer {
+  configured: boolean;
+  apps: EncoreAppState[];
+  appsProblem: string | null;
+  releases: { base: string } | null;
+  train: ReleaseTrain | null;
+  trainProblem: string | null;
+  fileProblems: string[];
+  environment: string | null;
+  readAt: string;
+}
+
+export interface EncoreAccessAnswer {
+  slug: string;
+  state: "filed" | "already-waiting" | "failed";
+  message: string;
+}
+
 export interface TicketStartInput {
   ticket: string;
   projectRoot: string;
@@ -198,6 +253,28 @@ export function isProjectSettingsAnswer(value: unknown): value is ProjectSetting
     (value.source === "default-branch" || value.source === "checkout" || value.source === "none") &&
     typeof value.hasPaseoJson === "boolean" &&
     (value.settings === null || (isRecord(value.settings) && Array.isArray(value.settings.run)))
+  );
+}
+
+export function isEncoreStateAnswer(value: unknown): value is EncoreStateAnswer {
+  return (
+    isRecord(value) &&
+    typeof value.configured === "boolean" &&
+    Array.isArray(value.apps) &&
+    value.apps.every(
+      (app) => isRecord(app) && typeof app.slug === "string" && Array.isArray(app.environments),
+    ) &&
+    Array.isArray(value.fileProblems) &&
+    (value.train === null || (isRecord(value.train) && typeof value.train.url === "string"))
+  );
+}
+
+export function isEncoreAccessAnswer(value: unknown): value is EncoreAccessAnswer {
+  return (
+    isRecord(value) &&
+    typeof value.slug === "string" &&
+    (value.state === "filed" || value.state === "already-waiting" || value.state === "failed") &&
+    typeof value.message === "string"
   );
 }
 
@@ -271,6 +348,27 @@ export async function readProjectSettings(
   const output = await call(client, GROUPON_RPC.projectSettings, { projectRoot, refresh });
   if (!isProjectSettingsAnswer(output))
     throw new Error("The repository file came back in a shape this app does not read");
+  return output;
+}
+
+export async function readEncoreState(
+  client: PluginRpcClient,
+  projectRoot: string,
+): Promise<EncoreStateAnswer> {
+  const output = await call(client, GROUPON_RPC.encoreState, { projectRoot });
+  if (!isEncoreStateAnswer(output))
+    throw new Error("The Encore card came back in a shape this app does not read");
+  return output;
+}
+
+/** Files the person's request for developer access to one Encore app (the /encore-onboarding request). */
+export async function requestEncoreAccess(
+  client: PluginRpcClient,
+  slug: string,
+): Promise<EncoreAccessAnswer> {
+  const output = await call(client, GROUPON_RPC.requestEncoreAccess, { slug });
+  if (!isEncoreAccessAnswer(output))
+    throw new Error("The access request came back in a shape this app does not read");
   return output;
 }
 

@@ -1,6 +1,9 @@
+# Changed for Groupon Desk (fork of Paseo, Apache-2.0): productName Groupon Desk.
 npmRebuild: false
 appId: sh.paseo.desktop
-productName: Paseo
+# The name in the menu bar, the Dock and the About panel. The executable and the bundle file keep
+# Paseo's name, which the packaging hooks and the smoke tests look for.
+productName: Groupon Desk
 executableName: Paseo
 protocols:
   - name: Paseo agent link

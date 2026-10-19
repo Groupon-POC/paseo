@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Electron launches from a bundle named Groupon Desk DEV.
 import path from "node:path";
 import { execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -11,13 +12,29 @@ import {
 
 import { waitForMetro } from "./dev-runner-readiness.mjs";
 import { resolveDevElectronArgs } from "./dev-runner-args.mjs";
+import { resolveDevElectronBinary } from "./dev-electron-bundle.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const desktopDir = path.resolve(scriptDir, "..");
 const rootDir = path.resolve(desktopDir, "../..");
 const appDir = path.resolve(desktopDir, "../app");
 const require = createRequire(import.meta.url);
-const electron = require("electron");
+const electron = resolveBrandedElectron(require("electron"));
+
+function resolveBrandedElectron(electronBinary) {
+  try {
+    return resolveDevElectronBinary({
+      platform: process.platform,
+      electronBinary,
+      cacheDir: path.join(desktopDir, "node_modules", ".cache", "groupon-desk-dev-electron"),
+    });
+  } catch (error) {
+    console.warn(
+      `[dev] could not brand the Electron bundle, launching Electron.app: ${error.message}`,
+    );
+    return electronBinary;
+  }
+}
 
 const expoPort = Number(process.env.EXPO_PORT);
 if (!Number.isInteger(expoPort) || expoPort <= 0) {

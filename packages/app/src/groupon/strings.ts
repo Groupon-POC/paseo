@@ -43,6 +43,7 @@ export const GROUPON_SETTINGS = {
 } as const;
 
 export const GROUPON_MACHINES = {
+  direct: "This Mac: direct to its daemon, the relay as fallback, at",
   title: "Your Macs on the hub",
   refresh: "Refresh",
   refreshing: "Refreshing",

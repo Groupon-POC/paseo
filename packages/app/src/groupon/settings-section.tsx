@@ -84,6 +84,7 @@ const STATE_TEXT: Record<HubMachineState, string> = {
 };
 
 function relayText(view: HubMachineView): string {
+  if (view.direct) return `${GROUPON_MACHINES.direct} ${view.direct}`;
   if (!view.machine.relaySessionId) return GROUPON_MACHINES.noRelay;
   return view.machine.relayConnectedAt
     ? GROUPON_MACHINES.relayConnected

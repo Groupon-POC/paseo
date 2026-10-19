@@ -5,8 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const upsertTrustedOffer = vi.fn(async (_url: string, _label?: string) => ({
   serverId: "srv_test",
 }));
+const upsertConnectionFromListen = vi.fn(
+  async (_input: { listenAddress: string; serverId: string; hostname: string | null }) => ({
+    serverId: "srv_test",
+  }),
+);
 vi.mock("@/runtime/host-runtime", () => ({
-  getHostRuntimeStore: () => ({ upsertTrustedOffer }),
+  getHostRuntimeStore: () => ({ upsertTrustedOffer, upsertConnectionFromListen }),
   useHostRegistryStatus: () => "ready",
 }));
 vi.mock("./session", () => ({
@@ -59,12 +64,31 @@ function machine(overrides: Record<string, unknown> = {}) {
 
 describe("addMachine", () => {
   const sealKey = sealKeyFromVaultKey(new Uint8Array(vaultKey));
-  beforeEach(() => upsertTrustedOffer.mockClear());
+  beforeEach(() => {
+    upsertTrustedOffer.mockClear();
+    upsertConnectionFromListen.mockClear();
+  });
 
   it("opens the offer with the seal key and adds the Mac under its alias", async () => {
     const view = await addMachine(machine(), sealKey);
     expect(view).toMatchObject({ state: "added", serverId: "srv_test", label: "Studio" });
     expect(upsertTrustedOffer).toHaveBeenCalledWith(OFFER, "Studio");
+    expect(upsertConnectionFromListen).not.toHaveBeenCalled();
+    expect(view.direct).toBeNull();
+  });
+
+  it("gives the Mac the app runs on a direct connection beside the relay", async () => {
+    const local = [
+      { serverId: "srv_other", listen: "127.0.0.1:6990" },
+      { serverId: "srv_test", listen: "127.0.0.1:6870" },
+    ];
+    const view = await addMachine(machine(), sealKey, local);
+    expect(view).toMatchObject({ state: "added", direct: "127.0.0.1:6870" });
+    expect(upsertConnectionFromListen).toHaveBeenCalledWith({
+      listenAddress: "127.0.0.1:6870",
+      serverId: "srv_test",
+      hostname: "Studio",
+    });
   });
 
   it("adds nothing for a Mac without an offer, or one sealed for another Mac or vault", async () => {

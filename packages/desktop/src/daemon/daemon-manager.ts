@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the local credential of the hand's daemon too; this Mac's daemons for a direct connection.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
@@ -31,6 +32,11 @@ import {
   getCliInstallStatus,
   installCli,
 } from "../integrations/cli-install/index.js";
+import {
+  localDaemonHomes,
+  readLocalCredentialForRunningDaemon,
+  readLocalDaemons,
+} from "./groupon-local-daemon.js";
 import {
   openLocalTransportSession,
   sendLocalTransportMessage,
@@ -406,11 +412,21 @@ export function createDaemonCommandHandlers(): Record<string, DesktopCommandHand
       runningUnderARM64Translation: isRunningUnderARM64Translation(),
     }),
     desktop_daemon_status: () => resolveDesktopDaemonStatus(),
+    // Any running daemon of this Mac's homes (the desktop's own, or Groupon Desk's hand), never
+    // one elsewhere: the credential file is read only for the daemon listening on that target.
     desktop_local_credential: async (args) => {
-      const instance = await readDaemonInstance(getPaseoHome());
-      if (!instance?.desktopManaged || typeof args?.listen !== "string") return null;
-      return readLocalCredentialForTarget(getPaseoHome(), args.listen);
+      if (typeof args?.listen !== "string") return null;
+      return readLocalCredentialForRunningDaemon(
+        localDaemonHomes(getPaseoHome()),
+        args.listen,
+        readDaemonInstance,
+        readLocalCredentialForTarget,
+      );
     },
+    groupon_local_daemons: async () =>
+      (await readLocalDaemons(localDaemonHomes(getPaseoHome()), readDaemonInstance)).map(
+        ({ serverId, listen }) => ({ serverId, listen }),
+      ),
     start_desktop_daemon: () => startDaemon(),
     stop_desktop_daemon: (args) =>
       stopDesktopDaemon(

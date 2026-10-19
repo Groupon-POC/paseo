@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a running daemon the desktop did not start gets its local credential too.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import path from "node:path";
@@ -155,7 +156,8 @@ describe("daemon-manager commands", () => {
     expect(status.error).toBeTruthy();
   });
 
-  it("returns a local credential only for its live managed daemon listen", async () => {
+  it("returns a local credential only for a live daemon's own listen", async () => {
+    vi.stubEnv("HOME", mocks.paseoHome);
     mkdirSync(mocks.paseoHome);
     const token = "a".repeat(43);
     writeFileSync(path.join(mocks.paseoHome, "local-credential"), `${token}\n`, { mode: 0o600 });
@@ -172,7 +174,30 @@ describe("daemon-manager commands", () => {
     const handler = createDaemonCommandHandlers().desktop_local_credential;
     expect(await handler({ listen: "localhost:6799" })).toBe(token);
     expect(await handler({ listen: "remote:6799" })).toBeNull();
+    // Groupon Desk's hand starts the daemon itself: still this Mac's, still its own credential.
     writeFileSync(lockPath, JSON.stringify({ ...lock, desktopManaged: false }));
+    expect(await handler({ listen: "localhost:6799" })).toBe(token);
+    // A pid file whose process is gone is no daemon.
+    writeFileSync(lockPath, JSON.stringify({ ...lock, pid: 2 ** 22 + 17 }));
     expect(await handler({ listen: "localhost:6799" })).toBeNull();
+    vi.unstubAllEnvs();
+  });
+
+  it("names this Mac's running daemons by server id and listen address", async () => {
+    // The hand's home is under HOME: point HOME at the test's own folder, never the person's.
+    vi.stubEnv("HOME", mocks.paseoHome);
+    mkdirSync(mocks.paseoHome);
+    const lock = {
+      pid: process.pid,
+      startedAt: new Date().toISOString(),
+      hostname: hostname(),
+      uid: process.getuid?.() ?? 0,
+      listen: "127.0.0.1:6870",
+      serverId: "srv_test",
+    };
+    writeFileSync(path.join(mocks.paseoHome, "paseo.pid"), JSON.stringify(lock));
+    const daemons = await createDaemonCommandHandlers().groupon_local_daemons();
+    expect(daemons).toEqual([{ serverId: "srv_test", listen: "127.0.0.1:6870" }]);
+    vi.unstubAllEnvs();
   });
 });

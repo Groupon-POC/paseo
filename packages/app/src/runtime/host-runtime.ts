@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): upsertTrustedOffer, a host from the hub's sealed pairing offer.
 import { useSyncExternalStore, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import equal from "fast-deep-equal/es6";
@@ -2020,6 +2021,17 @@ export class HostRuntimeStore {
       if (!getConnectionAuthFailureReason(error)) throw error;
       return { status: "password_required", link: url, pairing };
     }
+  }
+
+  /**
+   * Groupon Desk: a pairing offer the hub handed over sealed under the person's own vault key and
+   * opened on this device. Its authenticity is the seal, so it is upserted without the link
+   * confirmation a pasted or scanned offer gets.
+   */
+  async upsertTrustedOffer(url: string, label?: string): Promise<HostProfile> {
+    await this.loadRegistry();
+    const { offer } = parseOfferConnectionUrl(url);
+    return this.upsertConnectionFromOffer(offer, label);
   }
 
   private async upsertConnectionFromOffer(

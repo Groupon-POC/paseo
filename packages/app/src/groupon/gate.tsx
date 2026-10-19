@@ -17,6 +17,7 @@ import { EditingTextInput } from "@/components/ui/text-input";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { CoreError, deviceAuthPoll, deviceAuthStart, type DeviceAuthStart } from "./core-client";
 import { GROUPON_ENVIRONMENTS, normaliseCoreUrl, type GrouponEnvironmentId } from "./environments";
+import { GrouponHubSync } from "./hub-sync";
 import { useGrouponStore } from "./session";
 import { GROUPON_GATE } from "./strings";
 
@@ -38,7 +39,14 @@ export function GrouponGate({ children }: { children: ReactNode }) {
     void hydrate();
   }, [hydrate]);
 
-  if (status === "ready") return children;
+  if (status === "ready") {
+    return (
+      <>
+        {children}
+        <GrouponHubSync />
+      </>
+    );
+  }
   return (
     <ScrollView
       style={styles.root}

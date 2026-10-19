@@ -7,8 +7,9 @@ import { SettingsSection } from "@/components/settings/headings/settings-section
 import { Button } from "@/components/ui/button";
 import { settingsStyles } from "@/styles/settings";
 import { environmentById } from "./environments";
+import { useHubMachinesStore, type HubMachineState, type HubMachineView } from "./hub-sync";
 import { useGrouponStore } from "./session";
-import { GROUPON_SETTINGS } from "./strings";
+import { GROUPON_MACHINES, GROUPON_SETTINGS } from "./strings";
 
 function Row({
   title,
@@ -73,13 +74,80 @@ export function GrouponAccountSection() {
   );
 }
 
+const STATE_TEXT: Record<HubMachineState, string> = {
+  added: GROUPON_MACHINES.added,
+  noOffer: GROUPON_MACHINES.noOffer,
+  sealedElsewhere: GROUPON_MACHINES.sealedElsewhere,
+  failed: GROUPON_MACHINES.failed,
+};
+
+function relayText(view: HubMachineView): string {
+  if (!view.machine.relaySessionId) return GROUPON_MACHINES.noRelay;
+  return view.machine.relayConnectedAt
+    ? GROUPON_MACHINES.relayConnected
+    : GROUPON_MACHINES.relayNotConnected;
+}
+
+export function GrouponMachinesSection() {
+  const machines = useHubMachinesStore((state) => state.machines);
+  const syncing = useHubMachinesStore((state) => state.syncing);
+  const error = useHubMachinesStore((state) => state.error);
+  const sync = useHubMachinesStore((state) => state.sync);
+  const handleRefresh = useCallback(() => void sync(), [sync]);
+
+  return (
+    <SettingsSection title={GROUPON_MACHINES.title}>
+      <View style={settingsStyles.card}>
+        {machines.length === 0 ? <Row title={GROUPON_MACHINES.empty} /> : null}
+        {machines.map((view, index) => (
+          <Row
+            key={view.machine.machine}
+            title={view.machine.isPrimary ? `${view.label} (main)` : view.label}
+            hint={[
+              STATE_TEXT[view.state],
+              relayText(view),
+              GROUPON_MACHINES.lastSeen(new Date(view.machine.lastSeenAt).toLocaleString()),
+              view.error,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            value={view.serverId ?? undefined}
+            border={index > 0}
+          />
+        ))}
+        <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={handleRefresh}
+            loading={syncing}
+            testID="groupon-machines-refresh"
+          >
+            {syncing ? GROUPON_MACHINES.refreshing : GROUPON_MACHINES.refresh}
+          </Button>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+        </View>
+      </View>
+    </SettingsSection>
+  );
+}
+
 export function GrouponSettingsPage() {
-  return <GrouponAccountSection />;
+  return (
+    <>
+      <GrouponAccountSection />
+      <GrouponMachinesSection />
+    </>
+  );
 }
 
 const styles = StyleSheet.create((theme) => ({
   value: {
     color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  error: {
+    color: theme.colors.destructive,
     fontSize: theme.fontSize.sm,
   },
 }));

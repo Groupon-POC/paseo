@@ -41,3 +41,18 @@ export const GROUPON_SETTINGS = {
     `Made on this device in ${ms.toLocaleString("en-US")} ms (PBKDF2-SHA256, ${iterations.toLocaleString("en-US")} rounds, ${engine}); kept in its keychain.`,
   signOut: "Sign out of Groupon",
 } as const;
+
+export const GROUPON_MACHINES = {
+  title: "Your Macs on the hub",
+  refresh: "Refresh",
+  refreshing: "Refreshing",
+  empty: "No Mac of yours is on the hub yet. Run groupon desk serve on a Mac to add it.",
+  added: "Added as a host, through Core's relay",
+  noOffer: "Its hand has not offered a connection yet",
+  sealedElsewhere: "Its offer does not open with this vault",
+  failed: "Could not add it",
+  relayConnected: "reachable through the relay",
+  relayNotConnected: "on the relay, not connected",
+  noRelay: "not on the relay",
+  lastSeen: (when: string) => `last seen ${when}`,
+} as const;

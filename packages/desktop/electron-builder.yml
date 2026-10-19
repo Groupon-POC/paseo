@@ -3,7 +3,9 @@ npmRebuild: false
 # Groupon Desk nests this app in its bundle as the work window (tools/groupon-desk, scripts/desk-release
 # in groupon2/engineering-development). Its own id, so macOS never takes it for upstream Paseo or for
 # the menu-bar app (com.groupon.desk). Signing and notarisation come from the environment the release
-# build sets: CSC_NAME (or -c.mac.identity=- for ad-hoc) and APPLE_API_KEY, APPLE_API_KEY_ID, APPLE_API_ISSUER.
+# build sets: CSC_NAME and APPLE_API_KEY, APPLE_API_KEY_ID, APPLE_API_ISSUER. A local build signs ad-hoc with
+# -c.mac.identity=- -c.mac.hardenedRuntime=false: ad-hoc code under the hardened runtime cannot load
+# Electron Framework (library validation, "different Team IDs").
 appId: com.groupon.desk.work
 # The name in the menu bar, the Dock and the About panel. The executable and the bundle file keep
 # Paseo's name, which the packaging hooks and the smoke tests look for.

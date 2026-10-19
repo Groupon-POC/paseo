@@ -32,6 +32,6 @@ this branch with `npm run build:desktop -- --publish never --mac dir --<arch>` a
 in the menu-bar app as `Groupon Desk.app/Contents/Helpers/Groupon Desk Work.app`; Desk's "Work
 window" button opens it. The app id is `com.groupon.desk.work`. Signing and notarisation come from
 the environment that build sets (`CSC_NAME`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`,
-`APPLE_API_ISSUER`; ad-hoc with `-c.mac.identity=-` on a local build). The app never checks Paseo's
+`APPLE_API_ISSUER`; on a local build ad-hoc with `-c.mac.identity=-` and without the hardened runtime, `-c.mac.hardenedRuntime=false`, since ad-hoc code under it cannot load Electron Framework). The app never checks Paseo's
 update feed (`packages/desktop/src/features/auto-updater.ts`): Groupon Desk's own update replaces
 both.

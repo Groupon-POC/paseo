@@ -1,3 +1,5 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one sidebar row per account, with a short name, and accounts that cannot report usage kept as greyed rows with the reason.
+import { usageCopy } from "./copy";
 import { formatPct } from "./format";
 import { displayPercent } from "./model";
 import { effectiveUsagePins, type UsagePreferences } from "./preferences";
@@ -21,6 +23,11 @@ export interface PinnedUsageWindow {
 export interface PinnedUsageSource {
   key: string;
   icon: string | null;
+  /** A short name for the account ("tomas" for tomas@example.com); null when its report names none. */
+  name: string | null;
+  /** The account reports no usage now (a lost sign-in, an error): shown greyed, `hint` says why. */
+  muted: boolean;
+  hint: string | null;
   windows: PinnedUsageWindow[];
 }
 
@@ -50,6 +57,30 @@ export function choosePinnedUsageLayout(input: {
   return percentsWidth < labelsWidth ? "percents" : "labels";
 }
 
+const EMAIL = /[^\s()<>·@]+@[^\s()<>·]+/;
+
+/**
+ * A short name for an account line: the local part of the first email in it ("Claude · tomas@x.com
+ * (Max)" is "tomas"), else the part after a leading "<source> · " without a trailing "(plan)".
+ */
+export function shortAccountName(label: string | undefined): string | null {
+  const text = label?.trim() ?? "";
+  if (text.length === 0) return null;
+  const email = EMAIL.exec(text)?.[0];
+  if (email) return email.slice(0, email.indexOf("@"));
+  const parts = text.split(" · ");
+  const name =
+    (parts.length > 1 ? parts[1] : parts[0])?.replace(/\s*\([^)]*\)\s*$/, "").trim() ?? "";
+  return name.length > 0 ? name : null;
+}
+
+/** Why an account reports no usage, in the Usage page's words. */
+function hintOf(entry: UsageReportEntry): string | null {
+  if (entry.report.status === "unavailable") return usageCopy.problem(entry.report.problem);
+  if (entry.report.status === "error") return entry.report.error;
+  return null;
+}
+
 function describe(entry: UsageReportEntry, windowLabel: string): string {
   const account = entry.account.label ? ` (${entry.account.label})` : "";
   return `${entry.sourceLabel}${account} ${windowLabel}`;
@@ -63,7 +94,10 @@ function groupBySource(reports: readonly UsageReportEntry[]): UsageReportEntry[]
 
 /**
  * The sidebar Usage item's summary: one group per account, grouped by source, each with its
- * windows in its report's order. Accounts with nothing to show are left out.
+ * windows in its report's order. An account whose pins show nothing is left out; one that reports
+ * no usage stays, greyed, beside the accounts that do, so every account is reachable from the
+ * sidebar. With no account showing a window there is no summary at all: the footer's Usage icon
+ * already opens Usage.
  */
 export function resolvePinnedUsage(
   reports: readonly UsageReportEntry[],
@@ -71,8 +105,19 @@ export function resolvePinnedUsage(
 ): PinnedUsageSource[] {
   const pins = effectiveUsagePins(preferences, reports);
   const meaning = preferences.displayAs === "remaining" ? "left" : "used";
-  return groupBySource(reports).flatMap((entry) => {
-    if (entry.report.status !== "available") return [];
+  const rows = groupBySource(reports).flatMap((entry): PinnedUsageSource[] => {
+    const name = shortAccountName(entry.account.label);
+    if (entry.report.status !== "available")
+      return [
+        {
+          key: entry.id,
+          icon: entry.icon ?? null,
+          name,
+          muted: true,
+          hint: hintOf(entry),
+          windows: [],
+        },
+      ];
     const windows = entry.report.windows
       .filter(
         (window) =>
@@ -92,6 +137,7 @@ export function resolvePinnedUsage(
         };
       });
     if (windows.length === 0) return [];
-    return [{ key: entry.id, icon: entry.icon ?? null, windows }];
+    return [{ key: entry.id, icon: entry.icon ?? null, name, muted: false, hint: null, windows }];
   });
+  return rows.some((row) => !row.muted) ? rows : [];
 }

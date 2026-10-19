@@ -1,8 +1,10 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): rows carry a short account name; accounts that report no usage stay as greyed rows.
 import { describe, expect, it } from "vitest";
 import type { UsagePreferences } from "./preferences";
 import {
   choosePinnedUsageLayout,
   resolvePinnedUsage,
+  shortAccountName,
   type PinnedUsageSource,
   type PinnedUsageWindow,
 } from "./pinned";
@@ -139,6 +141,9 @@ describe("resolvePinnedUsage", () => {
     expect(sources[0]).toEqual({
       key: "claude:default",
       icon: "<svg/>",
+      name: null,
+      muted: false,
+      hint: null,
       windows: [
         {
           key: "claude:default/five-hour",
@@ -257,7 +262,7 @@ describe("resolvePinnedUsage", () => {
   });
 });
 
-it("keeps unavailable and error reports out of the sidebar summary even with retained data", () => {
+it("keeps unavailable and error reports as greyed rows that say why beside a live one, without their retained data", () => {
   if (claude.report.status !== "available" || codex.report.status !== "available")
     throw new Error("fixtures must be available");
   const expired: UsageReportEntry = {
@@ -273,5 +278,79 @@ it("keeps unavailable and error reports out of the sidebar summary even with ret
     lastSuccessful: { fetchedAt: codex.fetchedAt, report: codex.report },
     report: { status: "error", error: "Store deleted" },
   };
+  // Nothing live: no summary at all, the footer's Usage icon opens Usage.
   expect(resolvePinnedUsage([expired, failed], preferences(null))).toEqual([]);
+  const live: UsageReportEntry = { ...claude, id: "claude:work", account: { label: "work" } };
+  expect(resolvePinnedUsage([live, expired, failed], preferences(null)).slice(1)).toEqual([
+    {
+      key: "claude:default",
+      icon: "<svg/>",
+      name: null,
+      muted: true,
+      hint: expect.stringMatching(/^Login expired .*\. Run claude to refresh it\.$/),
+      windows: [],
+    },
+    {
+      key: "codex:default",
+      icon: null,
+      name: null,
+      muted: true,
+      hint: "Store deleted",
+      windows: [],
+    },
+  ]);
+});
+
+it("keeps a Groupon Desk subscription the hand could not use as a greyed row with its remedy", () => {
+  const dead: UsageReportEntry = {
+    id: "groupon-subscriptions:dd",
+    account: { label: "Claude · dead@example.com" },
+    fetchedAt: "2026-01-01T00:00:00.000Z",
+    sourceId: "groupon-subscriptions",
+    sourceLabel: "Groupon subscriptions",
+    report: {
+      status: "unavailable",
+      problem: {
+        kind: "no_quota",
+        detail: "Sign in again in Groupon Desk: its backup holds no refresh token.",
+      },
+    },
+  };
+  if (claude.report.status !== "available") throw new Error("fixtures must be available");
+  const live: UsageReportEntry = {
+    ...dead,
+    id: "groupon-subscriptions:aa",
+    account: { label: "Claude · tomas@example.com (Max)" },
+    report: claude.report,
+  };
+  const rows = resolvePinnedUsage([live, dead], preferences(null));
+  expect(
+    rows.map((row) => [row.name, row.muted, row.windows.map((item) => item.percentText)]),
+  ).toEqual([
+    ["tomas", false, ["31%"]],
+    ["dead", true, []],
+  ]);
+  expect(rows.slice(1)).toEqual([
+    {
+      key: "groupon-subscriptions:dd",
+      icon: null,
+      name: "dead",
+      muted: true,
+      hint: "Sign in again in Groupon Desk: its backup holds no refresh token.",
+      windows: [],
+    },
+  ]);
+});
+
+describe("shortAccountName", () => {
+  it.each([
+    ["Claude · c_tzaruba@groupon.com (Max) · also the default Claude sign-in", "c_tzaruba"],
+    ["tomas@example.com", "tomas"],
+    ["Claude · Groupon (Max)", "Groupon"],
+    ["work", "work"],
+    ["", null],
+    [undefined, null],
+  ])("names %j as %j", (label, name) => {
+    expect(shortAccountName(label)).toBe(name);
+  });
 });

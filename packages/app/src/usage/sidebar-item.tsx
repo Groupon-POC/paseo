@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one row per account in the sidebar's usage summary, a greyed row with a tooltip for an account that reports no usage.
 import {
   createContext,
   Fragment,
@@ -20,6 +21,8 @@ import { builtinSidebarNavLabelKey } from "@/sidebar-nav/model";
 import { useUsagePreferences } from "./display";
 import { useUsageHostId } from "./hosts";
 import { useUsageHostReports } from "./queries";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { usageCopy } from "./copy";
 import { UsageSourceIcon } from "./source-icon";
 import { UsageMeter } from "./meter";
 import {
@@ -45,9 +48,9 @@ export function useHasUsageSummary(): boolean {
 }
 
 /**
- * The sidebar footer's usage entry: each summary window's source icon and percent, and nothing
- * while no summary window has data, since the footer's Usage icon already opens Usage.
- * Pressing it opens the Usage modal.
+ * The sidebar footer's usage entry: one row per account with its summary windows' percents (a
+ * greyed row for one that reports no usage), and nothing while no account has a row, since the
+ * footer's Usage icon already opens Usage. Pressing a row opens the Usage modal.
  */
 export function UsageSidebarItem() {
   const { t } = useTranslation();
@@ -90,9 +93,10 @@ export function useOpenSidebarUsage(): () => void {
   return openUsage;
 }
 
-function pinnedUsageLabel(label: string, sources: readonly PinnedUsageSource[]): string {
-  const windows = sources.flatMap((source) => source.windows);
-  return `${label}: ${windows.map((window) => window.label).join(", ")}`;
+function pinnedUsageLabel(label: string, source: PinnedUsageSource): string {
+  const name = source.name ? ` ${source.name}` : "";
+  if (source.muted) return `${label}${name}: ${source.hint ?? usageCopy.empty}`;
+  return `${label}${name}: ${source.windows.map((window) => window.label).join(", ")}`;
 }
 
 function triggerStyle({ hovered }: PressableStateCallbackType & { hovered?: boolean }) {
@@ -104,9 +108,11 @@ function layoutWidth(event: LayoutChangeEvent): number {
 }
 
 /**
- * One line: each account's icon, then per window a meter and "31% 5h". Off-screen copies measure
- * the line with labels and with percents alone; the richest layout that fits is shown, and what
- * it leaves out takes no space at all.
+ * One row per account: its mark, its short name, then per window a meter and "31% 5h", so every
+ * account (every Groupon Desk subscription) is in reach without opening Usage. An account that
+ * reports no usage is a greyed row with its reason in a tooltip. Off-screen copies measure the
+ * widest row with labels and with percents alone; the richest layout that fits every row is
+ * shown, and what it leaves out takes no space at all.
  */
 function PinnedUsageTrigger({
   label,
@@ -133,19 +139,20 @@ function PinnedUsageTrigger({
     available,
     labelsWidth,
     percentsWidth,
-    windowCount: sources.reduce((count, source) => count + source.windows.length, 0),
+    windowCount: sources.reduce((most, source) => Math.max(most, source.windows.length), 0),
   });
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={pinnedUsageLabel(label, sources)}
-      style={triggerStyle}
-      testID="sidebar-usage"
-    >
-      <View style={styles.line} onLayout={handleAvailableLayout}>
-        <PinnedUsageLine sources={sources} layout={layout} />
-      </View>
+    <View style={styles.rows} testID="sidebar-usage">
+      {sources.map((source, index) => (
+        <PinnedUsageRow
+          key={source.key}
+          label={label}
+          source={source}
+          layout={layout}
+          onPress={onPress}
+          onLineLayout={index === 0 ? handleAvailableLayout : undefined}
+        />
+      ))}
       <View
         style={styles.measure}
         pointerEvents="none"
@@ -154,39 +161,94 @@ function PinnedUsageTrigger({
         aria-hidden
       >
         <View style={styles.measured} onLayout={handleLabelsLayout}>
-          <PinnedUsageLine sources={sources} layout="labels" measuring />
+          {sources.map((source) => (
+            <View key={source.key} style={styles.measuredRow}>
+              <PinnedUsageLine source={source} layout="labels" measuring />
+            </View>
+          ))}
         </View>
         <View style={styles.measured} onLayout={handlePercentsLayout}>
-          <PinnedUsageLine sources={sources} layout="percents" measuring />
+          {sources.map((source) => (
+            <View key={source.key} style={styles.measuredRow}>
+              <PinnedUsageLine source={source} layout="percents" measuring />
+            </View>
+          ))}
         </View>
       </View>
+    </View>
+  );
+}
+
+/** One account's row; a greyed one carries its reason in a tooltip (and in its accessible label). */
+function PinnedUsageRow({
+  label,
+  source,
+  layout,
+  onPress,
+  onLineLayout,
+}: {
+  label: string;
+  source: PinnedUsageSource;
+  layout: PinnedUsageLayout;
+  onPress: () => void;
+  onLineLayout?: (event: LayoutChangeEvent) => void;
+}) {
+  const row = (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={pinnedUsageLabel(label, source)}
+      style={triggerStyle}
+      testID="sidebar-usage-row"
+    >
+      <View style={[styles.line, source.muted ? styles.mutedLine : null]} onLayout={onLineLayout}>
+        <PinnedUsageLine source={source} layout={layout} />
+      </View>
     </Pressable>
+  );
+  if (!source.muted || !source.hint) return row;
+  return (
+    <Tooltip delayDuration={300}>
+      <TooltipTrigger asChild>{row}</TooltipTrigger>
+      <TooltipContent side="top" align="start" offset={6} testID="sidebar-usage-hint">
+        <Text style={styles.hint}>{source.hint}</Text>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
 /**
- * The line's items as direct children of one row, so every meter shares the leftover width
- * equally.
+ * One row's items as direct children of one line, so every meter shares the leftover width
+ * equally: the mark, the name in a slot of its own (so the windows of every row line up), then
+ * the windows, or the reason of a greyed row.
  */
 function PinnedUsageLine({
-  sources,
+  source,
   layout,
   measuring = false,
 }: {
-  sources: readonly PinnedUsageSource[];
+  source: PinnedUsageSource;
   layout: PinnedUsageLayout;
   measuring?: boolean;
 }) {
-  return sources.map((source, sourceIndex) => (
-    <Fragment key={source.key}>
-      <View
-        style={sourceIndex === 0 ? null : styles.sourceGap}
-        testID={measuring ? undefined : "sidebar-usage-source"}
-      >
+  return (
+    <>
+      <View testID={measuring ? undefined : "sidebar-usage-source"}>
         <UsageSourceIcon svg={source.icon} size={14} />
       </View>
+      {source.name ? (
+        <Text style={[styles.name, styles.iconGap]} numberOfLines={1}>
+          {source.name}
+        </Text>
+      ) : null}
+      {/* The reason shrinks into whatever the row leaves; it never sets the measured width. */}
+      {source.muted && !measuring ? (
+        <Text style={[styles.hintInline, styles.windowGap]} numberOfLines={1}>
+          {source.hint ?? usageCopy.empty}
+        </Text>
+      ) : null}
       {source.windows.map((window, windowIndex) => {
-        const leadStyle = windowIndex === 0 ? styles.iconGap : styles.windowGap;
+        const leadStyle = windowIndex === 0 && !source.name ? styles.iconGap : styles.windowGap;
         return (
           <Fragment key={window.key}>
             {layout === "meters" ? (
@@ -212,19 +274,22 @@ function PinnedUsageLine({
           </Fragment>
         );
       })}
-    </Fragment>
-  ));
+    </>
+  );
 }
 
 const styles = StyleSheet.create((theme) => ({
+  rows: {
+    width: "100%",
+  },
   trigger: {
     width: "100%",
     flexDirection: "row",
     alignItems: "center",
     overflow: "hidden",
-    // Same row geometry and leading rail as Add project and the footer icons.
-    minHeight: 28,
-    paddingVertical: theme.spacing[1],
+    // The leading rail of Add project and the footer icons; rows tighter than one, so five fit.
+    minHeight: 24,
+    paddingVertical: theme.spacing[0.5],
     paddingHorizontal: theme.spacing[2],
     borderRadius: theme.borderRadius.lg,
   },
@@ -246,13 +311,33 @@ const styles = StyleSheet.create((theme) => ({
     width: 10_000,
     opacity: 0,
   },
+  // A column as wide as its widest row.
   measured: {
+    alignSelf: "flex-start",
+  },
+  measuredRow: {
     alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
   },
-  sourceGap: {
-    marginLeft: theme.spacing[3],
+  mutedLine: {
+    opacity: 0.5,
+  },
+  // One width for every row's name, so the windows of all rows start in one column.
+  name: {
+    width: 72,
+    flexShrink: 0,
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  hintInline: {
+    flexShrink: 1,
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  hint: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
   },
   iconGap: {
     marginLeft: theme.spacing[1.5],

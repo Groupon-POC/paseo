@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): an Add a project "+" in the Workspaces header.
 import { router } from "expo-router";
 import {
   CircleGauge,
@@ -36,6 +37,7 @@ import {
 } from "@/components/sidebar-resize-handle-layout";
 import { HostPicker } from "@/components/hosts/host-picker";
 import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-preferences/menu";
+import { SidebarAddProjectButton } from "@/components/sidebar/sidebar-add-project-button";
 import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
 import { SidebarFooterIconHighlight } from "@/components/sidebar/sidebar-footer-icon-highlight";
@@ -834,6 +836,7 @@ function DesktopSidebar({
 function WorkspacesSectionHeader() {
   return (
     <SidebarSectionHeader title="Workspaces">
+      <SidebarAddProjectButton />
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
           <View>

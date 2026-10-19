@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a project row's "+" (new workspace) always shows, as in Conductor.
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
   View,
@@ -431,15 +432,6 @@ function ProjectRowTrailingActions({
   const actionsVisible = isHovered || platformIsNative || isMobileBreakpoint;
   return (
     <View style={styles.projectTrailingActions}>
-      {worktreeTarget ? (
-        <NewWorktreeButton
-          displayName={displayName}
-          onPress={onBeginWorkspaceSetup}
-          visible={actionsVisible}
-          showShortcutHint={isProjectActive}
-          testID={`sidebar-project-new-worktree-${projectViewKey}`}
-        />
-      ) : null}
       {onRemoveProject ? (
         <View
           style={!actionsVisible && styles.projectKebabButtonHidden}
@@ -453,6 +445,16 @@ function ProjectRowTrailingActions({
             removeProjectStatus={removeProjectStatus}
           />
         </View>
+      ) : null}
+      {worktreeTarget ? (
+        <NewWorktreeButton
+          displayName={displayName}
+          onPress={onBeginWorkspaceSetup}
+          // Always there and last, hovered or not: the row's own way to a new workspace here.
+          visible
+          showShortcutHint={isProjectActive}
+          testID={`sidebar-project-new-worktree-${projectViewKey}`}
+        />
       ) : null}
     </View>
   );

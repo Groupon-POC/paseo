@@ -1,10 +1,19 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): a Mac on the hub becomes a host only when its offer opens.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): a Mac on the hub becomes a host only when its offer opens, through the door or through Core.
 import { createCipheriv, hkdfSync, randomBytes } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const upsertTrustedOffer = vi.fn(async (_url: string, _label?: string) => ({
-  serverId: "srv_test",
-}));
+const upsertTrustedOffer = vi.fn(
+  async (_url: string, _label?: string, relay?: { endpoint: string; useTls: boolean }) => ({
+    serverId: "srv_test",
+    connections: [
+      {
+        id: `relay:${relay?.endpoint ?? "127.0.0.1:6871"}`,
+        type: "relay",
+        relayEndpoint: relay?.endpoint ?? "127.0.0.1:6871",
+      },
+    ],
+  }),
+);
 const upsertConnectionFromListen = vi.fn(
   async (_input: { listenAddress: string; serverId: string; hostname: string | null }) => ({
     serverId: "srv_test",
@@ -19,7 +28,7 @@ vi.mock("./session", () => ({
   grouponRequest: vi.fn(),
 }));
 
-const { addMachine } = await import("./hub-sync");
+const { addMachine, relayForDevice } = await import("./hub-sync");
 const { sealKeyFromVaultKey } = await import("./crypto");
 
 const LABEL = "groupon-desk-relay/1";
@@ -62,6 +71,22 @@ function machine(overrides: Record<string, unknown> = {}) {
   };
 }
 
+describe("relayForDevice", () => {
+  it("keeps the hand's door on a Mac that runs a hand, and goes to Core everywhere else", () => {
+    const local = [{ serverId: "srv_test", listen: "127.0.0.1:6870" }];
+
+    expect(relayForDevice(local, "http://localhost:4100")).toBeNull();
+    expect(relayForDevice([], "http://localhost:4100")).toEqual({
+      endpoint: "localhost:4100",
+      useTls: false,
+    });
+    expect(relayForDevice([], "https://api-core.livingsocial.com")).toEqual({
+      endpoint: "api-core.livingsocial.com:443",
+      useTls: true,
+    });
+  });
+});
+
 describe("addMachine", () => {
   const sealKey = sealKeyFromVaultKey(new Uint8Array(vaultKey));
   beforeEach(() => {
@@ -75,6 +100,20 @@ describe("addMachine", () => {
     expect(upsertTrustedOffer).toHaveBeenCalledWith(OFFER, "Studio");
     expect(upsertConnectionFromListen).not.toHaveBeenCalled();
     expect(view.direct).toBeNull();
+    expect(view.relay).toBe("127.0.0.1:6871");
+  });
+
+  it("adds the Mac through Core when the device has no door, with the offer's own daemon key", async () => {
+    const viaCore = { endpoint: "api-core.livingsocial.com:443", useTls: true };
+
+    const view = await addMachine(machine(), sealKey, [], viaCore);
+
+    expect(upsertTrustedOffer).toHaveBeenCalledWith(OFFER, "Studio", viaCore);
+    expect(view).toMatchObject({
+      state: "added",
+      relay: "api-core.livingsocial.com:443",
+      direct: null,
+    });
   });
 
   it("gives the Mac the app runs on a direct connection beside the relay", async () => {

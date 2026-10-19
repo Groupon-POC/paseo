@@ -55,6 +55,7 @@ export const GROUPON_MACHINES = {
   relayConnected: "reachable through the relay",
   relayNotConnected: "on the relay, not connected",
   noRelay: "not on the relay",
+  relayAt: (endpoint: string) => `at ${endpoint}`,
   lastSeen: (when: string) => `last seen ${when}`,
 } as const;
 

@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "Paseo",
-  "short_name": "Paseo",
-  "description": "Monitor and control local AI coding agents from anywhere.",
+  "name": "Groupon Desk",
+  "short_name": "Groupon Desk",
+  "description": "Groupon Desk: your coding agents on every Mac, from anywhere. Built on Paseo.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

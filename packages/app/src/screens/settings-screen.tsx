@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the About line naming Paseo and its author.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -91,6 +92,7 @@ import { isElectronRuntime } from "@/desktop/host";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
+import { GROUPON_ABOUT } from "@/groupon/strings";
 import { openChangelog } from "@/changelog";
 import { useAppDiagnosticStore } from "@/diagnostics/store";
 import { settingsStyles } from "@/styles/settings";
@@ -474,6 +476,15 @@ function AboutSection({ appVersion, appVersionText, isDesktopApp }: AboutSection
               <Text style={settingsStyles.rowHint}>{t("settings.about.thisDevice")}</Text>
             </View>
             <Text style={styles.aboutValue}>{appVersionText}</Text>
+          </View>
+          <View
+            style={[settingsStyles.row, settingsStyles.rowBorder]}
+            testID="settings-built-on-paseo"
+          >
+            <View style={settingsStyles.rowContent}>
+              <Text style={settingsStyles.rowTitle}>{GROUPON_ABOUT.builtOn}</Text>
+              <Text style={settingsStyles.rowHint}>{GROUPON_ABOUT.builtOnHint}</Text>
+            </View>
           </View>
           <WhatsNewRow />
           {isDesktopApp ? <DesktopAppUpdateRow /> : null}

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no nudge for a repository whose default branch carries .groupon/desk.toml or paseo.json.
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo } from "react";
@@ -5,6 +6,8 @@ import { useSidebarCallouts } from "@/contexts/sidebar-callout-context";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
+import { useRepositoryStandard } from "@/groupon/repository-settings";
+import { hasRepositoryStandard } from "@/groupon/repository-settings-model";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import {
   buildWorktreeSetupCalloutPolicy,
@@ -42,12 +45,20 @@ export function WorktreeSetupCalloutSource() {
     retry: false,
   });
 
+  // The repository's own file is everyone's default: nobody is asked to set worktree scripts up.
+  const standard = useRepositoryStandard(
+    client,
+    activeProject?.serverId ?? "",
+    activeProject?.repoRoot ?? "",
+  );
+  const repositoryDecides = !standard.settled || hasRepositoryStandard(standard.answer);
+
   const calloutPolicy = useMemo(
     () =>
-      activeProject && shouldShowWorktreeSetupCallout(readQuery.data)
+      activeProject && !repositoryDecides && shouldShowWorktreeSetupCallout(readQuery.data)
         ? buildWorktreeSetupCalloutPolicy(activeProject)
         : null,
-    [activeProject, readQuery.data],
+    [activeProject, readQuery.data, repositoryDecides],
   );
 
   useEffect(() => {

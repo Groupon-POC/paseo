@@ -47,6 +47,7 @@ const SAMPLE_PROJECT_SETTINGS = {
   fileUrl: "https://github.com/groupon2/engineering-development/blob/staging/.groupon/desk.toml",
   fetchedAt: "2026-10-19T16:00:00.000Z",
   problem: null,
+  hasPaseoJson: true,
 };
 
 function fakeClient(answers: Record<string, unknown[]>) {

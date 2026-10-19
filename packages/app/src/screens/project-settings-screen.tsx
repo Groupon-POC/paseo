@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a repository with .groupon/desk.toml shows its values read-only; Paseo's form is the override.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -31,6 +32,7 @@ import { SettingsTextAreaCard } from "@/components/settings-textarea";
 import { SettingsGroup } from "@/components/settings/headings/settings-group";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { settingsStyles } from "@/styles/settings";
+import { RepositoryStandardGate } from "@/groupon/repository-settings";
 import { useProjects } from "@/hooks/use-projects";
 import type { ProjectEditFormSnapshot } from "@/projects/edit-form";
 import { useProjectIcons } from "@/projects/icons";
@@ -386,16 +388,23 @@ function renderContent({
 
   const formKey = `${selectedHost.serverId}::${selectedHost.repoRoot}::${revisionToKey(loadedRevision)}`;
   return (
-    <ProjectConfigForm
-      key={formKey}
-      baseConfig={loadedConfig}
-      revision={loadedRevision}
-      hasUncommittedWorktreeSetupChanges={hasUncommittedWorktreeSetupChanges}
-      repoRoot={selectedHost.repoRoot}
-      queryKey={queryKey}
+    <RepositoryStandardGate
       client={client}
-      onReload={onReload}
-    />
+      serverId={selectedHost.serverId}
+      repoRoot={selectedHost.repoRoot}
+      localConfig={loadedConfig}
+    >
+      <ProjectConfigForm
+        key={formKey}
+        baseConfig={loadedConfig}
+        revision={loadedRevision}
+        hasUncommittedWorktreeSetupChanges={hasUncommittedWorktreeSetupChanges}
+        repoRoot={selectedHost.repoRoot}
+        queryKey={queryKey}
+        client={client}
+        onReload={onReload}
+      />
+    </RepositoryStandardGate>
   );
 }
 

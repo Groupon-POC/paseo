@@ -124,3 +124,29 @@ export const GROUPON_TICKET = {
   didNotFinish: "The start did not finish.",
   openComment: "Open the readiness comment",
 } as const;
+
+export const GROUPON_REPOSITORY = {
+  openFile: "The file on GitHub",
+  overridesPresent:
+    "This Mac overrides some of these values in this checkout's paseo.json; each is marked below.",
+  overridden: "Overridden on this Mac:",
+  lifecycleTitle: "Worktree lifecycle hooks",
+  setup: "Setup",
+  teardown: "Teardown",
+  none: "None",
+  notSet: "Not set in the file",
+  scriptsTitle: "Scripts",
+  noScripts: "The file names no run script.",
+  defaultScript: "default",
+  metadataTitle: "Metadata generation",
+  branchNames: "Branch names",
+  branchNamesStandard: "The company standard: groupon ticket name decides.",
+  commitMessages: "Commit messages",
+  pullRequests: "Pull requests",
+  gitTitle: "Git",
+  targetBranch: "Target branch",
+  envRequired: "Variables a script needs (names only)",
+  overrideTitle: "Override on this Mac",
+  overrideHint:
+    "Optional. Paseo's own settings in this checkout's paseo.json: they apply on this Mac only, are marked as overrides above, and are never the repository's default. Do not commit them.",
+} as const;

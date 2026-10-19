@@ -110,6 +110,8 @@ export interface ProjectSettingsAnswer {
   fileUrl: string | null;
   fetchedAt: string | null;
   problem: string | null;
+  /** The default branch carries Paseo's own paseo.json (the shim, in a Groupon repository). */
+  hasPaseoJson: boolean;
 }
 
 export interface TicketStartInput {
@@ -171,6 +173,7 @@ export function isProjectSettingsAnswer(value: unknown): value is ProjectSetting
   return (
     isRecord(value) &&
     (value.source === "default-branch" || value.source === "checkout" || value.source === "none") &&
+    typeof value.hasPaseoJson === "boolean" &&
     (value.settings === null || (isRecord(value.settings) && Array.isArray(value.settings.run)))
   );
 }

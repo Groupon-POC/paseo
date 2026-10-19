@@ -141,7 +141,7 @@ function RepositorySettingsPanel({
       </View>
       {answer.problem ? <Text style={styles.problem}>{answer.problem}</Text> : null}
       {hasOverrides(overrides) ? (
-        <Text style={styles.override}>{GROUPON_REPOSITORY.overridesPresent}</Text>
+        <Text style={styles.overrideBanner}>{GROUPON_REPOSITORY.overridesPresent}</Text>
       ) : null}
 
       <SettingsGroup title={GROUPON_REPOSITORY.lifecycleTitle} testID="groupon-worktree-group">
@@ -301,6 +301,11 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.statusWarning,
     fontSize: theme.fontSize.sm,
     marginTop: theme.spacing[1],
+  },
+  overrideBanner: {
+    color: theme.colors.statusWarning,
+    fontSize: theme.fontSize.sm,
+    marginBottom: theme.spacing[4],
   },
   overrideBlock: {
     marginTop: theme.spacing[6],

@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the Projects page from the repository's .groupon/desk.toml.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the Projects page from the repository's .groupon/desk.toml, with its Encore card.
 
 /**
  * The Projects page of a repository that carries `.groupon/desk.toml`: every field filled from the
@@ -7,6 +7,8 @@
  * Paseo's own editable page stays, collapsed, as "Override on this Mac": it writes this checkout's
  * `paseo.json`, which applies on this Mac only, and each value it changes is marked as an override.
  * A repository without the file, or a daemon without the plugin, keeps Paseo's page as it is.
+ * Under the values, the Encore card (`encore-state-section.tsx`) when the file names Encore apps
+ * or release trains.
  */
 
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -22,6 +24,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFetchQuery } from "@/data/query";
 import { settingsStyles } from "@/styles/settings";
 import { openExternalUrl } from "@/utils/open-external-url";
+import { EncoreStateSection } from "./encore-state-section";
 import {
   readProjectSettings,
   type PluginRpcClient,
@@ -85,6 +88,7 @@ export function RepositoryStandardGate({
   return (
     <View>
       <RepositorySettingsPanel answer={answer} overrides={overridesOf(localConfig)} />
+      <EncoreStateSection client={client} serverId={serverId} repoRoot={repoRoot} />
       <OverrideOnThisMac>{children}</OverrideOnThisMac>
     </View>
   );

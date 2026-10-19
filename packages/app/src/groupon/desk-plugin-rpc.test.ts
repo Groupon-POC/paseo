@@ -5,7 +5,11 @@ import {
   GROUPON_PLUGIN_ID,
   GROUPON_RPC,
   isJobAnswer,
+  isEncoreAccessAnswer,
+  isEncoreStateAnswer,
   isProjectSettingsAnswer,
+  readEncoreState,
+  requestEncoreAccess,
   pluginProblemText,
   readGithubAccess,
   startTicketJob,
@@ -50,6 +54,56 @@ const SAMPLE_PROJECT_SETTINGS = {
   hasPaseoJson: true,
 };
 
+const SAMPLE_ENCORE_STATE = {
+  configured: true,
+  apps: [
+    {
+      key: "core",
+      slug: "groupon-core-v3s2",
+      name: "Core",
+      standing: "not-member",
+      role: null,
+      requestPending: false,
+      approver: "owner@groupon.com",
+      environments: [
+        {
+          environment: "staging",
+          rollout: {
+            rolloutId: "roll_abc",
+            status: "completed",
+            conclusion: "success",
+            commitShort: "0b67a96a02",
+            queuedAt: "2026-10-19T08:00:00.000Z",
+            startedAt: "2026-10-19T08:01:00.000Z",
+            completedAt: "2026-10-19T08:11:00.000Z",
+            dashboardUrl: "https://app.encore.cloud/groupon-core-v3s2/envs/staging/deploys/abc",
+          },
+        },
+        { environment: "production", rollout: null },
+      ],
+    },
+  ],
+  appsProblem: null,
+  releases: { base: "production" },
+  train: {
+    number: 344,
+    title: "STG -> PRD 2026-10-19 Train (12 commits)",
+    url: "https://github.com/groupon2/engineering-development/pull/344",
+    checks: "pending",
+    createdAt: "2026-10-19T06:00:00Z",
+  },
+  trainProblem: null,
+  fileProblems: [],
+  environment: "production",
+  readAt: "2026-10-19T16:00:00.000Z",
+};
+
+const SAMPLE_ENCORE_REQUEST = {
+  slug: "groupon-core-v3s2",
+  state: "filed",
+  message: "Access request submitted",
+};
+
 function fakeClient(answers: Record<string, unknown[]>) {
   const calls: { pluginId: string; method: string; input: unknown }[] = [];
   const client: PluginRpcClient = {
@@ -74,6 +128,8 @@ describe("the Groupon plugin's RPCs", () => {
       job: "groupon.job",
       ticketFlow: "groupon.ticket-flow",
       projectSettings: "groupon.project-settings",
+      encoreState: "groupon.encore-state",
+      requestEncoreAccess: "groupon.encore-request-access",
     });
   });
 
@@ -81,6 +137,9 @@ describe("the Groupon plugin's RPCs", () => {
     expect(isJobAnswer(SAMPLE_JOB_STARTED)).toBe(true);
     expect(isProjectSettingsAnswer(SAMPLE_PROJECT_SETTINGS)).toBe(true);
     expect(isJobAnswer({ jobId: "x" })).toBe(false);
+    expect(isEncoreStateAnswer(SAMPLE_ENCORE_STATE)).toBe(true);
+    expect(isEncoreAccessAnswer(SAMPLE_ENCORE_REQUEST)).toBe(true);
+    expect(isEncoreAccessAnswer({ ...SAMPLE_ENCORE_REQUEST, state: "granted" })).toBe(false);
   });
 
   it("calls the groupon plugin with the method and the input", async () => {
@@ -112,6 +171,24 @@ describe("the Groupon plugin's RPCs", () => {
         { ticket: "ENC-1234", projectRoot: "/r", provider: "claude", model: "opus" },
       ],
     ]);
+  });
+
+  it("reads the Encore card and files a request through the plugin", async () => {
+    const { client, calls } = fakeClient({
+      [GROUPON_RPC.encoreState]: [SAMPLE_ENCORE_STATE],
+      [GROUPON_RPC.requestEncoreAccess]: [SAMPLE_ENCORE_REQUEST],
+    });
+    expect((await readEncoreState(client, "/r")).train?.number).toBe(344);
+    expect((await requestEncoreAccess(client, "groupon-core-v3s2")).state).toBe("filed");
+    expect(calls.map(({ method, input }) => [method, input])).toEqual([
+      ["groupon.encore-state", { projectRoot: "/r" }],
+      ["groupon.encore-request-access", { slug: "groupon-core-v3s2" }],
+    ]);
+  });
+
+  it("refuses an Encore card of another shape", async () => {
+    const { client } = fakeClient({ [GROUPON_RPC.encoreState]: [{ configured: true }] });
+    await expect(readEncoreState(client, "/r")).rejects.toThrow(/shape/);
   });
 
   it("follows a job until it ends, and stops when the screen goes away", async () => {

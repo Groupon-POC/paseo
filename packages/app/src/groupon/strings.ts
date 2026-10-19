@@ -170,3 +170,36 @@ export const GROUPON_PREFERENCES = {
   remindWorktreeScriptsHint:
     "Off by default. A repository's .groupon/desk.toml is everyone's setup; turn this on to see the reminder card for a project that has none.",
 } as const;
+
+export const GROUPON_ENCORE = {
+  title: "Encore",
+  caption:
+    "The Encore apps this repository's .groupon/desk.toml names, with their latest rollouts.",
+  refresh: "Refresh",
+  noRollout: "no rollout reported yet",
+  openRollout: "Open on Encore Cloud",
+  member: "You are a member",
+  invited: "Invited: accept the invitation Encore Cloud emailed you",
+  notMember: "You are not a member",
+  requestWaiting: "Your request for access waits for a decision",
+  decidedBy: "by",
+  unknown: "Encore Cloud could not say whether you are a member",
+  notHandedOut: "The platform does not hand out access to this app",
+  askForAccess: "Ask for access",
+  askUnknownHint:
+    "Nobody could say whether you are already a member: this files a request for developer access, and the app's stakeholder decides.",
+  askHint: "Files a request for developer access; the app's stakeholder decides.",
+  filed:
+    "Request filed: the app's stakeholder decides, then Encore Cloud emails you an invitation.",
+  trainTitle: "Release train",
+  noTrain: "No release train is open.",
+  trainInto: "Open pull requests into",
+  checks: {
+    passing: "checks passing",
+    failing: "checks failing",
+    pending: "checks running",
+    none: "no checks",
+  },
+  fileProblems: "Left out of the repository file:",
+  environmentNote: "Read on",
+} as const;

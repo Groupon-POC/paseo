@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import { i18n } from "@/i18n/i18next";
 import type { UsageDisplayAs } from "./preferences";
 import type { UsageBalanceUnit } from "./types";
@@ -11,17 +12,17 @@ const providerUsageLabels = {
   monthly_credits: { label: "Monthly credits", key: "providerUsage.labels.monthlyCredits" },
 } as const;
 
-export function formatProviderUsageLabel(id: string, label: string): string {
+export function formatProviderUsageLabel(id: string, label: string, t: TFunction = i18n.t): string {
   const reviewPrefix = "Code review · ";
   if (id.startsWith("code_review:") && label.startsWith(reviewPrefix)) {
     const periodId = id.slice("code_review:".length);
     const periodLabel = label.slice(reviewPrefix.length);
-    return `${i18n.t(providerUsageLabels.code_review.key)} · ${formatProviderUsageLabel(periodId, periodLabel)}`;
+    return `${t(providerUsageLabels.code_review.key)} · ${formatProviderUsageLabel(periodId, periodLabel, t)}`;
   }
   const standard =
     providerUsageLabels[id as keyof typeof providerUsageLabels] ??
     (id === "five_hour" ? providerUsageLabels.session : undefined);
-  return standard?.label === label ? i18n.t(standard.key) : label;
+  return standard?.label === label ? t(standard.key) : label;
 }
 
 export function clampPct(value: number): number {
@@ -41,11 +42,12 @@ export function formatDisplayPct(
   value: number,
   displayAs: UsageDisplayAs,
   locale?: string,
+  t: TFunction = i18n.t,
 ): string {
   const percentage = formatPct(value, locale);
   return displayAs === "used"
-    ? i18n.t("providerUsage.values.used", { percentage })
-    : i18n.t("providerUsage.values.remaining", { amount: percentage });
+    ? t("providerUsage.values.used", { percentage })
+    : t("providerUsage.values.remaining", { amount: percentage });
 }
 
 type RelativeDuration = { unit: "now" } | { unit: "minutes" | "hours" | "days"; count: number };
@@ -66,22 +68,22 @@ function relativeDuration(iso: string, now: number): RelativeDuration | null {
   return { unit: "minutes", count: diffMinutes };
 }
 
-function formatRelativeDuration(duration: RelativeDuration): string | null {
+function formatRelativeDuration(duration: RelativeDuration, t: TFunction): string | null {
   switch (duration.unit) {
     case "now":
       return null;
     case "days":
-      return i18n.t("providerUsage.duration.days", {
+      return t("providerUsage.duration.days", {
         count: duration.count,
         value: formatCount(duration.count),
       });
     case "hours":
-      return i18n.t("providerUsage.duration.hours", {
+      return t("providerUsage.duration.hours", {
         count: duration.count,
         value: formatCount(duration.count),
       });
     case "minutes":
-      return i18n.t("providerUsage.duration.minutes", {
+      return t("providerUsage.duration.minutes", {
         count: duration.count,
         value: formatCount(duration.count),
       });
@@ -92,49 +94,55 @@ export function formatResetLabel(
   iso: string | null | undefined,
   retained = false,
   now = Date.now(),
+  t: TFunction = i18n.t,
 ): string | null {
   if (!iso) return null;
   const rel = relativeDuration(iso, now);
   if (!rel) return null;
-  if (rel.unit === "now" && retained) return i18n.t("providerUsage.timing.resetTimePassed");
-  if (rel.unit === "now") return i18n.t("providerUsage.timing.resettingNow");
-  const duration = formatRelativeDuration(rel);
-  return duration ? i18n.t("providerUsage.timing.resetsIn", { duration }) : null;
+  if (rel.unit === "now" && retained) return t("providerUsage.timing.resetTimePassed");
+  if (rel.unit === "now") return t("providerUsage.timing.resettingNow");
+  const duration = formatRelativeDuration(rel, t);
+  return duration ? t("providerUsage.timing.resetsIn", { duration }) : null;
 }
 
 export function formatRunsOutLabel(
   iso: string | null | undefined,
   now = Date.now(),
+  t: TFunction = i18n.t,
 ): string | null {
   if (!iso) return null;
   const rel = relativeDuration(iso, now);
   if (!rel) return null;
-  if (rel.unit === "now") return i18n.t("providerUsage.timing.runsOutNow");
-  const duration = formatRelativeDuration(rel);
-  return duration ? i18n.t("providerUsage.timing.runsOutIn", { duration }) : null;
+  if (rel.unit === "now") return t("providerUsage.timing.runsOutNow");
+  const duration = formatRelativeDuration(rel, t);
+  return duration ? t("providerUsage.timing.runsOutIn", { duration }) : null;
 }
 
-export function formatAgo(iso: string | null | undefined, now = Date.now()): string | null {
+export function formatAgo(
+  iso: string | null | undefined,
+  now = Date.now(),
+  t: TFunction = i18n.t,
+): string | null {
   if (!iso) return null;
   const diffMs = now - new Date(iso).getTime();
   if (!Number.isFinite(diffMs)) return null;
-  if (diffMs < 60_000) return i18n.t("providerUsage.timing.justNow");
+  if (diffMs < 60_000) return t("providerUsage.timing.justNow");
   const diffMinutes = Math.floor(diffMs / 60_000);
   const diffHours = Math.floor(diffMinutes / 60);
   const diffDays = Math.floor(diffHours / 24);
   if (diffDays > 0) {
-    return i18n.t("providerUsage.timing.daysAgo", {
+    return t("providerUsage.timing.daysAgo", {
       count: diffDays,
       value: formatCount(diffDays),
     });
   }
   if (diffHours > 0) {
-    return i18n.t("providerUsage.timing.hoursAgo", {
+    return t("providerUsage.timing.hoursAgo", {
       count: diffHours,
       value: formatCount(diffHours),
     });
   }
-  return i18n.t("providerUsage.timing.minutesAgo", {
+  return t("providerUsage.timing.minutesAgo", {
     count: diffMinutes,
     value: formatCount(diffMinutes),
   });

@@ -600,6 +600,7 @@ for (const compact of [false, true]) {
   }) => {
     const fixture = await installLoginUsage({ status: "error", error: "Initial failure" });
     try {
+      await page.clock.install();
       await page.setViewportSize(
         compact ? { width: 390, height: 844 } : { width: 1440, height: 900 },
       );
@@ -617,6 +618,7 @@ for (const compact of [false, true]) {
       await page.clock.setFixedTime(new Date(Date.now() + 3_900_000));
       await refreshLoginUsage(page);
       await expectLoginUsageOnly(page, "42% used");
+      await advanceUsageClock(page, 60_000);
       await expectLoginUsageFreshness(page, "Updated 1h ago", compact);
 
       await fixture.setReport({ status: "error", error: "Rate limited" });
@@ -642,6 +644,7 @@ for (const compact of [false, true]) {
       await page.clock.setFixedTime(new Date(Date.now() + 150_000));
       await refreshLoginUsage(page);
       await expectLoginUsageOnly(page, "43% used");
+      await advanceUsageClock(page, 60_000);
       await expect(page.getByText("42% used", { exact: true })).toHaveCount(0);
       await expectLoginUsageFreshness(page, "Updated 2m ago", compact);
     } finally {
@@ -675,13 +678,14 @@ test("usage percentages state their meaning and follow the selected language", a
   test.setTimeout(120_000);
   const login = await installLoginUsage({
     status: "available",
-    windows: [{ id: "session", label: "Session", usedPct: 70 }],
+    windows: [{ id: "session", label: "Session", usedPct: 70, summary: true }],
   });
   try {
     await gotoAppShell(page);
     await openUsageFromIcon(page);
     await expect(page.getByText("70% used", { exact: true })).toBeVisible();
     await switchToJapanese(page);
+    await expect(usageItem(page)).toHaveAccessibleName(/Claude セッション 70% 使用済み/);
     await openJapaneseUsage(page);
     await expect(page.getByText("70% 使用済み", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "すべて更新", exact: true })).toBeVisible();
@@ -693,3 +697,42 @@ test("usage percentages state their meaning and follow the selected language", a
     await login.cleanup();
   }
 });
+
+test("open usage clocks advance without refreshing or reopening", async ({ page }) => {
+  test.setTimeout(120_000);
+  const now = new Date();
+  const reset = new Date(now.getTime() + 30.5 * 60_000).toISOString();
+  const login = await installLoginUsage({
+    status: "available",
+    windows: [
+      { id: "session", label: "Session", usedPct: 42, resetsAt: reset },
+      { id: "weekly", label: "Weekly", usedPct: 80, runsOutAt: reset, shortfallPct: 10 },
+    ],
+    balances: [{ id: "credits", label: "Credits", unit: "usd", remaining: 12, resetsAt: reset }],
+  });
+  try {
+    await openCompactUsageWithClock(page, now);
+    const card = page.getByTestId("usage-report-login-journey:account");
+    await expect(card.getByTestId("usage-freshness")).toHaveText("Updated just now");
+    await expect(card.getByText("resets 30m", { exact: false }).first()).toBeVisible();
+    await advanceUsageClock(page, 120_000);
+    await expect(card.getByTestId("usage-freshness")).toHaveText("Updated 2m ago");
+    await expect(card.getByText("resets 28m", { exact: false }).first()).toBeVisible();
+    await expect(card.getByText("runs out 28m", { exact: false })).toBeVisible();
+    await expect(card.getByTestId("provider-usage-balance-credits-reset")).toHaveText("resets 28m");
+  } finally {
+    await login.cleanup();
+  }
+});
+
+async function openCompactUsageWithClock(page: Page, now: Date) {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.install({ time: now });
+  await gotoAppShell(page);
+  await openCompactSidebar(page);
+  await openUsageFromIcon(page);
+}
+
+async function advanceUsageClock(page: Page, milliseconds: number) {
+  await page.clock.fastForward(milliseconds);
+}

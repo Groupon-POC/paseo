@@ -62,10 +62,10 @@ export function UsageBalanceBar({
   retained?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  useRelativeTimeTick({ enabled: balance.resetsAt != null });
+  const now = useRelativeTimeTick({ enabled: balance.resetsAt != null });
   const { amountText, usedPct } = resolveBalance({ balance, t, locale: i18n.resolvedLanguage });
   const tone = balance.tone ?? "default";
-  const resetLabel = formatResetLabel(balance.resetsAt, retained);
+  const resetLabel = formatResetLabel(balance.resetsAt, retained, now, t);
 
   const fillStyle = useMemo<StyleProp<ViewStyle>>(
     () => [styles.fill, fillToneStyle(tone), { width: `${clampPct(usedPct ?? 0)}%` }],
@@ -76,7 +76,7 @@ export function UsageBalanceBar({
     <View style={styles.container}>
       <View style={styles.labelRow}>
         <Text style={styles.label} numberOfLines={1}>
-          {formatProviderUsageLabel(balance.id, balance.label)}
+          {formatProviderUsageLabel(balance.id, balance.label, t)}
         </Text>
         <View style={styles.value} testID={`provider-usage-balance-${balance.id}-value`}>
           <Text style={styles.amount} numberOfLines={1} ellipsizeMode="tail">

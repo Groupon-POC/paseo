@@ -346,7 +346,7 @@ it("resolves retained usage and successful time without inventing old-daemon his
       report: success.report as Extract<UsageReportEntry["report"], { status: "available" }>,
     },
   };
-  expect(resolveUsageReport(failure)).toEqual({
+  expect(resolveUsageReport(failure, i18n.t)).toEqual({
     windows: success.report.status === "available" ? success.report.windows : [],
     balances: [],
     details: [],
@@ -355,7 +355,7 @@ it("resolves retained usage and successful time without inventing old-daemon his
     retained: true,
     messages: ["Rate limited"],
   });
-  expect(resolveUsageReport({ ...failure, lastSuccessful: undefined })).toEqual({
+  expect(resolveUsageReport({ ...failure, lastSuccessful: undefined }, i18n.t)).toEqual({
     windows: [],
     balances: [],
     details: [],
@@ -364,7 +364,7 @@ it("resolves retained usage and successful time without inventing old-daemon his
     retained: false,
     messages: ["Rate limited"],
   });
-  expect(resolveUsageReport(success)).toEqual({
+  expect(resolveUsageReport(success, i18n.t)).toEqual({
     windows: success.report.status === "available" ? success.report.windows : [],
     balances: [],
     details: [],
@@ -392,7 +392,7 @@ it("orders failed polls by attempt time even when successful data is older", () 
 it("available and retained usage show the same successful completion time", () => {
   const success: UsageReportEntry = { ...entry({}), successfulAt: "2026-01-01T00:00:15.000Z" };
   if (success.report.status !== "available") throw new Error("fixture must be available");
-  expect(resolveUsageReport(success).successfulAt).toBe("2026-01-01T00:00:15.000Z");
+  expect(resolveUsageReport(success, i18n.t).successfulAt).toBe("2026-01-01T00:00:15.000Z");
   const failure: UsageReportEntry = {
     ...success,
     successfulAt: undefined,
@@ -400,6 +400,8 @@ it("available and retained usage show the same successful completion time", () =
     report: { status: "error", error: "Rate limited" },
     lastSuccessful: { fetchedAt: success.successfulAt!, report: success.report },
   };
-  expect(resolveUsageReport(failure).successfulAt).toBe(resolveUsageReport(success).successfulAt);
+  expect(resolveUsageReport(failure, i18n.t).successfulAt).toBe(
+    resolveUsageReport(success, i18n.t).successfulAt,
+  );
   expect(upsertReport([failure], success)).toEqual([failure]);
 });

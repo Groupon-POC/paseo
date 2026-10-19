@@ -1,4 +1,3 @@
-import { usageCopy } from "./copy";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { i18n } from "@/i18n/i18next";
 import {
@@ -109,7 +108,7 @@ it("says that a usage window percentage is consumed", () => {
 it("translates the usage refresh control into Japanese", async () => {
   try {
     await i18n.changeLanguage("ja");
-    expect(usageCopy.refresh).toBe("更新");
+    expect(i18n.t("providerUsage.refresh")).toBe("更新");
   } finally {
     await i18n.changeLanguage("en");
   }
@@ -118,8 +117,8 @@ it("translates the usage refresh control into Japanese", async () => {
 it("translates the neighboring usage percentage settings", async () => {
   try {
     await i18n.changeLanguage("ja");
-    expect(usageCopy.displayUsed).toBe("使用済み");
-    expect(usageCopy.displayRemaining).toBe("残り");
+    expect(i18n.t("providerUsage.displayUsed")).toBe("使用済み");
+    expect(i18n.t("providerUsage.displayRemaining")).toBe("残り");
   } finally {
     await i18n.changeLanguage("en");
   }

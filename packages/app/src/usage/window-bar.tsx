@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { usageCopy } from "./copy";
 import {
   formatDisplayPct,
   formatProviderUsageLabel,
@@ -46,24 +45,24 @@ export function UsageWindowBar({
   pinLabel: string;
   pinTestID: string;
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const shownPct = displayPercent(window, displayAs);
   const tone = windowTone(window);
 
+  const now = useRelativeTimeTick({ enabled: window.runsOutAt != null || window.resetsAt != null });
   const isAtRisk =
     window.runsOutAt != null &&
     window.shortfallPct != null &&
-    (!retained || Date.parse(window.runsOutAt) > Date.now());
-  useRelativeTimeTick({ enabled: (isAtRisk ? window.runsOutAt : window.resetsAt) != null });
+    (!retained || Date.parse(window.runsOutAt) > now);
   const trailing = isAtRisk
-    ? formatRunsOutLabel(window.runsOutAt)
-    : formatResetLabel(window.resetsAt, retained);
+    ? formatRunsOutLabel(window.runsOutAt, now, t)
+    : formatResetLabel(window.resetsAt, retained, now, t);
 
   const value =
-    shownPct != null ? formatDisplayPct(shownPct, displayAs, i18n.resolvedLanguage) : "—";
+    shownPct != null ? formatDisplayPct(shownPct, displayAs, i18n.resolvedLanguage, t) : "—";
   const accessibilityState = useMemo(() => ({ checked: pinned }), [pinned]);
   const content = {
-    label: formatProviderUsageLabel(window.id, window.label),
+    label: formatProviderUsageLabel(window.id, window.label, t),
     value,
     trailing,
     isAtRisk,
@@ -152,6 +151,7 @@ function WindowRowContent({
 const ThemedPin = withUnistyles(Pin);
 
 function UsagePinGlyph({ pinned }: { pinned: boolean }) {
+  const { t } = useTranslation();
   const iconMapping = useMemo(
     () => (theme: { colors: { foregroundMuted: string } }) => ({
       color: theme.colors.foregroundMuted,
@@ -170,7 +170,9 @@ function UsagePinGlyph({ pinned }: { pinned: boolean }) {
         </View>
       </TooltipTrigger>
       <TooltipContent side="top">
-        <Text style={styles.tooltipText}>{pinned ? usageCopy.unpin : usageCopy.pin}</Text>
+        <Text style={styles.tooltipText}>
+          {pinned ? t("providerUsage.unpin") : t("providerUsage.pin")}
+        </Text>
       </TooltipContent>
     </Tooltip>
   );

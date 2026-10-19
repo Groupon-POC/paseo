@@ -1,12 +1,13 @@
-import { useEffect, useReducer } from "react";
+import { useEffect, useState } from "react";
 import { subscribeToRelativeTimeTick } from "@/utils/relative-time-ticker";
 
-/** Re-renders a mounted usage label when its relative time can change. */
-export function useRelativeTimeTick({ enabled }: { enabled: boolean }): void {
-  const [, tick] = useReducer((value: number) => value + 1, 0);
+/** The current time as a render input, updated while a relative-time label is mounted. */
+export function useRelativeTimeTick({ enabled }: { enabled: boolean }): number {
+  const [now, setNow] = useState(Date.now);
 
   useEffect(() => {
     if (!enabled) return undefined;
-    return subscribeToRelativeTimeTick("minute", tick);
+    return subscribeToRelativeTimeTick("minute", () => setNow(Date.now()));
   }, [enabled]);
+  return now;
 }

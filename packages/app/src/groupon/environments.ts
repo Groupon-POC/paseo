@@ -19,6 +19,26 @@ export const GROUPON_ENVIRONMENTS: readonly GrouponEnvironment[] = [
   { id: "local", label: "Local", coreUrl: "http://localhost:4000" },
 ];
 
+/**
+ * The work window's web build, per environment: what a phone opens to reach the person's Macs
+ * through Core once signed in with the same Google account (the settings section Your phone).
+ * Local is Expo's web server (`npx expo start --web`, port 8082 beside the desktop's 8081).
+ */
+export const GROUPON_DESK_WEB_URL: Readonly<Record<GrouponEnvironmentId, string>> = {
+  production: "https://desk.livingsocial.com",
+  staging: "https://desk.grpn.site",
+  local: "http://localhost:8082",
+};
+
+/**
+ * The Core a fresh install signs in to before the person picks one: production for every release
+ * build (the web build on a phone is the whole product there), the local Core only for a
+ * development bundle.
+ */
+export function defaultEnvironmentId(isDevelopment: boolean): GrouponEnvironmentId {
+  return isDevelopment ? "local" : "production";
+}
+
 export function environmentById(id: GrouponEnvironmentId): GrouponEnvironment {
   return GROUPON_ENVIRONMENTS.find((env) => env.id === id) ?? GROUPON_ENVIRONMENTS[0];
 }

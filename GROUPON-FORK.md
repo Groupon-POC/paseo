@@ -23,3 +23,21 @@ comment are listed here instead (Apache-2.0, section 4(b)):
 The other eight languages (`ar`, `es`, `fr`, `ja`, `ko`, `pt-BR`, `ru`, `zh-CN`) are not changed:
 they still name Paseo where the English names Groupon Desk, and the Groupon screens show English
 in every language.
+
+## What the fork takes off Paseo's screens
+
+Paseo's code for these stays, so a rebase onto a new tag stays small; only the way to it is gone.
+
+- **Clone from GitHub.** Add project offers one GitHub way, the fork's From GitHub
+  (`packages/app/src/groupon/github-project-sheet.tsx`): the person's Groupon organisations, teams
+  and repositories, opening on the organisation and team picked last time, cloned with `gh` into
+  the Mac's checkout folder and added as a normal project. `components/add-project-flow.tsx`
+  filters Paseo's `github` method out of the menu.
+- **Pair device and pairing offers.** A phone reaches a Mac through Core once signed in with the
+  same Google account, so Settings shows Your phone (`groupon/phone-section.tsx`: the work window's
+  web address per environment, `GROUPON_DESK_WEB_URL`, and its QR code) where Paseo had Pair
+  device, and no screen shows, exports or takes a pairing offer: `PASEO_PAIRING_OFFERS`
+  (`groupon/pairing-policy.ts`) hides the QR scan and the pasted pairing link among the ways to add
+  a host and on the welcome screen, and the direct form no longer takes a relay link.
+- **The Core a fresh install starts on.** Production in every release build, the web build
+  included; the local Core only in a development bundle (`defaultEnvironmentId`).

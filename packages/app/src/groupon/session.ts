@@ -33,7 +33,12 @@ import {
   VaultError,
   type Pbkdf2Engine,
 } from "./crypto";
-import { environmentById, normaliseCoreUrl, type GrouponEnvironmentId } from "./environments";
+import {
+  defaultEnvironmentId,
+  environmentById,
+  normaliseCoreUrl,
+  type GrouponEnvironmentId,
+} from "./environments";
 import { deleteSecret, readSecret, writeSecret } from "./secure-storage";
 
 const ENVIRONMENT_KEY = "groupon-desk.environment";
@@ -41,6 +46,8 @@ const SESSION_KEY = "groupon-desk.session";
 const VAULT_KEY_KEY = "groupon-desk.vault-key";
 /** Refresh an access token this long before it lapses. */
 const REFRESH_MARGIN_MS = 60_000;
+/** The Core before the person picks one: production, or the local Core in a development bundle. */
+const DEFAULT_ENVIRONMENT_ID = defaultEnvironmentId(__DEV__);
 
 export type GrouponGateStatus = "loading" | "signedOut" | "vault" | "ready";
 
@@ -89,8 +96,8 @@ function parseJson<T>(text: string | null): T | null {
 
 export const useGrouponStore = create<GrouponState>((set, get) => ({
   status: "loading",
-  environmentId: "production",
-  coreUrl: environmentById("production").coreUrl,
+  environmentId: DEFAULT_ENVIRONMENT_ID,
+  coreUrl: environmentById(DEFAULT_ENVIRONMENT_ID).coreUrl,
   session: null,
   identity: null,
   sealKey: null,
@@ -101,7 +108,7 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
     const environment = parseJson<{ id: GrouponEnvironmentId; coreUrl: string }>(
       await readSecret(ENVIRONMENT_KEY),
     );
-    const environmentId = environment?.id ?? "production";
+    const environmentId = environment?.id ?? DEFAULT_ENVIRONMENT_ID;
     const coreUrl = environment?.coreUrl ?? environmentById(environmentId).coreUrl;
     const session = parseJson<GrouponSession>(await readSecret(SESSION_KEY));
     if (!session || session.coreUrl !== coreUrl) {

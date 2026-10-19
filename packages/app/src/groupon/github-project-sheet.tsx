@@ -1,11 +1,16 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): Add a project, From GitHub, with Groupon's organisations and teams.
 
 /**
+ * The one GitHub way to add a project (Paseo's own "Clone from GitHub" is taken off the menu).
  * The person's organisations and teams as the platform sees them (the internal plane's GitHub
  * overview and each team's repositories, read by the Groupon plugin on the chosen Mac with the
- * CLI's session there), then a repository, then the folder: the plugin downloads it the way the
- * CLI does (`gh repo clone`, git over https without gh) and this registers it as a project with
- * Paseo's own `project.add`, then opens New workspace on it.
+ * CLI's session there): the sheet opens on the repositories of the organisation and team picked
+ * last time, or the first organisation the person is in (`firstStep`), with Back to change them.
+ * Then a repository, then the folder (the Mac's checkout folder, `~/Documents/GitHub` unless the
+ * person's setup says otherwise): the plugin clones it the way the CLI does (`gh repo clone`, git
+ * over https without gh), and from there it is what Paseo's clone does after its pick: the
+ * checkout is registered as a project with Paseo's own `project.add` and New workspace opens on
+ * it.
  */
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,6 +42,7 @@ import {
 import {
   ALL_TEAMS,
   checkoutPathPreview,
+  firstStep,
   folderProblem,
   matching,
   organisationHint,
@@ -50,6 +56,7 @@ import {
   type GithubStep,
 } from "./github-project-model";
 import { useGithubProjectStore } from "./github-project-store";
+import { useGrouponPreferences } from "./preferences";
 import { GROUPON_GITHUB } from "./strings";
 
 const SNAP_POINTS = ["75%", "92%"];
@@ -123,7 +130,7 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
   const hostLabel = useHosts().find((host) => host.serverId === serverId)?.label ?? serverId;
   const openProject = useOpenProject(serverId);
   const queryClient = useQueryClient();
-  const [step, setStep] = useState<GithubStep>({ kind: "organisations" });
+  const [chosenStep, setStep] = useState<GithubStep | null>(null);
   const [query, setQuery] = useState("");
   const [folder, setFolder] = useState<string | null>(null);
   const [download, setDownload] = useState<Download>({ status: "idle" });
@@ -148,6 +155,18 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
     staleTimeMs: 60_000,
   });
   const answer = access.data ?? null;
+  const rememberedOrganisation = useGrouponPreferences((state) => state.githubOrganisation ?? null);
+  const rememberedTeam = useGrouponPreferences((state) => state.githubTeam ?? null);
+  const rememberGithubPlace = useGrouponPreferences((state) => state.rememberGithubPlace);
+  // Until the person moves, the step follows the answer: it opens where they worked last.
+  const step = useMemo<GithubStep>(
+    () =>
+      chosenStep ??
+      (answer
+        ? firstStep(answer, { organisation: rememberedOrganisation, team: rememberedTeam })
+        : { kind: "organisations" }),
+    [answer, chosenStep, rememberedOrganisation, rememberedTeam],
+  );
   const shownFolder = folder ?? answer?.defaultFolder ?? "~/Documents/GitHub";
 
   const refresh = useCallback(async () => {
@@ -155,10 +174,14 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
     queryClient.setQueryData(queryKey, await readGithubAccess(client, true));
   }, [client, queryClient, queryKey]);
 
-  const go = useCallback((next: GithubStep) => {
-    setQuery("");
-    setStep(next);
-  }, []);
+  const go = useCallback(
+    (next: GithubStep) => {
+      setQuery("");
+      setStep(next);
+      if (next.kind === "repositories") rememberGithubPlace(next.organisation, next.team);
+    },
+    [rememberGithubPlace],
+  );
 
   const back = useCallback(() => {
     if (download.status === "running") return;
@@ -175,7 +198,7 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
         setDownload({ status: "failed", error: problem });
         return;
       }
-      setDownload({ status: "running", phase: `Downloading ${repository.fullName}` });
+      setDownload({ status: "running", phase: `Cloning ${repository.fullName}` });
       try {
         const jobId = await startGithubClone(client, repository.fullName, shownFolder);
         const job = await followJob(
@@ -186,7 +209,7 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
         );
         if (!job) return;
         if (job.status === "failed" || !job.clone) {
-          setDownload({ status: "failed", error: job.error ?? "The download did not finish." });
+          setDownload({ status: "failed", error: job.error ?? "The clone did not finish." });
           return;
         }
         const checkoutPath = job.clone.checkoutPath;
@@ -195,7 +218,7 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
         if (!added.ok) {
           setDownload({
             status: "failed",
-            error: added.error ?? `Downloaded to ${checkoutPath}, but it could not be added.`,
+            error: added.error ?? `Cloned to ${checkoutPath}, but it could not be added.`,
           });
           return;
         }

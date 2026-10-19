@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the History tile; the From GitHub tile.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the History tile; the From GitHub tile; Your phone in place of Pair device.
 import { useHosts, useHostRuntimeLastError } from "@/runtime/host-runtime";
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,7 +8,7 @@ import { useRouter } from "expo-router";
 import { FolderOpen, History, Inbox, Plug, Smartphone } from "lucide-react-native";
 import { GrouponDeskLogo } from "@/components/icons/groupon-desk-logo";
 import { HUB_HISTORY_ROUTE } from "@/groupon/history-screen";
-import { GROUPON_GITHUB, GROUPON_HISTORY } from "@/groupon/strings";
+import { GROUPON_GITHUB, GROUPON_HISTORY, GROUPON_PHONE } from "@/groupon/strings";
 import { useOpenGithubProject } from "@/groupon/github-project-store";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import { CommunityLinks } from "@/components/community-links";
@@ -24,8 +24,7 @@ import {
   HEADER_TOP_PADDING_MOBILE,
 } from "@/constants/layout";
 import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
-import { PairDeviceModal } from "@/desktop/components/pair-device-modal";
-import { buildSettingsHostSectionRoute } from "@/utils/host-routes";
+import { buildSettingsHostSectionRoute, buildSettingsSectionRoute } from "@/utils/host-routes";
 
 const WINDOW_CONTENT_DATASET = { "window-content": "" };
 
@@ -39,7 +38,6 @@ export function OpenProjectScreen() {
   const importSession = useImportSession();
   const chooseHost = useHostChooser();
   const localServerId = useLocalDaemonServerId();
-  const [isPairDeviceOpen, setIsPairDeviceOpen] = useState(false);
 
   const isCompactLayout = useIsCompactFormFactor();
 
@@ -55,8 +53,10 @@ export function OpenProjectScreen() {
 
   const handleOpenGithub = useCallback(() => openGithubProject(), [openGithubProject]);
   const handleOpenHistory = useCallback(() => router.push(HUB_HISTORY_ROUTE), [router]);
-  const handleOpenPairDevice = useCallback(() => setIsPairDeviceOpen(true), []);
-  const handleClosePairDevice = useCallback(() => setIsPairDeviceOpen(false), []);
+  const handleOpenPhone = useCallback(
+    () => router.push(buildSettingsSectionRoute("phone")),
+    [router],
+  );
 
   const handleOpenProviders = useCallback(() => {
     chooseHost({
@@ -94,7 +94,7 @@ export function OpenProjectScreen() {
             <HomeTile
               icon={GitHubIcon}
               title={GROUPON_GITHUB.title}
-              description={GROUPON_GITHUB.tileDescription}
+              description={GROUPON_GITHUB.description}
               onPress={handleOpenGithub}
               testID="open-project-groupon-github"
               accent
@@ -123,10 +123,10 @@ export function OpenProjectScreen() {
             {localServerId ? (
               <HomeTile
                 icon={Smartphone}
-                title={t("openProject.tiles.pairDevice.title")}
-                description={t("openProject.tiles.pairDevice.description")}
-                onPress={handleOpenPairDevice}
-                testID="open-project-pair-device"
+                title={GROUPON_PHONE.title}
+                description={GROUPON_PHONE.tileDescription}
+                onPress={handleOpenPhone}
+                testID="open-project-phone"
               />
             ) : null}
           </View>
@@ -135,12 +135,6 @@ export function OpenProjectScreen() {
           <CommunityLinks />
         </View>
       </ScrollView>
-      <PairDeviceModal
-        serverId={localServerId ?? ""}
-        visible={isPairDeviceOpen}
-        onClose={handleClosePairDevice}
-        testID="open-project-pair-device-modal"
-      />
       {importSession.sheet}
     </View>
   );

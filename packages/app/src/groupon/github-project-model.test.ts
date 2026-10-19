@@ -4,6 +4,7 @@ import type { GithubAccessAnswer, GithubRepository } from "./desk-plugin-rpc";
 import {
   ALL_TEAMS,
   checkoutPathPreview,
+  firstStep,
   folderProblem,
   matching,
   organisationHint,
@@ -62,6 +63,46 @@ describe("the From GitHub steps", () => {
   it("lists the organisations the person is in first", () => {
     expect(organisationsOf(ANSWER).map((org) => org.login)).toEqual(["groupon2", "groupon-poc"]);
     expect(organisationsOf(null)).toEqual([]);
+  });
+
+  it("opens on the remembered organisation and team, else the first organisation the person is in", () => {
+    expect(firstStep(ANSWER, { organisation: null, team: null })).toEqual({
+      kind: "repositories",
+      organisation: "groupon2",
+      team: ALL_TEAMS,
+    });
+    expect(firstStep(ANSWER, { organisation: "groupon2", team: "web" })).toEqual({
+      kind: "repositories",
+      organisation: "groupon2",
+      team: "web",
+    });
+    // A team that is gone, or an organisation the person left, falls back to all teams of the first.
+    expect(firstStep(ANSWER, { organisation: "groupon2", team: "gone" })).toMatchObject({
+      team: ALL_TEAMS,
+    });
+    expect(firstStep(ANSWER, { organisation: "groupon-poc", team: "web" })).toMatchObject({
+      organisation: "groupon2",
+      team: ALL_TEAMS,
+    });
+    expect(firstStep(null, { organisation: "groupon2", team: "web" })).toEqual({
+      kind: "organisations",
+    });
+    const oneTeam: GithubAccessAnswer = {
+      ...ANSWER,
+      access: {
+        githubLogin: "ctzaruba",
+        requestAccessUrl: null,
+        organisations: [
+          {
+            login: "groupon2",
+            purpose: "",
+            membership: "member",
+            teams: [{ slug: "web", name: "Web", description: null, repositories: [] }],
+          },
+        ],
+      },
+    };
+    expect(firstStep(oneTeam, { organisation: null, team: null })).toMatchObject({ team: "web" });
   });
 
   it("gathers every team's repositories once each, and names the teams GitHub did not answer for", () => {

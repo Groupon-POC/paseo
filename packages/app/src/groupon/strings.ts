@@ -83,9 +83,8 @@ export const GROUPON_HISTORY = {
 
 export const GROUPON_GITHUB = {
   title: "From GitHub",
-  tileDescription: "Your organisations and teams, into ~/Documents/GitHub",
-  methodDescription: "Your Groupon organisations and teams, downloaded with gh",
-  downloadsTo: "Downloads to",
+  description: "Your Groupon organisations, teams and repositories, cloned with gh",
+  downloadsTo: "Clones to",
   searchPlaceholder: "Filter by name",
   reading: "Reading your GitHub access on this Mac",
   noLogin:
@@ -100,9 +99,20 @@ export const GROUPON_GITHUB = {
   teamUnread: "GitHub did not answer for this team's repositories",
   unreadTeams: "GitHub did not answer for:",
   noRepository: "No repository here.",
-  folderLabel: "Download into",
+  folderLabel: "Clone into",
   landsAt: "It lands at",
-  download: "Download and add",
+  download: "Clone and add",
+} as const;
+
+export const GROUPON_PHONE = {
+  title: "Your phone",
+  tileDescription: "Groupon Desk on your phone, through Groupon's server",
+  body: "On your phone, open the address below (or scan the code with its camera) and sign in with the same Google account you use here. This Mac then appears among the hosts on the phone: the connection goes through Groupon's server, so there is nothing to pair and no key to copy.",
+  addressLabel: "Groupon Desk on the web",
+  copy: "Copy",
+  copied: "Copied",
+  qrLabel: "QR code of Groupon Desk's web address",
+  qrUnavailable: "The code could not be drawn; type the address instead.",
 } as const;
 
 export const GROUPON_TICKET = {

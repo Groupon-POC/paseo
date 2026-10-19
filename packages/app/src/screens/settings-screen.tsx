@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the About line naming Paseo and its author; the Groupon section; the worktree-scripts reminder switch.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the About line naming Paseo and its author; the Groupon section; the worktree-scripts reminder switch; Your phone in place of Pair device.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -94,8 +94,9 @@ import { isElectronRuntime } from "@/desktop/host";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
-import { GROUPON_ABOUT, GROUPON_SETTINGS } from "@/groupon/strings";
+import { GROUPON_ABOUT, GROUPON_PHONE, GROUPON_SETTINGS } from "@/groupon/strings";
 import { GrouponSettingsPage } from "@/groupon/settings-section";
+import { GrouponPhonePage } from "@/groupon/phone-section";
 import { openChangelog } from "@/changelog";
 import { useAppDiagnosticStore } from "@/diagnostics/store";
 import { settingsStyles } from "@/styles/settings";
@@ -110,7 +111,6 @@ import {
 } from "@/i18n/locales";
 import {
   HostConnectionsPage,
-  HostPairDevicePage,
   HostAgentsPage,
   HostSettingsPage,
   HostProvidersPage,
@@ -164,6 +164,14 @@ const SIDEBAR_SECTION_ITEMS: SidebarSectionItem[] = [
     label: GROUPON_SETTINGS.section,
     icon: Building2,
     Content: GrouponSettingsPage,
+  },
+  {
+    id: "phone",
+    labelKey: "",
+    label: GROUPON_PHONE.title,
+    icon: Smartphone,
+    desktopOnly: true,
+    Content: GrouponPhonePage,
   },
   { id: "general", labelKey: "settings.sections.general", icon: Settings },
   {
@@ -245,7 +253,7 @@ const HOST_SECTION_ITEMS: HostSectionItem[] = [
   { id: "host", labelKey: "settings.hostSections.host", icon: Server },
   { id: "projects", labelKey: "settings.hostSections.projects", icon: FolderGit2 },
   { id: "connections", labelKey: "settings.hostSections.connections", icon: Network },
-  { id: "pair-device", labelKey: "openProject.tiles.pairDevice.title", icon: Smartphone },
+  // Groupon Desk: no Pair device here; a phone reaches the Mac through Core (Settings > Your phone).
   { id: "agents", labelKey: "settings.hostSections.agents", icon: Bot },
   { id: "metadata", labelKey: "settings.hostSections.metadata", icon: Sparkles },
   { id: "workspaces", labelKey: "settings.hostSections.workspaces", icon: FolderGit2 },
@@ -265,7 +273,7 @@ function renderHostSettingsContent(
     case "connections":
       return <HostConnectionsPage serverId={view.serverId} />;
     case "pair-device":
-      return <HostPairDevicePage serverId={view.serverId} />;
+      return <GrouponPhonePage />;
     case "agents":
       return <HostAgentsPage serverId={view.serverId} />;
     case "metadata":

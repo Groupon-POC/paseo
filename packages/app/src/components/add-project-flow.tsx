@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu.
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { router } from "expo-router";
 import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
@@ -638,7 +638,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
             {
               id: "groupon-github",
               title: GROUPON_GITHUB.title,
-              subtitle: GROUPON_GITHUB.methodDescription,
+              subtitle: GROUPON_GITHUB.description,
               icon: GitHubIcon,
               testID: "add-project-flow-method-groupon-github",
               select: () => {
@@ -648,15 +648,18 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
             },
           ]
         : [];
-      const methods = buildAddProjectMethods(host).map((method) => ({
-        id: method.id,
-        title: method.label,
-        subtitle: method.description,
-        icon: methodIcon(method.id),
-        disabled: method.disabled,
-        testID: `add-project-flow-method-${method.id}`,
-        select: () => selectMethod(method.id),
-      }));
+      // Groupon Desk: From GitHub above is the one GitHub way; Paseo's search-and-clone is not offered.
+      const methods = buildAddProjectMethods(host)
+        .filter((method) => method.id !== "github")
+        .map((method) => ({
+          id: method.id,
+          title: method.label,
+          subtitle: method.description,
+          icon: methodIcon(method.id),
+          disabled: method.disabled,
+          testID: `add-project-flow-method-${method.id}`,
+          select: () => selectMethod(method.id),
+        }));
       return [...grouponGithub, ...methods];
     }
     if (page.kind === "directory-search") {

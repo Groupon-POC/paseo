@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a relay pairing link typed into the direct form is not taken.
 import { useCallback, useMemo, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Pressable, Text, View } from "react-native";
@@ -18,6 +19,7 @@ import {
 import { AdaptiveModalSheet, AdaptiveTextInput, type SheetHeader } from "./adaptive-modal-sheet";
 import { Button } from "@/components/ui/button";
 import { PairingTargetTracker } from "./pair-link-credentials";
+import { PASEO_PAIRING_OFFERS } from "@/groupon/pairing-policy";
 
 const FLEX_ONE_STYLE = { flex: 1 } as const;
 
@@ -402,7 +404,10 @@ function AddHostModalContent({ visible, onClose, onCancel, onSaved }: AddHostMod
     if (isSaving) return;
 
     const relayUri = isAdvancedOpen ? advancedUri.trim() : "";
-    if (relayUri.startsWith("relay://") || relayUri.includes("#connect=")) {
+    if (
+      PASEO_PAIRING_OFFERS &&
+      (relayUri.startsWith("relay://") || relayUri.includes("#connect="))
+    ) {
       await handleSaveRelay(relayUri);
       return;
     }

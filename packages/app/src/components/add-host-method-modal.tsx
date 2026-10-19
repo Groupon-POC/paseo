@@ -1,6 +1,8 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no QR scan and no pasted pairing link among the ways to add a host.
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View } from "react-native";
+import { PASEO_PAIRING_OFFERS } from "@/groupon/pairing-policy";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { QrCode, Link2, ClipboardPaste, Terminal } from "lucide-react-native";
 import { AdaptiveModalSheet, type SheetHeader } from "./adaptive-modal-sheet";
@@ -118,7 +120,7 @@ export function AddHostMethodModal({
         </Pressable>
       ) : null}
 
-      {isNative && !isFdroidBuild ? (
+      {PASEO_PAIRING_OFFERS && isNative && !isFdroidBuild ? (
         <Pressable
           style={styles.option}
           onPress={handleScan}
@@ -135,21 +137,23 @@ export function AddHostMethodModal({
         </Pressable>
       ) : null}
 
-      <Pressable
-        style={styles.option}
-        onPress={handlePaste}
-        accessibilityRole="button"
-        accessibilityLabel={t("pairing.connectionMethods.pasteLink.title")}
-        testID="add-host-method-pair-link"
-      >
-        <ThemedClipboardPaste size={18} uniProps={foregroundIconMapping} />
-        <View style={styles.optionBody}>
-          <Text style={styles.optionText}>{t("pairing.connectionMethods.pasteLink.title")}</Text>
-          <Text style={styles.optionSubtext}>
-            {t("pairing.connectionMethods.pasteLink.description")}
-          </Text>
-        </View>
-      </Pressable>
+      {PASEO_PAIRING_OFFERS ? (
+        <Pressable
+          style={styles.option}
+          onPress={handlePaste}
+          accessibilityRole="button"
+          accessibilityLabel={t("pairing.connectionMethods.pasteLink.title")}
+          testID="add-host-method-pair-link"
+        >
+          <ThemedClipboardPaste size={18} uniProps={foregroundIconMapping} />
+          <View style={styles.optionBody}>
+            <Text style={styles.optionText}>{t("pairing.connectionMethods.pasteLink.title")}</Text>
+            <Text style={styles.optionSubtext}>
+              {t("pairing.connectionMethods.pasteLink.description")}
+            </Text>
+          </View>
+        </Pressable>
+      ) : null}
     </AdaptiveModalSheet>
   );
 }

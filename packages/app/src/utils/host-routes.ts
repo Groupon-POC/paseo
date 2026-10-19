@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon settings section.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon settings section; the Your phone section.
 import { Buffer } from "buffer";
 import { buildAgentDeepLinkRoute } from "@getpaseo/protocol/agent-deep-link";
 
@@ -492,6 +492,7 @@ export function resolveKnownHostRoute(input: {
 
 export const SETTINGS_SECTION_SLUGS = [
   "groupon",
+  "phone",
   "general",
   "appearance",
   "sidebar",

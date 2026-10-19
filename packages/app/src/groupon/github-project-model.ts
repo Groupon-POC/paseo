@@ -3,7 +3,10 @@
 /**
  * Add a project, From GitHub: the person's organisations (as the platform sees them, through the
  * Groupon plugin on the Mac), then a team, then one of the team's repositories, then the folder it
- * is downloaded into. Pure, so the steps and the lists are tested without a screen.
+ * is cloned into. The sheet opens on the repositories of the organisation and team chosen last
+ * time (or the first organisation the person is in, all teams), the way Desk's Dark Factory screen
+ * remembers its organisation; Back reaches the teams and the organisations. Pure, so the steps and
+ * the lists are tested without a screen.
  */
 
 import type {
@@ -55,6 +58,39 @@ export function repositoriesOf(
   }
   const repositories = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
   return { repositories, unreadTeams };
+}
+
+/** The organisation and team the person picked last time, as remembered on this device. */
+export interface RememberedGithubPlace {
+  organisation: string | null;
+  team: string | null;
+}
+
+/**
+ * Where the sheet opens: the remembered organisation and team while the person is still in them,
+ * else the first organisation they are in with all its teams (its one team when it has one);
+ * the organisations list when they are in none.
+ */
+export function firstStep(
+  answer: GithubAccessAnswer | null,
+  remembered: RememberedGithubPlace,
+): GithubStep {
+  const members = organisationsOf(answer).filter((org) => org.membership === "member");
+  const organisation =
+    members.find((org) => org.login === remembered.organisation) ?? members[0] ?? null;
+  if (!organisation) return { kind: "organisations" };
+  const keptTeam =
+    organisation.login === remembered.organisation &&
+    (remembered.team === ALL_TEAMS ||
+      organisation.teams.some((team) => team.slug === remembered.team))
+      ? remembered.team
+      : null;
+  const onlyTeam = organisation.teams.length === 1 ? (organisation.teams[0]?.slug ?? null) : null;
+  return {
+    kind: "repositories",
+    organisation: organisation.login,
+    team: keptTeam ?? onlyTeam ?? ALL_TEAMS,
+  };
 }
 
 /** The rows whose name or description holds every word typed, case aside. */

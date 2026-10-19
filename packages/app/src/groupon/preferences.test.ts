@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the worktree-scripts reminder is off unless asked for.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the worktree-scripts reminder is off unless asked for; From GitHub's remembered place.
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@react-native-async-storage/async-storage", () => {
@@ -20,5 +20,14 @@ describe("Groupon Desk's preferences", () => {
     expect(useGrouponPreferences.getState().remindWorktreeScripts).toBe(false);
     useGrouponPreferences.getState().setRemindWorktreeScripts(true);
     expect(useGrouponPreferences.getState().remindWorktreeScripts).toBe(true);
+  });
+
+  it("remembers the GitHub organisation and team From GitHub opens on", () => {
+    expect(useGrouponPreferences.getState().githubOrganisation ?? null).toBeNull();
+    useGrouponPreferences.getState().rememberGithubPlace("groupon2", "web");
+    expect(useGrouponPreferences.getState()).toMatchObject({
+      githubOrganisation: "groupon2",
+      githubTeam: "web",
+    });
   });
 });

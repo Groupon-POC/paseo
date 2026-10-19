@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the engine's site named as such; History.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the engine's site named as such; History; no QR scan or pairing link.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, ScrollView } from "react-native";
@@ -19,6 +19,7 @@ import { getHostRuntimeStore, isHostRuntimeConnected, useHosts } from "@/runtime
 import { AddHostModal } from "./add-host-modal";
 import { AddRemoteSshHostModal } from "./add-remote-ssh-host-modal";
 import { PairLinkModal } from "./pair-link-modal";
+import { PASEO_PAIRING_OFFERS } from "@/groupon/pairing-policy";
 import { Button } from "@/components/ui/button";
 import { resolveAppVersion } from "@/utils/app-version";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
@@ -222,7 +223,7 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
     [onHostAdded, finishOnboarding],
   );
 
-  const actions: WelcomeAction[] =
+  let actions: WelcomeAction[] =
     isWeb || isFdroidBuild
       ? [
           {
@@ -268,6 +269,15 @@ export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
             onPress: handleOpenPasteLink,
           },
         ];
+
+  // Groupon Desk: a phone or browser reaches the Macs through Core once signed in, never by an offer.
+  if (!PASEO_PAIRING_OFFERS) {
+    actions = actions.filter(
+      (action) => action.key !== "scan-qr" && action.key !== "paste-pairing-link",
+    );
+    // The direct connection leads once the QR scan is gone.
+    for (const action of actions) action.primary = action.key === "direct-connection";
+  }
 
   if (isElectronRuntime()) {
     actions.splice(1, 0, {

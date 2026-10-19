@@ -1,6 +1,11 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the Core addresses a person may sign in to.
 import { describe, expect, it } from "vitest";
-import { environmentById, normaliseCoreUrl } from "./environments";
+import {
+  defaultEnvironmentId,
+  environmentById,
+  GROUPON_DESK_WEB_URL,
+  normaliseCoreUrl,
+} from "./environments";
 import { identityOf } from "./core-client";
 
 describe("Core addresses", () => {
@@ -8,6 +13,19 @@ describe("Core addresses", () => {
     expect(environmentById("production").coreUrl).toBe("https://api-core.livingsocial.com");
     expect(environmentById("staging").coreUrl).toBe("https://api-staging-core.livingsocial.com");
     expect(environmentById("local").coreUrl).toBe("http://localhost:4000");
+  });
+
+  it("names the work window's web address per environment", () => {
+    expect(GROUPON_DESK_WEB_URL).toEqual({
+      production: "https://desk.livingsocial.com",
+      staging: "https://desk.grpn.site",
+      local: "http://localhost:8082",
+    });
+  });
+
+  it("starts a release build on production and only a development bundle on the local Core", () => {
+    expect(defaultEnvironmentId(false)).toBe("production");
+    expect(defaultEnvironmentId(true)).toBe("local");
   });
 
   it("takes https anywhere and plain http only on this machine", () => {

@@ -7,7 +7,9 @@
  * - the session the device sign-in issued (access JWT, refresh JWT, expiry), refreshed before it
  *   lapses and once more on a 401;
  * - the vault key, derived once from the passphrase on this device and kept in the keychain, and
- *   the seal key that opens what the person's Macs sealed on the hub.
+ *   the seal key that opens what the person's Macs sealed on the hub;
+ * - the person's identity (an X25519 pair from the vault key), whose public half is published on
+ *   the hub once the vault opens, so a colleague can share a workspace with them (design section 13).
  *
  * Nothing here is logged except the derivation's duration. Signing out deletes the session and
  * the vault key from the keychain.
@@ -29,11 +31,13 @@ import {
   base64ToBytes,
   bytesToBase64,
   deriveVaultKey,
+  identityFromVaultKey,
   openVault,
   parseVaultEnvelope,
   pbkdf2EngineAvailable,
   sealKeyFromVaultKey,
   VaultError,
+  type DeskIdentity,
   type Pbkdf2Engine,
 } from "./crypto";
 import { setCoreRelayRoute } from "./core-relay";
@@ -75,6 +79,8 @@ interface GrouponState {
   session: GrouponSession | null;
   identity: TokenIdentity | null;
   sealKey: Uint8Array | null;
+  /** The person's identity, from the vault key; null while the vault is not open here. */
+  deskIdentity: DeskIdentity | null;
   lastUnlock: VaultUnlockMeasure | null;
   hydrate: () => Promise<void>;
   chooseEnvironment: (id: GrouponEnvironmentId, coreUrl?: string) => Promise<void>;
@@ -105,6 +111,7 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
   session: null,
   identity: null,
   sealKey: null,
+  deskIdentity: null,
   lastUnlock: null,
 
   hydrate: async () => {
@@ -123,6 +130,7 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
         session: null,
         identity: null,
         sealKey: null,
+        deskIdentity: null,
       });
       return;
     }
@@ -138,8 +146,10 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
       session,
       identity,
       sealKey: vaultKey ? sealKeyFromVaultKey(vaultKey) : null,
+      deskIdentity: vaultKey ? identityFromVaultKey(vaultKey) : null,
       status: vaultKey ? "ready" : "vault",
     });
+    publishDeskIdentity();
   },
 
   chooseEnvironment: async (id, typedCoreUrl) => {
@@ -197,14 +207,27 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
       key: bytesToBase64(vaultKey),
     };
     await writeSecret(VAULT_KEY_KEY, JSON.stringify(stored));
-    set({ sealKey: sealKeyFromVaultKey(vaultKey), status: "ready", lastUnlock: measure });
+    set({
+      sealKey: sealKeyFromVaultKey(vaultKey),
+      deskIdentity: identityFromVaultKey(vaultKey),
+      status: "ready",
+      lastUnlock: measure,
+    });
+    publishDeskIdentity();
     return measure;
   },
 
   signOut: async () => {
     await deleteSecret(SESSION_KEY);
     await deleteSecret(VAULT_KEY_KEY);
-    set({ status: "signedOut", session: null, identity: null, sealKey: null, lastUnlock: null });
+    set({
+      status: "signedOut",
+      session: null,
+      identity: null,
+      sealKey: null,
+      deskIdentity: null,
+      lastUnlock: null,
+    });
   },
 }));
 
@@ -273,12 +296,41 @@ setCoreRelayRoute(() => {
 
 /** A read of the signed-in person's Core, with one refresh and retry on a 401. */
 export async function grouponRequest<T>(path: string): Promise<T> {
+  return grouponSend<T>(path, "GET");
+}
+
+/** A call to the signed-in person's Core with a body, with one refresh and retry on a 401. */
+export async function grouponSend<T>(
+  path: string,
+  method: "GET" | "POST" | "PUT",
+  body?: unknown,
+): Promise<T> {
   const session = await freshSession();
   try {
-    return await coreRequest<T>(session.coreUrl, path, { token: session.accessToken });
+    return await coreRequest<T>(session.coreUrl, path, {
+      method,
+      body,
+      token: session.accessToken,
+    });
   } catch (error) {
     if (!(error instanceof CoreError) || error.status !== 401) throw error;
     const next = await refreshSession(session);
-    return coreRequest<T>(next.coreUrl, path, { token: next.accessToken });
+    return coreRequest<T>(next.coreUrl, path, { method, body, token: next.accessToken });
   }
+}
+
+/**
+ * The identity's public half on the hub, so a colleague's Mac can box a shared workspace's key to
+ * this person. Best-effort: a hub that refuses it now is asked again on the next open.
+ */
+function publishDeskIdentity(): void {
+  const { deskIdentity, session } = useGrouponStore.getState();
+  if (!deskIdentity || !session) return;
+  void grouponSend("/user/groupon_desk/identity", "PUT", {
+    publicKey: bytesToBase64(deskIdentity.publicKey),
+  }).catch((error: unknown) => {
+    console.warn(
+      `[groupon] identity not published: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
 }

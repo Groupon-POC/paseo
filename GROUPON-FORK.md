@@ -10,15 +10,16 @@ Every changed source file carries a first-line comment "Changed for Groupon Desk
 Apache-2.0): <what>", and every added file "Added for Groupon Desk". Files that cannot carry a
 comment are listed here instead (Apache-2.0, section 4(b)):
 
-| File                                                                                                                                                                                                   | What changed                                                                                                              |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `packages/desktop/package.json`                                                                                                                                                                        | `productName` Groupon Desk                                                                                                |
-| `packages/app/eas.json`                                                                                                                                                                                | Paseo's App Store Connect id removed                                                                                      |
-| `packages/app/public/manifest.json`                                                                                                                                                                    | The web app's name and description                                                                                        |
-| `packages/app/assets/images/icon.png`, `splash-icon.png`, `android-icon-foreground.png`                                                                                                                | The work window's icon, the Groupon G in curly braces `{ G }`, rendered from `packages/desktop/assets/brand/icon.svg`     |
-| `packages/app/assets/images/notification-icon.png`, `favicon*.png` (the six status variants and `favicon.png`)                                                                                         | Groupon Desk's icon, rendered from the Desk's `AppIcon.png`                                                               |
-| `packages/app/public/apple-touch-icon.png`, `pwa-icon-192.png`, `pwa-icon-512.png`                                                                                                                     | The `{ G }` icon for the web app                                                                                          |
-| `packages/desktop/assets/icon.icns`, `icon.ico`, `icon.png`, `icon-dev.png` (the Dock icon of a development run), `32x32.png`, `64x64.png`, `128x128.png`, `128x128@2x.png`, `brand/iconTemplate*.png` | The `{ G }` icon for macOS, Windows and Linux, rendered from `packages/desktop/assets/brand/icon.svg` and `icon-mono.svg` |
+| File                                                                                                                                                                                                   | What changed                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/app/package.json`, `package-lock.json`                                                                                                                                                       | `tweetnacl` as the app's own dependency: a colleague's device opens a shared workspace's key from the NaCl box the owner's hand made |
+| `packages/desktop/package.json`                                                                                                                                                                        | `productName` Groupon Desk                                                                                                           |
+| `packages/app/eas.json`                                                                                                                                                                                | Paseo's App Store Connect id removed                                                                                                 |
+| `packages/app/public/manifest.json`                                                                                                                                                                    | The web app's name and description                                                                                                   |
+| `packages/app/assets/images/icon.png`, `splash-icon.png`, `android-icon-foreground.png`                                                                                                                | The work window's icon, the Groupon G in curly braces `{ G }`, rendered from `packages/desktop/assets/brand/icon.svg`                |
+| `packages/app/assets/images/notification-icon.png`, `favicon*.png` (the six status variants and `favicon.png`)                                                                                         | Groupon Desk's icon, rendered from the Desk's `AppIcon.png`                                                                          |
+| `packages/app/public/apple-touch-icon.png`, `pwa-icon-192.png`, `pwa-icon-512.png`                                                                                                                     | The `{ G }` icon for the web app                                                                                                     |
+| `packages/desktop/assets/icon.icns`, `icon.ico`, `icon.png`, `icon-dev.png` (the Dock icon of a development run), `32x32.png`, `64x64.png`, `128x128.png`, `128x128@2x.png`, `brand/iconTemplate*.png` | The `{ G }` icon for macOS, Windows and Linux, rendered from `packages/desktop/assets/brand/icon.svg` and `icon-mono.svg`            |
 
 The other eight languages (`ar`, `es`, `fr`, `ja`, `ko`, `pt-BR`, `ru`, `zh-CN`) are not changed:
 they still name Paseo where the English names Groupon Desk, and the Groupon screens show English
@@ -53,3 +54,16 @@ the environment that build sets (`CSC_NAME`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`
 `APPLE_API_ISSUER`; on a local build ad-hoc with `-c.mac.identity=-` and without the hardened runtime, `-c.mac.hardenedRuntime=false`, since ad-hoc code under it cannot load Electron Framework). The app never checks Paseo's
 update feed (`packages/desktop/src/features/auto-updater.ts`): Groupon Desk's own update replaces
 both.
+
+## Sharing a workspace with a colleague
+
+The monorepo's design section 13 (`_documentation/design/groupon-desk-work-window-design.md`): a
+workspace on the hub is shared with a colleague, to read or to write, through the hub alone,
+never through the owner's daemon. The app publishes the person's identity (an X25519 pair from the
+vault key, `groupon/crypto.ts`) when the vault opens; "Share…" on a workspace's menu in the sidebar
+(`components/sidebar/sidebar-workspace-menu.tsx`, the item in `groupon/share-menu-item.tsx`) and on
+the History screen's workspace card opens `groupon/share-screen.tsx` (who has access, Revoke);
+"Shared with me" sits above the sidebar's footer (`components/left-sidebar.tsx`,
+`groupon/shared-sidebar.tsx`) and on the History screen, and a shared chat opens in the History
+reader with the share key out of the owner's box, with a composer and Allow / Deny when the role is
+write (`groupon/history-chat-screen.tsx`, `groupon/share-model.ts`).

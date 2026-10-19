@@ -3,10 +3,12 @@
 /**
  * The hub is Groupon Desk's server side on Core (`user/groupon_desk`, monorepo
  * `.context/work-window/hub-spec.md`): the person's Macs, the registry of repositories,
- * workspaces and chats, and the sealed transcript store. Dates arrive as ISO strings.
+ * workspaces and chats, and the sealed transcript store; and the workspaces shared between
+ * colleagues (design section 13: the grants, a grant, a revoke, a colleague's prompt and permission
+ * answer). Dates arrive as ISO strings.
  */
 
-import { grouponRequest } from "./session";
+import { grouponRequest, grouponSend } from "./session";
 
 export interface HubMachine {
   machine: string;
@@ -36,6 +38,8 @@ export interface HubWorkspace {
   targetBranch: string;
   ticketKey: string | null;
   name: string;
+  /** The worktree's folder on its Mac; what ties a Paseo workspace in the sidebar to its hub row. */
+  path?: string | null;
   state: "creating" | "ready" | "archiving" | "archived" | "failed";
   status: "idle" | "working" | "waiting" | "unread";
   pinnedAt: string | null;
@@ -69,7 +73,68 @@ export interface HubMessage {
   envelope: string;
   costUsd: number | null;
   senderMachine: string | null;
+  /** A colleague's prompt in a shared workspace names its writer; null for the owner's own. */
+  senderUserId?: string | null;
+  /** The share key version a colleague's `envelope` is sealed under. */
+  shareKeyVersion?: number | null;
   createdAt: string;
+}
+
+export type HubShareRole = "read" | "write";
+
+/** A person as a share names them. */
+export interface HubSharePerson {
+  userId: string;
+  name: string;
+  email: string;
+  publicKey: string | null;
+}
+
+/** One of the person's active grants, as its owner sees it. */
+export interface HubShare {
+  id: string;
+  workspaceId: string;
+  grantee: HubSharePerson;
+  role: HubShareRole;
+  sealedShareKey: string | null;
+  shareKeyVersion: number | null;
+  createdAt: string;
+}
+
+/** A workspace a colleague shared with the person: the grant, the box, the owner, the workspace, its chats. */
+export interface HubSharedWorkspace {
+  shareId: string;
+  role: HubShareRole;
+  sealedShareKey: string | null;
+  shareKeyVersion: number | null;
+  owner: HubSharePerson;
+  repositoryName: string;
+  workspace: Pick<
+    HubWorkspace,
+    | "id"
+    | "machine"
+    | "branch"
+    | "targetBranch"
+    | "ticketKey"
+    | "name"
+    | "state"
+    | "status"
+    | "updatedAt"
+  >;
+  chats: Pick<
+    HubChat,
+    | "id"
+    | "workspaceId"
+    | "machine"
+    | "agent"
+    | "title"
+    | "model"
+    | "effort"
+    | "status"
+    | "lastMessageAt"
+    | "createdAt"
+  >[];
+  sharedAt: string;
 }
 
 export interface HubOverview {
@@ -77,6 +142,10 @@ export interface HubOverview {
   workspaces: HubWorkspace[];
   chats: HubChat[];
   machines: HubMachine[];
+  /** The person's active grants (absent from an older hub). */
+  shares?: HubShare[];
+  /** What colleagues shared with the person (absent from an older hub). */
+  sharedWithMe?: HubSharedWorkspace[];
 }
 
 /** The seal's kind for a Mac's Paseo pairing offer; its scope is the Mac's id (the hand's `relay.ts`). */
@@ -116,4 +185,67 @@ export async function fetchAllMessages(chatId: string): Promise<HubMessage[]> {
 
 export function machineLabel(machine: Pick<HubMachine, "alias" | "name">): string {
   return machine.alias?.trim() || machine.name;
+}
+
+/** The window's client id on what it issues. */
+const ISSUED_BY = "groupon-desk-window";
+
+/** Share one of the person's workspaces with a colleague by email; a second call changes the role. */
+export function shareWorkspace(
+  workspaceId: string,
+  granteeEmail: string,
+  role: HubShareRole,
+): Promise<{ share: HubShare }> {
+  return grouponSend(
+    `/user/groupon_desk/work/workspaces/${encodeURIComponent(workspaceId)}/shares`,
+    "POST",
+    { granteeEmail, role, issuedBy: ISSUED_BY },
+  );
+}
+
+/** Revoke one of the person's grants: the colleague is refused at once. */
+export function revokeShare(shareId: string): Promise<{ share: HubShare }> {
+  return grouponSend(
+    `/user/groupon_desk/work/shares/${encodeURIComponent(shareId)}/revoke`,
+    "POST",
+    {
+      issuedBy: ISSUED_BY,
+    },
+  );
+}
+
+/** A colleague's prompt, sealed under the workspace's share key at `shareKeyVersion`: a command the owner's Mac runs. */
+export function sendSharedPrompt(
+  chatId: string,
+  envelope: string,
+  shareKeyVersion: number,
+): Promise<{ command: { id: string } }> {
+  return grouponSend(
+    `/user/groupon_desk/work/chats/${encodeURIComponent(chatId)}/messages`,
+    "POST",
+    {
+      envelope,
+      shareKeyVersion,
+      issuedBy: ISSUED_BY,
+    },
+  );
+}
+
+/** Allow or deny what the agent asked, in a chat shared with the person to write (or the person's own). */
+export function answerPermission(
+  chatId: string,
+  requestId: string,
+  behavior: "allow" | "deny",
+  message?: string,
+): Promise<{ command: { id: string } }> {
+  return grouponSend(
+    `/user/groupon_desk/work/chats/${encodeURIComponent(chatId)}/permission`,
+    "POST",
+    {
+      requestId,
+      behavior,
+      ...(message ? { message } : {}),
+      issuedBy: ISSUED_BY,
+    },
+  );
 }

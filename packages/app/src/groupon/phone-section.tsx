@@ -11,23 +11,19 @@
  * - The address is the signed-in environment's (`GROUPON_DESK_WEB_URL`), never typed here
  */
 
-import * as Clipboard from "expo-clipboard";
-import { Check, Copy } from "lucide-react-native";
 import * as QRCode from "qrcode";
-import { useCallback, useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { SvgXml } from "react-native-svg";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
-import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useFetchQuery } from "@/data/query";
 import type { Theme } from "@/styles/theme";
+import { CopyLine } from "./copy-line";
 import { GROUPON_DESK_WEB_URL } from "./environments";
 import { useGrouponStore } from "./session";
 import { GROUPON_PHONE } from "./strings";
 
-const COPIED_FOR_MS = 2000;
 const ThemedSpinner = withUnistyles(LoadingSpinner);
 const mutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
@@ -39,54 +35,16 @@ export function GrouponPhonePage() {
     <SettingsSection title={GROUPON_PHONE.title}>
       <View style={styles.card} testID="groupon-phone-section">
         <Text style={styles.body}>{GROUPON_PHONE.body}</Text>
-        <AddressLine address={address} />
+        <CopyLine
+          text={address}
+          accessibilityLabel={GROUPON_PHONE.addressLabel}
+          testID="groupon-phone-address"
+        />
         <View style={styles.qrTile}>
           <AddressQr address={address} />
         </View>
       </View>
     </SettingsSection>
-  );
-}
-
-function AddressLine({ address }: { address: string }) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-  const copy = useCallback(async () => {
-    await Clipboard.setStringAsync(address);
-    setCopied(true);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setCopied(false), COPIED_FOR_MS);
-  }, [address]);
-  const handleCopy = useCallback(() => void copy(), [copy]);
-  return (
-    <View style={styles.addressRow}>
-      <View style={styles.addressBox}>
-        <Text
-          style={styles.address}
-          selectable
-          numberOfLines={1}
-          accessibilityLabel={GROUPON_PHONE.addressLabel}
-          testID="groupon-phone-address"
-        >
-          {address}
-        </Text>
-      </View>
-      <Button
-        variant="outline"
-        size="sm"
-        leftIcon={copied ? Check : Copy}
-        onPress={handleCopy}
-        testID="groupon-phone-copy"
-      >
-        {copied ? GROUPON_PHONE.copied : GROUPON_PHONE.copy}
-      </Button>
-    </View>
   );
 }
 
@@ -126,26 +84,6 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
     lineHeight: theme.fontSize.base * 1.5,
-  },
-  addressRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-  },
-  addressBox: {
-    flex: 1,
-    minWidth: 0,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surface2,
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-  },
-  address: {
-    color: theme.colors.foreground,
-    fontFamily: theme.fontFamily.mono,
-    fontSize: theme.fontSize.sm,
   },
   qrTile: {
     alignSelf: "center",

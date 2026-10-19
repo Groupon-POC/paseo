@@ -18,6 +18,7 @@ export const GROUPON_PLUGIN_ID = "groupon";
 export const GROUPON_RPC = {
   githubAccess: "groupon.github-access",
   githubClone: "groupon.github-clone",
+  githubRepositories: "groupon.github-repositories",
   ticketStart: "groupon.ticket-start",
   job: "groupon.job",
   ticketFlow: "groupon.ticket-flow",
@@ -48,15 +49,33 @@ export interface GithubOrganisation {
   teams: GithubTeam[];
 }
 
+/** A GitHub host and the account gh is signed in to there; `signIn` is the command when it is not. */
+export interface GithubHost {
+  host: string;
+  login: string | null;
+  signIn: string | null;
+}
+
 export interface GithubAccessAnswer {
+  /** The host this answer is for; a plugin older than the host switch leaves it out (github.com). */
+  host?: string;
+  /** github.com and github.groupondev.com, then any other host gh is signed in to; absent from an older plugin. */
+  hosts?: GithubHost[];
   access: {
     githubLogin: string | null;
     requestAccessUrl: string | null;
     organisations: GithubOrganisation[];
+    /** Every other organisation on an enterprise host, whose visible repositories may be cloned; null on github.com. */
+    otherOrganisations?: string[] | null;
   } | null;
   problem: string | null;
   readAt: string | null;
   defaultFolder: string;
+}
+
+export interface GithubRepositoriesAnswer {
+  repositories: GithubRepository[] | null;
+  problem: string | null;
 }
 
 export type TicketOutcome =
@@ -160,6 +179,10 @@ export function isGithubAccessAnswer(value: unknown): value is GithubAccessAnswe
   );
 }
 
+export function isGithubRepositoriesAnswer(value: unknown): value is GithubRepositoriesAnswer {
+  return isRecord(value) && (value.repositories === null || Array.isArray(value.repositories));
+}
+
 export function isJobAnswer(value: unknown): value is JobAnswer {
   return (
     isRecord(value) &&
@@ -185,21 +208,40 @@ function jobIdOf(output: Record<string, unknown>, method: string): string {
 
 export async function readGithubAccess(
   client: PluginRpcClient,
+  host: string,
   refresh: boolean,
 ): Promise<GithubAccessAnswer> {
-  const output = await call(client, GROUPON_RPC.githubAccess, { refresh });
+  const output = await call(client, GROUPON_RPC.githubAccess, { refresh, host });
   if (!isGithubAccessAnswer(output))
     throw new Error("The GitHub access came back in a shape this app does not read");
   return output;
 }
 
+/** One organisation's visible repositories on an enterprise host. */
+export async function readGithubRepositories(
+  client: PluginRpcClient,
+  host: string,
+  organisation: string,
+  refresh: boolean,
+): Promise<GithubRepositoriesAnswer> {
+  const output = await call(client, GROUPON_RPC.githubRepositories, {
+    host,
+    organisation,
+    refresh,
+  });
+  if (!isGithubRepositoriesAnswer(output))
+    throw new Error("The repositories came back in a shape this app does not read");
+  return output;
+}
+
 export async function startGithubClone(
   client: PluginRpcClient,
+  host: string,
   fullName: string,
   folder: string,
 ): Promise<string> {
   return jobIdOf(
-    await call(client, GROUPON_RPC.githubClone, { fullName, folder }),
+    await call(client, GROUPON_RPC.githubClone, { fullName, folder, host }),
     GROUPON_RPC.githubClone,
   );
 }

@@ -4,10 +4,14 @@ import {
   followJob,
   GROUPON_PLUGIN_ID,
   GROUPON_RPC,
+  isGithubAccessAnswer,
+  isGithubRepositoriesAnswer,
   isJobAnswer,
   isProjectSettingsAnswer,
   pluginProblemText,
   readGithubAccess,
+  readGithubRepositories,
+  startGithubClone,
   startTicketJob,
   type PluginRpcClient,
 } from "./desk-plugin-rpc";
@@ -29,6 +33,64 @@ const SAMPLE_JOB_STARTED = {
     agentId: null,
   },
   updatedAt: "2026-10-19T16:00:00.000Z",
+};
+
+/** The access on GitHub Enterprise, with both hosts. */
+const SAMPLE_ENTERPRISE_ACCESS = {
+  host: "github.groupondev.com",
+  hosts: [
+    { host: "github.com", login: "ctzaruba", signIn: null },
+    { host: "github.groupondev.com", login: "c-tzaruba", signIn: null },
+  ],
+  access: {
+    githubLogin: "c-tzaruba",
+    requestAccessUrl: null,
+    organisations: [
+      {
+        login: "merchant-experience",
+        purpose: "",
+        membership: "member",
+        teams: [
+          {
+            slug: "mx-galactic-bridge",
+            name: "MX Galactic Bridge",
+            description: null,
+            repositories: [
+              {
+                name: "access-service",
+                fullName: "merchant-experience/access-service",
+                description: "Merchant Access Service",
+                isPrivate: false,
+                permission: "write",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+    otherOrganisations: ["Mobile-Next"],
+  },
+  problem: null,
+  readAt: "2026-10-19T16:00:00.000Z",
+  defaultFolder: "~/Documents/GitHub",
+};
+
+/** A host gh is not signed in to: no access, the command in the host row. */
+const SAMPLE_SIGNED_OUT = {
+  host: "github.groupondev.com",
+  hosts: [
+    { host: "github.com", login: "ctzaruba", signIn: null },
+    {
+      host: "github.groupondev.com",
+      login: null,
+      signIn: "gh auth login --hostname github.groupondev.com --web",
+    },
+  ],
+  access: null,
+  problem:
+    "gh on this Mac is not signed in to github.groupondev.com: run gh auth login --hostname github.groupondev.com --web",
+  readAt: null,
+  defaultFolder: "~/Documents/GitHub",
 };
 
 const SAMPLE_PROJECT_SETTINGS = {
@@ -70,6 +132,7 @@ describe("the Groupon plugin's RPCs", () => {
     expect(GROUPON_RPC).toEqual({
       githubAccess: "groupon.github-access",
       githubClone: "groupon.github-clone",
+      githubRepositories: "groupon.github-repositories",
       ticketStart: "groupon.ticket-start",
       job: "groupon.job",
       ticketFlow: "groupon.ticket-flow",
@@ -81,6 +144,10 @@ describe("the Groupon plugin's RPCs", () => {
     expect(isJobAnswer(SAMPLE_JOB_STARTED)).toBe(true);
     expect(isProjectSettingsAnswer(SAMPLE_PROJECT_SETTINGS)).toBe(true);
     expect(isJobAnswer({ jobId: "x" })).toBe(false);
+    expect(isGithubAccessAnswer(SAMPLE_ENTERPRISE_ACCESS)).toBe(true);
+    expect(isGithubAccessAnswer(SAMPLE_SIGNED_OUT)).toBe(true);
+    expect(isGithubRepositoriesAnswer({ repositories: null, problem: "gh: Not Found" })).toBe(true);
+    expect(isGithubRepositoriesAnswer({ problem: null })).toBe(false);
   });
 
   it("calls the groupon plugin with the method and the input", async () => {
@@ -94,8 +161,10 @@ describe("the Groupon plugin's RPCs", () => {
         },
       ],
       [GROUPON_RPC.ticketStart]: [{ jobId: "job-1" }],
+      [GROUPON_RPC.githubRepositories]: [{ repositories: [], problem: null }],
+      [GROUPON_RPC.githubClone]: [{ jobId: "job-2" }],
     });
-    expect((await readGithubAccess(client, true)).problem).toBe("not signed in");
+    expect((await readGithubAccess(client, "github.com", true)).problem).toBe("not signed in");
     expect(
       await startTicketJob(client, {
         ticket: "ENC-1234",
@@ -104,12 +173,33 @@ describe("the Groupon plugin's RPCs", () => {
         model: "opus",
       }),
     ).toBe("job-1");
+    expect(
+      (await readGithubRepositories(client, "github.groupondev.com", "Mobile-Next", false))
+        .repositories,
+    ).toEqual([]);
+    expect(
+      await startGithubClone(client, "github.groupondev.com", "Mobile-Next/next-pwa-app", "~/src"),
+    ).toBe("job-2");
     expect(calls.map(({ pluginId, method, input }) => [pluginId, method, input])).toEqual([
-      ["groupon", "groupon.github-access", { refresh: true }],
+      ["groupon", "groupon.github-access", { refresh: true, host: "github.com" }],
       [
         "groupon",
         "groupon.ticket-start",
         { ticket: "ENC-1234", projectRoot: "/r", provider: "claude", model: "opus" },
+      ],
+      [
+        "groupon",
+        "groupon.github-repositories",
+        { host: "github.groupondev.com", organisation: "Mobile-Next", refresh: false },
+      ],
+      [
+        "groupon",
+        "groupon.github-clone",
+        {
+          fullName: "Mobile-Next/next-pwa-app",
+          folder: "~/src",
+          host: "github.groupondev.com",
+        },
       ],
     ]);
   });

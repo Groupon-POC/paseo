@@ -1,20 +1,45 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the From GitHub sheet's steps, as plain data.
 
 /**
- * Add a project, From GitHub: the person's organisations (as the platform sees them, through the
- * Groupon plugin on the Mac), then a team, then one of the team's repositories, then the folder it
- * is cloned into. The sheet opens on the repositories of the organisation and team chosen last
- * time (or the first organisation the person is in, all teams), the way Desk's Dark Factory screen
- * remembers its organisation; Back reaches the teams and the organisations. Pure, so the steps and
- * the lists are tested without a screen.
+ * Add a project, From GitHub, on one GitHub host at a time (github.com, or Groupon's enterprise
+ * github.groupondev.com; a switch at the top): the person's organisations (on github.com as the
+ * platform sees them, on the enterprise as gh reads them, both through the Groupon plugin on the
+ * Mac), then a team, then one of the team's repositories, then the folder it is cloned into. On
+ * the enterprise any other organisation can be found by name and opened on its visible
+ * repositories (Mobile-Next's next-pwa-app is one), with no team step. The sheet opens on the
+ * host, organisation and team chosen last time (or the first organisation the person is in, all
+ * teams), the way Desk's Dark Factory screen remembers its organisation; Back reaches the teams
+ * and the organisations. Pure, so the steps and the lists are tested without a screen.
  */
 
 import type {
   GithubAccessAnswer,
+  GithubHost,
   GithubOrganisation,
   GithubRepository,
   GithubTeam,
 } from "./desk-plugin-rpc";
+
+/** github.com: the `groupon2` organisations, as the platform sees them. */
+export const GITHUB_COM = "github.com";
+/** Groupon's GitHub Enterprise, where the inherited code lives. */
+export const GITHUB_ENTERPRISE = "github.groupondev.com";
+const KNOWN_HOSTS = [GITHUB_COM, GITHUB_ENTERPRISE];
+
+/** The hosts the switch offers: the two known ones always, then any other the plugin lists. */
+export function hostChoices(answer: GithubAccessAnswer | null): string[] {
+  const others = (answer?.hosts ?? [])
+    .map((row) => row.host)
+    .filter((host) => !KNOWN_HOSTS.includes(host));
+  return [...KNOWN_HOSTS, ...others];
+}
+
+/** The answer's own host row when gh on the Mac is not signed in there; null when it is (or an older plugin did not say). */
+export function signInNeeded(answer: GithubAccessAnswer | null): GithubHost | null {
+  const host = answer?.host ?? GITHUB_COM;
+  const row = answer?.hosts?.find((entry) => entry.host === host) ?? null;
+  return row && row.login === null && row.signIn ? row : null;
+}
 
 /** A team row that stands for every team of the organisation together. */
 export const ALL_TEAMS = "*";
@@ -66,15 +91,68 @@ export interface RememberedGithubPlace {
   team: string | null;
 }
 
+/** What the device keeps: a place per host, and the github.com place of a version before the host switch. */
+export interface RememberedGithubPlaces {
+  githubPlaces?: Record<string, RememberedGithubPlace> | null;
+  githubOrganisation?: string | null;
+  githubTeam?: string | null;
+}
+
+/** The place remembered on a host; github.com falls back to the single place kept before hosts. */
+export function placeOn(remembered: RememberedGithubPlaces, host: string): RememberedGithubPlace {
+  const kept = remembered.githubPlaces?.[host];
+  if (kept) return kept;
+  if (host === GITHUB_COM) {
+    return {
+      organisation: remembered.githubOrganisation ?? null,
+      team: remembered.githubTeam ?? null,
+    };
+  }
+  return { organisation: null, team: null };
+}
+
 /**
- * Where the sheet opens: the remembered organisation and team while the person is still in them,
- * else the first organisation they are in with all its teams (its one team when it has one);
- * the organisations list when they are in none.
+ * True when an organisation opens on its own repositories, read on request, rather than on its
+ * teams: on a host that lets the person browse other organisations (the enterprise), any
+ * organisation they are on no team in.
+ */
+export function browsesOrganisation(answer: GithubAccessAnswer | null, login: string): boolean {
+  if (!answer?.access?.otherOrganisations) return false;
+  const organisation = organisationOf(answer, login);
+  return !organisation || organisation.membership !== "member" || organisation.teams.length === 0;
+}
+
+/** How many other organisations a search shows at most. */
+export const OTHER_ORGANISATIONS_SHOWN = 30;
+
+/** The other organisations whose name holds every word typed; none until something is typed. */
+export function otherOrganisationsMatching(
+  answer: GithubAccessAnswer | null,
+  query: string,
+): string[] {
+  const others = answer?.access?.otherOrganisations ?? [];
+  if (query.trim() === "") return [];
+  return matching(others, query, (login) => login).slice(0, OTHER_ORGANISATIONS_SHOWN);
+}
+
+/**
+ * Where the sheet opens: the remembered organisation and team while the person is still in them
+ * (on the enterprise, also another organisation opened before, while it is still there), else the
+ * first organisation they are in with all its teams (its one team when it has one); the
+ * organisations list when they are in none.
  */
 export function firstStep(
   answer: GithubAccessAnswer | null,
   remembered: RememberedGithubPlace,
 ): GithubStep {
+  const browsed = remembered.organisation;
+  if (
+    browsed &&
+    browsesOrganisation(answer, browsed) &&
+    (organisationOf(answer, browsed) || answer?.access?.otherOrganisations?.includes(browsed))
+  ) {
+    return { kind: "repositories", organisation: browsed, team: ALL_TEAMS };
+  }
   const members = organisationsOf(answer).filter((org) => org.membership === "member");
   const organisation =
     members.find((org) => org.login === remembered.organisation) ?? members[0] ?? null;
@@ -116,15 +194,20 @@ export function folderProblem(folder: string): string | null {
   return "Start the folder with / or ~/ (it is a folder on the Mac).";
 }
 
-/** One step back; null from the first step (the sheet closes). */
-export function previousStep(step: GithubStep): GithubStep | null {
+/** One step back; null from the first step (the sheet closes). An organisation opened on its own repositories goes back to the organisations. */
+export function previousStep(
+  step: GithubStep,
+  answer: GithubAccessAnswer | null = null,
+): GithubStep | null {
   switch (step.kind) {
     case "organisations":
       return null;
     case "teams":
       return { kind: "organisations" };
     case "repositories":
-      return { kind: "teams", organisation: step.organisation };
+      return browsesOrganisation(answer, step.organisation)
+        ? { kind: "organisations" }
+        : { kind: "teams", organisation: step.organisation };
     case "folder":
       return { kind: "repositories", organisation: step.organisation, team: step.team };
     default: {
@@ -135,13 +218,19 @@ export function previousStep(step: GithubStep): GithubStep | null {
 }
 
 /** The sheet's title on each step: the organisation, its team, or the repository chosen. */
-export function stepTitle(step: GithubStep, firstTitle: string, allTeams: string): string {
+export function stepTitle(
+  step: GithubStep,
+  firstTitle: string,
+  allTeams: string,
+  answer: GithubAccessAnswer | null = null,
+): string {
   switch (step.kind) {
     case "organisations":
       return firstTitle;
     case "teams":
       return step.organisation;
     case "repositories":
+      if (browsesOrganisation(answer, step.organisation)) return step.organisation;
       return `${step.organisation} · ${step.team === ALL_TEAMS ? allTeams : step.team}`;
     case "folder":
       return step.repository.fullName;

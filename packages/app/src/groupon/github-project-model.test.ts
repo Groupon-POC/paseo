@@ -1,16 +1,24 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the From GitHub sheet's steps.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the From GitHub sheet's steps, on github.com and on the enterprise.
 import { describe, expect, it } from "vitest";
 import type { GithubAccessAnswer, GithubRepository } from "./desk-plugin-rpc";
 import {
   ALL_TEAMS,
+  browsesOrganisation,
   checkoutPathPreview,
   firstStep,
   folderProblem,
+  GITHUB_COM,
+  GITHUB_ENTERPRISE,
+  hostChoices,
   matching,
   organisationHint,
   organisationsOf,
+  OTHER_ORGANISATIONS_SHOWN,
+  otherOrganisationsMatching,
+  placeOn,
   previousStep,
   repositoriesOf,
+  signInNeeded,
   stepTitle,
   teamHint,
 } from "./github-project-model";
@@ -164,5 +172,143 @@ describe("the From GitHub steps", () => {
     expect(rebuild && organisationHint(rebuild, "x")).toBe("3 teams · The rebuild");
     const silent = rebuild?.teams[2];
     expect(silent && teamHint(silent, "GitHub did not answer")).toBe("GitHub did not answer");
+  });
+});
+
+const SIGN_IN = `gh auth login --hostname ${GITHUB_ENTERPRISE} --web`;
+
+/** The enterprise as the plugin answers it: one organisation with a team, and every other one by name. */
+const ENTERPRISE: GithubAccessAnswer = {
+  host: GITHUB_ENTERPRISE,
+  hosts: [
+    { host: GITHUB_COM, login: "ctzaruba", signIn: null },
+    { host: GITHUB_ENTERPRISE, login: "c-tzaruba", signIn: null },
+  ],
+  access: {
+    githubLogin: "c-tzaruba",
+    requestAccessUrl: null,
+    organisations: [
+      {
+        login: "merchant-experience",
+        purpose: "",
+        membership: "member",
+        teams: [
+          {
+            slug: "mx-galactic-bridge",
+            name: "MX Galactic Bridge",
+            description: null,
+            repositories: [repo("smc")],
+          },
+        ],
+      },
+      { login: "lonely", purpose: "", membership: "member", teams: [] },
+    ],
+    otherOrganisations: ["Mobile-Next", "Mobile-Old", "US"],
+  },
+  problem: null,
+  readAt: "2026-10-19T16:00:00.000Z",
+  defaultFolder: "~/Documents/GitHub",
+};
+
+describe("From GitHub on two hosts", () => {
+  it("always offers github.com and the enterprise, then any other host gh is signed in to", () => {
+    expect(hostChoices(null)).toEqual([GITHUB_COM, GITHUB_ENTERPRISE]);
+    const third: GithubAccessAnswer = {
+      ...ENTERPRISE,
+      hosts: [...(ENTERPRISE.hosts ?? []), { host: "ghe.example.com", login: "me", signIn: null }],
+    };
+    expect(hostChoices(third)).toEqual([GITHUB_COM, GITHUB_ENTERPRISE, "ghe.example.com"]);
+  });
+
+  it("shows the sign-in command for the answer's own host only when gh is not signed in there", () => {
+    expect(signInNeeded(ENTERPRISE)).toBeNull();
+    const signedOut: GithubAccessAnswer = {
+      host: GITHUB_ENTERPRISE,
+      hosts: [
+        { host: GITHUB_COM, login: "ctzaruba", signIn: null },
+        { host: GITHUB_ENTERPRISE, login: null, signIn: SIGN_IN },
+      ],
+      access: null,
+      problem: "not signed in",
+      readAt: null,
+      defaultFolder: "~/Documents/GitHub",
+    };
+    expect(signInNeeded(signedOut)).toEqual({
+      host: GITHUB_ENTERPRISE,
+      login: null,
+      signIn: SIGN_IN,
+    });
+    // github.com's answer is not about the enterprise's sign-in; an older plugin says nothing.
+    expect(signInNeeded({ ...signedOut, host: GITHUB_COM })).toBeNull();
+    expect(signInNeeded(ANSWER)).toBeNull();
+  });
+
+  it("remembers a place per host, github.com falling back to the place kept before hosts", () => {
+    const kept = {
+      githubOrganisation: "groupon2",
+      githubTeam: "web",
+      githubPlaces: { [GITHUB_ENTERPRISE]: { organisation: "Mobile-Next", team: ALL_TEAMS } },
+    };
+    expect(placeOn(kept, GITHUB_COM)).toEqual({ organisation: "groupon2", team: "web" });
+    expect(placeOn(kept, GITHUB_ENTERPRISE)).toEqual({
+      organisation: "Mobile-Next",
+      team: ALL_TEAMS,
+    });
+    expect(placeOn({}, "ghe.example.com")).toEqual({ organisation: null, team: null });
+    expect(
+      placeOn(
+        { ...kept, githubPlaces: { [GITHUB_COM]: { organisation: "groupon-poc", team: null } } },
+        GITHUB_COM,
+      ),
+    ).toEqual({ organisation: "groupon-poc", team: null });
+  });
+
+  it("opens another organisation, or one without a team of the person's, on its own repositories, only on the enterprise", () => {
+    expect(browsesOrganisation(ENTERPRISE, "Mobile-Next")).toBe(true);
+    expect(browsesOrganisation(ENTERPRISE, "lonely")).toBe(true);
+    expect(browsesOrganisation(ENTERPRISE, "merchant-experience")).toBe(false);
+    expect(browsesOrganisation(ANSWER, "groupon-poc")).toBe(false);
+  });
+
+  it("finds other organisations by name once something is typed, a bounded number", () => {
+    expect(otherOrganisationsMatching(ENTERPRISE, "")).toEqual([]);
+    expect(otherOrganisationsMatching(ENTERPRISE, "mobile next")).toEqual(["Mobile-Next"]);
+    expect(otherOrganisationsMatching(ENTERPRISE, "mobile")).toEqual(["Mobile-Next", "Mobile-Old"]);
+    const many: GithubAccessAnswer = {
+      ...ENTERPRISE,
+      access: ENTERPRISE.access && {
+        ...ENTERPRISE.access,
+        otherOrganisations: Array.from({ length: 100 }, (_, i) => `org-${i}`),
+      },
+    };
+    expect(otherOrganisationsMatching(many, "org")).toHaveLength(OTHER_ORGANISATIONS_SHOWN);
+    expect(otherOrganisationsMatching(ANSWER, "groupon")).toEqual([]);
+  });
+
+  it("reopens the enterprise on the organisation opened last time, while it is still there", () => {
+    expect(firstStep(ENTERPRISE, { organisation: "Mobile-Next", team: ALL_TEAMS })).toEqual({
+      kind: "repositories",
+      organisation: "Mobile-Next",
+      team: ALL_TEAMS,
+    });
+    expect(firstStep(ENTERPRISE, { organisation: "gone", team: null })).toEqual({
+      kind: "repositories",
+      organisation: "merchant-experience",
+      team: "mx-galactic-bridge",
+    });
+    expect(firstStep(ENTERPRISE, { organisation: null, team: null })).toMatchObject({
+      organisation: "merchant-experience",
+    });
+  });
+
+  it("goes back from another organisation's repositories to the organisations, and titles it by its name", () => {
+    const browsed = { kind: "repositories" as const, organisation: "Mobile-Next", team: ALL_TEAMS };
+    expect(previousStep(browsed, ENTERPRISE)).toEqual({ kind: "organisations" });
+    expect(stepTitle(browsed, "From GitHub", "All your teams", ENTERPRISE)).toBe("Mobile-Next");
+    const team = { ...browsed, organisation: "merchant-experience", team: "mx-galactic-bridge" };
+    expect(previousStep(team, ENTERPRISE)).toEqual({
+      kind: "teams",
+      organisation: "merchant-experience",
+    });
   });
 });

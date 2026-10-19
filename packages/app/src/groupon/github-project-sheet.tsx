@@ -1,22 +1,26 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): Add a project, From GitHub, with Groupon's organisations and teams.
 
 /**
- * The one GitHub way to add a project (Paseo's own "Clone from GitHub" is taken off the menu).
- * The person's organisations and teams as the platform sees them (the internal plane's GitHub
- * overview and each team's repositories, read by the Groupon plugin on the chosen Mac with the
- * CLI's session there): the sheet opens on the repositories of the organisation and team picked
- * last time, or the first organisation the person is in (`firstStep`), with Back to change them.
- * Then a repository, then the folder (the Mac's checkout folder, `~/Documents/GitHub` unless the
- * person's setup says otherwise): the plugin clones it the way the CLI does (`gh repo clone`, git
- * over https without gh), and from there it is what Paseo's clone does after its pick: the
- * checkout is registered as a project with Paseo's own `project.add` and New workspace opens on
- * it.
+ * The one GitHub way to add a project (Paseo's own "Clone from GitHub" is taken off the menu),
+ * on github.com or on Groupon's GitHub Enterprise (github.groupondev.com), switched at the top and
+ * remembered on the device. On github.com the person's organisations and teams as the platform
+ * sees them (the internal plane's GitHub overview and each team's repositories, read by the
+ * Groupon plugin on the chosen Mac with the CLI's session there); on the enterprise as gh reads
+ * them on that Mac, plus any other organisation found by name and opened on its visible
+ * repositories. A host gh is not signed in to shows the command that signs it in, with Copy,
+ * instead of a list. The sheet opens on the repositories of the organisation and team picked last
+ * time on that host, or the first organisation the person is in (`firstStep`), with Back to change
+ * them. Then a repository, then the folder (the Mac's checkout folder, `~/Documents/GitHub` unless
+ * the person's setup says otherwise): the plugin clones it from its host the way the CLI does
+ * (`gh repo clone`, git over https without gh), and from there it is what Paseo's clone does after
+ * its pick: the checkout is registered as a project with Paseo's own `project.add` and New
+ * workspace opens on it.
  */
 
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { ChevronRight, Folder, RefreshCw, Users } from "lucide-react-native";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { AdaptiveModalSheet, type SheetHeader } from "@/components/adaptive-modal-sheet";
@@ -24,6 +28,7 @@ import { GitHubIcon } from "@/components/icons/github-icon";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PressHighlight } from "@/components/ui/press-highlight";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EditingTextInput } from "@/components/ui/text-input";
 import { useFetchQuery } from "@/data/query";
 import { useOpenProject } from "@/hooks/use-open-project";
@@ -31,26 +36,36 @@ import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
 import { buildNewWorkspaceRoute } from "@/utils/host-routes";
 import { openExternalUrl } from "@/utils/open-external-url";
+import { CopyLine } from "./copy-line";
 import {
   followJob,
   pluginProblemText,
   readGithubAccess,
+  readGithubRepositories,
   startGithubClone,
   type GithubAccessAnswer,
+  type GithubHost,
   type GithubRepository,
+  type PluginRpcClient,
 } from "./desk-plugin-rpc";
 import {
   ALL_TEAMS,
+  browsesOrganisation,
   checkoutPathPreview,
   firstStep,
   folderProblem,
+  GITHUB_COM,
+  hostChoices,
   matching,
   organisationHint,
   organisationOf,
   organisationsOf,
+  otherOrganisationsMatching,
+  placeOn,
   previousStep,
   repositoriesOf,
   repositoryHint,
+  signInNeeded,
   stepTitle,
   teamHint,
   type GithubStep,
@@ -130,6 +145,8 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
   const hostLabel = useHosts().find((host) => host.serverId === serverId)?.label ?? serverId;
   const openProject = useOpenProject(serverId);
   const queryClient = useQueryClient();
+  const rememberedHost = useGrouponPreferences((state) => state.githubHost ?? null);
+  const [host, setHost] = useState(() => rememberedHost ?? GITHUB_COM);
   const [chosenStep, setStep] = useState<GithubStep | null>(null);
   const [query, setQuery] = useState("");
   const [folder, setFolder] = useState<string | null>(null);
@@ -142,12 +159,12 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
     [],
   );
 
-  const queryKey = useMemo(() => ["groupon-github-access", serverId], [serverId]);
+  const queryKey = useMemo(() => ["groupon-github-access", serverId, host], [serverId, host]);
   const access = useFetchQuery({
     queryKey,
     queryFn: async () => {
       if (!client) throw new Error("This Mac is not connected.");
-      return readGithubAccess(client, false);
+      return readGithubAccess(client, host, false);
     },
     enabled: Boolean(client),
     dataShape: "value",
@@ -155,40 +172,55 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
     staleTimeMs: 60_000,
   });
   const answer = access.data ?? null;
-  const rememberedOrganisation = useGrouponPreferences((state) => state.githubOrganisation ?? null);
-  const rememberedTeam = useGrouponPreferences((state) => state.githubTeam ?? null);
+  const signIn = signInNeeded(answer);
+  const githubPlaces = useGrouponPreferences((state) => state.githubPlaces ?? null);
+  const githubOrganisation = useGrouponPreferences((state) => state.githubOrganisation ?? null);
+  const githubTeam = useGrouponPreferences((state) => state.githubTeam ?? null);
   const rememberGithubPlace = useGrouponPreferences((state) => state.rememberGithubPlace);
-  // Until the person moves, the step follows the answer: it opens where they worked last.
+  const rememberGithubHost = useGrouponPreferences((state) => state.rememberGithubHost);
+  // Until the person moves, the step follows the answer: it opens where they worked last on this host.
   const step = useMemo<GithubStep>(
     () =>
       chosenStep ??
       (answer
-        ? firstStep(answer, { organisation: rememberedOrganisation, team: rememberedTeam })
+        ? firstStep(answer, placeOn({ githubPlaces, githubOrganisation, githubTeam }, host))
         : { kind: "organisations" }),
-    [answer, chosenStep, rememberedOrganisation, rememberedTeam],
+    [answer, chosenStep, githubOrganisation, githubPlaces, githubTeam, host],
   );
   const shownFolder = folder ?? answer?.defaultFolder ?? "~/Documents/GitHub";
 
   const refresh = useCallback(async () => {
     if (!client) return;
-    queryClient.setQueryData(queryKey, await readGithubAccess(client, true));
-  }, [client, queryClient, queryKey]);
+    queryClient.setQueryData(queryKey, await readGithubAccess(client, host, true));
+  }, [client, host, queryClient, queryKey]);
 
   const go = useCallback(
     (next: GithubStep) => {
       setQuery("");
       setStep(next);
-      if (next.kind === "repositories") rememberGithubPlace(next.organisation, next.team);
+      if (next.kind === "repositories") rememberGithubPlace(host, next.organisation, next.team);
     },
-    [rememberGithubPlace],
+    [host, rememberGithubPlace],
+  );
+
+  const switchHost = useCallback(
+    (next: string) => {
+      if (download.status === "running" || next === host) return;
+      setHost(next);
+      setStep(null);
+      setQuery("");
+      setDownload({ status: "idle" });
+      rememberGithubHost(next);
+    },
+    [download.status, host, rememberGithubHost],
   );
 
   const back = useCallback(() => {
     if (download.status === "running") return;
-    const previous = previousStep(step);
+    const previous = previousStep(step, answer);
     if (previous) go(previous);
     else onClose();
-  }, [download.status, go, onClose, step]);
+  }, [answer, download.status, go, onClose, step]);
 
   const startDownload = useCallback(
     async (repository: GithubRepository) => {
@@ -200,7 +232,7 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
       }
       setDownload({ status: "running", phase: `Cloning ${repository.fullName}` });
       try {
-        const jobId = await startGithubClone(client, repository.fullName, shownFolder);
+        const jobId = await startGithubClone(client, host, repository.fullName, shownFolder);
         const job = await followJob(
           client,
           jobId,
@@ -235,25 +267,25 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
         if (live.current) setDownload({ status: "failed", error: pluginProblemText(error) });
       }
     },
-    [client, download.status, onClose, openProject, serverId, shownFolder],
+    [client, download.status, host, onClose, openProject, serverId, shownFolder],
   );
 
   const header = useMemo<SheetHeader>(() => {
     const base: SheetHeader = {
-      title: stepTitle(step, GROUPON_GITHUB.title, GROUPON_GITHUB.allTeams),
+      title: stepTitle(step, GROUPON_GITHUB.title, GROUPON_GITHUB.allTeams, answer),
       subtitle: `${GROUPON_GITHUB.downloadsTo} ${hostLabel}`,
     };
     if (step.kind !== "organisations") base.back = { onPress: back, label: "Back" };
     if (step.kind !== "folder") {
       base.search = {
         onChange: setQuery,
-        resetKey: step.kind,
+        resetKey: `${host}:${step.kind}`,
         placeholder: GROUPON_GITHUB.searchPlaceholder,
         testID: "groupon-github-search",
       };
     }
     return base;
-  }, [back, hostLabel, step]);
+  }, [answer, back, host, hostLabel, step]);
 
   return (
     <AdaptiveModalSheet
@@ -264,13 +296,23 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
       desktopMaxWidth={560}
       snapPoints={SNAP_POINTS}
     >
+      <HostSwitch
+        hosts={hostChoices(answer)}
+        host={host}
+        locked={download.status === "running"}
+        onChange={switchHost}
+      />
       {access.isLoading ? <Waiting text={GROUPON_GITHUB.reading} /> : null}
       {access.error ? <Text style={styles.error}>{pluginProblemText(access.error)}</Text> : null}
-      {answer?.problem ? <Text style={styles.error}>{answer.problem}</Text> : null}
-      {answer ? (
+      {signIn ? <SignIn row={signIn} onRefresh={refresh} /> : null}
+      {answer?.problem && !signIn ? <Text style={styles.error}>{answer.problem}</Text> : null}
+      {answer && !(signIn && answer.access === null) ? (
         <StepBody
           step={step}
           answer={answer}
+          client={client}
+          serverId={serverId}
+          host={host}
           query={query}
           folder={shownFolder}
           download={download}
@@ -281,6 +323,64 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
         />
       ) : null}
     </AdaptiveModalSheet>
+  );
+}
+
+function HostSwitch({
+  hosts,
+  host,
+  locked,
+  onChange,
+}: {
+  hosts: string[];
+  host: string;
+  locked: boolean;
+  onChange: (host: string) => void;
+}) {
+  const options = useMemo(
+    () =>
+      hosts.map((value) => ({
+        value,
+        label: value,
+        disabled: locked && value !== host,
+        testID: `groupon-github-host-${value}`,
+      })),
+    [host, hosts, locked],
+  );
+  return (
+    <View style={styles.hosts} accessibilityLabel={GROUPON_GITHUB.hostSwitch}>
+      <SegmentedControl
+        options={options}
+        value={host}
+        onValueChange={onChange}
+        size="sm"
+        testID="groupon-github-hosts"
+      />
+    </View>
+  );
+}
+
+/** A host gh is not signed in to: what to run, copyable, and Read again once it ran. */
+function SignIn({ row, onRefresh }: { row: GithubHost; onRefresh: () => Promise<void> }) {
+  const refresh = useCallback(() => {
+    onRefresh().catch(() => {});
+  }, [onRefresh]);
+  return (
+    <View style={styles.list} testID="groupon-github-sign-in">
+      <Text style={styles.muted}>
+        {GROUPON_GITHUB.notSignedIn} {row.host}. {GROUPON_GITHUB.runThis}
+      </Text>
+      <CopyLine
+        text={row.signIn ?? ""}
+        accessibilityLabel={GROUPON_GITHUB.signInLabel}
+        testID="groupon-github-sign-in-command"
+      />
+      <View style={styles.actions}>
+        <Button variant="ghost" size="sm" leftIcon={RefreshCw} onPress={refresh}>
+          {GROUPON_GITHUB.refresh}
+        </Button>
+      </View>
+    </View>
   );
 }
 
@@ -296,6 +396,9 @@ function Waiting({ text }: { text: string }) {
 interface StepBodyProps {
   step: GithubStep;
   answer: GithubAccessAnswer;
+  client: PluginRpcClient | null;
+  serverId: string;
+  host: string;
   query: string;
   folder: string;
   download: Download;
@@ -323,15 +426,22 @@ function StepBody(props: StepBodyProps) {
   }
 }
 
-function OrganisationsStep({ answer, query, onGo, onRefresh }: StepBodyProps) {
+function OrganisationsStep({ answer, host, query, onGo, onRefresh }: StepBodyProps) {
   const organisations = matching(
     organisationsOf(answer),
     query,
     (org) => `${org.login} ${org.purpose}`,
   );
+  const others = otherOrganisationsMatching(answer, query);
+  const browsable = (answer.access?.otherOrganisations?.length ?? 0) > 0;
   const choose = useCallback(
-    (login: string) => onGo({ kind: "teams", organisation: login }),
-    [onGo],
+    (login: string) =>
+      onGo(
+        browsesOrganisation(answer, login)
+          ? { kind: "repositories", organisation: login, team: ALL_TEAMS }
+          : { kind: "teams", organisation: login },
+      ),
+    [answer, onGo],
   );
   const requestAccessUrl = answer.access?.requestAccessUrl ?? null;
   const askForAccess = useCallback(() => {
@@ -345,8 +455,12 @@ function OrganisationsStep({ answer, query, onGo, onRefresh }: StepBodyProps) {
       {answer.access && !answer.access.githubLogin ? (
         <Text style={styles.muted}>{GROUPON_GITHUB.noLogin}</Text>
       ) : null}
-      {answer.access && organisations.length === 0 ? (
-        <Text style={styles.muted}>{GROUPON_GITHUB.noOrganisation}</Text>
+      {answer.access && organisations.length === 0 && others.length === 0 ? (
+        <Text style={styles.muted}>
+          {answer.access.otherOrganisations
+            ? GROUPON_GITHUB.noOrganisationHere
+            : GROUPON_GITHUB.noOrganisation}
+        </Text>
       ) : null}
       {organisations.map((org) => (
         <Row
@@ -358,6 +472,22 @@ function OrganisationsStep({ answer, query, onGo, onRefresh }: StepBodyProps) {
           disabled={org.membership !== "member"}
           onSelect={choose}
           testID={`groupon-github-org-${org.login}`}
+        />
+      ))}
+      {browsable && !query.trim() ? (
+        <Text style={styles.muted}>
+          {GROUPON_GITHUB.findOther} {host}
+        </Text>
+      ) : null}
+      {others.map((login) => (
+        <Row
+          key={login}
+          id={login}
+          icon="org"
+          title={login}
+          subtitle={GROUPON_GITHUB.otherOrganisation}
+          onSelect={choose}
+          testID={`groupon-github-other-org-${login}`}
         />
       ))}
       <View style={styles.actions}>
@@ -418,14 +548,58 @@ function TeamsStep({
   );
 }
 
-function RepositoriesStep({
-  answer,
+type RepositoriesStepProps = StepBodyProps & { organisation: string; team: string };
+
+function RepositoriesStep(props: RepositoriesStepProps) {
+  if (browsesOrganisation(props.answer, props.organisation)) {
+    return <OrganisationRepositoriesStep {...props} />;
+  }
+  const { repositories, unreadTeams } = repositoriesOf(
+    organisationOf(props.answer, props.organisation),
+    props.team,
+  );
+  return (
+    <RepositoryRows {...props} repositories={repositories}>
+      {unreadTeams.length > 0 ? (
+        <Text style={styles.muted}>
+          {GROUPON_GITHUB.unreadTeams} {unreadTeams.join(", ")}
+        </Text>
+      ) : null}
+    </RepositoryRows>
+  );
+}
+
+/** An enterprise organisation opened on its own repositories, read from the Mac when opened. */
+function OrganisationRepositoriesStep(props: RepositoriesStepProps) {
+  const { client, serverId, host, organisation } = props;
+  const read = useFetchQuery({
+    queryKey: ["groupon-github-repositories", serverId, host, organisation],
+    queryFn: async () => {
+      if (!client) throw new Error("This Mac is not connected.");
+      return readGithubRepositories(client, host, organisation, false);
+    },
+    enabled: Boolean(client),
+    dataShape: "value",
+    retry: false,
+    staleTimeMs: 60_000,
+  });
+  if (read.isLoading) return <Waiting text={GROUPON_GITHUB.readingRepositories} />;
+  const problem = read.error ? pluginProblemText(read.error) : (read.data?.problem ?? null);
+  return (
+    <RepositoryRows {...props} repositories={read.data?.repositories ?? []}>
+      {problem ? <Text style={styles.error}>{problem}</Text> : null}
+    </RepositoryRows>
+  );
+}
+
+function RepositoryRows({
   query,
   onGo,
   organisation,
   team,
-}: StepBodyProps & { organisation: string; team: string }) {
-  const { repositories, unreadTeams } = repositoriesOf(organisationOf(answer, organisation), team);
+  repositories,
+  children,
+}: RepositoriesStepProps & { repositories: GithubRepository[]; children?: ReactNode }) {
   const shown = matching(repositories, query, (repo) => `${repo.name} ${repo.description ?? ""}`);
   const choose = useCallback(
     (fullName: string) => {
@@ -436,11 +610,7 @@ function RepositoriesStep({
   );
   return (
     <View style={styles.list}>
-      {unreadTeams.length > 0 ? (
-        <Text style={styles.muted}>
-          {GROUPON_GITHUB.unreadTeams} {unreadTeams.join(", ")}
-        </Text>
-      ) : null}
+      {children}
       {shown.length === 0 ? <Text style={styles.muted}>{GROUPON_GITHUB.noRepository}</Text> : null}
       {shown.map((repository) => (
         <Row
@@ -499,6 +669,10 @@ function FolderStep({
 }
 
 const styles = StyleSheet.create((theme) => ({
+  hosts: {
+    alignItems: "flex-start",
+    marginBottom: theme.spacing[2],
+  },
   list: {
     gap: theme.spacing[1],
   },

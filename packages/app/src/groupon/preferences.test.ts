@@ -22,12 +22,18 @@ describe("Groupon Desk's preferences", () => {
     expect(useGrouponPreferences.getState().remindWorktreeScripts).toBe(true);
   });
 
-  it("remembers the GitHub organisation and team From GitHub opens on", () => {
-    expect(useGrouponPreferences.getState().githubOrganisation ?? null).toBeNull();
-    useGrouponPreferences.getState().rememberGithubPlace("groupon2", "web");
+  it("remembers the GitHub host From GitHub opens on, and the organisation and team per host", () => {
+    expect(useGrouponPreferences.getState().githubHost ?? null).toBeNull();
+    const prefs = useGrouponPreferences.getState();
+    prefs.rememberGithubHost("github.groupondev.com");
+    prefs.rememberGithubPlace("github.com", "groupon2", "web");
+    prefs.rememberGithubPlace("github.groupondev.com", "Mobile-Next", "*");
     expect(useGrouponPreferences.getState()).toMatchObject({
-      githubOrganisation: "groupon2",
-      githubTeam: "web",
+      githubHost: "github.groupondev.com",
+      githubPlaces: {
+        "github.com": { organisation: "groupon2", team: "web" },
+        "github.groupondev.com": { organisation: "Mobile-Next", team: "*" },
+      },
     });
   });
 });

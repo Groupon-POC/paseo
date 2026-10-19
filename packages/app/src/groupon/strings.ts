@@ -84,14 +84,23 @@ export const GROUPON_HISTORY = {
 
 export const GROUPON_GITHUB = {
   title: "From GitHub",
-  description: "Your Groupon organisations, teams and repositories, cloned with gh",
+  description:
+    "Your organisations, teams and repositories on GitHub and on Groupon's GitHub Enterprise, cloned with gh",
   downloadsTo: "Clones to",
+  hostSwitch: "GitHub host",
   searchPlaceholder: "Filter by name",
   reading: "Reading your GitHub access on this Mac",
+  readingRepositories: "Reading the organisation's repositories",
+  notSignedIn: "gh on this Mac is not signed in to",
+  runThis: "Run this in a terminal on the Mac, then read again:",
+  signInLabel: "The command that signs gh in",
   noLogin:
     "The platform found no GitHub account for your email. Ask for access below, then refresh.",
   noOrganisation: "You are in no GitHub organisation the platform knows.",
+  noOrganisationHere: "You are in no organisation here. Type a name to find one.",
   notMember: "You are not in it yet",
+  findOther: "Type a name to find any other organisation on",
+  otherOrganisation: "Not yours · the repositories you can see there",
   askForAccess: "Ask for access",
   refresh: "Read again",
   allTeams: "All your teams",
@@ -105,13 +114,16 @@ export const GROUPON_GITHUB = {
   download: "Clone and add",
 } as const;
 
+export const GROUPON_COPY = {
+  copy: "Copy",
+  copied: "Copied",
+} as const;
+
 export const GROUPON_PHONE = {
   title: "Your phone",
   tileDescription: "Groupon Desk on your phone, through Groupon's server",
   body: "On your phone, open the address below (or scan the code with its camera) and sign in with the same Google account you use here. This Mac then appears among the hosts on the phone: the connection goes through Groupon's server, so there is nothing to pair and no key to copy.",
   addressLabel: "Groupon Desk on the web",
-  copy: "Copy",
-  copied: "Copied",
   qrLabel: "QR code of Groupon Desk's web address",
   qrUnavailable: "The code could not be drawn; type the address instead.",
 } as const;

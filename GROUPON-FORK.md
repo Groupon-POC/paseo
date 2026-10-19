@@ -29,9 +29,12 @@ in every language.
 Paseo's code for these stays, so a rebase onto a new tag stays small; only the way to it is gone.
 
 - **Clone from GitHub.** Add project offers one GitHub way, the fork's From GitHub
-  (`packages/app/src/groupon/github-project-sheet.tsx`): the person's Groupon organisations, teams
-  and repositories, opening on the organisation and team picked last time, cloned with `gh` into
-  the Mac's checkout folder and added as a normal project. `components/add-project-flow.tsx`
+  (`packages/app/src/groupon/github-project-sheet.tsx`): on github.com or on Groupon's GitHub
+  Enterprise (`github.groupondev.com`), switched at the top, the person's organisations, teams and
+  repositories (on the enterprise also any other organisation, found by name), opening on the host,
+  organisation and team picked last time, cloned with `gh` from that host into the Mac's checkout
+  folder and added as a normal project. A host `gh` is not signed in to shows the command that
+  signs it in. `components/add-project-flow.tsx`
   filters Paseo's `github` method out of the menu.
 - **Pair device and pairing offers.** A phone reaches a Mac through Core once signed in with the
   same Google account, so Settings shows Your phone (`groupon/phone-section.tsx`: the work window's

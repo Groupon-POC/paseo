@@ -103,3 +103,24 @@ export const GROUPON_GITHUB = {
   landsAt: "It lands at",
   download: "Download and add",
 } as const;
+
+export const GROUPON_TICKET = {
+  button: "Start a ticket",
+  title: "Start a ticket",
+  on: "On",
+  intro:
+    "The Dark Factory, without a terminal: the branch name and the readiness check, then a worktree on that branch and the agent with the flow's order.",
+  ticketLabel: "Ticket",
+  ticketPlaceholder: "ENC-1234 or the ticket's Jira link",
+  repositoryLabel: "Repository",
+  noRepository: "No git project on this Mac yet: add one first (From GitHub downloads it).",
+  agentLabel: "Agent",
+  noAgent: "No agent is ready on this Mac.",
+  modelLabel: "Model",
+  noModel: "This agent offers no model.",
+  effortLabel: "Effort",
+  start: "Start",
+  starting: "Starting",
+  didNotFinish: "The start did not finish.",
+  openComment: "Open the readiness comment",
+} as const;

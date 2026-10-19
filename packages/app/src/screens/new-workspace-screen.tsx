@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session.
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -110,6 +111,8 @@ import { buildNewWorkspaceProjectIconTargets } from "./new-workspace/project-ico
 import { useNewWorkspaceProjectPicker } from "./new-workspace/project-picker";
 import { useNewWorkspaceForm } from "./new-workspace/form";
 import { ImportSessionButton } from "./new-workspace/import-session-button";
+import { StartTicketButton } from "@/groupon/start-ticket-button";
+import { useStartTicketFromPage } from "@/groupon/start-ticket-sheet";
 import { useImportSession } from "@/hooks/use-import-session";
 import {
   buildTerminalsQueryKey,
@@ -1521,6 +1524,11 @@ export function NewWorkspaceScreen({
   });
 
   const importSession = useImportSession({ serverId: selectedServerId });
+  const startTicket = useStartTicketFromPage({
+    serverId: selectedServerId,
+    project: selectedProject,
+    composer: composerState,
+  });
 
   const isComposerFullscreen = composerEditing.isFullscreen(isTerminalLaunch);
   const composer = isTerminalLaunch ? (
@@ -1591,11 +1599,13 @@ export function NewWorkspaceScreen({
         title={t("newWorkspace.title")}
         formStack={formStack}
         onImportSession={importSession.open}
+        onStartTicket={startTicket.open}
       >
         {composer}
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </NewWorkspaceLayout>
       {importSession.sheet}
+      {startTicket.sheet}
     </FileDropZone>
   );
 }
@@ -1627,6 +1637,7 @@ function NewWorkspaceLayout({
   title,
   formStack,
   onImportSession,
+  onStartTicket,
   children,
 }: {
   isCompact: boolean;
@@ -1635,10 +1646,16 @@ function NewWorkspaceLayout({
   title: string;
   formStack: ReactNode;
   onImportSession: () => void;
+  onStartTicket: () => void;
   children: ReactNode;
 }) {
-  // In the header on compact layouts, under the composer otherwise.
-  const importSessionButton = <ImportSessionButton compact={isCompact} onPress={onImportSession} />;
+  // In the header on compact layouts, under the composer otherwise; Start a ticket beside it.
+  const importSessionButton = (
+    <View style={isCompact ? styles.entriesCompact : styles.entries}>
+      <ImportSessionButton compact={isCompact} onPress={onImportSession} />
+      <StartTicketButton compact={isCompact} onPress={onStartTicket} />
+    </View>
+  );
   // Compact has no title: the fields name themselves. The free space above pushes them down onto
   // the composer, where the thumb is.
   const setupFields = isCompact ? (
@@ -1678,6 +1695,14 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
     backgroundColor: theme.colors.surface0,
     userSelect: "none",
+  },
+  entries: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  entriesCompact: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   content: {
     position: "relative",

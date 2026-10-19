@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the vault key and the hub's seal, on the device.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the vault key, the hub's seal and a shared workspace's keys, on the device.
 
 /**
  * The two formats Groupon Desk shares with the `groupon` CLI and the Mac app, opened here:
@@ -11,13 +11,21 @@
  *   "groupon-desk-relay/1/seal"); AES-256-GCM, nonce | ciphertext | tag in base64, associated data
  *   "groupon-desk-relay/1:<scope>:<kind>" (monorepo `packages/groupon-cli/src/hand/seal.ts`).
  *
- * The device only opens: it never seals. `crypto.test.ts` pins both to the CLI's vectors.
+ * - a shared workspace (monorepo `packages/groupon-cli/src/hand/share-seal.ts`; design section 13 of
+ *   `_documentation/design/groupon-desk-work-window-design.md`): the person's identity, an X25519
+ *   key pair from HKDF-SHA256(relay key, info "groupon-desk-relay/1/identity"); the workspace's
+ *   share key out of the NaCl box the owner's hand made (naming the workspace and the version);
+ *   a body under the share key with the same seal as under a relay key.
+ *
+ * The device opens, and seals only one thing: a colleague's prompt under a share key.
+ * `crypto.test.ts` pins every format to the CLI's vectors.
  */
 
 import { gcm } from "@noble/ciphers/aes";
 import { hkdf } from "@noble/hashes/hkdf";
 import { pbkdf2Async } from "@noble/hashes/pbkdf2";
 import { sha256 } from "@noble/hashes/sha2";
+import nacl from "tweetnacl";
 
 export const VAULT_FORMAT = "groupon-desk-vault/1";
 export const RELAY_LABEL = "groupon-desk-relay/1";
@@ -188,4 +196,80 @@ export function openSealedJson(
   } catch {
     return null;
   }
+}
+
+/** The person's identity: the same X25519 pair on every device of theirs, from the vault key. */
+export interface DeskIdentity {
+  publicKey: Uint8Array;
+  secretKey: Uint8Array;
+}
+
+export function identityFromVaultKey(vaultKey: Uint8Array): DeskIdentity {
+  const seed = hkdf(
+    sha256,
+    relayKey(vaultKey),
+    undefined,
+    encoder.encode(`${RELAY_LABEL}/identity`),
+    32,
+  );
+  const pair = nacl.box.keyPair.fromSecretKey(seed);
+  return { publicKey: pair.publicKey, secretKey: pair.secretKey };
+}
+
+/** The key that opens and seals bodies under a share key: the same derivation as from a relay key. */
+export function sealKeyFromShareKey(shareKey: Uint8Array): Uint8Array {
+  return hkdf(sha256, shareKey, undefined, encoder.encode(`${RELAY_LABEL}/seal`), 32);
+}
+
+const BOX_NONCE_BYTES = 24;
+
+/**
+ * A shared workspace's key out of the owner's box: null when the box does not open with this pair,
+ * or names another workspace or version than the hub says it is for.
+ */
+export function openShareKeyBox(
+  sealed: string,
+  workspaceId: string,
+  version: number,
+  ownerPublicKey: Uint8Array,
+  mine: DeskIdentity,
+): Uint8Array | null {
+  let combined: Uint8Array;
+  try {
+    combined = base64ToBytes(sealed);
+  } catch {
+    return null;
+  }
+  if (combined.length <= BOX_NONCE_BYTES) return null;
+  const plain = nacl.box.open(
+    combined.subarray(BOX_NONCE_BYTES),
+    combined.subarray(0, BOX_NONCE_BYTES),
+    ownerPublicKey,
+    mine.secretKey,
+  );
+  if (plain === null) return null;
+  try {
+    const value = JSON.parse(decoder.decode(plain)) as Record<string, unknown>;
+    if (value.v !== 1 || value.workspaceId !== workspaceId || value.version !== version)
+      return null;
+    if (typeof value.key !== "string") return null;
+    const key = base64ToBytes(value.key);
+    return key.length === 32 ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `plain` sealed for `scope` and `kind` with a fresh nonce: the hub's seal, for a colleague's prompt. */
+export function sealText(
+  plain: string,
+  scope: string,
+  kind: string,
+  sealKey: Uint8Array,
+  nonce: Uint8Array = globalThis.crypto.getRandomValues(new Uint8Array(NONCE_BYTES)),
+): string {
+  const body = gcm(sealKey, nonce, encoder.encode(`${RELAY_LABEL}:${scope}:${kind}`)).encrypt(
+    encoder.encode(plain),
+  );
+  return bytesToBase64(new Uint8Array([...nonce, ...body]));
 }

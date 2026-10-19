@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): an Add a project "+" in the Workspaces header.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): an Add a project "+" in the Workspaces header; "Shared with me" above the footer.
 import { router } from "expo-router";
 import {
   CircleGauge,
@@ -40,6 +40,7 @@ import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-pref
 import { SidebarAddProjectButton } from "@/components/sidebar/sidebar-add-project-button";
 import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
+import { SharedWithMeSidebarSection } from "@/groupon/shared-sidebar";
 import { SidebarFooterIconHighlight } from "@/components/sidebar/sidebar-footer-icon-highlight";
 import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
@@ -445,6 +446,7 @@ function SidebarFooter({
   return (
     <UsageSidebarRoot>
       <View style={styles.footerContainer} testID="sidebar-footer">
+        <SharedWithMeSidebarSection onBeforeNavigate={onBeforeNavigate} />
         <SidebarFooterRows onBeforeNavigate={onBeforeNavigate} />
         <View style={styles.sidebarFooter} testID="sidebar-footer-bottom-line">
           <FooterIconButton

@@ -215,3 +215,41 @@ export const GROUPON_ENCORE = {
   fileProblems: "Left out of the repository file:",
   environmentNote: "Read on",
 } as const;
+
+/** Sharing a workspace with a colleague (monorepo design section 13). */
+export const GROUPON_SHARE = {
+  menu: "Share…",
+  title: "Share",
+  intro:
+    "A colleague you share this workspace with reads its chats on their own device. With write, they may also send the agent a prompt and allow or deny what it asks. The agent keeps running on your Mac, under your subscription. Every message is sealed: the hub cannot read it.",
+  notOnHub:
+    "This workspace is not on the hub, so it cannot be shared. Start it from Groupon Desk (a task with a chat) to share it.",
+  emailLabel: "Colleague's email",
+  emailPlaceholder: "name@groupon.com",
+  badEmail: "Type a whole email address.",
+  read: "Read",
+  write: "Read and write",
+  share: "Share",
+  sharing: "Sharing",
+  shared: (email: string, role: string) =>
+    `Shared with ${email} (${role}). Your Mac hands over the key as soon as its Groupon Desk runs.`,
+  whoHasAccess: "Who has access",
+  nobody: "Nobody else yet.",
+  keyWaiting: "key not handed over yet",
+  revoke: "Revoke",
+  revoked: (email: string) => `${email} no longer sees this workspace.`,
+  sharedWith: (count: number) => `Shared with ${count} ${count === 1 ? "colleague" : "colleagues"}`,
+  sharedWithMe: "Shared with me",
+  sharedWithMeEmpty: "Nothing shared with you yet.",
+  by: (name: string) => `by ${name}`,
+  waitingForKey: "waiting for the owner's Mac",
+  canWrite: "you may write",
+  canRead: "read only",
+  composerPlaceholder: "Write to the agent on the owner's Mac",
+  send: "Send",
+  sent: "Sent. It reaches the agent when the owner's Mac takes it.",
+  allow: "Allow",
+  deny: "Deny",
+  answered: "Answer sent to the owner's Mac.",
+  wrote: (name: string) => `${name} wrote`,
+} as const;

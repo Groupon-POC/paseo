@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): one chat's saved transcript, opened on the device.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): one chat's saved transcript, opened on the device; a chat a colleague shared opens with its share key, with a composer when they may write.
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { PressHighlight } from "@/components/ui/press-highlight";
@@ -6,7 +6,14 @@ import { StyleSheet } from "react-native-unistyles";
 import { BackHeader } from "@/components/headers/back-header";
 import { MarkdownRenderer } from "@/components/markdown/renderer";
 import { Button } from "@/components/ui/button";
-import { fetchAllMessages } from "./hub";
+import { EditingTextInput } from "@/components/ui/text-input";
+import {
+  answerPermission,
+  fetchAllMessages,
+  fetchOverview,
+  sendSharedPrompt,
+  type HubSharedWorkspace,
+} from "./hub";
 import {
   inputSummary,
   openMessages,
@@ -16,7 +23,23 @@ import {
   type OpenedMessage,
 } from "./history";
 import { useGrouponStore } from "./session";
-import { GROUPON_HISTORY } from "./strings";
+import {
+  openPermissionRequests,
+  sealPrompt,
+  sharedKeyOf,
+  sharedWorkspaceOfChat,
+} from "./share-model";
+import { GROUPON_HISTORY, GROUPON_SHARE } from "./strings";
+
+/** How often a shared chat is read again while it is open: a colleague has no hand on this device to push it. */
+const SHARED_REFRESH_MS = 5_000;
+
+/** A chat a colleague shared: the grant, and the share key's seal key and version. */
+interface SharedAccess {
+  entry: HubSharedWorkspace;
+  sealKey: Uint8Array;
+  version: number;
+}
 
 function pretty(value: unknown): string {
   if (typeof value === "string") return value;
@@ -173,23 +196,45 @@ export function HubHistoryChatScreen({
   context?: string;
 }) {
   const sealKey = useGrouponStore((state) => state.sealKey);
+  const deskIdentity = useGrouponStore((state) => state.deskIdentity);
   const [messages, setMessages] = useState<OpenedMessage[] | null>(null);
+  const [shared, setShared] = useState<SharedAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!sealKey) return;
     setError(null);
     try {
-      setMessages(openMessages(await fetchAllMessages(chatId), sealKey));
+      const [rows, overview] = await Promise.all([fetchAllMessages(chatId), fetchOverview()]);
+      const entry = sharedWorkspaceOfChat(overview, chatId);
+      if (entry === null) {
+        setShared(null);
+        setMessages(openMessages(rows, sealKey));
+        return;
+      }
+      const key = sharedKeyOf(entry, deskIdentity);
+      if (!key.ok) {
+        setError(key.why);
+        return;
+      }
+      setShared({ entry, sealKey: key.sealKey, version: key.version });
+      setMessages(openMessages(rows, key.sealKey));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
     }
-  }, [chatId, sealKey]);
+  }, [chatId, deskIdentity, sealKey]);
   const handleRetry = useCallback(() => void load(), [load]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const isShared = shared !== null;
+  useEffect(() => {
+    if (!isShared) return;
+    const timer = setInterval(() => void load(), SHARED_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [isShared, load]);
 
   return (
     <View style={styles.root} testID="hub-history-chat">
@@ -211,7 +256,122 @@ export function HubHistoryChatScreen({
         {messages?.map((message) => (
           <Message key={message.row.id} message={message} />
         ))}
+        {shared && shared.entry.role === "write" && messages ? (
+          <SharedWriter chatId={chatId} access={shared} messages={messages} onSent={load} />
+        ) : null}
       </ScrollView>
+    </View>
+  );
+}
+
+/** A writer's part of a shared chat: the open permission requests to allow or deny, and the composer. */
+function SharedWriter({
+  chatId,
+  access,
+  messages,
+  onSent,
+}: {
+  chatId: string;
+  access: SharedAccess;
+  messages: OpenedMessage[];
+  onSent: () => Promise<void>;
+}) {
+  const [text, setText] = useState("");
+  const [generation, setGeneration] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const requests = openPermissionRequests(messages);
+
+  const run = useCallback(
+    async (work: () => Promise<unknown>, done: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await work();
+        setNotice(done);
+        await onSent();
+      } catch (caught) {
+        setError(caught instanceof Error ? caught.message : String(caught));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [onSent],
+  );
+  const send = useCallback(() => {
+    const prompt = text.trim();
+    if (prompt.length === 0) return;
+    void run(async () => {
+      await sendSharedPrompt(chatId, sealPrompt(prompt, chatId, access.sealKey), access.version);
+      setText("");
+      setGeneration((value) => value + 1);
+    }, GROUPON_SHARE.sent);
+  }, [access, chatId, run, text]);
+
+  return (
+    <View style={styles.writer} testID="hub-history-shared-writer">
+      {requests.map((request) => (
+        <PermissionButtons
+          key={request.requestId}
+          chatId={chatId}
+          requestId={request.requestId}
+          toolName={request.toolName}
+          busy={busy}
+          run={run}
+        />
+      ))}
+      <EditingTextInput
+        key={generation}
+        initialValue=""
+        onChangeText={setText}
+        multiline
+        editable={!busy}
+        placeholder={GROUPON_SHARE.composerPlaceholder}
+        style={styles.composer}
+        testID="hub-history-shared-composer"
+      />
+      <Button onPress={send} loading={busy} testID="hub-history-shared-send">
+        {GROUPON_SHARE.send}
+      </Button>
+      {notice ? <Text style={styles.muted}>{notice}</Text> : null}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    </View>
+  );
+}
+
+function PermissionButtons({
+  chatId,
+  requestId,
+  toolName,
+  busy,
+  run,
+}: {
+  chatId: string;
+  requestId: string;
+  toolName: string;
+  busy: boolean;
+  run: (work: () => Promise<unknown>, done: string) => Promise<void>;
+}) {
+  const allow = useCallback(
+    () => void run(() => answerPermission(chatId, requestId, "allow"), GROUPON_SHARE.answered),
+    [chatId, requestId, run],
+  );
+  const deny = useCallback(
+    () => void run(() => answerPermission(chatId, requestId, "deny"), GROUPON_SHARE.answered),
+    [chatId, requestId, run],
+  );
+  return (
+    <View style={styles.permission} testID={`hub-history-shared-permission-${requestId}`}>
+      <Text style={styles.permissionTitle}>{GROUPON_HISTORY.asked(toolName)}</Text>
+      <View style={styles.permissionButtons}>
+        <Button size="sm" onPress={allow} disabled={busy}>
+          {GROUPON_SHARE.allow}
+        </Button>
+        <Button size="sm" variant="outline" onPress={deny} disabled={busy}>
+          {GROUPON_SHARE.deny}
+        </Button>
+      </View>
     </View>
   );
 }
@@ -268,5 +428,17 @@ const styles = StyleSheet.create((theme) => ({
   },
   answer: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm, fontStyle: "italic" },
   turnResult: { gap: theme.spacing[0.5] },
+  writer: { gap: theme.spacing[2], paddingTop: theme.spacing[2] },
+  composer: {
+    minHeight: 64,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing[3],
+    paddingVertical: theme.spacing[2],
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+  },
+  permissionButtons: { flexDirection: "row", gap: theme.spacing[2] },
   notice: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm, textAlign: "center" },
 }));

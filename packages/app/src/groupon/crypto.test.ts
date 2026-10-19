@@ -2,12 +2,17 @@
 import { describe, expect, it } from "vitest";
 import {
   base64ToBytes,
+  bytesToBase64,
   deriveVaultKey,
+  identityFromVaultKey,
+  openShareKeyBox,
   openSealedJson,
   openSealedText,
   openVault,
   parseVaultEnvelope,
+  sealKeyFromShareKey,
   sealKeyFromVaultKey,
+  sealText,
   VaultError,
 } from "./crypto";
 
@@ -84,5 +89,56 @@ describe("the vault", () => {
 
   it("refuses an empty passphrase before deriving", async () => {
     await expect(deriveVaultKey("", salt, 1_000, "js")).rejects.toThrow(VaultError);
+  });
+});
+
+// monorepo packages/groupon-cli/tests/hand/share-seal.test.ts, VECTOR: the owner's vault key is 32
+// bytes of 1, the colleague's 32 bytes of 2; the share key inside the box is 32 bytes of 9.
+const SHARE_VECTOR = {
+  ownerPublic: "ctY2jnarD8Yu8ffmd1i0k4DyGMG4oCltpfy7qY0Eo1o=",
+  colleaguePublic: "tTnyfSuv+9WVjyoD7ayU9B2lhGdEQmJtOSqJBmPBpWA=",
+  box: "EQpnBpjpeoN2VwTkqlHuyRyVNU9O01AbT4kD4LSwfIbBP1J1fhSxN7GEltiwMOwiwGU8WKJ/ItM0qwJM4WrXqB0AJL++jghYzY/3oTKKw2HdvID2dbfK9Q4QXh+N298L8iBbE6Yh4Vw5bFgXcBXr8O3GWUTREJEnUyutZl6dPg2HwqsVkHBgHas=",
+  message:
+    "sLpG4EQC39UWNmFCSocXaUOw/aJdqGWynihK+wJOBb4raob7S3Lxz4l+P/eB4lrzPEiT55bq2yb8JWj82G2LxJa0Fdum/sI+jkFYxFLfN0FrbMCwbI8dzg==",
+};
+
+describe("a shared workspace's keys", () => {
+  const owner = identityFromVaultKey(new Uint8Array(32).fill(1));
+  const colleague = identityFromVaultKey(new Uint8Array(32).fill(2));
+
+  it("derives the same identities as the CLI", () => {
+    expect(bytesToBase64(owner.publicKey)).toBe(SHARE_VECTOR.ownerPublic);
+    expect(bytesToBase64(colleague.publicKey)).toBe(SHARE_VECTOR.colleaguePublic);
+  });
+
+  it("opens the CLI's box and the message sealed under the key inside it", () => {
+    const shareKey = openShareKeyBox(SHARE_VECTOR.box, "w-vector", 3, owner.publicKey, colleague);
+
+    expect(shareKey).toEqual(new Uint8Array(32).fill(9));
+    expect(
+      openSealedJson(SHARE_VECTOR.message, "ch-vector", "message", sealKeyFromShareKey(shareKey!)),
+    ).toEqual({ v: 1, kind: "message", role: "user", text: "shared hello" });
+  });
+
+  it("refuses the box as another workspace's, another version's, or another person's", () => {
+    const stranger = identityFromVaultKey(new Uint8Array(32).fill(3));
+
+    expect(openShareKeyBox(SHARE_VECTOR.box, "w-other", 3, owner.publicKey, colleague)).toBeNull();
+    expect(openShareKeyBox(SHARE_VECTOR.box, "w-vector", 2, owner.publicKey, colleague)).toBeNull();
+    expect(openShareKeyBox(SHARE_VECTOR.box, "w-vector", 3, owner.publicKey, stranger)).toBeNull();
+    expect(openShareKeyBox("short", "w-vector", 3, owner.publicKey, colleague)).toBeNull();
+  });
+
+  it("seals a prompt the owner's hand opens with the same share key", () => {
+    const sealKey = sealKeyFromShareKey(new Uint8Array(32).fill(9));
+    const sealed = sealText(
+      '{"v":1,"kind":"message","role":"user","text":"hi"}',
+      "ch1",
+      "message",
+      sealKey,
+    );
+
+    expect(openSealedJson(sealed, "ch1", "message", sealKey)).toMatchObject({ text: "hi" });
+    expect(openSealedJson(sealed, "ch2", "message", sealKey)).toBeNull();
   });
 });

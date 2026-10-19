@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "Share…" with a colleague, for a workspace on the hub.
 import { useMemo, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { type PressableStateCallbackType } from "react-native";
@@ -34,6 +35,7 @@ import {
 } from "@/components/ui/context-menu";
 import { Shortcut } from "@/components/ui/shortcut";
 import { OpenInFileManagerMenuItem } from "@/workspace/open-in-file-manager/menu-item";
+import { ShareWorkspaceMenuItem } from "@/groupon/share-menu-item";
 import { resolveSidebarWorkspaceAccessibilityLabel } from "@/components/sidebar/sidebar-workspace-title";
 import {
   workspaceServiceLabelKey,
@@ -231,6 +233,11 @@ function SidebarWorkspaceMenuItems({
         surface={surface}
         path={openInFileManagerPath}
         testID={`sidebar-workspace-menu-open-folder-${workspaceKey}`}
+      />
+      <ShareWorkspaceMenuItem
+        surface={surface}
+        path={openInFileManagerPath}
+        testID={`sidebar-workspace-menu-share-${workspaceKey}`}
       />
       {onArchive ? (
         <WorkspaceMenuItem

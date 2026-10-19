@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no update check of its own; the app ships inside Groupon Desk, which updates both.
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -140,6 +141,8 @@ export function shouldInstallAppUpdateOnQuit(input: {
   return !(input.platform === "linux" && input.isAppImage);
 }
 
+const UPDATES_COME_WITH_GROUPON_DESK = true;
+
 class ElectronAppUpdateRuntime implements AppUpdateRuntime {
   private configured = false;
 
@@ -193,6 +196,10 @@ class ElectronAppUpdateRuntime implements AppUpdateRuntime {
   }
 
   async checkForUpdates(): Promise<RuntimeUpdateCheckResult | null> {
+    // Groupon Desk nests this app in its own signed bundle and replaces both with one Sparkle
+    // update. Paseo's own feed would offer upstream Paseo, and an install in place would break
+    // the outer bundle's signature, so no check ever finds an update.
+    if (UPDATES_COME_WITH_GROUPON_DESK) return null;
     try {
       const result = await autoUpdater.checkForUpdates();
       if (!result) return null;

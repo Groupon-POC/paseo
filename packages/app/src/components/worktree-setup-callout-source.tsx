@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no nudge for a repository whose default branch carries .groupon/desk.toml or paseo.json.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no worktree-scripts nudge unless asked for in General settings, and never where the repository's default branch decides.
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo } from "react";
@@ -8,6 +8,7 @@ import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useRepositoryStandard } from "@/groupon/repository-settings";
 import { hasRepositoryStandard } from "@/groupon/repository-settings-model";
+import { useGrouponPreferences } from "@/groupon/preferences";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
 import {
   buildWorktreeSetupCalloutPolicy,
@@ -22,7 +23,9 @@ export function WorktreeSetupCalloutSource() {
     selection?.workspaceId ?? null,
     (workspace) => selectActiveGitWorkspaceProject(selection?.serverId ?? "", workspace),
   );
-  const activeProject = selectedWorkspaceProject;
+  // Off by default (owner, 2026-10-19): nobody sees this card unless they turned the reminder on.
+  const remind = useGrouponPreferences((state) => state.remindWorktreeScripts);
+  const activeProject = remind ? selectedWorkspaceProject : null;
   const client = useHostRuntimeClient(activeProject?.serverId ?? "");
   const callouts = useSidebarCallouts();
   const router = useRouter();

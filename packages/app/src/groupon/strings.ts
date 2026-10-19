@@ -151,3 +151,11 @@ export const GROUPON_REPOSITORY = {
   overrideHint:
     "Optional. Paseo's own settings in this checkout's paseo.json: they apply on this Mac only, are marked as overrides above, and are never the repository's default. Do not commit them.",
 } as const;
+
+export const GROUPON_PREFERENCES = {
+  section: "Projects",
+  remindWorktreeScripts:
+    "Remind me to set up worktree scripts for projects without a repository file",
+  remindWorktreeScriptsHint:
+    "Off by default. A repository's .groupon/desk.toml is everyone's setup; turn this on to see the reminder card for a project that has none.",
+} as const;

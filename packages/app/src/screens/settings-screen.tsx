@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the About line naming Paseo and its author; the Groupon section.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the About line naming Paseo and its author; the Groupon section; the worktree-scripts reminder switch.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -82,6 +82,7 @@ import { KeyboardShortcutsSection } from "@/screens/settings/keyboard-shortcuts-
 import { EditorSection } from "@/screens/settings/editor-section";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { WorktreeNudgeSetting } from "@/groupon/worktree-nudge-setting";
 import { CommunityLinks } from "@/components/community-links";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
@@ -1402,6 +1403,7 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
             <>
               <GeneralSection settings={settings} handleLanguageChange={handleLanguageChange} />
               <SendingSection />
+              <WorktreeNudgeSetting />
               {isDesktopApp ? <OpenLocationSection /> : null}
             </>
           );

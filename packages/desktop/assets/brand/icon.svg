@@ -1,0 +1,19 @@
+<!-- Added for Groupon Desk (fork of Paseo, Apache-2.0): the app icon source, the Groupon G in curly braces. Rendered to every icon in assets/ and packages/app (GROUPON-FORK.md). -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#000" flood-opacity="0.28"/>
+    </filter>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185.4" ry="185.4" fill="#007C1F" filter="url(#shadow)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185.4" ry="185.4" fill="url(#sheen)"/>
+  <g fill="none" stroke="#fff" stroke-width="56" stroke-linejoin="round" stroke-linecap="butt">
+  <path d="M308 328 C278.31 328 254.24 352.07 254.24 381.76 L254.24 452 C254.24 485 240.63 495.37 224 512 C240.63 528.63 254.24 539 254.24 572 L254.24 642.24 C254.24 671.93 278.31 696 308 696"/>
+  <path d="M308 328 C278.31 328 254.24 352.07 254.24 381.76 L254.24 452 C254.24 485 240.63 495.37 224 512 C240.63 528.63 254.24 539 254.24 572 L254.24 642.24 C254.24 671.93 278.31 696 308 696" transform="matrix(-1 0 0 1 1024 0)"/>
+  </g>
+  <path fill="#fff" transform="translate(339.61 339.61) scale(2.39437)" d="M143 72.479c0 15.372-3.9 28.435-11.88 39.961C117.874 131.473 95.659 143 72.1 143c-20.454 0-37.787-7.488-51.426-21.704C7.626 107.656 1 90.738 1 70.562c0-18.834 7.404-36.129 21.033-49.379C35.671 7.912 52.82 1 72.482 1c29.614 0 55.514 17.877 66.617 47.074h-38.576c-8.565-8.84-17.51-13.251-28.424-13.251-20.254 0-36.232 16.328-36.232 35.925 0 21.724 17.142 38.434 36.232 38.434 12.847 0 24.337-6.526 31.175-18.443H63.723V63.445h78.874c.202 3.078.403 6.151.403 9.034z"/>
+</svg>

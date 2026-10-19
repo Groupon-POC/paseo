@@ -79,3 +79,27 @@ export const GROUPON_HISTORY = {
   notAllowed: (what: string) => `Not allowed: ${what}`,
   messages: (count: number) => `${count} ${count === 1 ? "message" : "messages"}`,
 } as const;
+
+export const GROUPON_GITHUB = {
+  title: "From GitHub",
+  tileDescription: "Your organisations and teams, into ~/Documents/GitHub",
+  methodDescription: "Your Groupon organisations and teams, downloaded with gh",
+  downloadsTo: "Downloads to",
+  searchPlaceholder: "Filter by name",
+  reading: "Reading your GitHub access on this Mac",
+  noLogin:
+    "The platform found no GitHub account for your email. Ask for access below, then refresh.",
+  noOrganisation: "You are in no GitHub organisation the platform knows.",
+  notMember: "You are not in it yet",
+  askForAccess: "Ask for access",
+  refresh: "Read again",
+  allTeams: "All your teams",
+  allTeamsHint: "Every repository your teams here reach, once each",
+  noTeam: "You are on no team here.",
+  teamUnread: "GitHub did not answer for this team's repositories",
+  unreadTeams: "GitHub did not answer for:",
+  noRepository: "No repository here.",
+  folderLabel: "Download into",
+  landsAt: "It lands at",
+  download: "Download and add",
+} as const;

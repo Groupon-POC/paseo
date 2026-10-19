@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the History tile.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the History tile; the From GitHub tile.
 import { useHosts, useHostRuntimeLastError } from "@/runtime/host-runtime";
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,7 +8,9 @@ import { useRouter } from "expo-router";
 import { FolderOpen, History, Inbox, Plug, Smartphone } from "lucide-react-native";
 import { GrouponDeskLogo } from "@/components/icons/groupon-desk-logo";
 import { HUB_HISTORY_ROUTE } from "@/groupon/history-screen";
-import { GROUPON_HISTORY } from "@/groupon/strings";
+import { GROUPON_GITHUB, GROUPON_HISTORY } from "@/groupon/strings";
+import { useOpenGithubProject } from "@/groupon/github-project-store";
+import { GitHubIcon } from "@/components/icons/github-icon";
 import { CommunityLinks } from "@/components/community-links";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { useOpenAddProject } from "@/hooks/use-open-add-project";
@@ -33,6 +35,7 @@ export function OpenProjectScreen() {
   const router = useRouter();
   const openDesktopAgentList = usePanelStore((s) => s.openDesktopAgentList);
   const openProjectPicker = useOpenAddProject();
+  const openGithubProject = useOpenGithubProject();
   const importSession = useImportSession();
   const chooseHost = useHostChooser();
   const localServerId = useLocalDaemonServerId();
@@ -50,6 +53,7 @@ export function OpenProjectScreen() {
     void openProjectPicker();
   }, [openProjectPicker]);
 
+  const handleOpenGithub = useCallback(() => openGithubProject(), [openGithubProject]);
   const handleOpenHistory = useCallback(() => router.push(HUB_HISTORY_ROUTE), [router]);
   const handleOpenPairDevice = useCallback(() => setIsPairDeviceOpen(true), []);
   const handleClosePairDevice = useCallback(() => setIsPairDeviceOpen(false), []);
@@ -85,6 +89,14 @@ export function OpenProjectScreen() {
               description={t("openProject.tiles.addProject.description")}
               onPress={handleOpenPicker}
               testID="open-project-submit"
+              accent
+            />
+            <HomeTile
+              icon={GitHubIcon}
+              title={GROUPON_GITHUB.title}
+              description={GROUPON_GITHUB.tileDescription}
+              onPress={handleOpenGithub}
+              testID="open-project-groupon-github"
               accent
             />
             <HomeTile

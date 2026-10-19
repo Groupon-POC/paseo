@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way.
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { router } from "expo-router";
 import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
@@ -35,6 +36,8 @@ import {
 } from "@/components/ui/text-input";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { GitHubIcon } from "@/components/icons/github-icon";
+import { useGithubProjectStore } from "@/groupon/github-project-store";
+import { GROUPON_GITHUB } from "@/groupon/strings";
 import {
   applyAvailableAddProjectHosts,
   backAddProjectPage,
@@ -600,6 +603,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     },
     [cloneGithubProject, openNewWorkspaceForProject],
   );
+  const openGrouponGithub = useGithubProjectStore((store) => store.open);
   const rows = useMemo<FlowRowOption[]>(() => {
     if (page.kind === "host") {
       const choices = filterAddProjectHosts(state.hosts, page.query).map<FlowRowOption>(
@@ -629,7 +633,22 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     }
     if (page.kind === "method") {
       if (!host) return [];
-      return buildAddProjectMethods(host).map((method) => ({
+      const grouponGithub: FlowRowOption[] = host.canAddProject
+        ? [
+            {
+              id: "groupon-github",
+              title: GROUPON_GITHUB.title,
+              subtitle: GROUPON_GITHUB.methodDescription,
+              icon: GitHubIcon,
+              testID: "add-project-flow-method-groupon-github",
+              select: () => {
+                onClose();
+                openGrouponGithub(host.serverId);
+              },
+            },
+          ]
+        : [];
+      const methods = buildAddProjectMethods(host).map((method) => ({
         id: method.id,
         title: method.label,
         subtitle: method.description,
@@ -638,6 +657,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
         testID: `add-project-flow-method-${method.id}`,
         select: () => selectMethod(method.id),
       }));
+      return [...grouponGithub, ...methods];
     }
     if (page.kind === "directory-search") {
       return pathOptions.map((option) => {
@@ -722,6 +742,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     host,
     onClose,
     openAddedProject,
+    openGrouponGithub,
     page,
     pathOptions,
     recommendedPaths,

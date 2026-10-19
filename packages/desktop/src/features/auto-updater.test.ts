@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the update check never reaches Paseo's feed.
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -77,14 +78,8 @@ describe("checkForAppUpdate", () => {
     consoleError.mockRestore();
   });
 
-  it("keeps genuine updater failures visible", async () => {
-    const error = new Error("network down");
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    autoUpdaterMock.checkForUpdates.mockImplementationOnce(async () => {
-      autoUpdaterMock.logger.error(error);
-      autoUpdaterMock.handlers.get("error")?.(error);
-      throw error;
-    });
+  it("never asks Paseo's feed: Groupon Desk ships and updates this app", async () => {
+    autoUpdaterMock.checkForUpdates.mockClear();
 
     const result = await checkForAppUpdate({
       currentVersion: "1.2.3",
@@ -92,9 +87,9 @@ describe("checkForAppUpdate", () => {
       intent: "manual",
     });
 
-    expect(result.errorMessage).toBe("network down");
-    expect(consoleError).toHaveBeenCalled();
-    consoleError.mockRestore();
+    expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled();
+    expect(result.hasUpdate).toBe(false);
+    expect(result.errorMessage).toBeNull();
   });
 
   it("logs the update handoff with current and selected target versions", () => {

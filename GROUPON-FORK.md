@@ -41,3 +41,15 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   a host and on the welcome screen, and the direct form no longer takes a relay link.
 - **The Core a fresh install starts on.** Production in every release build, the web build
   included; the local Core only in a development bundle (`defaultEnvironmentId`).
+
+## How Groupon Desk ships it
+
+Groupon Desk's release build (`scripts/desk-release/build.mjs` in `groupon2/engineering-development`,
+pinned in `scripts/desk-release/fork.json` there) builds `packages/desktop` from a pinned commit of
+this branch with `npm run build:desktop -- --publish never --mac dir --<arch>` and nests the result
+in the menu-bar app as `Groupon Desk.app/Contents/Helpers/Groupon Desk Work.app`; Desk's "Work
+window" button opens it. The app id is `com.groupon.desk.work`. Signing and notarisation come from
+the environment that build sets (`CSC_NAME`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`,
+`APPLE_API_ISSUER`; on a local build ad-hoc with `-c.mac.identity=-` and without the hardened runtime, `-c.mac.hardenedRuntime=false`, since ad-hoc code under it cannot load Electron Framework). The app never checks Paseo's
+update feed (`packages/desktop/src/features/auto-updater.ts`): Groupon Desk's own update replaces
+both.

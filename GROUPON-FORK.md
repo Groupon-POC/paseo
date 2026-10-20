@@ -43,6 +43,22 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   device, and no screen shows, exports or takes a pairing offer: `PASEO_PAIRING_OFFERS`
   (`groupon/pairing-policy.ts`) hides the QR scan and the pasted pairing link among the ways to add
   a host and on the welcome screen, and the direct form no longer takes a relay link.
+- **Direct connection, Add host and SSH: Your Macs instead.** No host is added by hand in any
+  build (owner, 2026-10-20: a person connects only to their own signed-in devices; there are no
+  public addresses). `PASEO_MANUAL_HOSTS` (`groupon/pairing-policy.ts`) is off: the welcome screen
+  is Your Macs (`groupon/your-macs-screen.tsx`, its model `groupon/your-macs-model.ts`), the
+  person's Macs from the hub with the `{ G }` mark on top; a Mac whose hand is on Core's relay, or
+  this Mac when its daemon answers directly, opens on tap, and the window goes to it by itself the
+  moment one is online; a Mac without a running hand says so in one sentence (press Work window
+  in Groupon Desk there, or `groupon desk serve install`); with no Mac past that, the screen says
+  Groupon Desk is probably not installed and connected yet and links its disk image
+  (`GROUPON_DESK_DOWNLOAD_URL`). The hub is re-read every 15 s. The sidebar's and the settings'
+  host pickers have no Add host option (`components/hosts/host-picker.tsx`), the settings with no
+  host show Your Macs where Paseo had Add host and never mount the add-host modals
+  (`screens/settings-screen.tsx`), and every other "Add host" link (`buildSettingsAddHostRoute`,
+  the add-project flow with no host) opens Your Macs. Paseo's `add-host-modal.tsx`,
+  `add-host-method-modal.tsx` and `add-remote-ssh-host-modal.tsx` stay, unreachable; Paseo's
+  end-to-end specs that drive them (`e2e/`) do not apply to this fork.
 - **The Core a fresh install starts on.** Production in every release build, the web build
   included; the local Core only in a development bundle (`defaultEnvironmentId`).
 

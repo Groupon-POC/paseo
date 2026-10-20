@@ -93,7 +93,8 @@ import { isElectronRuntime } from "@/desktop/host";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
-import { GROUPON_PHONE, GROUPON_SETTINGS } from "@/groupon/strings";
+import { GROUPON_PHONE, GROUPON_SETTINGS, GROUPON_YOUR_MACS } from "@/groupon/strings";
+import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import { GrouponSettingsPage } from "@/groupon/settings-section";
 import { GrouponPhonePage } from "@/groupon/phone-section";
 import { useAppDiagnosticStore } from "@/diagnostics/store";
@@ -1013,20 +1014,31 @@ function SettingsSidebar({
         </SidebarGroup>
       ) : (
         <SidebarGroup>
+          {/* Groupon Desk: with no host, Your Macs (the hub's), never Paseo's Add host. */}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t("settings.addHost")}
+            accessibilityLabel={
+              PASEO_MANUAL_HOSTS ? t("settings.addHost") : GROUPON_YOUR_MACS.title
+            }
             onPress={onAddHost}
             testID="settings-add-host"
             style={sidebarItemStyle}
           >
-            <Plus
-              size={densityIconSize(rt, "md")}
-              color={theme.colors.foregroundMuted}
-              strokeWidth={SIDEBAR_ICON_STROKE_WIDTH}
-            />
+            {PASEO_MANUAL_HOSTS ? (
+              <Plus
+                size={densityIconSize(rt, "md")}
+                color={theme.colors.foregroundMuted}
+                strokeWidth={SIDEBAR_ICON_STROKE_WIDTH}
+              />
+            ) : (
+              <Server
+                size={densityIconSize(rt, "md")}
+                color={theme.colors.foregroundMuted}
+                strokeWidth={SIDEBAR_ICON_STROKE_WIDTH}
+              />
+            )}
             <Text style={sidebarStyles.label} numberOfLines={1}>
-              {t("settings.addHost")}
+              {PASEO_MANUAL_HOSTS ? t("settings.addHost") : GROUPON_YOUR_MACS.title}
             </Text>
           </Pressable>
           {enableBuiltInDaemonOption.visible ? (
@@ -1203,8 +1215,13 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
   }, []);
 
   const handleAddHost = useCallback(() => {
+    // Groupon Desk: no host is added by hand; Your Macs lists the hub's.
+    if (!PASEO_MANUAL_HOSTS) {
+      router.push("/welcome");
+      return;
+    }
     setIsAddHostMethodVisible(true);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!openAddHostIntent || lastOpenedAddHostIntentRef.current === openAddHostIntent) {
@@ -1414,7 +1431,7 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
     );
   }
 
-  const addHostModals = (
+  const addHostModals = PASEO_MANUAL_HOSTS ? (
     <>
       <AddHostMethodModal
         visible={isAddHostMethodVisible}
@@ -1443,7 +1460,7 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
         onSaved={handleHostAdded}
       />
     </>
-  );
+  ) : null;
 
   // Mobile root: full-screen sidebar-as-list.
   if (isCompactLayout && view.kind === "root") {

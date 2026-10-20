@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Add host leads to Your Macs.
 import { describe, expect, it } from "vitest";
 import {
   buildHostAgentDetailRoute,
@@ -185,12 +186,9 @@ describe("workspace route parsing", () => {
 });
 
 describe("projects settings routes", () => {
-  it("buildSettingsAddHostRoute opens settings with the add-host flag", () => {
-    expect(buildSettingsAddHostRoute()).toBe("/settings/general?addHost=1");
-  });
-
-  it("buildSettingsAddHostRoute accepts a repeatable intent id", () => {
-    expect(buildSettingsAddHostRoute("retry 1")).toBe("/settings/general?addHost=retry%201");
+  it("buildSettingsAddHostRoute opens Your Macs in Groupon Desk, never Paseo's add-host flow", () => {
+    expect(buildSettingsAddHostRoute()).toBe("/welcome");
+    expect(buildSettingsAddHostRoute("retry 1")).toBe("/welcome");
   });
 
   it("buildProjectsSettingsRoute scopes the list to a host", () => {

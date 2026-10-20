@@ -31,6 +31,14 @@ export const GROUPON_DESK_WEB_URL: Readonly<Record<GrouponEnvironmentId, string>
 };
 
 /**
+ * Groupon Desk for Mac, the menu-bar app whose hand puts a Mac on the hub: the disk image on the
+ * one shelf every environment downloads from (the Atlas CLI shelf on staging's internal plane).
+ * The Your Macs screen links it when no Mac of the person's runs a hand.
+ */
+export const GROUPON_DESK_DOWNLOAD_URL =
+  "https://api-staging-internal.livingsocial.com/atlas/cli/groupon-desk.dmg";
+
+/**
  * The Core a fresh install signs in to before the person picks one: production for every release
  * build (the web build on a phone is the whole product there), the local Core only for a
  * development bundle.

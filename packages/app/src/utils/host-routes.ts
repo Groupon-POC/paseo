@@ -1,4 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon settings section; the Your phone section.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon settings section; the Your phone section; Add host leads to Your Macs.
+import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import { Buffer } from "buffer";
 import { buildAgentDeepLinkRoute } from "@getpaseo/protocol/agent-deep-link";
 
@@ -555,6 +556,8 @@ export function buildSettingsSectionRoute(section: SettingsSectionSlug) {
 }
 
 export function buildSettingsAddHostRoute(intentId: string | number = "1") {
+  // Groupon Desk: no host is added by hand; every "Add host" opens Your Macs (the welcome route).
+  if (!PASEO_MANUAL_HOSTS) return "/welcome" as const;
   return `/settings/general?addHost=${encodeURIComponent(String(intentId))}` as const;
 }
 

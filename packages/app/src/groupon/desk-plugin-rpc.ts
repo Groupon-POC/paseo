@@ -28,6 +28,8 @@ export const GROUPON_RPC = {
   jiraSearch: "groupon.jira-search",
   jiraFields: "groupon.jira-fields",
   jiraSavedView: "groupon.jira-saved-view",
+  encoreApps: "groupon.encore-apps",
+  standards: "groupon.standards",
 } as const;
 
 export type PluginRpcClient = Pick<DaemonClient, "invokePluginRpc">;
@@ -251,6 +253,51 @@ export interface JiraSavedViewAnswer {
   problem: JiraProblem | null;
 }
 
+/** One Encore app the platform hands out, with the person's standing (the home page's Your access). */
+export interface EncoreCatalogApp {
+  slug: string;
+  description: string;
+  repositoryUrl: string | null;
+  standing: EncoreStanding;
+  role: string | null;
+  requestPending: boolean | null;
+  approver: string | null;
+}
+
+/** Every Encore app the platform hands out, as the plugin's `groupon.encore-apps` answers it. */
+export interface EncoreAppsAnswer {
+  apps: EncoreCatalogApp[];
+  problem: string | null;
+  environment: string | null;
+  readAt: string;
+}
+
+export interface StandardsDocument {
+  /** The file name, `branching.md`: the only thing a read takes. */
+  file: string;
+  title: string;
+  group: string | null;
+  summary: string | null;
+  status: string | null;
+  since: string | null;
+}
+
+export type StandardsAction = "list" | "read" | "pull";
+
+/** A checkout's engineering standards, as the plugin's `groupon.standards` answers them. */
+export interface StandardsAnswer {
+  /** pulled (.standards/), source (the repository's own folder), none. */
+  layout: "pulled" | "source" | "none";
+  folder: string | null;
+  version: string | null;
+  canPull: boolean;
+  documents: StandardsDocument[];
+  document: { file: string; title: string; markdown: string } | null;
+  pull: { ok: boolean; message: string } | null;
+  problem: string | null;
+  readAt: string;
+}
+
 export interface TicketStartInput {
   ticket: string;
   projectRoot: string;
@@ -395,6 +442,34 @@ export function isJiraSavedViewAnswer(value: unknown): value is JiraSavedViewAns
   );
 }
 
+export function isEncoreAppsAnswer(value: unknown): value is EncoreAppsAnswer {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.apps) &&
+    value.apps.every(
+      (app) => isRecord(app) && typeof app.slug === "string" && typeof app.standing === "string",
+    ) &&
+    typeof value.readAt === "string"
+  );
+}
+
+export function isStandardsAnswer(value: unknown): value is StandardsAnswer {
+  return (
+    isRecord(value) &&
+    (value.layout === "pulled" || value.layout === "source" || value.layout === "none") &&
+    typeof value.canPull === "boolean" &&
+    Array.isArray(value.documents) &&
+    value.documents.every(
+      (document) =>
+        isRecord(document) &&
+        typeof document.file === "string" &&
+        typeof document.title === "string",
+    ) &&
+    (value.document === null ||
+      (isRecord(value.document) && typeof value.document.markdown === "string"))
+  );
+}
+
 function jobIdOf(output: Record<string, unknown>, method: string): string {
   if (typeof output.jobId !== "string") throw new Error(`${method} answered no job id`);
   return output.jobId;
@@ -519,6 +594,29 @@ export async function jiraSavedView(
   const output = await call(client, GROUPON_RPC.jiraSavedView, save ? { save } : {});
   if (!isJiraSavedViewAnswer(output))
     throw new Error("The saved view came back in a shape this app does not read");
+  return output;
+}
+
+/** Every Encore app the platform hands out, with the person's standing on each. */
+export async function readEncoreApps(client: PluginRpcClient): Promise<EncoreAppsAnswer> {
+  const output = await call(client, GROUPON_RPC.encoreApps, {});
+  if (!isEncoreAppsAnswer(output))
+    throw new Error("The Encore apps came back in a shape this app does not read");
+  return output;
+}
+
+/** A checkout's standards: the list, one document by file name, or a pull and the fresh list. */
+export async function readStandards(
+  client: PluginRpcClient,
+  projectRoot: string,
+  action: StandardsAction = "list",
+  document?: string,
+): Promise<StandardsAnswer> {
+  const input: Record<string, unknown> = { projectRoot, action };
+  if (document !== undefined) input.document = document;
+  const output = await call(client, GROUPON_RPC.standards, input);
+  if (!isStandardsAnswer(output))
+    throw new Error("The standards came back in a shape this app does not read");
   return output;
 }
 

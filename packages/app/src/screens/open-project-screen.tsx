@@ -1,14 +1,20 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the History tile; the From GitHub tile; Your phone in place of Pair device.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the History tile; the From GitHub tile; Your phone in place of Pair device; the Standards tile; Your access beside the tiles.
 import { useHosts, useHostRuntimeLastError } from "@/runtime/host-runtime";
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useRouter } from "expo-router";
-import { FolderOpen, History, Inbox, Plug, Smartphone } from "lucide-react-native";
+import { BookOpen, FolderOpen, History, Inbox, Plug, Smartphone } from "lucide-react-native";
 import { GrouponDeskLogo } from "@/components/icons/groupon-desk-logo";
 import { HUB_HISTORY_ROUTE } from "@/groupon/history-screen";
-import { GROUPON_GITHUB, GROUPON_HISTORY, GROUPON_PHONE } from "@/groupon/strings";
+import {
+  GROUPON_GITHUB,
+  GROUPON_HISTORY,
+  GROUPON_PHONE,
+  GROUPON_STANDARDS,
+} from "@/groupon/strings";
+import { HomeAccess } from "@/groupon/home-access";
 import { useOpenGithubProject } from "@/groupon/github-project-store";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import { CommunityLinks } from "@/components/community-links";
@@ -57,6 +63,10 @@ export function OpenProjectScreen() {
     () => router.push(buildSettingsSectionRoute("phone")),
     [router],
   );
+  const handleOpenStandards = useCallback(
+    () => router.push(buildSettingsSectionRoute("standards")),
+    [router],
+  );
 
   const handleOpenProviders = useCallback(() => {
     chooseHost({
@@ -82,53 +92,63 @@ export function OpenProjectScreen() {
           {hosts.map((host) => (
             <HostError key={host.serverId} serverId={host.serverId} label={host.label} />
           ))}
-          <View style={styles.tiles}>
-            <HomeTile
-              icon={FolderOpen}
-              title={t("openProject.tiles.addProject.title")}
-              description={t("openProject.tiles.addProject.description")}
-              onPress={handleOpenPicker}
-              testID="open-project-submit"
-              accent
-            />
-            <HomeTile
-              icon={GitHubIcon}
-              title={GROUPON_GITHUB.title}
-              description={GROUPON_GITHUB.description}
-              onPress={handleOpenGithub}
-              testID="open-project-groupon-github"
-              accent
-            />
-            <HomeTile
-              icon={History}
-              title={GROUPON_HISTORY.title}
-              description={GROUPON_HISTORY.openHint}
-              onPress={handleOpenHistory}
-              testID="open-project-hub-history"
-            />
-            <HomeTile
-              icon={Inbox}
-              title={t("openProject.tiles.importSession.title")}
-              description={t("openProject.tiles.importSession.description")}
-              onPress={importSession.open}
-              testID="open-project-import-session"
-            />
-            <HomeTile
-              icon={Plug}
-              title={t("openProject.tiles.setupProviders.title")}
-              description={t("openProject.tiles.setupProviders.description")}
-              onPress={handleOpenProviders}
-              testID="open-project-setup-providers"
-            />
-            {localServerId ? (
+          <View style={styles.home}>
+            <View style={styles.tiles}>
               <HomeTile
-                icon={Smartphone}
-                title={GROUPON_PHONE.title}
-                description={GROUPON_PHONE.tileDescription}
-                onPress={handleOpenPhone}
-                testID="open-project-phone"
+                icon={FolderOpen}
+                title={t("openProject.tiles.addProject.title")}
+                description={t("openProject.tiles.addProject.description")}
+                onPress={handleOpenPicker}
+                testID="open-project-submit"
+                accent
               />
-            ) : null}
+              <HomeTile
+                icon={GitHubIcon}
+                title={GROUPON_GITHUB.title}
+                description={GROUPON_GITHUB.description}
+                onPress={handleOpenGithub}
+                testID="open-project-groupon-github"
+                accent
+              />
+              <HomeTile
+                icon={History}
+                title={GROUPON_HISTORY.title}
+                description={GROUPON_HISTORY.openHint}
+                onPress={handleOpenHistory}
+                testID="open-project-hub-history"
+              />
+              <HomeTile
+                icon={Inbox}
+                title={t("openProject.tiles.importSession.title")}
+                description={t("openProject.tiles.importSession.description")}
+                onPress={importSession.open}
+                testID="open-project-import-session"
+              />
+              <HomeTile
+                icon={Plug}
+                title={t("openProject.tiles.setupProviders.title")}
+                description={t("openProject.tiles.setupProviders.description")}
+                onPress={handleOpenProviders}
+                testID="open-project-setup-providers"
+              />
+              {localServerId ? (
+                <HomeTile
+                  icon={Smartphone}
+                  title={GROUPON_PHONE.title}
+                  description={GROUPON_PHONE.tileDescription}
+                  onPress={handleOpenPhone}
+                  testID="open-project-phone"
+                />
+              ) : null}
+              <HomeTile
+                icon={BookOpen}
+                title={GROUPON_STANDARDS.title}
+                description={GROUPON_STANDARDS.tileDescription}
+                onPress={handleOpenStandards}
+                testID="open-project-standards"
+              />
+            </View>
+            <HomeAccess />
           </View>
         </View>
         <View style={styles.communityRow}>
@@ -224,8 +244,16 @@ const styles = StyleSheet.create((theme) => ({
     maxWidth: 452,
     textAlign: "center",
   },
-  tiles: {
+  home: {
     marginTop: { xs: theme.spacing[6], md: theme.spacing[12] },
+    width: "100%",
+    maxWidth: { xs: 452, lg: 452 + 400 + 24 },
+    // Your access beside the tiles on a wide window, above them on a narrow one.
+    flexDirection: { xs: "column-reverse", lg: "row" },
+    alignItems: { xs: "stretch", lg: "flex-start" },
+    gap: theme.spacing[6],
+  },
+  tiles: {
     width: "100%",
     maxWidth: 452,
     flexDirection: "row",

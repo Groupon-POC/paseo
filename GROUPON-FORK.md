@@ -130,3 +130,19 @@ the same. The Groupon plugin on the page's Mac answers `groupon.jira-search`,
 `groupon.jira-fields` and `groupon.jira-saved-view` through that Mac's `groupon` CLI; the filter
 bar's JQL and its reading back are `groupon/jira-tasks-model.ts`. Not drawn on a phone-sized
 layout, where the composer sits at the bottom.
+
+## Your access and the Standards page
+
+The home page (`screens/open-project-screen.tsx`) carries Your access beside its tiles on a wide
+window and above them on a narrow one (`groupon/home-access.tsx`, its words in
+`groupon/home-access-model.ts`): every Encore app the platform hands out with the person's standing
+and Ask for access (the plugin's `groupon.encore-apps` and `groupon.encore-request-access`), and per
+GitHub host the organisations and teams the person is in, the command that signs gh in where it is
+not, and the admin's page where access is asked for (`groupon.github-access`). Both are read by the
+Groupon plugin on the Mac the window runs beside (else the first Mac), on open and every minute.
+A Standards tile opens Settings > Standards (`groupon/standards-page.tsx`, `groupon/standards-model.ts`):
+the engineering standards of the repository picked, read from the repository itself by the plugin
+(`groupon.standards`: `.standards/` after `groupon standards pull`, else the repository's own
+`_documentation/engineering-standards/`), the branch-name and pull-request standards first, rendered
+with the file pane's markdown preview, and Pull the standards, which runs `groupon standards pull`
+in that checkout. A repository without standards says so and points at `groupon standards adopt`.

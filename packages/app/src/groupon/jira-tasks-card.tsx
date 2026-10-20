@@ -83,7 +83,8 @@ function useTasksState(client: PluginRpcClient, serverId: string) {
     queryKey: ["groupon-jira-saved-view", serverId],
     queryFn: () => jiraSavedView(client),
     dataShape: "value",
-    staleTimeMs: Number.POSITIVE_INFINITY,
+    // A day, never Infinity: useFetchQuery refuses a non-finite stale time (the window showed "Fetch queries must declare a finite staleTimeMs" on New workspace, 2026-10-20). The saved view changes only through this card, which writes it back itself.
+    staleTimeMs: 24 * 60 * 60 * 1000,
     retry: false,
   });
   const [state, setState] = useState<TasksState | null>(null);

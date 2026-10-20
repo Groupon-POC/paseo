@@ -6,7 +6,8 @@
  * - the Core the person chose (production, staging, or a local Core whose address they typed);
  * - the session the device sign-in issued (access JWT, refresh JWT, expiry), refreshed before it
  *   lapses and once more on a 401;
- * - the vault key, derived once from the passphrase on this device and kept in the keychain, and
+ * - the vault key, derived once from the passphrase on this device and kept in the keychain (in a
+ *   browser sealed under a non-extractable device key in IndexedDB, `secure-storage.web.ts`), and
  *   the seal key that opens what the person's Macs sealed on the hub;
  * - the person's identity (an X25519 pair from the vault key), whose public half is published on
  *   the hub once the vault opens, so a colleague can share a workspace with them (design section 13).

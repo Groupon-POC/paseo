@@ -19,6 +19,8 @@ export const GROUPON_GATE = {
   signedInAs: "Signed in as",
   vaultIntro:
     "Type your vault passphrase once. The key is made on this device and kept in its keychain; it opens what your Macs sealed on the hub. The passphrase never leaves this device.",
+  vaultIntroWeb:
+    "Type your vault passphrase once. The key is made in this browser and kept here, encrypted under a key that never leaves the browser and no script can read; it opens what your Macs sealed on the hub. The passphrase never leaves this device.",
   passphrasePlaceholder: "Vault passphrase",
   openVault: "Open the vault",
   deriving: "Making the key (600,000 rounds)",
@@ -33,9 +35,9 @@ export const GROUPON_SETTINGS = {
   vault: "Vault key",
   vaultKept: "Kept in this device's keychain; type the passphrase again only after signing out.",
   vaultKeptWeb:
-    "Kept in this browser's local storage (development builds only); type the passphrase again only after signing out.",
-  vaultMeasured: (ms: number, iterations: number, engine: string) =>
-    `Made on this device in ${ms.toLocaleString("en-US")} ms (PBKDF2-SHA256, ${iterations.toLocaleString("en-US")} rounds, ${engine}); kept in its keychain.`,
+    "Kept in this browser, encrypted under a key that never leaves the browser (IndexedDB, no script can read it); type the passphrase again only after signing out or clearing this site's data.",
+  vaultMeasured: (ms: number, iterations: number, engine: string, web: boolean) =>
+    `Made on this device in ${ms.toLocaleString("en-US")} ms (PBKDF2-SHA256, ${iterations.toLocaleString("en-US")} rounds, ${engine}); ${web ? "kept in this browser, encrypted" : "kept in its keychain"}.`,
   signOut: "Sign out of Groupon",
 } as const;
 

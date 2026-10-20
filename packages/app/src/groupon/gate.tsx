@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
+import { isWeb } from "@/constants/platform";
 import { StyleSheet } from "react-native-unistyles";
 import { ThemedGrouponMark } from "./groupon-mark";
 import { Button } from "@/components/ui/button";
@@ -227,7 +228,9 @@ function VaultStep() {
       <Text style={styles.body}>
         {GROUPON_GATE.signedInAs} {identity?.email ?? identity?.name ?? "?"}
       </Text>
-      <Text style={styles.hint}>{GROUPON_GATE.vaultIntro}</Text>
+      <Text style={styles.hint}>
+        {isWeb ? GROUPON_GATE.vaultIntroWeb : GROUPON_GATE.vaultIntro}
+      </Text>
       <EditingTextInput
         initialValue=""
         onChangeText={setPassphrase}

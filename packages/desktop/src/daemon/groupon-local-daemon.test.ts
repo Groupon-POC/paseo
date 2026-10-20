@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { DaemonInstance } from "@getpaseo/server/daemon-control";
 import {
+  GROUPON_DESK_HAND_OWNS_DAEMON,
   grouponHandHome,
   localDaemonHomes,
   readLocalCredentialForRunningDaemon,
@@ -18,13 +19,19 @@ const instance = (listen: string | null, serverId?: string): DaemonInstance => (
 });
 
 describe("this Mac's daemons", () => {
-  it("looks in the configured home and in the hand's home, each once", () => {
+  it("looks in the hand's home alone while the hand owns the daemon", () => {
+    expect(GROUPON_DESK_HAND_OWNS_DAEMON).toBe(true);
     expect(grouponHandHome("/Users/p")).toBe("/Users/p/.groupon/paseo");
-    expect(localDaemonHomes("/Users/p/.paseo", "/Users/p")).toEqual([
+    // A daemon a Paseo window once started in ~/.paseo is never taken for this Mac's.
+    expect(localDaemonHomes("/Users/p/.paseo", "/Users/p")).toEqual(["/Users/p/.groupon/paseo"]);
+  });
+
+  it("with the switch off, looks in the configured home and in the hand's home, each once", () => {
+    expect(localDaemonHomes("/Users/p/.paseo", "/Users/p", false)).toEqual([
       "/Users/p/.paseo",
       "/Users/p/.groupon/paseo",
     ]);
-    expect(localDaemonHomes("/Users/p/.groupon/paseo/", "/Users/p")).toEqual([
+    expect(localDaemonHomes("/Users/p/.groupon/paseo/", "/Users/p", false)).toEqual([
       "/Users/p/.groupon/paseo",
     ]);
   });

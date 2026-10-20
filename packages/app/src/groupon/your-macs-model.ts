@@ -111,6 +111,14 @@ function compareRows(a: YourMacRow, b: YourMacRow): number {
   );
 }
 
+/** One row per hub Mac, connected first (also New workspace's Mac picker, `mac-picker-model.ts`). */
+export function yourMacRows(
+  views: readonly HubMachineView[],
+  isOnline: (serverId: string) => boolean,
+): YourMacRow[] {
+  return views.map((view) => rowOf(view, isOnline)).sort(compareRows);
+}
+
 export function yourMacsModel(input: YourMacsInput): YourMacsModel {
   if (input.lastSyncAt === null) {
     if (input.error !== null && !input.syncing) {
@@ -118,7 +126,7 @@ export function yourMacsModel(input: YourMacsInput): YourMacsModel {
     }
     return { kind: "loading" };
   }
-  const rows = input.views.map((view) => rowOf(view, input.isOnline)).sort(compareRows);
+  const rows = yourMacRows(input.views, input.isOnline);
   const anyReachable = rows.some((row) => row.openServerId !== null);
   // The install instructions while no Mac is past "its hand is not running" (or there is none).
   const showInstall = rows.every((row) => row.state === "noHand");

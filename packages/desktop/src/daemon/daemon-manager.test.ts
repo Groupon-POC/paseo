@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a running daemon the desktop did not start gets its local credential too.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a running daemon the desktop did not start gets its local credential too; the window never starts one.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import path from "node:path";
@@ -146,21 +146,34 @@ describe("daemon-manager commands", () => {
     expect(mocks.runExternalCliJsonCommand).not.toHaveBeenCalled();
   });
 
-  it("reports an errored daemon when the local daemon state cannot be read", async () => {
+  it("reports no daemon of its own, without the CLI, even with a daemon in its home", async () => {
+    // The hand owns this Mac's daemon: one a Paseo window once started is not the window's.
     mkdirSync(mocks.paseoHome);
-    writeFileSync(path.join(mocks.paseoHome, "paseo.pid"), "garbage");
+    writeFileSync(
+      path.join(mocks.paseoHome, "paseo.pid"),
+      JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString(), listen: "x:1" }),
+    );
 
     const status = await createDaemonCommandHandlers().desktop_daemon_status();
 
-    expect(status).toMatchObject({ serverId: "", status: "errored", pid: null });
-    expect(status.error).toBeTruthy();
+    expect(status).toMatchObject({ serverId: "", status: "stopped", pid: null, error: null });
+    expect(mocks.runExternalCliJsonCommand).not.toHaveBeenCalled();
+  });
+
+  it("refuses to start or restart a daemon: the hand alone runs one", async () => {
+    const handlers = createDaemonCommandHandlers();
+    await expect(handlers.start_desktop_daemon()).rejects.toThrow(/hand runs this Mac's daemon/);
+    await expect(handlers.restart_desktop_daemon()).rejects.toThrow(/hand runs this Mac's daemon/);
+    expect(mocks.createNodeEntrypointInvocation).not.toHaveBeenCalled();
+    expect(mocks.runExternalCliJsonCommand).not.toHaveBeenCalled();
   });
 
   it("returns a local credential only for a live daemon's own listen", async () => {
     vi.stubEnv("HOME", mocks.paseoHome);
-    mkdirSync(mocks.paseoHome);
+    const handHome = path.join(mocks.paseoHome, ".groupon", "paseo");
+    mkdirSync(handHome, { recursive: true });
     const token = "a".repeat(43);
-    writeFileSync(path.join(mocks.paseoHome, "local-credential"), `${token}\n`, { mode: 0o600 });
+    writeFileSync(path.join(handHome, "local-credential"), `${token}\n`, { mode: 0o600 });
     const lock = {
       pid: process.pid,
       startedAt: new Date().toISOString(),
@@ -169,7 +182,7 @@ describe("daemon-manager commands", () => {
       listen: "127.0.0.1:6799",
       desktopManaged: true,
     };
-    const lockPath = path.join(mocks.paseoHome, "paseo.pid");
+    const lockPath = path.join(handHome, "paseo.pid");
     writeFileSync(lockPath, JSON.stringify(lock));
     const handler = createDaemonCommandHandlers().desktop_local_credential;
     expect(await handler({ listen: "localhost:6799" })).toBe(token);
@@ -186,7 +199,8 @@ describe("daemon-manager commands", () => {
   it("names this Mac's running daemons by server id and listen address", async () => {
     // The hand's home is under HOME: point HOME at the test's own folder, never the person's.
     vi.stubEnv("HOME", mocks.paseoHome);
-    mkdirSync(mocks.paseoHome);
+    const handHome = path.join(mocks.paseoHome, ".groupon", "paseo");
+    mkdirSync(handHome, { recursive: true });
     const lock = {
       pid: process.pid,
       startedAt: new Date().toISOString(),
@@ -195,7 +209,7 @@ describe("daemon-manager commands", () => {
       listen: "127.0.0.1:6870",
       serverId: "srv_test",
     };
-    writeFileSync(path.join(mocks.paseoHome, "paseo.pid"), JSON.stringify(lock));
+    writeFileSync(path.join(handHome, "paseo.pid"), JSON.stringify(lock));
     const daemons = await createDaemonCommandHandlers().groupon_local_daemons();
     expect(daemons).toEqual([{ serverId: "srv_test", listen: "127.0.0.1:6870" }]);
     vi.unstubAllEnvs();

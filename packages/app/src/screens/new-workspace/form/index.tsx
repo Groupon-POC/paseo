@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "On <Mac>", the hub Macs' picker, in place of Host.
 import { useCallback, useMemo, type ReactElement, type ReactNode, type RefObject } from "react";
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -6,6 +7,9 @@ import type { TerminalProfile } from "@getpaseo/protocol/messages";
 import { Combobox, type ComboboxOption, type ComboboxProps } from "@/components/ui/combobox";
 import { HostStatusDot } from "@/components/host-status-dot";
 import { HostPicker } from "@/components/hosts/host-picker";
+import { MacPicker } from "@/groupon/mac-picker";
+import { macPickerTriggerLabel, type MacPickerOption } from "@/groupon/mac-picker-model";
+import { GROUPON_MAC_PICKER } from "@/groupon/strings";
 import type { LaunchTarget } from "@/new-workspace-launch/target";
 import type { HostProjectListItem } from "@/projects/host-projects";
 import type { HostProfile } from "@/types/host-connection";
@@ -51,6 +55,8 @@ export interface NewWorkspaceFormProps {
     selectedServerId: string;
     onSelect: (id: string) => void;
     onAddHost: () => void;
+    /** Groupon Desk: the hub's Macs; when there are any, "On <Mac>" shows, even for one Mac. */
+    macOptions: readonly MacPickerOption[];
   };
   isolation: PickerControl & {
     effectiveIsolation: Isolation;
@@ -157,6 +163,80 @@ function useRefRenderOption(itemById: Map<string, PickerItem>, isPending: boolea
   );
 }
 
+/** The host field: Groupon Desk's "On <Mac>" from the hub's Macs, else Paseo's Host picker. */
+function HostField({
+  host,
+  variant,
+  isPending,
+  isCompact,
+}: {
+  host: NewWorkspaceFormProps["host"];
+  variant: FieldTriggerVariant;
+  isPending: boolean;
+  isCompact: boolean;
+}): ReactElement {
+  const { t } = useTranslation();
+  const hostIcon = useMemo(
+    () => <HostStatusDot serverId={host.selectedServerId} />,
+    [host.selectedServerId],
+  );
+  const selectedHostLabel =
+    host.allHosts.find((h) => h.serverId === host.selectedServerId)?.label ?? null;
+  if (host.macOptions.length > 0) {
+    return (
+      <MacPicker
+        options={host.macOptions}
+        selectedServerId={host.selectedServerId}
+        onSelect={host.onSelect}
+        open={host.openState}
+        onOpenChange={host.onOpenChange}
+        anchorRef={host.anchorRef}
+      >
+        <FieldTrigger
+          ref={host.anchorRef}
+          variant={variant}
+          label={GROUPON_MAC_PICKER.label}
+          tooltip={GROUPON_MAC_PICKER.tooltip}
+          icon={hostIcon}
+          value={macPickerTriggerLabel(host.macOptions, host.selectedServerId, selectedHostLabel)}
+          onPress={host.open}
+          disabled={isPending}
+          testID="new-workspace-mac-picker-trigger"
+        />
+      </MacPicker>
+    );
+  }
+  return (
+    <HostPicker
+      hosts={host.allHosts}
+      value={host.selectedServerId}
+      onSelect={host.onSelect}
+      open={host.openState}
+      onOpenChange={host.onOpenChange}
+      anchorRef={host.anchorRef}
+      includeAddHost={isCompact}
+      onAddHost={host.onAddHost}
+      searchable={false}
+      title={t("newWorkspace.fields.host")}
+      desktopPlacement="bottom-start"
+      desktopMinWidth={200}
+      hostOptionTestID={hostOptionTestID}
+    >
+      <FieldTrigger
+        ref={host.anchorRef}
+        variant={variant}
+        label={t("newWorkspace.fields.host")}
+        tooltip={t("newWorkspace.tooltips.host")}
+        icon={hostIcon}
+        value={selectedHostLabel ?? "Host"}
+        onPress={host.open}
+        disabled={isPending}
+        testID="host-picker-trigger"
+      />
+    </HostPicker>
+  );
+}
+
 /**
  * The New workspace setup fields, one trigger per field, each opening its picker. Compact: a stack
  * of full-width fields with the label inside. Desktop: one meta row of badges. Either way, a field
@@ -170,9 +250,8 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
   const isolationPicker = useIsolationPicker(isolation, isPending);
   const renderRefOption = useRefRenderOption(base.itemById, isPending);
 
-  const showHost = host.allHosts.length > 1;
-  const selectedHostLabel =
-    host.allHosts.find((h) => h.serverId === host.selectedServerId)?.label ?? "Host";
+  // Groupon Desk: "On <Mac>" whenever the hub has a Mac, even one; Paseo's Host with a second host.
+  const showHost = host.macOptions.length > 0 || host.allHosts.length > 1;
   const selectedProject = project.selectedProject;
   const selectedProjectIconUri = selectedProject
     ? (project.iconDataByProjectViewKey.get(selectedProject.viewKey) ?? null)
@@ -189,10 +268,6 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         folderIcon
       ),
     [selectedProject, selectedProjectIconUri],
-  );
-  const hostIcon = useMemo(
-    () => <HostStatusDot serverId={host.selectedServerId} />,
-    [host.selectedServerId],
   );
   const isWorktree = isolation.effectiveIsolation === "worktree";
   const isolationValue = isWorktree
@@ -215,33 +290,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
     />
   );
   const hostField = showHost ? (
-    <HostPicker
-      hosts={host.allHosts}
-      value={host.selectedServerId}
-      onSelect={host.onSelect}
-      open={host.openState}
-      onOpenChange={host.onOpenChange}
-      anchorRef={host.anchorRef}
-      includeAddHost={isCompact}
-      onAddHost={host.onAddHost}
-      searchable={false}
-      title={t("newWorkspace.fields.host")}
-      desktopPlacement="bottom-start"
-      desktopMinWidth={200}
-      hostOptionTestID={hostOptionTestID}
-    >
-      <FieldTrigger
-        ref={host.anchorRef}
-        variant={variant}
-        label={t("newWorkspace.fields.host")}
-        tooltip={t("newWorkspace.tooltips.host")}
-        icon={hostIcon}
-        value={selectedHostLabel}
-        onPress={host.open}
-        disabled={isPending}
-        testID="host-picker-trigger"
-      />
-    </HostPicker>
+    <HostField host={host} variant={variant} isPending={isPending} isCompact={isCompact} />
   ) : null;
   const isolationField = isolation.canCreateWorktree ? (
     <FieldTrigger

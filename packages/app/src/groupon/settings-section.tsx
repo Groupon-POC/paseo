@@ -10,6 +10,7 @@ import { settingsStyles } from "@/styles/settings";
 import { environmentById } from "./environments";
 import { useHubMachinesStore, type HubMachineState, type HubMachineView } from "./hub-sync";
 import { useGrouponStore } from "./session";
+import { updatedAt } from "./your-macs-model";
 import { GROUPON_HISTORY, GROUPON_MACHINES, GROUPON_SETTINGS } from "./strings";
 import { HUB_HISTORY_ROUTE } from "./history-screen";
 
@@ -97,7 +98,9 @@ export function GrouponMachinesSection() {
   const machines = useHubMachinesStore((state) => state.machines);
   const syncing = useHubMachinesStore((state) => state.syncing);
   const error = useHubMachinesStore((state) => state.error);
+  const lastSyncAt = useHubMachinesStore((state) => state.lastSyncAt);
   const sync = useHubMachinesStore((state) => state.sync);
+  const updated = updatedAt(lastSyncAt);
   const handleRefresh = useCallback(() => void sync(), [sync]);
 
   return (
@@ -130,6 +133,7 @@ export function GrouponMachinesSection() {
           >
             {syncing ? GROUPON_MACHINES.refreshing : GROUPON_MACHINES.refresh}
           </Button>
+          {updated ? <Text style={styles.value}>{updated}</Text> : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </View>
       </View>

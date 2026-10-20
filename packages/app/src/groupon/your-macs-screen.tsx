@@ -5,8 +5,9 @@
  * the Macs the hub lists (`hub-sync.tsx`), each one opening on tap when its hand is on Core's
  * relay or it is this Mac, and a plain sentence under each one that cannot open. With no Mac
  * past "its hand is not running" (or none at all), the install instructions and one download
- * link. It re-reads the hub every 15 s, and the moment one Mac comes online the window goes
- * straight to it, as Paseo's welcome screen did. The same screen on a phone, where every Mac is
+ * link. It re-reads the hub every 15 s (more often than the 30 s `GrouponHubSync` keeps for the
+ * whole window: here nothing else is on screen to wait for), shows when it last did, and the
+ * moment one Mac comes online the window goes straight to it, as Paseo's welcome screen did. The same screen on a phone, where every Mac is
  * reached through Core's relay.
  *
  * Constraints:
@@ -14,24 +15,24 @@
  * - No `useUnistyles` (the fork's lint): colours come through `StyleSheet.create`
  */
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { StyleSheet } from "react-native-unistyles";
 import { Download, History, RefreshCw, Settings } from "lucide-react-native";
 import { Button } from "@/components/ui/button";
 import { PressHighlight } from "@/components/ui/press-highlight";
-import { getHostRuntimeStore, isHostRuntimeConnected } from "@/runtime/host-runtime";
 import { buildHostRootRoute, buildOpenProjectRoute } from "@/utils/host-routes";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { GROUPON_DESK_DOWNLOAD_URL } from "./environments";
 import { ThemedGrouponMark } from "./groupon-mark";
 import { HUB_HISTORY_ROUTE } from "./history-screen";
-import { useHubMachinesStore } from "./hub-sync";
+import { useHubMachinesStore, useOnlineServerIds } from "./hub-sync";
 import { GROUPON_HISTORY, GROUPON_YOUR_MACS } from "./strings";
 import {
   firstConnected,
   seenAgo,
+  updatedAt,
   yourMacsModel,
   type YourMacRow,
   type YourMacState,
@@ -39,20 +40,6 @@ import {
 
 /** How often the screen re-reads the hub while it shows. */
 export const YOUR_MACS_REFRESH_MS = 15_000;
-
-/** The server ids the runtime has online, as one sorted string so the snapshot stays stable. */
-function useOnlineServerIds(serverIds: readonly string[]): string {
-  const runtime = getHostRuntimeStore();
-  const read = useCallback(
-    () =>
-      serverIds
-        .filter((serverId) => isHostRuntimeConnected(runtime.getSnapshot(serverId)))
-        .sort()
-        .join(","),
-    [runtime, serverIds],
-  );
-  return useSyncExternalStore((onChange) => runtime.subscribeAll(onChange), read, read);
-}
 
 export function YourMacsScreen() {
   const router = useRouter();
@@ -164,7 +151,9 @@ export function YourMacsScreen() {
           >
             {syncing ? GROUPON_YOUR_MACS.refreshing : GROUPON_YOUR_MACS.refresh}
           </Button>
-          <Text style={styles.small}>{GROUPON_YOUR_MACS.autoRefresh}</Text>
+          <Text style={styles.small}>
+            {[updatedAt(lastSyncAt), GROUPON_YOUR_MACS.autoRefresh].filter(Boolean).join(" · ")}
+          </Text>
         </View>
 
         <View style={styles.links}>

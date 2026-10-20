@@ -13,7 +13,7 @@
  * - the screen as a whole: still loading, the hub unreadable, or the list with at most one notice
  *   above it: no Mac on the hub at all (the install instructions and the download), or Macs
  *   signed in but none serving (press Work window, or install the hand's service)
- * - "seen 5 min ago" from the hub's lastSeenAt
+ * - "seen 5 min ago" from the hub's lastSeenAt, "updated 14:05" from the last read of the hub
  *
  * Constraints:
  * - Only a Mac whose host was added from the hub opens; nothing here offers an address to type
@@ -190,4 +190,13 @@ export function seenAgo(lastSeenAt: string, now: Date): string {
   const days = Math.floor(hours / 24);
   if (days < 7) return days === 1 ? "1 day ago" : `${days} days ago`;
   return `on ${at.toISOString().slice(0, 10)}`;
+}
+
+/** "updated 14:05", the local time of the last successful read of the hub; null before the first. */
+export function updatedAt(lastSyncAt: string | null): string | null {
+  if (lastSyncAt === null) return null;
+  const at = new Date(lastSyncAt);
+  if (Number.isNaN(at.getTime())) return null;
+  const hhmm = `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
+  return GROUPON_YOUR_MACS.updated(hhmm);
 }

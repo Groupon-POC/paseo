@@ -84,6 +84,7 @@ export const GROUPON_YOUR_MACS = {
   refreshing: "Refreshing",
   loadFailed: (message: string) => `Could not read your Macs from the hub: ${message}`,
   autoRefresh: "Checked again every 15 seconds.",
+  updated: (time: string) => `updated ${time}`,
   settings: "Settings",
 } as const;
 

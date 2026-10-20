@@ -8,7 +8,13 @@ import { describe, expect, it } from "vitest";
 import type { HubMachineView } from "./hub-sync";
 import type { HubMachine } from "./hub";
 import { GROUPON_YOUR_MACS } from "./strings";
-import { firstConnected, seenAgo, yourMacsModel, type YourMacsInput } from "./your-macs-model";
+import {
+  firstConnected,
+  seenAgo,
+  updatedAt,
+  yourMacsModel,
+  type YourMacsInput,
+} from "./your-macs-model";
 
 function machine(overrides: Partial<HubMachine> = {}): HubMachine {
   return {
@@ -178,6 +184,18 @@ describe("yourMacsModel", () => {
     const model = yourMacsModel(input({ views: [air, cy, studio] }));
     if (model.kind !== "macs") throw new Error("expected macs");
     expect(model.rows.map((row) => row.id)).toEqual(["studio", "cy", "air"]);
+  });
+});
+
+describe("updatedAt", () => {
+  it("says when the hub was last read, in local hours and minutes", () => {
+    const at = new Date(2026, 9, 20, 9, 5, 30);
+    expect(updatedAt(at.toISOString())).toBe("updated 09:05");
+  });
+
+  it("says nothing before the first read or for an unreadable time", () => {
+    expect(updatedAt(null)).toBeNull();
+    expect(updatedAt("not a time")).toBeNull();
   });
 });
 

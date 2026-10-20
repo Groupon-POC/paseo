@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): window.grouponDesk.readDeskSession, this Mac's Groupon sign-in.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): window.grouponDesk, this Mac's Groupon sign-in and kept vault key.
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { BrowserKeyboardPolicy } from "./features/browser-keyboard/index.js";
 import type { DesktopWindowChromeMode } from "./window/chrome.js";
@@ -140,12 +140,20 @@ contextBridge.exposeInMainWorld("paseoDesktop", {
   },
 });
 
-// This Mac's Groupon sign-in (the `groupon` CLI's credentials file, production only), read by the
-// main process: the access token and its expiry, never the file, the refresh token or another read.
+// This Mac's Groupon sign-in (the `groupon` CLI's credentials file, production only) and the vault
+// key Groupon Desk keeps in the login keychain, read by the main process: the access token and its
+// expiry, the key with its salt and rounds; never the file, the refresh token or another read.
 contextBridge.exposeInMainWorld("grouponDesk", {
   readDeskSession: () =>
     ipcRenderer.invoke("groupon:read-desk-session") as Promise<{
       accessToken: string;
       accessExpiresAt: string;
+    } | null>,
+  readDeskVaultKey: () =>
+    ipcRenderer.invoke("groupon:read-desk-vault-key") as Promise<{
+      userId: string;
+      key: string;
+      salt: string;
+      iterations: number;
     } | null>,
 });

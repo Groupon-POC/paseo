@@ -186,8 +186,13 @@ the Mac out. The window's own session, when it has one that can still be renewed
 Signing out in the window clears the window's own storage only (Settings says so); the Mac stays
 signed in, and the window takes its sign-in again the next time it opens. With no production entry
 in the file, the gate shows Google sign-in as before; the web build and the phone have no bridge
-and sign in as before. The vault passphrase is still asked for when the window's storage has no
-vault key.
+and sign in as before. The vault passphrase is not typed again either: when the window keeps no vault key,
+a second preload call, `window.grouponDesk.readDeskVaultKey()`, has the main process read the key
+Groupon Desk and its hand keep in the login keychain (`packages/desktop/src/features/groupon-desk-vault-key.ts`:
+service `com.groupon.desk.vault-key`, account the user id of the Mac's sign-in, through
+`/usr/bin/security`, read only, never logged), and the window keeps it in its own storage as if
+typed, but only for the same person and only once it opens the hub's vault. A Mac without a kept
+key shows the passphrase step as before.
 
 ## Sharing a workspace with a colleague
 

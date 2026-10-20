@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): this Mac's Groupon sign-in, as the desktop window gets it.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): this Mac's Groupon sign-in and kept vault key, as the desktop window gets them.
 
 /**
  * The sign-in Groupon Desk and the `groupon` CLI hold on this Mac, lent to the packaged window by
@@ -12,6 +12,8 @@
  * - The window never renews this session itself and never keeps it in its storage: Core rotates
  *   the refresh token on every renewal, so a second holder renewing it would sign the whole Mac
  *   out. When the token is about to lapse the window asks the bridge again
+ * - The kept vault key (`readMacVaultKey`, the keychain item Groupon Desk and its hand keep) is
+ *   used only for the same user, and only once it opens the hub's vault (`session.ts`)
  */
 
 export interface MacSession {
@@ -19,8 +21,17 @@ export interface MacSession {
   accessExpiresAt: string;
 }
 
+/** The vault key Groupon Desk keeps in this Mac's login keychain, all base64. */
+export interface MacVaultKey {
+  userId: string;
+  key: string;
+  salt: string;
+  iterations: number;
+}
+
 interface GrouponDeskBridge {
   readDeskSession?: () => Promise<unknown>;
+  readDeskVaultKey?: () => Promise<unknown>;
 }
 
 declare global {
@@ -50,4 +61,24 @@ export async function readMacSession(): Promise<MacSession | null> {
   if (typeof accessToken !== "string" || accessToken === "") return null;
   if (typeof accessExpiresAt !== "string") return null;
   return { accessToken, accessExpiresAt };
+}
+
+/** The vault key this Mac keeps for the person it is signed in as, or null. */
+export async function readMacVaultKey(): Promise<MacVaultKey | null> {
+  const desk = bridge();
+  if (!desk?.readDeskVaultKey) return null;
+  let answer: unknown;
+  try {
+    answer = await desk.readDeskVaultKey();
+  } catch {
+    return null;
+  }
+  if (typeof answer !== "object" || answer === null) return null;
+  const { userId, key, salt, iterations } = answer as Record<string, unknown>;
+  if (typeof userId !== "string" || userId === "") return null;
+  if (typeof key !== "string" || typeof salt !== "string" || key === "" || salt === "") return null;
+  if (typeof iterations !== "number" || !Number.isInteger(iterations) || iterations <= 0) {
+    return null;
+  }
+  return { userId, key, salt, iterations };
 }

@@ -10,7 +10,9 @@
  *   (`mac-session.ts`), held in memory only and asked for again instead of renewed here;
  * - the vault key, derived once from the passphrase on this device and kept in the keychain (in a
  *   browser sealed under a non-extractable device key in IndexedDB, `secure-storage.web.ts`), and
- *   the seal key that opens what the person's Macs sealed on the hub;
+ *   the seal key that opens what the person's Macs sealed on the hub; in the desktop window, when
+ *   none is kept here, the key Groupon Desk keeps in this Mac's login keychain for the same person,
+ *   kept here once it opens the hub's vault, as if the passphrase had been typed;
  * - the person's identity (an X25519 pair from the vault key), whose public half is published on
  *   the hub once the vault opens, so a colleague can share a workspace with them (design section 13).
  *
@@ -52,7 +54,7 @@ import {
   normaliseCoreUrl,
   type GrouponEnvironmentId,
 } from "./environments";
-import { readMacSession } from "./mac-session";
+import { readMacSession, readMacVaultKey } from "./mac-session";
 import { deleteSecret, readSecret, writeSecret } from "./secure-storage";
 
 const ENVIRONMENT_KEY = "groupon-desk.environment";
@@ -146,16 +148,9 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
       return;
     }
     const identity = identityOf(session.accessToken);
-    const stored = parseJson<StoredVaultKey>(await readSecret(VAULT_KEY_KEY));
-    const vaultKey =
-      stored && stored.coreUrl === coreUrl && stored.userId === identity.userId
-        ? base64ToBytes(stored.key)
-        : null;
+    set({ environmentId, coreUrl, session, identity });
+    const vaultKey = await keptVaultKey(coreUrl, identity);
     set({
-      environmentId,
-      coreUrl,
-      session,
-      identity,
       sealKey: vaultKey ? sealKeyFromVaultKey(vaultKey) : null,
       deskIdentity: vaultKey ? identityFromVaultKey(vaultKey) : null,
       status: vaultKey ? "ready" : "vault",
@@ -181,14 +176,9 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
     };
     await writeSecret(SESSION_KEY, JSON.stringify(session));
     const identity = identityOf(session.accessToken);
-    const stored = parseJson<StoredVaultKey>(await readSecret(VAULT_KEY_KEY));
-    const vaultKey =
-      stored && stored.coreUrl === session.coreUrl && stored.userId === identity.userId
-        ? base64ToBytes(stored.key)
-        : null;
+    set({ session, identity });
+    const vaultKey = await keptVaultKey(session.coreUrl, identity);
     set({
-      session,
-      identity,
       sealKey: vaultKey ? sealKeyFromVaultKey(vaultKey) : null,
       deskIdentity: vaultKey ? identityFromVaultKey(vaultKey) : null,
       status: vaultKey ? "ready" : "vault",
@@ -281,6 +271,39 @@ async function macSessionFor(coreUrl: string): Promise<GrouponSession | null> {
   const mac = await readMacSession();
   if (!mac) return null;
   return { coreUrl, ...mac, refreshToken: "", origin: "mac" };
+}
+
+/**
+ * The vault key for this person: the one kept here, else (desktop window, production) the one
+ * Groupon Desk keeps in this Mac's keychain for the same user, once it opens the hub's vault; it is
+ * then kept here as if typed. Null when neither is there: the passphrase step shows.
+ */
+async function keptVaultKey(coreUrl: string, identity: TokenIdentity): Promise<Uint8Array | null> {
+  const stored = parseJson<StoredVaultKey>(await readSecret(VAULT_KEY_KEY));
+  if (stored && stored.coreUrl === coreUrl && stored.userId === identity.userId) {
+    return base64ToBytes(stored.key);
+  }
+  if (coreUrl !== MAC_SESSION_CORE_URL || !identity.userId) return null;
+  const mac = await readMacVaultKey();
+  if (!mac || mac.userId !== identity.userId) return null;
+  try {
+    const answer = await grouponRequest<{ vault: { envelope: string } | null }>(
+      "/user/groupon_desk/vault",
+    );
+    if (!answer.vault) return null;
+    const envelope = parseVaultEnvelope(answer.vault.envelope);
+    const sameSalt =
+      bytesToBase64(base64ToBytes(envelope.kdf.salt)) === bytesToBase64(base64ToBytes(mac.salt));
+    if (!sameSalt || envelope.kdf.iterations !== mac.iterations) return null;
+    const vaultKey = base64ToBytes(mac.key);
+    openVault(envelope, vaultKey);
+    const kept: StoredVaultKey = { coreUrl, userId: identity.userId, key: bytesToBase64(vaultKey) };
+    await writeSecret(VAULT_KEY_KEY, JSON.stringify(kept));
+    return vaultKey;
+  } catch {
+    // The hub could not be read, or the keychain's key does not open this vault: ask the passphrase.
+    return null;
+  }
 }
 
 /** A stored session whose refresh JWT has lapsed cannot be renewed: read as none. */

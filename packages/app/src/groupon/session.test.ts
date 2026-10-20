@@ -1,4 +1,5 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the desktop window opens on this Mac's sign-in, and signs out only itself.
+import { createCipheriv, randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const secrets = new Map<string, string>();
@@ -29,6 +30,7 @@ const macToken = (suffix: string) =>
   jwt({ userId: "user-1", email: "person@groupon.com", n: suffix });
 
 const readDeskSession = vi.fn();
+const readDeskVaultKey = vi.fn();
 const fetchMock = vi.fn();
 
 function resetStore() {
@@ -47,9 +49,11 @@ function resetStore() {
 beforeEach(() => {
   secrets.clear();
   readDeskSession.mockReset();
+  readDeskVaultKey.mockReset();
+  readDeskVaultKey.mockResolvedValue(null);
   fetchMock.mockReset();
   fetchMock.mockImplementation(async () => new Response("{}", { status: 200 }));
-  vi.stubGlobal("window", { grouponDesk: { readDeskSession } });
+  vi.stubGlobal("window", { grouponDesk: { readDeskSession, readDeskVaultKey } });
   vi.stubGlobal("fetch", fetchMock);
   resetStore();
 });
@@ -192,6 +196,87 @@ describe("the desktop window and this Mac's sign-in", () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(Object.keys((window as { grouponDesk: object }).grouponDesk)).toEqual([
       "readDeskSession",
+      "readDeskVaultKey",
     ]);
+  });
+});
+
+/** A vault as Groupon Desk seals it: AES-256-GCM under the vault key, the format as associated data. */
+function sealVault(key: Buffer, salt: Buffer, iterations: number): string {
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, nonce);
+  cipher.setAAD(Buffer.from("groupon-desk-vault/1"));
+  const ciphertext = Buffer.concat([cipher.update('{"secrets":{}}', "utf8"), cipher.final()]);
+  return JSON.stringify({
+    format: "groupon-desk-vault/1",
+    kdf: { name: "PBKDF2-SHA256", iterations, salt: salt.toString("base64") },
+    cipher: "AES-256-GCM",
+    nonce: nonce.toString("base64"),
+    ciphertext: ciphertext.toString("base64"),
+    tag: cipher.getAuthTag().toString("base64"),
+  });
+}
+
+describe("the desktop window and this Mac's kept vault key", () => {
+  const key = Buffer.alloc(32, 5);
+  const salt = Buffer.from("the-vault-salt");
+  const kept = (overrides: Record<string, unknown> = {}) => ({
+    userId: "user-1",
+    key: key.toString("base64"),
+    salt: salt.toString("base64"),
+    iterations: 600000,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    readDeskSession.mockResolvedValue({
+      accessToken: macToken("a"),
+      accessExpiresAt: inMinutes(15),
+    });
+    fetchMock.mockImplementation(async (url: string) =>
+      url.endsWith("/user/groupon_desk/vault")
+        ? new Response(JSON.stringify({ vault: { envelope: sealVault(key, salt, 600000) } }), {
+            status: 200,
+          })
+        : new Response("{}", { status: 200 }),
+    );
+  });
+
+  it("opens straight to ready with no passphrase, and keeps the key as if typed", async () => {
+    readDeskVaultKey.mockResolvedValue(kept());
+
+    await useGrouponStore.getState().hydrate();
+
+    const state = useGrouponStore.getState();
+    expect(state.status).toBe("ready");
+    expect(state.sealKey).not.toBeNull();
+    expect(JSON.parse(secrets.get(VAULT_KEY_KEY) ?? "null")).toEqual({
+      coreUrl: PRODUCTION,
+      userId: "user-1",
+      key: key.toString("base64"),
+    });
+  });
+
+  it("shows the passphrase step as today when the keychain has no key", async () => {
+    await useGrouponStore.getState().hydrate();
+    expect(useGrouponStore.getState().status).toBe("vault");
+    expect(secrets.has(VAULT_KEY_KEY)).toBe(false);
+  });
+
+  it("ignores another person's key, and a key that does not open the hub's vault", async () => {
+    readDeskVaultKey.mockResolvedValue(kept({ userId: "user-9" }));
+    await useGrouponStore.getState().hydrate();
+    expect(useGrouponStore.getState().status).toBe("vault");
+
+    resetStore();
+    readDeskVaultKey.mockResolvedValue(kept({ key: Buffer.alloc(32, 6).toString("base64") }));
+    await useGrouponStore.getState().hydrate();
+    expect(useGrouponStore.getState().status).toBe("vault");
+
+    resetStore();
+    readDeskVaultKey.mockResolvedValue(kept({ salt: Buffer.from("other").toString("base64") }));
+    await useGrouponStore.getState().hydrate();
+    expect(useGrouponStore.getState().status).toBe("vault");
+    expect(secrets.has(VAULT_KEY_KEY)).toBe(false);
   });
 });

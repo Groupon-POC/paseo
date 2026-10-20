@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): window.grouponDesk.readDeskSession, this Mac's Groupon sign-in.
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { BrowserKeyboardPolicy } from "./features/browser-keyboard/index.js";
 import type { DesktopWindowChromeMode } from "./window/chrome.js";
@@ -137,4 +138,14 @@ contextBridge.exposeInMainWorld("paseoDesktop", {
     copyElement: (payload: { text?: string; imageDataUrl?: string }) =>
       ipcRenderer.invoke("paseo:browser:copy-element", payload),
   },
+});
+
+// This Mac's Groupon sign-in (the `groupon` CLI's credentials file, production only), read by the
+// main process: the access token and its expiry, never the file, the refresh token or another read.
+contextBridge.exposeInMainWorld("grouponDesk", {
+  readDeskSession: () =>
+    ipcRenderer.invoke("groupon:read-desk-session") as Promise<{
+      accessToken: string;
+      accessExpiresAt: string;
+    } | null>,
 });

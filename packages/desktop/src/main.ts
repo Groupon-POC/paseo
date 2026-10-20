@@ -1,5 +1,6 @@
 // Changed for Groupon Desk (fork of Paseo, Apache-2.0): the app is named Groupon Desk, Groupon Desk DEV in development;
-// the window serves its pages from the scheme groupon-desk (origin groupon-desk://app), never Paseo's own scheme.
+// the window serves its pages from the scheme groupon-desk (origin groupon-desk://app), never Paseo's own scheme;
+// the window's pages may read this Mac's Groupon sign-in (groupon:read-desk-session, features/groupon-desk-session.ts).
 // The name is set first, before electron-log or anything else reads it.
 import { APP_NAME } from "./app-name.js";
 import { protectConsoleStreams } from "./diagnostics/console-streams.js";
@@ -114,6 +115,7 @@ import {
   type AgentDeepLinkTarget,
 } from "@getpaseo/protocol/agent-deep-link";
 import { AgentNavigationInbox, parseAgentDeepLinkFromArgv } from "./agent-navigation.js";
+import { isDeskSessionCaller, readDeskSessionForWindow } from "./features/groupon-desk-session.js";
 
 const DEV_SERVER_URL = process.env.EXPO_DEV_URL ?? "http://localhost:8081";
 const APP_SCHEME = "groupon-desk";
@@ -973,6 +975,20 @@ async function bootstrap(): Promise<void> {
   registerNotificationHandlers();
   const openExternalUrl = createExternalUrlOpener({ open: shell.openExternal });
   ipcMain.handle("paseo:opener:openUrl", (_event, value: unknown) => openExternalUrl(value));
+  // This Mac's Groupon sign-in, for the window's own pages only; the token is never logged.
+  ipcMain.handle("groupon:read-desk-session", async (event) => {
+    const devServerUrl = app.isPackaged ? null : DEV_SERVER_URL;
+    if (!isDeskSessionCaller(event.senderFrame?.url, APP_SCHEME, devServerUrl)) return null;
+    try {
+      return await readDeskSessionForWindow();
+    } catch (error) {
+      log.warn(
+        "[groupon] this Mac's sign-in could not be read:",
+        error instanceof Error ? error.message : String(error),
+      );
+      return null;
+    }
+  });
   registerEditorTargetHandlers();
   registerBrowserAutomationIpc();
 

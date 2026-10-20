@@ -5,7 +5,9 @@
  *
  * - the Core the person chose (production, staging, or a local Core whose address they typed);
  * - the session the device sign-in issued (access JWT, refresh JWT, expiry), refreshed before it
- *   lapses and once more on a 401;
+ *   lapses and once more on a 401; in the desktop window, when it has none of its own (or its own
+ *   can no longer be renewed), this Mac's sign-in, the one Groupon Desk and the `groupon` CLI share
+ *   (`mac-session.ts`), held in memory only and asked for again instead of renewed here;
  * - the vault key, derived once from the passphrase on this device and kept in the keychain (in a
  *   browser sealed under a non-extractable device key in IndexedDB, `secure-storage.web.ts`), and
  *   the seal key that opens what the person's Macs sealed on the hub;
@@ -13,7 +15,8 @@
  *   the hub once the vault opens, so a colleague can share a workspace with them (design section 13).
  *
  * Nothing here is logged except the derivation's duration. Signing out deletes the session and
- * the vault key from the keychain.
+ * the vault key from the keychain; it signs out this window only, never the Mac's own sign-in,
+ * which the window takes again when it next starts.
  *
  * The signed-in Core is also the relay every Paseo host can be reached through
  * (`core-relay.ts`): this module names it there, with a token getter that refreshes first.
@@ -24,6 +27,7 @@ import {
   CoreError,
   coreRequest,
   identityOf,
+  expiryOf,
   tokenRefresh,
   type DeviceAuthPoll,
   type TokenIdentity,
@@ -48,6 +52,7 @@ import {
   normaliseCoreUrl,
   type GrouponEnvironmentId,
 } from "./environments";
+import { readMacSession } from "./mac-session";
 import { deleteSecret, readSecret, writeSecret } from "./secure-storage";
 
 const ENVIRONMENT_KEY = "groupon-desk.environment";
@@ -63,8 +68,11 @@ export type GrouponGateStatus = "loading" | "signedOut" | "vault" | "ready";
 export interface GrouponSession {
   coreUrl: string;
   accessToken: string;
+  /** Empty for a session borrowed from this Mac: the window never renews that one itself. */
   refreshToken: string;
   accessExpiresAt: string;
+  /** "mac": this Mac's sign-in (`mac-session.ts`), never stored by the window. */
+  origin?: "mac";
 }
 
 export interface VaultUnlockMeasure {
@@ -122,8 +130,10 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
     );
     const environmentId = environment?.id ?? DEFAULT_ENVIRONMENT_ID;
     const coreUrl = environment?.coreUrl ?? environmentById(environmentId).coreUrl;
-    const session = parseJson<GrouponSession>(await readSecret(SESSION_KEY));
-    if (!session || session.coreUrl !== coreUrl) {
+    const own = parseJson<GrouponSession>(await readSecret(SESSION_KEY));
+    const session =
+      own && own.coreUrl === coreUrl && !refreshLapsed(own) ? own : await macSessionFor(coreUrl);
+    if (!session) {
       set({
         status: "signedOut",
         environmentId,
@@ -170,7 +180,19 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
       accessExpiresAt: String(poll.accessTokenExpiresAt),
     };
     await writeSecret(SESSION_KEY, JSON.stringify(session));
-    set({ session, identity: identityOf(session.accessToken), status: "vault" });
+    const identity = identityOf(session.accessToken);
+    const stored = parseJson<StoredVaultKey>(await readSecret(VAULT_KEY_KEY));
+    const vaultKey =
+      stored && stored.coreUrl === session.coreUrl && stored.userId === identity.userId
+        ? base64ToBytes(stored.key)
+        : null;
+    set({
+      session,
+      identity,
+      sealKey: vaultKey ? sealKeyFromVaultKey(vaultKey) : null,
+      deskIdentity: vaultKey ? identityFromVaultKey(vaultKey) : null,
+      status: vaultKey ? "ready" : "vault",
+    });
   },
 
   unlockVault: async (passphrase) => {
@@ -250,9 +272,52 @@ async function adoptDevelopmentSession(): Promise<void> {
   await writeSecret(SESSION_KEY, JSON.stringify({ ...candidate, coreUrl }));
 }
 
+/** The Core whose sign-in this Mac lends the desktop window (main reads production only). */
+const MAC_SESSION_CORE_URL = environmentById("production").coreUrl;
+
+/** This Mac's sign-in for `coreUrl`, as a session the window holds in memory only. */
+async function macSessionFor(coreUrl: string): Promise<GrouponSession | null> {
+  if (coreUrl !== MAC_SESSION_CORE_URL) return null;
+  const mac = await readMacSession();
+  if (!mac) return null;
+  return { coreUrl, ...mac, refreshToken: "", origin: "mac" };
+}
+
+/** A stored session whose refresh JWT has lapsed cannot be renewed: read as none. */
+function refreshLapsed(session: GrouponSession): boolean {
+  const expiresAt = expiryOf(session.refreshToken);
+  return expiresAt !== null && expiresAt <= Date.now();
+}
+
 let refreshing: Promise<GrouponSession> | null = null;
 
+/**
+ * A borrowed session is asked for again, never renewed here; when the Mac has none left, the
+ * window shows the sign-in, keeping its storage (nobody signed out of the window).
+ */
+async function retakeMacSession(session: GrouponSession): Promise<GrouponSession> {
+  const next = await macSessionFor(session.coreUrl);
+  if (!next) {
+    useGrouponStore.setState({
+      status: "signedOut",
+      session: null,
+      identity: null,
+      sealKey: null,
+      deskIdentity: null,
+    });
+    throw new CoreError("This Mac's Groupon sign-in has ended. Sign in again.", 401);
+  }
+  useGrouponStore.setState({ session: next, identity: identityOf(next.accessToken) });
+  return next;
+}
+
 async function refreshSession(session: GrouponSession): Promise<GrouponSession> {
+  if (session.origin === "mac") {
+    refreshing ??= retakeMacSession(session).finally(() => {
+      refreshing = null;
+    });
+    return refreshing;
+  }
   refreshing ??= (async () => {
     try {
       const answer = await tokenRefresh(session.coreUrl, session.refreshToken);
@@ -267,7 +332,11 @@ async function refreshSession(session: GrouponSession): Promise<GrouponSession> 
       return next;
     } catch (error) {
       if (error instanceof CoreError && error.status !== null && error.status < 500) {
-        await useGrouponStore.getState().signOut();
+        // Core refused the window's own session: this Mac's sign-in, if it has one, takes over.
+        await deleteSecret(SESSION_KEY);
+        await useGrouponStore.getState().hydrate();
+        const next = useGrouponStore.getState().session;
+        if (next) return next;
       }
       throw error;
     } finally {

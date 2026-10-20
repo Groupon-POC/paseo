@@ -122,6 +122,27 @@ built before the rename starts with empty settings once. Upstream's native mobil
 app (`sh.paseo.debug`), which this fork does not build; the fork's Expo scheme is `groupondesk`
 (`packages/app/app.config.js`).
 
+## The window signs in with this Mac's sign-in
+
+Groupon Desk and the `groupon` CLI keep one sign-in per Mac, in the CLI's credentials file
+(`$XDG_CONFIG_HOME/groupon/credentials`, else `~/.config/groupon/credentials`; the monorepo's
+`packages/groupon-cli/src/auth/storage.ts`), and the hand keeps it renewed. The packaged window
+opens on it instead of asking for Google again: its main process reads the production entry
+(`packages/desktop/src/features/groupon-desk-session.ts`) and hands the renderer the access token
+and its expiry through one preload call, `window.grouponDesk.readDeskSession()`, answered only to
+the window's own pages (`groupon-desk://app`, and the dev server in a development run). When the
+file's access token is about to lapse, the main process renews it under the CLI's lock
+(`credentials.refresh.lock`) and writes it back in the CLI's format, as the CLI and the hand do;
+the renderer never holds the refresh token, never renews this session and never stores it
+(`packages/app/src/groupon/mac-session.ts`, `session.ts`): Core rotates the refresh token on every
+renewal and revokes the whole session when a used one comes back, so a second renewer would sign
+the Mac out. The window's own session, when it has one that can still be renewed, comes first.
+Signing out in the window clears the window's own storage only (Settings says so); the Mac stays
+signed in, and the window takes its sign-in again the next time it opens. With no production entry
+in the file, the gate shows Google sign-in as before; the web build and the phone have no bridge
+and sign in as before. The vault passphrase is still asked for when the window's storage has no
+vault key.
+
 ## Sharing a workspace with a colleague
 
 The monorepo's design section 13 (`_documentation/design/groupon-desk-work-window-design.md`): a

@@ -71,20 +71,38 @@ export function organisationOf(
 export function repositoriesOf(
   organisation: GithubOrganisation | null,
   team: string,
-): { repositories: GithubRepository[]; unreadTeams: string[] } {
+): { repositories: GithubRepository[]; unreadTeams: string[]; ssoBlocked: boolean } {
   const teams: GithubTeam[] =
     organisation?.teams.filter((row) => team === ALL_TEAMS || row.slug === team) ?? [];
   const byName = new Map<string, GithubRepository>();
   const unreadTeams: string[] = [];
+  let ssoBlocked = false;
   for (const row of teams) {
     if (row.repositories === null) {
       unreadTeams.push(row.name);
+      if (isSsoBlock(row.problem)) ssoBlocked = true;
       continue;
     }
     for (const repository of row.repositories) byName.set(repository.fullName, repository);
   }
   const repositories = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
-  return { repositories, unreadTeams };
+  return { repositories, unreadTeams, ssoBlocked };
+}
+
+/**
+ * GitHub's refusal of a token the organisation's SAML single sign-on has not authorised: HTTP 403
+ * "Resource protected by organization SAML enforcement. You must grant your OAuth token access to
+ * this organization." (gh prints it as is; MEASURED with gh against the `groupon` organisation,
+ * 2026-10-20). Anything else is not this.
+ */
+export function isSsoBlock(problem: string | null | undefined): boolean {
+  if (!problem) return false;
+  return /SAML enforcement|organization SAML|SAML single sign-on/i.test(problem);
+}
+
+/** The command that has gh ask for the organisation's single sign-on authorisation on a host. */
+export function ssoRefreshCommand(host: string): string {
+  return `gh auth refresh -h ${host} -s read:org`;
 }
 
 /** The organisation and team the person picked last time, as remembered on this device. */
@@ -274,9 +292,10 @@ export function organisationHint(organisation: GithubOrganisation, notMember: st
   return `${count} ${count === 1 ? "team" : "teams"}${purpose}`;
 }
 
-/** A team row's second line: its repositories, or that GitHub would not say. */
-export function teamHint(team: GithubTeam, unread: string): string {
-  if (team.repositories === null) return unread;
+/** A team row's second line: its repositories, that single sign-on blocks them, or that GitHub would not say. */
+export function teamHint(team: GithubTeam, unread: string, ssoBlocked?: string): string {
+  if (team.repositories === null)
+    return ssoBlocked && isSsoBlock(team.problem) ? ssoBlocked : unread;
   const count = team.repositories.length;
   const description = team.description ? ` · ${team.description}` : "";
   return `${count} ${count === 1 ? "repository" : "repositories"}${description}`;

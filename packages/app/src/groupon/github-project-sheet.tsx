@@ -8,7 +8,9 @@
  * Groupon plugin on the chosen Mac with the CLI's session there); on the enterprise as gh reads
  * them on that Mac, plus any other organisation found by name and opened on its visible
  * repositories. A host gh is not signed in to shows the command that signs it in, with Copy,
- * instead of a list. The sheet opens on the repositories of the organisation and team picked last
+ * instead of a list; an organisation whose SAML single sign-on refuses gh's token (GitHub's 403,
+ * in a team's, a read's or a clone's problem) shows the command that asks for the authorisation,
+ * `gh auth refresh -h <host> -s read:org`, with Copy. The sheet opens on the repositories of the organisation and team picked last
  * time on that host, or the first organisation the person is in (`firstStep`), with Back to change
  * them. Then a repository, then the folder (the Mac's checkout folder, `~/Documents/GitHub` unless
  * the person's setup says otherwise): the plugin clones it from its host the way the CLI does
@@ -59,6 +61,7 @@ import {
   prefilledStep,
   GITHUB_COM,
   hostChoices,
+  isSsoBlock,
   matching,
   organisationHint,
   organisationOf,
@@ -69,12 +72,14 @@ import {
   repositoriesOf,
   repositoryHint,
   signInNeeded,
+  ssoRefreshCommand,
   stepTitle,
   teamHint,
   type GithubStep,
 } from "./github-project-model";
 import { type GithubProjectPrefill, useGithubProjectStore } from "./github-project-store";
 import { useGrouponPreferences } from "./preferences";
+import { SheetSubtitle } from "./sheet-subtitle";
 import { GROUPON_GITHUB } from "./strings";
 
 const SNAP_POINTS = ["75%", "92%"];
@@ -295,7 +300,7 @@ function GithubProjectSheet({
   const header = useMemo<SheetHeader>(() => {
     const base: SheetHeader = {
       title: stepTitle(step, GROUPON_GITHUB.title, GROUPON_GITHUB.allTeams, answer),
-      subtitle: `${GROUPON_GITHUB.downloadsTo} ${hostLabel}`,
+      subtitle: <SheetSubtitle text={`${GROUPON_GITHUB.downloadsTo} ${hostLabel}`} />,
     };
     if (step.kind !== "organisations") base.back = { onPress: back, label: "Back" };
     if (step.kind !== "folder") {
@@ -327,7 +332,9 @@ function GithubProjectSheet({
       {access.isLoading ? <Waiting text={GROUPON_GITHUB.reading} /> : null}
       {access.error ? <Text style={styles.error}>{pluginProblemText(access.error)}</Text> : null}
       {signIn ? <SignIn row={signIn} onRefresh={refresh} /> : null}
-      {answer?.problem && !signIn ? <Text style={styles.error}>{answer.problem}</Text> : null}
+      {answer?.problem && !signIn ? (
+        <Problem text={answer.problem} host={host} onRefresh={refresh} />
+      ) : null}
       {answer && !(signIn && answer.access === null) ? (
         <StepBody
           step={step}
@@ -404,6 +411,46 @@ function SignIn({ row, onRefresh }: { row: GithubHost; onRefresh: () => Promise<
       </View>
     </View>
   );
+}
+
+/**
+ * The organisation's SAML single sign-on refuses gh's token on this Mac (`isSsoBlock`): the
+ * command that asks for the authorisation, copyable, and Read again once it ran.
+ */
+function SsoBlocked({ host, onRefresh }: { host: string; onRefresh: () => Promise<void> }) {
+  const command = ssoRefreshCommand(host);
+  const refresh = useCallback(() => {
+    onRefresh().catch(() => {});
+  }, [onRefresh]);
+  return (
+    <View style={styles.list} testID="groupon-github-sso">
+      <Text style={styles.error}>{GROUPON_GITHUB.ssoBlocked(command)}</Text>
+      <CopyLine
+        text={command}
+        accessibilityLabel={GROUPON_GITHUB.ssoCommandLabel}
+        testID="groupon-github-sso-command"
+      />
+      <View style={styles.actions}>
+        <Button variant="ghost" size="sm" leftIcon={RefreshCw} onPress={refresh}>
+          {GROUPON_GITHUB.refresh}
+        </Button>
+      </View>
+    </View>
+  );
+}
+
+/** A problem the plugin or GitHub gave: single sign-on with its fix, anything else in its own words. */
+function Problem({
+  text,
+  host,
+  onRefresh,
+}: {
+  text: string;
+  host: string;
+  onRefresh: () => Promise<void>;
+}) {
+  if (isSsoBlock(text)) return <SsoBlocked host={host} onRefresh={onRefresh} />;
+  return <Text style={styles.error}>{text}</Text>;
 }
 
 function Waiting({ text }: { text: string }) {
@@ -528,11 +575,14 @@ function OrganisationsStep({ answer, host, query, onGo, onRefresh }: StepBodyPro
 
 function TeamsStep({
   answer,
+  host,
   query,
   onGo,
+  onRefresh,
   organisation,
 }: StepBodyProps & { organisation: string }) {
   const org = organisationOf(answer, organisation);
+  const { ssoBlocked } = repositoriesOf(org, ALL_TEAMS);
   const teams = matching(
     org?.teams ?? [],
     query,
@@ -544,6 +594,7 @@ function TeamsStep({
   );
   return (
     <View style={styles.list}>
+      {ssoBlocked ? <SsoBlocked host={host} onRefresh={onRefresh} /> : null}
       {teams.length === 0 ? <Text style={styles.muted}>{GROUPON_GITHUB.noTeam}</Text> : null}
       {(org?.teams.length ?? 0) > 1 && !query ? (
         <Row
@@ -561,7 +612,7 @@ function TeamsStep({
           id={team.slug}
           icon="team"
           title={team.name}
-          subtitle={teamHint(team, GROUPON_GITHUB.teamUnread)}
+          subtitle={teamHint(team, GROUPON_GITHUB.teamUnread, GROUPON_GITHUB.ssoTeam)}
           onSelect={choose}
           testID={`groupon-github-team-${team.slug}`}
         />
@@ -576,12 +627,13 @@ function RepositoriesStep(props: RepositoriesStepProps) {
   if (browsesOrganisation(props.answer, props.organisation)) {
     return <OrganisationRepositoriesStep {...props} />;
   }
-  const { repositories, unreadTeams } = repositoriesOf(
+  const { repositories, unreadTeams, ssoBlocked } = repositoriesOf(
     organisationOf(props.answer, props.organisation),
     props.team,
   );
   return (
     <RepositoryRows {...props} repositories={repositories}>
+      {ssoBlocked ? <SsoBlocked host={props.host} onRefresh={props.onRefresh} /> : null}
       {unreadTeams.length > 0 ? (
         <Text style={styles.muted}>
           {GROUPON_GITHUB.unreadTeams} {unreadTeams.join(", ")}
@@ -593,7 +645,7 @@ function RepositoriesStep(props: RepositoriesStepProps) {
 
 /** An enterprise organisation opened on its own repositories, read from the Mac when opened. */
 function OrganisationRepositoriesStep(props: RepositoriesStepProps) {
-  const { client, serverId, host, organisation } = props;
+  const { client, serverId, host, organisation, onRefresh } = props;
   const read = useFetchQuery({
     queryKey: ["groupon-github-repositories", serverId, host, organisation],
     queryFn: async () => {
@@ -609,7 +661,7 @@ function OrganisationRepositoriesStep(props: RepositoriesStepProps) {
   const problem = read.error ? pluginProblemText(read.error) : (read.data?.problem ?? null);
   return (
     <RepositoryRows {...props} repositories={read.data?.repositories ?? []}>
-      {problem ? <Text style={styles.error}>{problem}</Text> : null}
+      {problem ? <Problem text={problem} host={host} onRefresh={onRefresh} /> : null}
     </RepositoryRows>
   );
 }
@@ -651,9 +703,11 @@ function RepositoryRows({
 
 function FolderStep({
   folder,
+  host,
   download,
   onFolder,
   onDownload,
+  onRefresh,
   repository,
 }: StepBodyProps & { repository: GithubRepository }) {
   const running = download.status === "running";
@@ -673,7 +727,9 @@ function FolderStep({
       <Text style={styles.muted}>
         {GROUPON_GITHUB.landsAt} {checkoutPathPreview(folder, repository)}
       </Text>
-      {download.status === "failed" ? <Text style={styles.error}>{download.error}</Text> : null}
+      {download.status === "failed" ? (
+        <Problem text={download.error} host={host} onRefresh={onRefresh} />
+      ) : null}
       {download.status === "running" ? <Waiting text={download.phase} /> : null}
       <View style={styles.actions}>
         <Button

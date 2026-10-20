@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): while no Mac is reachable the screen waits for one instead of saying "Could not load history", and reads again when one connects (`groupon/history-wait.tsx`).
 import { useMemo, useState, useCallback, useEffect, type ReactElement } from "react";
 import { View, Text } from "react-native";
 import { useIsFocused } from "@react-navigation/native";
@@ -18,6 +19,7 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useImportSession } from "@/hooks/use-import-session";
 import { useHosts } from "@/runtime/host-runtime";
 import { buildOpenProjectRoute } from "@/utils/host-routes";
+import { useHistoryMacWait } from "@/groupon/history-wait";
 
 /** Long enough that a typed word is one request, short enough to feel live. */
 const SEARCH_DEBOUNCE_MS = 200;
@@ -83,6 +85,7 @@ function SessionsScreenContent() {
     agents,
     hasMore,
     isInitialLoad,
+    isRevalidating,
     isLoadingMore,
     isError,
     isSearchSupported,
@@ -95,6 +98,15 @@ function SessionsScreenContent() {
     search,
   });
   const isSearching = isSearchSupported && search.length > 0;
+  const macWait = useHistoryMacWait({
+    serverId: historyServerId,
+    isInitialLoad,
+    isRevalidating,
+    isError,
+    hostErrors,
+    agentCount: agents.length,
+    reread: refreshAll,
+  });
 
   useEffect(() => {
     if (
@@ -120,7 +132,7 @@ function SessionsScreenContent() {
   });
   const showHostFilter = hosts.length > 1;
   const showFilterRow = showHostFilter || isSearchSupported;
-  const showLoadError = isError && agents.length === 0;
+  const showLoadError = macWait.isError && agents.length === 0;
 
   const handleBack = useCallback(() => {
     router.navigate(buildOpenProjectRoute());
@@ -176,7 +188,10 @@ function SessionsScreenContent() {
           ) : null}
         </View>
       ) : null}
-      {hostErrors.length > 0 ? <SessionHostErrorsBanner errors={hostErrors} t={t} /> : null}
+      {macWait.hostErrors.length > 0 ? (
+        <SessionHostErrorsBanner errors={macWait.hostErrors} t={t} />
+      ) : null}
+      {macWait.view}
       {isInitialLoad ? (
         <View style={styles.loadingContainer}>
           <LoadingSpinner size="large" color={theme.colors.foregroundMuted} />
@@ -190,7 +205,7 @@ function SessionsScreenContent() {
           </Button>
         </View>
       ) : null}
-      {!isInitialLoad && !showLoadError && agents.length === 0 ? (
+      {!isInitialLoad && !showLoadError && macWait.emptyShown ? (
         <View style={styles.emptyContainer} testID="sessions-empty">
           <Text style={styles.emptyText}>{emptyText}</Text>
           {isSearching ? (

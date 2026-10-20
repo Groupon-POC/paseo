@@ -10,6 +10,7 @@ import {
   GITHUB_COM,
   GITHUB_ENTERPRISE,
   hostChoices,
+  isSsoBlock,
   matching,
   organisationHint,
   organisationsOf,
@@ -20,6 +21,7 @@ import {
   previousStep,
   repositoriesOf,
   signInNeeded,
+  ssoRefreshCommand,
   stepTitle,
   teamHint,
 } from "./github-project-model";
@@ -341,5 +343,51 @@ describe("prefilledStep", () => {
   it("names no step for anything that is not owner/name", () => {
     expect(prefilledStep("infra-development")).toBeNull();
     expect(prefilledStep("group/sub/repo")).toBeNull();
+  });
+});
+
+/** gh's words for the 403 the `groupon` organisation answers a token SSO has not authorised (MEASURED 2026-10-20). */
+const SAML_403 =
+  "gh could not read orgs/groupon/teams/encore-platform/repos?per_page=100 on github.com: gh: Resource protected by organization SAML enforcement. You must grant your OAuth token access to this organization. (HTTP 403)";
+
+describe("single sign-on in the way", () => {
+  it("knows GitHub's SAML refusal and nothing else", () => {
+    expect(isSsoBlock(SAML_403)).toBe(true);
+    expect(isSsoBlock("Resource protected by organization SAML enforcement.")).toBe(true);
+    expect(isSsoBlock("gh: Not Found (HTTP 404)")).toBe(false);
+    expect(isSsoBlock("gh: Must have admin rights to Repository. (HTTP 403)")).toBe(false);
+    expect(isSsoBlock(null)).toBe(false);
+    expect(isSsoBlock(undefined)).toBe(false);
+  });
+
+  it("names the command that asks for the authorisation on the host", () => {
+    expect(ssoRefreshCommand(GITHUB_COM)).toBe("gh auth refresh -h github.com -s read:org");
+  });
+
+  it("says single sign-on blocks a team when the plugin carries GitHub's reason", () => {
+    const blocked = {
+      slug: "encore-platform",
+      name: "encore-platform",
+      description: null,
+      repositories: null,
+      problem: SAML_403,
+    };
+    const org = {
+      login: "groupon",
+      purpose: "",
+      membership: "member",
+      teams: [blocked, { slug: "silent", name: "Silent", description: null, repositories: null }],
+    };
+    const all = repositoriesOf(org, ALL_TEAMS);
+    expect(all.ssoBlocked).toBe(true);
+    expect(all.unreadTeams).toEqual(["encore-platform", "Silent"]);
+    expect(repositoriesOf(org, "silent").ssoBlocked).toBe(false);
+    expect(teamHint(blocked, "GitHub did not answer", "Single sign-on blocks it")).toBe(
+      "Single sign-on blocks it",
+    );
+    // A plugin that gives no reason keeps the old line.
+    expect(teamHint(org.teams[1] ?? blocked, "GitHub did not answer", "Single sign-on")).toBe(
+      "GitHub did not answer",
+    );
   });
 });

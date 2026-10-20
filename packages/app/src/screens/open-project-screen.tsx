@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the { G } mark; the History tile; the From GitHub tile; Your phone in place of Pair device.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the { G } mark; the History tile; the From GitHub tile; Your phone in place of Pair device; Your access wraps under the tiles rather than being cut.
 import { useHosts, useHostRuntimeLastError } from "@/runtime/host-runtime";
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
@@ -248,8 +248,10 @@ const styles = StyleSheet.create((theme) => ({
     marginTop: { xs: theme.spacing[6], md: theme.spacing[12] },
     width: "100%",
     maxWidth: { xs: 452, lg: 452 + 400 + 24 },
-    // Your access beside the tiles on a wide window, above them on a narrow one.
+    // Your access beside the tiles on a wide window, above them on a narrow one; a wide window
+    // too narrow for both (the sidebar open at 1200 by 800) wraps it under the tiles, never cuts it.
     flexDirection: { xs: "column-reverse", lg: "row" },
+    flexWrap: { xs: "nowrap", lg: "wrap" },
     alignItems: { xs: "stretch", lg: "flex-start" },
     gap: theme.spacing[6],
   },

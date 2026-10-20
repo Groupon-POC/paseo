@@ -40,6 +40,7 @@ import {
   startProblem,
   type Choice,
 } from "./start-ticket-model";
+import { SheetSubtitle } from "./sheet-subtitle";
 import { GROUPON_TICKET } from "./strings";
 
 const SNAP_POINTS = ["80%", "94%"];
@@ -289,7 +290,10 @@ function StartTicketSheet({
   }, []);
 
   const header = useMemo<SheetHeader>(
-    () => ({ title: GROUPON_TICKET.title, subtitle: `${GROUPON_TICKET.on} ${hostLabel}` }),
+    () => ({
+      title: GROUPON_TICKET.title,
+      subtitle: <SheetSubtitle text={`${GROUPON_TICKET.on} ${hostLabel}`} />,
+    }),
     [hostLabel],
   );
 

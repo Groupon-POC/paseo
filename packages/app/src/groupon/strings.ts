@@ -2,12 +2,17 @@
 // Kept outside Paseo's i18n resources on purpose: those files churn upstream, and a key added only
 // in English would fail their parity test. Every other language shows this English text.
 
-export const GROUPON_ABOUT = {} as const;
+export const GROUPON_ABOUT = {
+  updatesWithDesk: "Updates arrive with Groupon Desk",
+} as const;
 
 export const GROUPON_GATE = {
   title: "Groupon Desk",
   signInIntro:
-    "Sign in with your Groupon account. Your Macs, their workspaces and your saved history come from the Core you choose.",
+    "Sign in with your Groupon account to reach your Macs, their workspaces and your saved history.",
+  /** Only a build that offers a choice of Core (`environmentChoiceOffered`) says so. */
+  signInIntroChoice:
+    "Sign in with your Groupon account. Your Macs, their workspaces and your saved history come from the Core you choose below.",
   badLocalUrl:
     "Type a Core address such as http://localhost:4100 (plain http only on this machine).",
   codeIntro: "Approve this code on Groupon's sign-in page:",
@@ -27,6 +32,12 @@ export const GROUPON_GATE = {
   signOut: "Sign out",
 } as const;
 
+const VAULT_KEPT_WHERE = {
+  electron: "kept in this window",
+  web: "kept in this browser, encrypted",
+  native: "kept in its keychain",
+} as const;
+
 export const GROUPON_SETTINGS = {
   section: "Groupon",
   account: "Groupon account",
@@ -36,8 +47,14 @@ export const GROUPON_SETTINGS = {
   vaultKept: "Kept in this device's keychain; type the passphrase again only after signing out.",
   vaultKeptWeb:
     "Kept in this browser, encrypted under a key that never leaves the browser (IndexedDB, no script can read it); type the passphrase again only after signing out or clearing this site's data.",
-  vaultMeasured: (ms: number, iterations: number, engine: string, web: boolean) =>
-    `Made on this device in ${ms.toLocaleString("en-US")} ms (PBKDF2-SHA256, ${iterations.toLocaleString("en-US")} rounds, ${engine}); ${web ? "kept in this browser, encrypted" : "kept in its keychain"}.`,
+  vaultKeptWindow: "Kept in this window, read from this Mac's keychain when the window opens.",
+  vaultMeasured: (
+    ms: number,
+    iterations: number,
+    engine: string,
+    runtime: "electron" | "web" | "native",
+  ) =>
+    `Made on this device in ${ms.toLocaleString("en-US")} ms (PBKDF2-SHA256, ${iterations.toLocaleString("en-US")} rounds, ${engine}); ${VAULT_KEPT_WHERE[runtime]}.`,
   signOut: "Sign out of Groupon",
   signOutThisWindow:
     "Signs out this window only. Groupon Desk and the groupon command line on this Mac stay signed in, and the window signs in with them again the next time it opens.",
@@ -154,6 +171,9 @@ export const GROUPON_HISTORY = {
   withdrawn: "Withdrawn",
   notAllowed: (what: string) => `Not allowed: ${what}`,
   messages: (count: number) => `${count} ${count === 1 ? "message" : "messages"}`,
+  waitingForMac: "Waiting for a Mac",
+  waitingForMacHint:
+    "History loads by itself as soon as one of your Macs connects. A Mac connects while Groupon Desk runs on it.",
 } as const;
 
 export const GROUPON_GITHUB = {
@@ -181,6 +201,10 @@ export const GROUPON_GITHUB = {
   allTeamsHint: "Every repository your teams here reach, once each",
   noTeam: "You are on no team here.",
   teamUnread: "GitHub did not answer for this team's repositories",
+  ssoTeam: "Single sign-on blocks this team's repositories",
+  ssoBlocked: (command: string) =>
+    `Single sign-on blocks this organisation: run ${command} and authorise it`,
+  ssoCommandLabel: "The command that asks for single sign-on on this Mac",
   unreadTeams: "GitHub did not answer for:",
   noRepository: "No repository here.",
   folderLabel: "Clone into",

@@ -169,7 +169,9 @@ mode (Paseo's CLI) runs as the bundle's Helper, which carries `LSUIElement`
 main executable instead checks in with LaunchServices as a Foreground app the moment it sets
 `process.title` (Paseo's supervisor and daemon do), so each got its own bouncing Dock tile. The app never checks Paseo's
 update feed (`packages/desktop/src/features/auto-updater.ts`): Groupon Desk's own update replaces
-both.
+both: Settings > About shows no release channel and no Check / Update, only
+"Updates arrive with Groupon Desk", and the sidebar's update callout is not mounted
+(`PASEO_APP_UPDATES`, `packages/app/src/groupon/app-updates.ts`).
 
 ## The window's scheme: `groupon-desk`
 

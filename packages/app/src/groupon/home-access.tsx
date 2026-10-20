@@ -381,7 +381,13 @@ function GithubHostBody({ card }: { card: GithubHostCard }) {
 
 const styles = StyleSheet.create((theme) => ({
   column: {
-    width: "100%",
+    // Beside the tiles (lg) it starts at 300 and grows to 400, so it fits the window's default
+    // 1200 by 800 beside the sidebar; narrower than that the row wraps it under the tiles.
+    width: { xs: "100%", lg: "auto" },
+    flexBasis: { xs: "auto", lg: 300 },
+    flexGrow: { xs: 0, lg: 1 },
+    flexShrink: 1,
+    minWidth: 0,
     maxWidth: { xs: 452, md: 400 },
     gap: theme.spacing[3],
   },

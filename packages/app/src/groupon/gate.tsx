@@ -157,7 +157,9 @@ function SignInStep() {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.body}>{GROUPON_GATE.signInIntro}</Text>
+      <Text style={styles.body}>
+        {ENVIRONMENT_CHOICE ? GROUPON_GATE.signInIntroChoice : GROUPON_GATE.signInIntro}
+      </Text>
       {ENVIRONMENT_CHOICE ? (
         <SegmentedControl
           options={ENVIRONMENT_OPTIONS}

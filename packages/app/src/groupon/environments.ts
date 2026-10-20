@@ -1,8 +1,9 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): where Groupon's Core answers, per environment.
 
 /**
- * The three Cores a person can sign in to. The hosted addresses are the estate table's
- * (`config/estate/src/estate.constants.ts` in the Groupon monorepo: `ESTATE_BACKENDS.core`); the
+ * The three Cores the work window knows; a release build signs in to production alone
+ * (`environmentChoiceOffered`), so its gate names no choice. The hosted addresses are the estate
+ * table's (`config/estate/src/estate.constants.ts` in the Groupon monorepo: `ESTATE_BACKENDS.core`); the
  * local one is Core's `localPort` 4000, and a worktree's Core (4100, 4200, ...) is typed over it.
  */
 export type GrouponEnvironmentId = "production" | "staging" | "local";
@@ -46,9 +47,8 @@ export const GROUPON_DESK_DOWNLOAD_URL =
 export const GROUPON_DESK_FEEDBACK_URL = "https://app.asana.com/0/1203479912683340/";
 
 /**
- * The Core a fresh install signs in to before the person picks one: production for every release
- * build (the web build on a phone is the whole product there), the local Core only for a
- * development bundle.
+ * The Core a fresh install signs in to: production for every release build (the web build on a
+ * phone is the whole product there), the local Core only for a development bundle.
  */
 export function defaultEnvironmentId(isDevelopment: boolean): GrouponEnvironmentId {
   return isDevelopment ? "local" : "production";

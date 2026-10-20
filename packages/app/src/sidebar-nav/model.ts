@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the sidebar's Usage summary is shown by default (GROUPON_DESK_SHOWS_SIDEBAR_USAGE).
 import type { PluginSidebarGroup } from "@/plugins/sidebar-groups";
 import type { PluginSidebarSection } from "@/plugins/types";
 
@@ -69,8 +70,16 @@ export function builtinSidebarNavShortcutAction(id: BuiltinSidebarItemId): strin
   return BUILTIN_SHORTCUT_ACTIONS[id];
 }
 
-/** Builtins that start hidden until the user turns them on: the Usage summary is opt-in. */
-const HIDDEN_BY_DEFAULT: ReadonlySet<BuiltinSidebarItemId> = new Set(["usage"]);
+/**
+ * Groupon Desk shows the sidebar's Usage summary from the start: the person's subscriptions are
+ * read through Groupon Desk on every Mac, and the strip is how they see them (Paseo keeps it opt-in).
+ */
+const GROUPON_DESK_SHOWS_SIDEBAR_USAGE = true;
+
+/** Builtins that start hidden until the user turns them on: in Paseo the Usage summary is opt-in. */
+const HIDDEN_BY_DEFAULT: ReadonlySet<BuiltinSidebarItemId> = new Set(
+  GROUPON_DESK_SHOWS_SIDEBAR_USAGE ? [] : ["usage"],
+);
 
 function builtinVisibleByDefault(id: BuiltinSidebarItemId): boolean {
   return !HIDDEN_BY_DEFAULT.has(id);

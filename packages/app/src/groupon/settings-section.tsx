@@ -1,5 +1,6 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): Settings > Groupon, the account and the vault.
-// In the desktop window, sign-out says it signs out this window only, never this Mac's sign-in.
+// In the desktop window, sign-out says it signs out this window only, never this Mac's sign-in,
+// and the vault key is said to be kept in the window, read from the Mac's keychain (`vault-hint.ts`).
 import { useCallback } from "react";
 import { Text, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -13,6 +14,7 @@ import { environmentById } from "./environments";
 import { useHubMachinesStore, type HubMachineState, type HubMachineView } from "./hub-sync";
 import { useGrouponStore } from "./session";
 import { updatedAt } from "./your-macs-model";
+import { vaultHint, vaultRuntime } from "./vault-hint";
 import { GROUPON_HISTORY, GROUPON_MACHINES, GROUPON_SETTINGS } from "./strings";
 import { HUB_HISTORY_ROUTE } from "./history-screen";
 
@@ -50,15 +52,7 @@ export function GrouponAccountSection() {
   const lastUnlock = useGrouponStore((state) => state.lastUnlock);
   const signOut = useGrouponStore((state) => state.signOut);
   const handleSignOut = useCallback(() => void signOut(), [signOut]);
-  let vaultHint: string = isWeb ? GROUPON_SETTINGS.vaultKeptWeb : GROUPON_SETTINGS.vaultKept;
-  if (lastUnlock) {
-    vaultHint = GROUPON_SETTINGS.vaultMeasured(
-      lastUnlock.ms,
-      lastUnlock.iterations,
-      lastUnlock.engine,
-      isWeb,
-    );
-  }
+  const vaultText = vaultHint(vaultRuntime({ isElectron: isElectronRuntime(), isWeb }), lastUnlock);
 
   return (
     <SettingsSection title={GROUPON_SETTINGS.account}>
@@ -74,7 +68,7 @@ export function GrouponAccountSection() {
           value={environmentById(environmentId).label}
           border
         />
-        <Row title={GROUPON_SETTINGS.vault} hint={vaultHint} border />
+        <Row title={GROUPON_SETTINGS.vault} hint={vaultText} border />
         <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
           {isElectronRuntime() ? (
             <View style={settingsStyles.rowContent}>

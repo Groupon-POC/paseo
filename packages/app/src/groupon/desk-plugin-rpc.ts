@@ -47,6 +47,8 @@ export interface GithubTeam {
   name: string;
   description: string | null;
   repositories: GithubRepository[] | null;
+  /** Why its repositories could not be read, in GitHub's words; absent from a plugin that does not say. */
+  problem?: string | null;
 }
 
 export interface GithubOrganisation {

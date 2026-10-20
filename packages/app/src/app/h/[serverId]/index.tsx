@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): notes the workspace a relaunch reopens, so the workspace screen goes home when it is gone (`groupon/restored-workspace.ts`).
 import { Redirect } from "expo-router";
 import { useHostRouteServerId } from "@/navigation/host-route-context";
 import {
@@ -10,6 +11,8 @@ import {
   useIsLastWorkspaceSelectionHydrated,
   useLastWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
+import { noteRestoredWorkspace } from "@/groupon/restored-workspace";
+import { buildOpenProjectRoute } from "@/utils/host-routes";
 
 export default function HostIndexRoute() {
   const serverId = useHostRouteServerId();
@@ -24,16 +27,17 @@ export default function HostIndexRoute() {
     return <StartupSplashScreen />;
   }
 
-  return (
-    <Redirect
-      href={resolveHostIndexRoute({
-        serverId,
-        workspaceSelection,
-        workspaceSelectionStatus: resolveWorkspaceSelectionStatus({
-          hasHydratedWorkspaces,
-          workspaceExists: workspaceSelectionExists,
-        }),
-      })}
-    />
-  );
+  const href = resolveHostIndexRoute({
+    serverId,
+    workspaceSelection,
+    workspaceSelectionStatus: resolveWorkspaceSelectionStatus({
+      hasHydratedWorkspaces,
+      workspaceExists: workspaceSelectionExists,
+    }),
+  });
+  // Reopening the last workspace on its own: the workspace screen goes home if it is gone.
+  if (workspaceSelection?.serverId === serverId && href !== buildOpenProjectRoute()) {
+    noteRestoredWorkspace(workspaceSelection);
+  }
+  return <Redirect href={href} />;
 }

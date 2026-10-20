@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no Paseo credit, no What's new, no language row; the Groupon section; the Standards section; the worktree-scripts reminder switch; Your phone in place of Pair device.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no Paseo credit, no What's new, no language row; About has no release channel or Check / Update, updates arrive with Groupon Desk; the Groupon section; the Standards section; the worktree-scripts reminder switch; Your phone in place of Pair device.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -95,6 +95,7 @@ import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater"
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
 import {
+  GROUPON_ABOUT,
   GROUPON_PHONE,
   GROUPON_SETTINGS,
   GROUPON_STANDARDS,
@@ -104,6 +105,7 @@ import { GrouponStandardsPage } from "@/groupon/standards-page";
 import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import { GrouponSettingsPage } from "@/groupon/settings-section";
 import { GrouponPhonePage } from "@/groupon/phone-section";
+import { showsPaseoAppUpdates } from "@/groupon/app-updates";
 import { useAppDiagnosticStore } from "@/diagnostics/store";
 import { settingsStyles } from "@/styles/settings";
 import { THINKING_TONE_NATIVE_PCM_BASE64 } from "@/utils/thinking-tone.native-pcm";
@@ -514,7 +516,17 @@ function AboutSection({ appVersion, appVersionText, isDesktopApp }: AboutSection
             </View>
             <Text style={styles.aboutValue}>{appVersionText}</Text>
           </View>
-          {isDesktopApp ? <DesktopAppUpdateRow /> : null}
+          {showsPaseoAppUpdates(isDesktopApp) ? <DesktopAppUpdateRow /> : null}
+          {isDesktopApp && !showsPaseoAppUpdates(isDesktopApp) ? (
+            <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
+              <View style={settingsStyles.rowContent}>
+                <Text style={settingsStyles.rowTitle}>{t("settings.about.updates.label")}</Text>
+                <Text style={settingsStyles.rowHint} testID="settings-about-updates-with-desk">
+                  {GROUPON_ABOUT.updatesWithDesk}
+                </Text>
+              </View>
+            </View>
+          ) : null}
         </View>
       </SettingsSection>
       <ConnectedHostsSection clientVersion={appVersion} />

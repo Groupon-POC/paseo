@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Usage item is shown by default.
 import { describe, expect, it } from "vitest";
 import type { PluginSidebarGroup } from "@/plugins/sidebar-groups";
 import {
@@ -115,12 +116,12 @@ describe("resolveSidebarNavItems", () => {
 });
 
 describe("resolveSidebarNavItems for the Usage item", () => {
-  it("hides the Usage item until it is turned on", () => {
+  it("shows the Usage item until it is turned off (Groupon Desk; Paseo hides it)", () => {
     const resolve = (preferences: SidebarNavPreference[]) =>
       summarize(resolveSidebarNavItems({ section: "footer", pluginGroups: [], preferences }));
 
-    expect(resolve([])).toEqual([{ key: "usage", visible: false }]);
-    expect(resolve([{ key: "usage", visible: true }])).toEqual([{ key: "usage", visible: true }]);
+    expect(resolve([])).toEqual([{ key: "usage", visible: true }]);
+    expect(resolve([{ key: "usage", visible: false }])).toEqual([{ key: "usage", visible: false }]);
   });
 });
 
@@ -297,7 +298,7 @@ describe("footer section", () => {
     });
 
     expect(summarize(items)).toEqual([
-      { key: "usage", visible: false },
+      { key: "usage", visible: true },
       { key: syncKey, visible: true },
     ]);
   });
@@ -309,7 +310,7 @@ describe("footer section", () => {
       preferences: [{ key: "history", visible: false }],
     });
 
-    expect(summarize(items)).toEqual([{ key: "usage", visible: false }]);
+    expect(summarize(items)).toEqual([{ key: "usage", visible: true }]);
   });
 
   it("ignores the footer icon buttons, which are fixed and not items", () => {

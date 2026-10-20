@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace a relaunch reopened that is gone leaves for the home page (useLeaveGoneRestoredWorkspace).
 import {
   AssistantFileLinkResolverProvider,
   createInlinePathOpener,
@@ -158,6 +159,7 @@ import {
   type WorkspaceRouteState,
 } from "@/screens/workspace/workspace-route-state";
 import { renderWorkspaceRouteGate } from "@/screens/workspace/workspace-route-state-views";
+import { useLeaveGoneRestoredWorkspace } from "@/groupon/use-leave-gone-restored-workspace";
 import { useWorkspaceRecovery } from "@/workspace-recovery/use-workspace-recovery";
 import type { WorkspaceRecoveryModel } from "@/workspace-recovery/model";
 import {
@@ -1227,6 +1229,11 @@ function WorkspaceScreenContent({
     workspace: workspaceDescriptor,
     hasHydratedWorkspaces,
     recovery: workspaceRecovery.state,
+  });
+  useLeaveGoneRestoredWorkspace({
+    serverId: normalizedServerId,
+    workspaceId: normalizedWorkspaceId,
+    stateKind: workspaceRouteState.kind,
   });
   const workspaceHeaderCheckoutState = buildWorkspaceHeaderCheckoutState({
     isCheckoutStatusLoading,

@@ -53,7 +53,8 @@ function AddressQr({ address }: { address: string }) {
     queryKey: ["groupon-phone-qr", address],
     queryFn: () => QRCode.toString(address, { type: "svg", errorCorrectionLevel: "M", margin: 1 }),
     dataShape: "value",
-    staleTimeMs: Number.POSITIVE_INFINITY,
+    // Paseo's query hook refuses an infinite stale time (it threw on the Your phone page, 2026-10-20): a day.
+    staleTimeMs: 24 * 60 * 60 * 1000,
   });
   if (qr.data) {
     return (

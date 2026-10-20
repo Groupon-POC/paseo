@@ -150,6 +150,16 @@ export const GROUPON_REPOSITORY_PICKER = {
     `${path} on ${mac} did not open as a project: ${reason}`,
 } as const;
 
+export const GROUPON_TRAIN_ARCHIVED = {
+  title: "Archived by a release train",
+  intro:
+    "Before 2026-10-20 a workspace could be matched to the release train's pull request (head staging) and was archived when the train merged. These are the ones each Mac archived that way; Restore brings one back, its worktree recreated from its branch.",
+  restore: "Restore",
+  reading: "Reading the archived workspaces",
+  none: "None archived by a release train.",
+  notConnected: "This Mac is not connected.",
+} as const;
+
 export const GROUPON_HISTORY = {
   title: "History",
   intro:

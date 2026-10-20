@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace started empty on `<owner>/<name>` is renamed to `<owner>/<slug of its first message>`, not to a generated name.
 import type pino from "pino";
 import type { FirstAgentContext } from "@getpaseo/protocol/messages";
 
@@ -12,6 +13,7 @@ import {
 import type { GitMutationService } from "./session/git-mutation/git-mutation-service.js";
 import type { WorkspaceGitService } from "./workspace-git-service.js";
 import type { PersistedWorkspaceRecord, WorkspaceRegistry } from "./workspace-registry.js";
+import { renameTargetForPlaceholder } from "../groupon/workspace-branch.js";
 import {
   generateBranchNameFromFirstAgentContext,
   type GeneratedWorkspaceName,
@@ -120,7 +122,11 @@ export class WorkspaceAutoName {
           currentSelection: input.currentSelection,
         }).then((nextGenerated) => {
           generated = nextGenerated;
-          return nextGenerated?.branch ?? null;
+          const deskTarget = renameTargetForPlaceholder(
+            input.workspace.branch,
+            firstAgentContext.prompt,
+          );
+          return deskTarget !== undefined ? deskTarget : (nextGenerated?.branch ?? null);
         });
       },
     });

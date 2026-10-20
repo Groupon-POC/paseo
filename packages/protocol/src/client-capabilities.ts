@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): groupon_workspace_placement, the window's ask that a ticketless workspace gets its own branch, never the trunk.
 export const CLIENT_CAPS = {
   helloRejection: "hello_rejection",
   // COMPAT(ownedSubscriptions): added in v0.8.0, remove legacy ownership after 2027-03-09.
@@ -46,6 +47,9 @@ export const CLIENT_CAPS = {
   // COMPAT(workspaceSetupBlocked): added in v0.8.0, remove after 2027-03-07 once client floor >= v0.8.0.
   workspaceSetupBlocked: "workspace_setup_blocked",
   browserHost: "browser_host",
+  // Groupon Desk: the work window asks the daemon to place a workspace started without a ticket on
+  // its own branch (`<login>/<slug of the first prompt>`), never on a shared trunk.
+  grouponWorkspacePlacement: "groupon_workspace_placement",
 } as const;
 
 export type ClientCapability = (typeof CLIENT_CAPS)[keyof typeof CLIENT_CAPS];

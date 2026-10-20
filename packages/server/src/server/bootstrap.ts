@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app; a workspace on a shared trunk is matched to no pull request.
 import type { PluginRegistries } from "@getpaseo/protocol/plugin-registry";
 import { describeHookWorkspace } from "./plugins/lifecycle/index.js";
 import express from "express";
@@ -158,6 +158,7 @@ import { resolvePaseoToolPolicy } from "./agent/paseo-tool-policy.js";
 import { BrowserToolsBroker } from "./browser-tools/broker.js";
 import { DaemonConfigBrowserToolsPolicy } from "./browser-tools/policy.js";
 import { WorkspaceGitServiceImpl } from "./workspace-git-service.js";
+import { isWorkspaceOnSharedTrunk } from "../groupon/shared-trunk.js";
 import { resolveWorkspaceIdForPath } from "./resolve-workspace-id-for-path.js";
 import {
   archiveByScope,
@@ -903,6 +904,7 @@ export async function createPaseoDaemon(
     worktreesRoot: config.worktreesRoot,
     deps: {
       forgeOverrides: { github },
+      isOnSharedTrunk: isWorkspaceOnSharedTrunk,
     },
   });
   workspaceRegistry.subscribeToMutations((mutation) => {

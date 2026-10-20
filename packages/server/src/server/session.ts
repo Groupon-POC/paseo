@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs.
 import { AgentDirectory } from "./agent/directory.js";
 import { searchTimeline } from "./agent/chat-search/index.js";
 import type { BrowserToolsBroker } from "./browser-tools/broker.js";
@@ -198,7 +198,17 @@ import {
   archiveWorkspaceContents,
 } from "./workspace-archive-service.js";
 import type { ServiceProxySubsystem } from "./service-proxy.js";
-import { renameCurrentBranch as renameCurrentBranchDefault } from "../utils/checkout-git.js";
+import {
+  getCheckoutSnapshotFacts,
+  renameCurrentBranch as renameCurrentBranchDefault,
+} from "../utils/checkout-git.js";
+import { placeTicketlessWorkspace } from "../groupon/workspace-placement.js";
+import { nameWorkspaceBranch } from "../groupon/workspace-branch.js";
+import {
+  GROUPON_DESK_RPC,
+  GROUPON_DESK_RPC_PLUGIN_ID,
+  listTrainArchivedWorkspaces,
+} from "../groupon/train-archived.js";
 import {
   createGitMutationService,
   type GitMutationService,
@@ -2336,7 +2346,7 @@ export class Session {
       this.dispatchProviderMessage(msg) ??
       this.dispatchOrchestrationSkillsMessage(msg) ??
       this.dispatchPluginDirectoryMessage(msg) ??
-      this.dispatchPluginMessage(msg) ??
+      this.dispatchPluginOrGrouponDeskMessage(msg) ??
       this.dispatchTerminalMessage(msg) ??
       this.dispatchScheduleMessage(msg) ??
       this.dispatchMiscMessage(msg);
@@ -2494,6 +2504,40 @@ export class Session {
         });
     }
     return undefined;
+  }
+
+  private dispatchPluginOrGrouponDeskMessage(
+    msg: SessionInboundMessage,
+  ): Promise<void> | undefined {
+    return this.dispatchGrouponDeskMessage(msg) ?? this.dispatchPluginMessage(msg);
+  }
+
+  /** Groupon Desk's built-in RPCs, answered by the daemon itself (plugin id `groupon-desk`). */
+  private dispatchGrouponDeskMessage(msg: SessionInboundMessage): Promise<void> | undefined {
+    if (msg.type !== "plugin.rpc.invoke.request" || msg.pluginId !== GROUPON_DESK_RPC_PLUGIN_ID) {
+      return undefined;
+    }
+    return this.invokeGrouponDeskRpc(msg.method).then((output) => {
+      this.emit({
+        type: "plugin.rpc.invoke.response",
+        payload: { requestId: msg.requestId, output },
+      });
+      return undefined;
+    });
+  }
+
+  private async invokeGrouponDeskRpc(method: string): Promise<unknown> {
+    if (method === GROUPON_DESK_RPC.trainArchivedWorkspaces) {
+      const workspaces = await listTrainArchivedWorkspaces({
+        listWorkspaces: () => this.workspaceRegistry.list(),
+        readPullRequestHead: async (cwd, number) => {
+          const forge = (await this.workspaceGitService.resolveForge(cwd))?.service ?? this.github;
+          return forge.getPullRequestHeadRef({ cwd, number });
+        },
+      });
+      return { workspaces };
+    }
+    throw new Error(`Unknown Groupon Desk method: ${method}`);
   }
 
   private dispatchPluginDirectoryMessage(msg: SessionInboundMessage): Promise<void> | undefined {
@@ -4088,6 +4132,9 @@ export class Session {
         throw new Error("Session is not authorized to create an agent");
       }
       const agentInput = request.agent;
+      const grouponPlacement = source
+        ? this.supportsForSource(CLIENT_CAPS.grouponWorkspacePlacement, source)
+        : this.supports(CLIENT_CAPS.grouponWorkspacePlacement);
       const creation = await this.creationService.create(
         {
           kind: "workspace",
@@ -4107,6 +4154,7 @@ export class Session {
                   : request.firstAgentContext,
               },
               id,
+              grouponPlacement,
             );
             const workspace = await this.workspaceRegistry.get(descriptor.id);
             return {
@@ -6722,6 +6770,7 @@ export class Session {
   private async createRequestedWorkspace(
     request: Extract<SessionInboundMessage, { type: "workspace.create.request" }>,
     workspaceId?: string,
+    grouponPlacement = false,
   ): Promise<WorkspaceDescriptorPayload> {
     if (request.internal)
       throw new Error(
@@ -6737,9 +6786,21 @@ export class Session {
       const transformed = await this.pluginRuntime.before("workspace.create", input);
       creationRequest = { ...transformed, type, requestId };
     }
+    // Groupon Desk: a ticketless workspace from the work window gets its own branch, never the trunk.
+    let keepBranchName = false;
+    if (grouponPlacement) {
+      const placement = await placeTicketlessWorkspace(creationRequest, {
+        readFacts: (cwd) => getCheckoutSnapshotFacts(cwd, { paseoHome: this.paseoHome }),
+        resolveWorktreeSourceCwd: (source) =>
+          resolveWorktreeSourceCwd(source, this.projectRegistry),
+        nameBranch: (input) => nameWorkspaceBranch(input),
+      });
+      creationRequest = placement.request;
+      keepBranchName = placement.keepBranchName;
+    }
     return creationRequest.source.kind === "directory"
       ? this.handleWorkspaceCreateLocal(creationRequest, workspaceId)
-      : this.handleWorkspaceCreateWorktree(creationRequest, workspaceId);
+      : this.handleWorkspaceCreateWorktree(creationRequest, workspaceId, keepBranchName);
   }
 
   private async handleWorkspaceCreateLocal(
@@ -6800,6 +6861,7 @@ export class Session {
   private async handleWorkspaceCreateWorktree(
     request: Extract<SessionInboundMessage, { type: "workspace.create.request" }>,
     workspaceId?: string,
+    keepBranchName = false,
   ): Promise<WorkspaceDescriptorPayload> {
     if (request.source.kind !== "worktree") {
       throw new Error("Unexpected workspace source");
@@ -6831,6 +6893,7 @@ export class Session {
         title: request.title,
         background: request.background,
         callerWorkspaceId: this.getCallerWorkspaceId(request.callerAgentId),
+        ...(keepBranchName ? { keepBranchName } : {}),
       },
       source.baseBranch
         ? { resolveDefaultBranch: async () => source.baseBranch as string }

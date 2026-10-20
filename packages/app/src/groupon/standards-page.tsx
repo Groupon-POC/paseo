@@ -22,6 +22,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { useFetchQuery } from "@/data/query";
 import { FileMarkdownPreview } from "@/file-pane/markdown-preview";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { useProjects } from "@/hooks/use-projects";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
@@ -221,16 +222,7 @@ function StandardsOf({ project }: { project: StandardsProject }) {
         </View>
       ) : (
         <View style={styles.reader}>
-          <View style={styles.documents} testID="groupon-standards-documents">
-            {answer.documents.map((entry) => (
-              <DocumentRow
-                key={entry.file}
-                document={entry}
-                selected={entry.file === document?.file}
-                onPick={setPicked}
-              />
-            ))}
-          </View>
+          <DocumentList documents={answer.documents} chosen={document} onPick={setPicked} />
           {document ? (
             <DocumentView
               client={client}
@@ -291,6 +283,54 @@ function SourceRow({
           </Button>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+/**
+ * The documents in reading order. On a phone only the open one shows, with a button for the
+ * rest, so the document itself is on the first screen.
+ */
+function DocumentList({
+  documents,
+  chosen,
+  onPick,
+}: {
+  documents: StandardsDocument[];
+  chosen: StandardsDocument | null;
+  onPick: (file: string) => void;
+}) {
+  const compact = useIsCompactFormFactor();
+  const [open, setOpen] = useState(false);
+  const toggle = useCallback(() => setOpen((value) => !value), []);
+  const pick = useCallback(
+    (file: string) => {
+      onPick(file);
+      setOpen(false);
+    },
+    [onPick],
+  );
+  const folded = compact && !open;
+  const shown = folded ? documents.filter((entry) => entry.file === chosen?.file) : documents;
+  return (
+    <View style={styles.documentsColumn}>
+      <View style={styles.documents} testID="groupon-standards-documents">
+        {shown.map((entry) => (
+          <DocumentRow
+            key={entry.file}
+            document={entry}
+            selected={entry.file === chosen?.file}
+            onPick={pick}
+          />
+        ))}
+      </View>
+      {compact ? (
+        <Button variant="ghost" size="sm" onPress={toggle} testID="groupon-standards-more">
+          {folded
+            ? GROUPON_STANDARDS.allDocuments(documents.length)
+            : GROUPON_STANDARDS.fewerDocuments}
+        </Button>
+      ) : null}
     </View>
   );
 }
@@ -476,8 +516,13 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "flex-start",
     gap: theme.spacing[4],
   },
-  documents: {
+  documentsColumn: {
     width: { xs: "100%", lg: 240 },
+    alignItems: "flex-start",
+    gap: theme.spacing[1],
+  },
+  documents: {
+    width: "100%",
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border,

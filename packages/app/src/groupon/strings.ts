@@ -327,6 +327,8 @@ export const GROUPON_STANDARDS = {
   pulling: "Pulling the standards",
   refresh: "Read again",
   documents: "Documents",
+  allDocuments: (count: number) => `All ${count} documents`,
+  fewerDocuments: "Only the open one",
   reading: "Reading the standards",
   since: "since",
   sectionTitle: "Engineering standards",

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo.
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -156,7 +157,7 @@ describe("DaemonSelfUpdater", () => {
 
     expect(result).toEqual({
       success: false,
-      error: "This daemon is managed by Paseo Desktop. Update Paseo Desktop on the host.",
+      error: "This daemon is managed by Groupon Desk. Update Groupon Desk on the host.",
       newVersion: null,
     });
     expect(phases).toEqual([]);

@@ -1,18 +1,10 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Your Macs in place of this screen while manual hosts are off; else the Groupon Desk logo, the engine's site named as such, History, no QR scan or pairing link.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Your Macs in place of this screen while manual hosts are off; else the Groupon Desk logo, History, no link to the engine's site, no QR scan or pairing link.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
-import {
-  QrCode,
-  Link2,
-  ClipboardPaste,
-  ExternalLink,
-  Settings,
-  History,
-  Terminal,
-} from "lucide-react-native";
+import { QrCode, Link2, ClipboardPaste, Settings, History, Terminal } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { HostProfile } from "@/types/host-connection";
 import { getHostRuntimeStore, isHostRuntimeConnected, useHosts } from "@/runtime/host-runtime";
@@ -28,9 +20,8 @@ import { buildOpenProjectRoute } from "@/utils/host-routes";
 import { GrouponDeskLogo } from "@/components/icons/groupon-desk-logo";
 import { HUB_HISTORY_ROUTE } from "@/groupon/history-screen";
 import { GROUPON_HISTORY } from "@/groupon/strings";
-import { openExternalUrl } from "@/utils/open-external-url";
 import { isFdroidBuild } from "@/constants/build-profile";
-import { isWeb, isNative } from "@/constants/platform";
+import { isWeb } from "@/constants/platform";
 import { isElectronRuntime } from "@/desktop/host";
 
 interface WelcomeAction {
@@ -105,17 +96,6 @@ const styles = StyleSheet.create((theme) => ({
   },
   actionTextPrimary: {
     color: theme.colors.accentForeground,
-  },
-  setupLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  setupLinkText: {
-    color: theme.colors.accent,
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.medium,
   },
   versionLabel: {
     color: theme.colors.foregroundMuted,
@@ -202,10 +182,6 @@ function PaseoWelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
   const finishOnboarding = useCallback(() => {
     router.replace(buildOpenProjectRoute());
   }, [router]);
-
-  const handleOpenPaseoSite = useCallback(() => {
-    void openExternalUrl("https://paseo.sh");
-  }, []);
 
   const handleOpenHistory = useCallback(() => {
     router.push(HUB_HISTORY_ROUTE);
@@ -318,12 +294,6 @@ function PaseoWelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
           <View style={styles.copyBlock}>
             <Text style={styles.title}>{t("onboarding.title")}</Text>
             <Text style={styles.subtitle}>{t("onboarding.subtitle")}</Text>
-            {isNative ? (
-              <Pressable style={styles.setupLink} onPress={handleOpenPaseoSite}>
-                <Text style={styles.setupLinkText}>Built on Paseo · paseo.sh</Text>
-                <ExternalLink size={14} color={theme.colors.accent} />
-              </Pressable>
-            ) : null}
           </View>
 
           <View style={styles.actions}>

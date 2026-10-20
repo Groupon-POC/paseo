@@ -1,8 +1,9 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the hint names Groupon Desk.
 import type { MutableDaemonConfig } from "@getpaseo/protocol/messages";
 
 export const BROWSER_TOOLS_TITLE = "Browser tools";
 export const BROWSER_TOOLS_WARNING =
-  "Allow agents to access and control Paseo browser tabs, including logged-in browser state. Only enable this for agents you trust.";
+  "Allow agents to access and control Groupon Desk's browser tabs, including logged-in browser state. Only enable this for agents you trust.";
 
 export interface BrowserToolsCardState {
   isVisible: boolean;

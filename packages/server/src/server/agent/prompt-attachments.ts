@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo.
 import { getForgeDefinitionOrNeutral } from "@getpaseo/protocol/forge-manifest";
 import type { AgentAttachment } from "@getpaseo/protocol/messages";
 import type { AgentPromptContentBlock, AgentPromptInput } from "./agent-sdk-types.js";
@@ -89,7 +90,7 @@ export function renderPromptAttachmentAsText(attachment: AgentAttachment): strin
       return attachment.text;
     }
     case "review": {
-      const lines = [`Paseo review attachment (${attachment.mode})`, `CWD: ${attachment.cwd}`];
+      const lines = [`Review attachment (${attachment.mode})`, `CWD: ${attachment.cwd}`];
       if (attachment.baseRef) {
         lines.push(`Base: ${attachment.baseRef}`);
       }

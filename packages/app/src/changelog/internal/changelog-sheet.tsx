@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no button to Paseo's changelog site.
 import { memo, useCallback, useMemo } from "react";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
 import { ExternalLink, Gift } from "lucide-react-native";
@@ -24,6 +25,7 @@ import {
   type ChangelogRelease,
   type ChangelogSection,
 } from "./parse-changelog";
+import { showsWebLink } from "@/groupon/paseo-web-links";
 
 const WEBSITE_CHANGELOG_URL = "https://paseo.sh/changelog";
 
@@ -53,7 +55,7 @@ export function ChangelogSheet({ visible, onClose }: ChangelogSheetProps) {
     () => ({
       title: t("changelog.title"),
       leading: sheetLeadingIcon,
-      actions: (
+      actions: showsWebLink(WEBSITE_CHANGELOG_URL) ? (
         <Pressable
           onPress={handleOpenWebsite}
           hitSlop={8}
@@ -67,7 +69,7 @@ export function ChangelogSheet({ visible, onClose }: ChangelogSheetProps) {
             uniProps={mutedColorMapping}
           />
         </Pressable>
-      ),
+      ) : undefined,
     }),
     [handleOpenWebsite, t],
   );

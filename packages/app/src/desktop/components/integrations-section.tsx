@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no offer to install Paseo's own `paseo` command.
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
@@ -10,6 +11,7 @@ import { SettingsSection } from "@/components/settings/headings/settings-section
 import { settingsStyles } from "@/styles/settings";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
+import { PASEO_CLI_INSTALL } from "@/groupon/paseo-web-links";
 
 const CLI_DOCS_URL = "https://paseo.sh/docs/cli";
 
@@ -47,7 +49,7 @@ export function IntegrationsSection() {
     ),
     [docsIcon, handleOpenDocs, t],
   );
-  if (!showSection) return null;
+  if (!showSection || !PASEO_CLI_INSTALL) return null;
   return (
     <SettingsSection title={t("settings.integrations.title")} trailing={trailing}>
       <View style={settingsStyles.card}>

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -111,7 +112,7 @@ describe("prompt attachments", () => {
       }),
     ).toBe(
       [
-        "Paseo review attachment (base)",
+        "Review attachment (base)",
         "CWD: /tmp/repo",
         "Base: main",
         "",

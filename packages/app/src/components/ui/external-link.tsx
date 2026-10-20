@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a link to one of Paseo's own pages draws nothing.
 import { useCallback, type ReactNode } from "react";
 import { Pressable, Text } from "react-native";
 import { ArrowUpRight } from "lucide-react-native";
@@ -5,6 +6,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Theme } from "@/styles/theme";
 import { openExternalUrl } from "@/utils/open-external-url";
+import { showsWebLink } from "@/groupon/paseo-web-links";
 
 export interface ExternalLinkProps {
   href: string;
@@ -33,6 +35,10 @@ export function ExternalLink({
   const handlePress = useCallback(() => {
     void openExternalUrl(href).catch(onError ?? console.error);
   }, [href, onError]);
+
+  if (!showsWebLink(href)) {
+    return null;
+  }
 
   const trigger = (
     <Pressable

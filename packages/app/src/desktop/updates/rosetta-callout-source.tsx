@@ -1,17 +1,13 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Apple Silicon download is Groupon Desk's disk image, never Paseo's release.
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SidebarCalloutDescriptionText } from "@/components/sidebar-callout";
 import { getIsElectronMac } from "@/constants/platform";
 import { useSidebarCallouts } from "@/contexts/sidebar-callout-context";
-import {
-  buildMacAppleSiliconDownloadUrl,
-  getDesktopRuntimeInfo,
-  type DesktopRuntimeInfo,
-} from "@/desktop/updates/desktop-updates";
+import { getDesktopRuntimeInfo, type DesktopRuntimeInfo } from "@/desktop/updates/desktop-updates";
+import { GROUPON_DESK_DOWNLOAD_URL } from "@/groupon/environments";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { openExternalUrl } from "@/utils/open-external-url";
-
-const FALLBACK_DOWNLOAD_URL = "https://paseo.sh/download";
 
 function RosettaCalloutDescription({ t }: { t: ReturnType<typeof useTranslation>["t"] }) {
   return (
@@ -31,9 +27,7 @@ export function RosettaCalloutSource() {
   const isElectronMac = getIsElectronMac();
 
   const openDownload = useStableEvent(() => {
-    const downloadUrl =
-      buildMacAppleSiliconDownloadUrl(runtimeInfo?.appVersion) ?? FALLBACK_DOWNLOAD_URL;
-    void openExternalUrl(downloadUrl);
+    void openExternalUrl(GROUPON_DESK_DOWNLOAD_URL);
   });
 
   useEffect(() => {

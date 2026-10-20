@@ -15,7 +15,7 @@ comment are listed here instead (Apache-2.0, section 4(b)):
 | `packages/app/package.json`, `package-lock.json`                                                                                                                                                       | `tweetnacl` as the app's own dependency: a colleague's device opens a shared workspace's key from the NaCl box the owner's hand made |
 | `packages/server/package.json`, `packages/app/package.json` (development), `package-lock.json`                                                                                                         | `smol-toml`: the daemon reads and writes a project's config in `.groupon/desk.toml`; the app's end-to-end helpers write it           |
 | `paseo.json` (removed)                                                                                                                                                                                 | This repository's own worktree setup and scripts moved to `.groupon/desk.toml`                                                       |
-| `packages/desktop/package.json`                                                                                                                                                                        | `productName` Groupon Desk                                                                                                           |
+| `packages/desktop/package.json`                                                                                                                                                                        | `productName` Groupon Desk Work                                                                                                      |
 | `packages/app/eas.json`                                                                                                                                                                                | Paseo's App Store Connect id removed                                                                                                 |
 | `packages/app/public/manifest.json`                                                                                                                                                                    | The web app's name and description                                                                                                   |
 | `packages/app/assets/images/icon.png`, `splash-icon.png`, `android-icon-foreground.png`                                                                                                                | The work window's icon, the Groupon G in curly braces `{ G }`, rendered from `packages/desktop/assets/brand/icon.svg`                |
@@ -23,9 +23,9 @@ comment are listed here instead (Apache-2.0, section 4(b)):
 | `packages/app/public/apple-touch-icon.png`, `pwa-icon-192.png`, `pwa-icon-512.png`                                                                                                                     | The `{ G }` icon for the web app                                                                                                     |
 | `packages/desktop/assets/icon.icns`, `icon.ico`, `icon.png`, `icon-dev.png` (the Dock icon of a development run), `32x32.png`, `64x64.png`, `128x128.png`, `128x128@2x.png`, `brand/iconTemplate*.png` | The `{ G }` icon for macOS, Windows and Linux, rendered from `packages/desktop/assets/brand/icon.svg` and `icon-mono.svg`            |
 
-The other eight languages (`ar`, `es`, `fr`, `ja`, `ko`, `pt-BR`, `ru`, `zh-CN`) are not changed:
-they still name Paseo where the English names Groupon Desk, and the Groupon screens show English
-in every language.
+The other eight languages (`ar`, `es`, `fr`, `ja`, `ko`, `pt-BR`, `ru`, `zh-CN`) name Groupon Desk
+wherever Paseo's name stood (2026-10-20); the rest of their text is Paseo's, and the Groupon
+screens show English in every language.
 
 ## What the fork takes off Paseo's screens
 
@@ -88,6 +88,30 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (`~/.groupon/paseo`) alone, never in `~/.paseo`.
 - **The Core a fresh install starts on.** Production in every release build, the web build
   included; the local Core only in a development bundle (`defaultEnvironmentId`).
+
+## No trace of Paseo a person meets
+
+The owner's word of 2026-10-20: "erase the traces of Paseo and have it all covered by our brand".
+Attribution stays where the licence wants it (`LICENSE`, this file); everything a person reads
+names Groupon Desk or nothing:
+
+- **The name.** The packaged Electron app is "Groupon Desk Work" (`packages/desktop/src/app-name.ts`:
+  the application menu, the About panel, the window title, a notification's title), the name of
+  the bundle Groupon Desk nests; its state stays in the folder the earlier name gave it
+  (`~/Library/Application Support/Groupon Desk`). The web app and the phone app are "Groupon Desk".
+- **Paseo's web pages.** `PASEO_WEB_LINKS` (`groupon/paseo-web-links.ts`) is off: a docs link or
+  button to paseo.sh (`components/ui/external-link.tsx`, the skills, daemon and changelog headers),
+  the help menu's What's new (Paseo's changelog) and Report an issue (Paseo's Discord and GitHub),
+  the startup error's GitHub and Docs buttons and the welcome screen's "Built on Paseo" draw
+  nothing; the Rosetta callout downloads Groupon Desk's disk image. `PASEO_CLI_INSTALL` is off:
+  Settings offers no install of Paseo's `paseo` command.
+- **Words.** Every English string that named Paseo names Groupon Desk or no product, the other
+  languages too; so do the texts the fork's server writes for a person (a generated pull request's
+  body, the diagnostics, the self-update and setup-approval messages, the voice mode's prompt).
+
+Kept on purpose, never seen by a person: the package names (`@getpaseo/*`), module paths, the
+protocol's field and message names, environment variable names (`PASEO_*`), the agents' tool
+descriptions, the engine's own log lines and process titles, and Linux-only packaging.
 
 ## A project's config: `.groupon/desk.toml`, never `paseo.json`
 

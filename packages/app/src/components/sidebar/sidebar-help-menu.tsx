@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no What's new (Paseo's changelog) and no Report an issue (Paseo's Discord and GitHub).
 import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { Activity, CircleHelp, Gift, Keyboard } from "lucide-react-native";
@@ -28,6 +29,7 @@ import type { HostProfile } from "@/types/host-connection";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
 import { openChangelog } from "@/changelog";
+import { PASEO_WEB_LINKS } from "@/groupon/paseo-web-links";
 import { openExternalUrl } from "@/utils/open-external-url";
 
 const DISCORD_URL = "https://discord.gg/jz8T2uahpH";
@@ -137,13 +139,15 @@ export function SidebarHelpMenu() {
             {t("sidebar.help.shortcuts")}
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem
-          testID="sidebar-help-changelog"
-          leading={changelogLeadingIcon}
-          onSelect={openChangelog}
-        >
-          {t("sidebar.help.whatsNew")}
-        </DropdownMenuItem>
+        {PASEO_WEB_LINKS ? (
+          <DropdownMenuItem
+            testID="sidebar-help-changelog"
+            leading={changelogLeadingIcon}
+            onSelect={openChangelog}
+          >
+            {t("sidebar.help.whatsNew")}
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem
           testID="sidebar-help-diagnostics"
           leading={diagnosticLeadingIcon}
@@ -151,22 +155,26 @@ export function SidebarHelpMenu() {
         >
           {t("sidebar.help.diagnostics")}
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>{t("sidebar.help.reportIssue")}</DropdownMenuLabel>
-        <DropdownMenuItem
-          testID="sidebar-help-discord"
-          leading={discordLeadingIcon}
-          onSelect={openDiscord}
-        >
-          {t("sidebar.help.discord")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          testID="sidebar-help-github"
-          leading={githubLeadingIcon}
-          onSelect={openGitHubIssue}
-        >
-          {t("sidebar.help.github")}
-        </DropdownMenuItem>
+        {PASEO_WEB_LINKS ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t("sidebar.help.reportIssue")}</DropdownMenuLabel>
+            <DropdownMenuItem
+              testID="sidebar-help-discord"
+              leading={discordLeadingIcon}
+              onSelect={openDiscord}
+            >
+              {t("sidebar.help.discord")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              testID="sidebar-help-github"
+              leading={githubLeadingIcon}
+              onSelect={openGitHubIssue}
+            >
+              {t("sidebar.help.github")}
+            </DropdownMenuItem>
+          </>
+        ) : null}
         <DropdownMenuSeparator />
         <View style={styles.versionList}>
           <DropdownMenuHint

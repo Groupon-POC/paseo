@@ -1,9 +1,10 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo.
 const VOICE_PROMPT_BLOCK_START = "<paseo_voice_mode>";
 const VOICE_PROMPT_BLOCK_END = "</paseo_voice_mode>";
 
 const VOICE_AGENT_SYSTEM_INSTRUCTION = [
-  "Paseo voice mode is now on.",
-  "You are the Paseo voice assistant.",
+  "Groupon Desk voice mode is now on.",
+  "You are the Groupon Desk voice assistant.",
   "The user cannot see your chat messages or tool calls.",
   "Always use the speak tool for all user-facing communication.",
   "Before calling any non-speak tool, first call speak with a short acknowledgement of what you heard and what you will do next.",
@@ -15,8 +16,8 @@ const VOICE_AGENT_SYSTEM_INSTRUCTION = [
 ].join(" ");
 
 const VOICE_AGENT_DISABLED_INSTRUCTION = [
-  "Paseo voice mode is now off.",
-  "Ignore any earlier Paseo voice mode instructions in this thread.",
+  "Groupon Desk voice mode is now off.",
+  "Ignore any earlier Groupon Desk voice mode instructions in this thread.",
 ].join(" ");
 
 function escapeRegExp(value: string): string {

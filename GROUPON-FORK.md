@@ -50,9 +50,10 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   person's Macs from the hub with the `{ G }` mark on top; a Mac whose hand is on Core's relay, or
   this Mac when its daemon answers directly, opens on tap, and the window goes to it by itself the
   moment one is online; a Mac without a running hand says so in one sentence (press Work window
-  in Groupon Desk there, or `groupon desk serve install`); with no Mac past that, the screen says
-  Groupon Desk is probably not installed and connected yet and links its disk image
-  (`GROUPON_DESK_DOWNLOAD_URL`). The hub is re-read every 15 s. The sidebar's and the settings'
+  in Groupon Desk there, or `groupon desk serve install`); when every listed Mac is in that state,
+  one line above the list says the Macs are signed in but none is serving; only with no Mac on the
+  hub at all does the screen say Groupon Desk is probably not installed and connected yet and link
+  its disk image (`GROUPON_DESK_DOWNLOAD_URL`). The hub is re-read every 15 s. The sidebar's and the settings'
   host pickers have no Add host option (`components/hosts/host-picker.tsx`), the settings with no
   host show Your Macs where Paseo had Add host and never mount the add-host modals
   (`screens/settings-screen.tsx`), and every other "Add host" link (`buildSettingsAddHostRoute`,

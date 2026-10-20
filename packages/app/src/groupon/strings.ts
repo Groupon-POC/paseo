@@ -64,6 +64,8 @@ export const GROUPON_YOUR_MACS = {
   notInstalled:
     "You probably have no Groupon Desk installed and connected yet. Install it on your Mac, sign in with the same Groupon account, and the Mac appears here.",
   download: "Download Groupon Desk for Mac",
+  noneServing:
+    "Your Macs are signed in but none is serving: press Work window in Groupon Desk on one of them, or run groupon desk serve install there.",
   noHand:
     "Groupon Desk on this Mac is signed in but its work hand is not running: press Work window in Groupon Desk there.",
   noHandCommand: "Or run groupon desk serve install in a terminal on that Mac.",

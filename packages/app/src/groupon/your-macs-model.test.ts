@@ -69,15 +69,31 @@ describe("yourMacsModel", () => {
       kind: "macs",
       rows: [],
       anyReachable: false,
-      showInstall: true,
+      notice: "install",
     });
+  });
+
+  it("with Macs signed in but no hand running, says none is serving, never the install text", () => {
+    const model = yourMacsModel(
+      input({
+        views: [
+          view({ machine: machine({ machine: "studio" }) }),
+          view({ machine: machine({ machine: "mini" }) }),
+          view({ machine: machine({ machine: "air" }) }),
+        ],
+      }),
+    );
+    if (model.kind !== "macs") throw new Error("expected macs");
+    expect(model.rows).toHaveLength(3);
+    expect(model.notice).toBe("noneServing");
+    expect(model.anyReachable).toBe(false);
   });
 
   it("a Mac that never offered a connection lacks a running hand: the sentence and the command", () => {
     const model = yourMacsModel(input({ views: [view()] }));
     expect(model.kind).toBe("macs");
     if (model.kind !== "macs") return;
-    expect(model.showInstall).toBe(true);
+    expect(model.notice).toBe("noneServing");
     expect(model.rows[0]).toMatchObject({
       state: "noHand",
       openServerId: null,
@@ -112,7 +128,7 @@ describe("yourMacsModel", () => {
       openServerId: "srv_a",
       message: null,
     });
-    expect(connecting.showInstall).toBe(false);
+    expect(connecting.notice).toBeNull();
     expect(firstConnected(connecting)).toBeNull();
 
     const online = yourMacsModel(input({ views: [onRelay], isOnline: (id) => id === "srv_a" }));
@@ -132,7 +148,7 @@ describe("yourMacsModel", () => {
     });
   });
 
-  it("names a different vault and an error, and keeps the install instructions off for them", () => {
+  it("names a different vault and an error, and shows no notice for them", () => {
     const model = yourMacsModel(
       input({
         views: [
@@ -146,7 +162,7 @@ describe("yourMacsModel", () => {
       ["a", "otherVault", GROUPON_YOUR_MACS.otherVault],
       ["b", "failed", GROUPON_YOUR_MACS.failed("bad offer")],
     ]);
-    expect(model.showInstall).toBe(false);
+    expect(model.notice).toBeNull();
   });
 
   it("orders connected, connecting, then the rest; the primary and the most recent first", () => {

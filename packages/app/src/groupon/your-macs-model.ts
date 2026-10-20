@@ -9,8 +9,9 @@
  * - one row per Mac on the hub, in the state a person acts on: connected, connecting (its hand is
  *   on Core's relay, or it is this Mac and its daemon answers directly), its hand not running,
  *   a different vault, or an error
- * - the screen as a whole: still loading, the hub unreadable, no Mac with a running hand
- *   (the install instructions and the download), or the list
+ * - the screen as a whole: still loading, the hub unreadable, or the list with at most one notice
+ *   above it: no Mac on the hub at all (the install instructions and the download), or Macs
+ *   signed in but none serving (press Work window, or install the hand's service)
  * - "seen 5 min ago" from the hub's lastSeenAt
  *
  * Constraints:
@@ -41,10 +42,17 @@ export interface YourMacRow {
   hint: string | null;
 }
 
+/**
+ * The one notice above the list. "install" only while the hub knows no Mac of the person at all
+ * (the download link belongs there and nowhere else); "noneServing" while every Mac is signed in
+ * but none runs its hand.
+ */
+export type YourMacsNotice = "install" | "noneServing" | null;
+
 export type YourMacsModel =
   | { kind: "loading" }
   | { kind: "unreadable"; message: string }
-  | { kind: "macs"; rows: YourMacRow[]; anyReachable: boolean; showInstall: boolean };
+  | { kind: "macs"; rows: YourMacRow[]; anyReachable: boolean; notice: YourMacsNotice };
 
 export interface YourMacsInput {
   views: readonly HubMachineView[];
@@ -119,6 +127,12 @@ export function yourMacRows(
   return views.map((view) => rowOf(view, isOnline)).sort(compareRows);
 }
 
+function noticeOf(rows: readonly YourMacRow[]): YourMacsNotice {
+  if (rows.length === 0) return "install";
+  if (rows.every((row) => row.state === "noHand")) return "noneServing";
+  return null;
+}
+
 export function yourMacsModel(input: YourMacsInput): YourMacsModel {
   if (input.lastSyncAt === null) {
     if (input.error !== null && !input.syncing) {
@@ -128,9 +142,7 @@ export function yourMacsModel(input: YourMacsInput): YourMacsModel {
   }
   const rows = yourMacRows(input.views, input.isOnline);
   const anyReachable = rows.some((row) => row.openServerId !== null);
-  // The install instructions while no Mac is past "its hand is not running" (or there is none).
-  const showInstall = rows.every((row) => row.state === "noHand");
-  return { kind: "macs", rows, anyReachable, showInstall };
+  return { kind: "macs", rows, anyReachable, notice: noticeOf(rows) };
 }
 
 /** The first connected Mac, the one the window goes straight to; null when none is. */

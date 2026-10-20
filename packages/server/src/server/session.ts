@@ -8064,7 +8064,7 @@ export class Session {
                     timestamp: new Date().toISOString(),
                     item: {
                       type: "assistant_message",
-                      text: "Please update Groupon Desk to view this subagent conversation.",
+                      text: "Please upgrade Groupon Desk to view this subagent conversation.",
                     },
                   },
                 ],

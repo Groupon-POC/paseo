@@ -16,7 +16,12 @@ import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EditingTextInput } from "@/components/ui/text-input";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { CoreError, deviceAuthPoll, deviceAuthStart, type DeviceAuthStart } from "./core-client";
-import { GROUPON_ENVIRONMENTS, normaliseCoreUrl, type GrouponEnvironmentId } from "./environments";
+import {
+  environmentChoiceOffered,
+  GROUPON_ENVIRONMENTS,
+  normaliseCoreUrl,
+  type GrouponEnvironmentId,
+} from "./environments";
 import { GrouponHubSync } from "./hub-sync";
 import { useGrouponStore } from "./session";
 import { GROUPON_GATE } from "./strings";
@@ -25,6 +30,11 @@ const ENVIRONMENT_OPTIONS = GROUPON_ENVIRONMENTS.map((env) => ({
   value: env.id,
   label: env.label,
 }));
+/** A release build offers no choice: production only (`environmentChoiceOffered`). */
+const ENVIRONMENT_CHOICE = environmentChoiceOffered(
+  __DEV__,
+  process.env.EXPO_PUBLIC_GROUPON_ENVIRONMENTS,
+);
 const POLL_FLOOR_SECONDS = 2;
 
 function messageOf(error: unknown): string {
@@ -76,6 +86,11 @@ function SignInStep() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const cancelled = useRef(false);
+
+  // A build with no choice signs in to production, whatever an older build stored.
+  useEffect(() => {
+    if (!ENVIRONMENT_CHOICE && environmentId !== "production") void chooseEnvironment("production");
+  }, [chooseEnvironment, environmentId]);
 
   useEffect(() => {
     cancelled.current = false;
@@ -142,13 +157,15 @@ function SignInStep() {
   return (
     <View style={styles.card}>
       <Text style={styles.body}>{GROUPON_GATE.signInIntro}</Text>
-      <SegmentedControl
-        options={ENVIRONMENT_OPTIONS}
-        value={environmentId}
-        onValueChange={handleEnvironment}
-        testID="groupon-environment"
-      />
-      {environmentId === "local" ? (
+      {ENVIRONMENT_CHOICE ? (
+        <SegmentedControl
+          options={ENVIRONMENT_OPTIONS}
+          value={environmentId}
+          onValueChange={handleEnvironment}
+          testID="groupon-environment"
+        />
+      ) : null}
+      {ENVIRONMENT_CHOICE && environmentId === "local" ? (
         <EditingTextInput
           initialValue={localUrl}
           onChangeText={setLocalUrl}

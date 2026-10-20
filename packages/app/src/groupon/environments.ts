@@ -60,3 +60,16 @@ export function normaliseCoreUrl(input: string): string | null {
   if (url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname)) return url.origin;
   return null;
 }
+
+/**
+ * Whether the sign-in gate offers a choice of Core at all. A release build signs in to production
+ * and nothing else (the owner's word, 2026-10-20: the choice confused people); a development
+ * bundle keeps the three, and a release build made for testing staging sets
+ * `EXPO_PUBLIC_GROUPON_ENVIRONMENTS=all` at export time.
+ */
+export function environmentChoiceOffered(
+  isDevelopment: boolean,
+  environmentsSetting: string | undefined,
+): boolean {
+  return isDevelopment || environmentsSetting === "all";
+}

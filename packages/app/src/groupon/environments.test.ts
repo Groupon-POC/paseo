@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   defaultEnvironmentId,
   environmentById,
+  environmentChoiceOffered,
   GROUPON_DESK_WEB_URL,
   normaliseCoreUrl,
 } from "./environments";
@@ -48,5 +49,14 @@ describe("identityOf", () => {
     );
     expect(identityOf(`x.${payload}.y`)).toEqual({ userId: "u-1", email: "a@b.c", name: "A" });
     expect(identityOf("garbage")).toEqual({ userId: null, email: null, name: null });
+  });
+});
+
+describe("environmentChoiceOffered", () => {
+  it("offers the three Cores in a development bundle, production alone in a release build, and all three when a release build asks for them", () => {
+    expect(environmentChoiceOffered(true, undefined)).toBe(true);
+    expect(environmentChoiceOffered(false, undefined)).toBe(false);
+    expect(environmentChoiceOffered(false, "all")).toBe(true);
+    expect(environmentChoiceOffered(false, "production")).toBe(false);
   });
 });

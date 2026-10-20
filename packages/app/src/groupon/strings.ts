@@ -39,6 +39,9 @@ export const GROUPON_SETTINGS = {
   vaultMeasured: (ms: number, iterations: number, engine: string, web: boolean) =>
     `Made on this device in ${ms.toLocaleString("en-US")} ms (PBKDF2-SHA256, ${iterations.toLocaleString("en-US")} rounds, ${engine}); ${web ? "kept in this browser, encrypted" : "kept in its keychain"}.`,
   signOut: "Sign out of Groupon",
+  signOutThisWindow:
+    "Signs out this window only. Groupon Desk and the groupon command line on this Mac stay signed in, and the window signs in with them again the next time it opens.",
+  fromThisMac: "Through Groupon Desk on this Mac, the sign-in the groupon command line shares",
 } as const;
 
 export const GROUPON_MACHINES = {

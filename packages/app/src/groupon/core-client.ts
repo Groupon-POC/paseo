@@ -103,21 +103,35 @@ export interface TokenIdentity {
   name: string | null;
 }
 
-export function identityOf(accessToken: string): TokenIdentity {
+/** A JWT's payload, unverified; null when the token is no JWT. */
+function payloadOf(token: string): Record<string, unknown> | null {
   try {
-    const segment = accessToken.split(".")[1] ?? "";
+    const segment = token.split(".")[1] ?? "";
     const padded = segment
       .replace(/-/g, "+")
       .replace(/_/g, "/")
       .padEnd(Math.ceil(segment.length / 4) * 4, "=");
-    const payload = JSON.parse(atob(padded)) as Record<string, unknown>;
-    const text = (value: unknown) => (typeof value === "string" ? value : null);
-    return {
-      userId: text(payload.userId ?? payload.sub),
-      email: text(payload.email),
-      name: text(payload.name),
-    };
+    const payload: unknown = JSON.parse(atob(padded));
+    return typeof payload === "object" && payload !== null
+      ? (payload as Record<string, unknown>)
+      : null;
   } catch {
-    return { userId: null, email: null, name: null };
+    return null;
   }
+}
+
+export function identityOf(accessToken: string): TokenIdentity {
+  const payload = payloadOf(accessToken);
+  const text = (value: unknown) => (typeof value === "string" ? value : null);
+  return {
+    userId: text(payload?.userId ?? payload?.sub),
+    email: text(payload?.email),
+    name: text(payload?.name),
+  };
+}
+
+/** When a JWT says it lapses (its `exp`, in milliseconds), unverified; null when it says nothing. */
+export function expiryOf(token: string): number | null {
+  const exp = payloadOf(token)?.exp;
+  return typeof exp === "number" && Number.isFinite(exp) ? exp * 1000 : null;
 }

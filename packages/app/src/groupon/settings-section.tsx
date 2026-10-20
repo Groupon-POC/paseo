@@ -1,9 +1,11 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): Settings > Groupon, the account and the vault.
+// In the desktop window, sign-out says it signs out this window only, never this Mac's sign-in.
 import { useCallback } from "react";
 import { Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { StyleSheet } from "react-native-unistyles";
 import { isWeb } from "@/constants/platform";
+import { isElectronRuntime } from "@/desktop/host";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { Button } from "@/components/ui/button";
 import { settingsStyles } from "@/styles/settings";
@@ -44,6 +46,7 @@ export function GrouponAccountSection() {
   const environmentId = useGrouponStore((state) => state.environmentId);
   const coreUrl = useGrouponStore((state) => state.coreUrl);
   const identity = useGrouponStore((state) => state.identity);
+  const fromThisMac = useGrouponStore((state) => state.session?.origin === "mac");
   const lastUnlock = useGrouponStore((state) => state.lastUnlock);
   const signOut = useGrouponStore((state) => state.signOut);
   const handleSignOut = useCallback(() => void signOut(), [signOut]);
@@ -60,7 +63,11 @@ export function GrouponAccountSection() {
   return (
     <SettingsSection title={GROUPON_SETTINGS.account}>
       <View style={settingsStyles.card}>
-        <Row title={GROUPON_SETTINGS.signedInAs} value={identity?.email ?? identity?.name ?? "?"} />
+        <Row
+          title={GROUPON_SETTINGS.signedInAs}
+          hint={fromThisMac ? GROUPON_SETTINGS.fromThisMac : undefined}
+          value={identity?.email ?? identity?.name ?? "?"}
+        />
         <Row
           title={GROUPON_SETTINGS.core}
           hint={coreUrl}
@@ -69,6 +76,11 @@ export function GrouponAccountSection() {
         />
         <Row title={GROUPON_SETTINGS.vault} hint={vaultHint} border />
         <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
+          {isElectronRuntime() ? (
+            <View style={settingsStyles.rowContent}>
+              <Text style={settingsStyles.rowHint}>{GROUPON_SETTINGS.signOutThisWindow}</Text>
+            </View>
+          ) : null}
           <Button variant="outline" size="sm" onPress={handleSignOut} testID="groupon-sign-out">
             {GROUPON_SETTINGS.signOut}
           </Button>

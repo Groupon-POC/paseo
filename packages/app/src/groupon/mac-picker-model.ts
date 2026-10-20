@@ -30,6 +30,10 @@ export interface MacPickerOption {
   label: string;
   /** The host to switch to; null for a Mac that cannot be chosen now. */
   serverId: string | null;
+  /** The Mac's daemon, chosen or not: what ties Paseo's projects on that host to this Mac. */
+  hostServerId: string | null;
+  /** Every hub record that stands for this Mac: what ties the hub's checkouts to it. */
+  machineIds: string[];
   isThisMac: boolean;
   selectable: boolean;
   /** The greyed reason under a Mac that cannot be chosen, or "This Mac"; null otherwise. */
@@ -56,14 +60,22 @@ export function macPickerOptions(
   includeStoredHosts = false,
 ): MacPickerOption[] {
   const rows = yourMacRows(views, isOnline);
+  const serverIdOfMachine = new Map(views.map((view) => [view.machine.machine, view.serverId]));
+  const machinesOf = (machineId: string, serverId: string | null): string[] =>
+    serverId === null
+      ? [machineId]
+      : views.filter((view) => view.serverId === serverId).map((view) => view.machine.machine);
   const ordered = [...rows.filter((row) => row.isThisMac), ...rows.filter((row) => !row.isThisMac)];
   const macs = ordered.map((row): MacPickerOption => {
     const selectable = row.state === "connected" && row.openServerId !== null;
     const reason = row.state === "connected" ? null : NOTE_BY_STATE[row.state];
+    const hostServerId = serverIdOfMachine.get(row.id) ?? null;
     return {
       id: row.id,
       label: row.label,
       serverId: selectable ? row.openServerId : null,
+      hostServerId,
+      machineIds: machinesOf(row.id, hostServerId),
       isThisMac: row.isThisMac,
       selectable,
       note: reason ?? (row.isThisMac ? GROUPON_MAC_PICKER.thisMac : null),
@@ -79,6 +91,8 @@ export function macPickerOptions(
         id: `stored:${host.serverId}`,
         label: host.label,
         serverId: isOnline(host.serverId) ? host.serverId : null,
+        hostServerId: host.serverId,
+        machineIds: [],
         isThisMac: false,
         selectable: isOnline(host.serverId),
         note: GROUPON_MAC_PICKER.storedHost,

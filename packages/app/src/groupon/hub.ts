@@ -3,7 +3,8 @@
 /**
  * The hub is Groupon Desk's server side on Core (`user/groupon_desk`, monorepo
  * `.context/work-window/hub-spec.md`): the person's Macs, the registry of repositories,
- * workspaces and chats, and the sealed transcript store; and the workspaces shared between
+ * workspaces and chats (and every Mac's checkouts of each repository, as its hand reports them),
+ * and the sealed transcript store; and the workspaces shared between
  * colleagues (design section 13: the grants, a grant, a revoke, a colleague's prompt and permission
  * answer). Dates arrive as ISO strings.
  */
@@ -28,6 +29,16 @@ export interface HubRepository {
   name: string;
   hidden: boolean;
   displayOrder: number;
+}
+
+/** A checkout of a repository on one of the person's Macs, as that Mac's hand reported it. */
+export interface HubCheckout {
+  id: string;
+  /** The hub's id of the Mac (`HubMachine.machine`). */
+  machine: string;
+  repositoryId: string;
+  /** The checkout's folder on that Mac. */
+  rootPath: string;
 }
 
 export interface HubWorkspace {
@@ -139,6 +150,8 @@ export interface HubSharedWorkspace {
 
 export interface HubOverview {
   repositories: HubRepository[];
+  /** Every Mac's checkouts of those repositories (absent from an older hub). */
+  checkouts?: HubCheckout[];
   workspaces: HubWorkspace[];
   chats: HubChat[];
   machines: HubMachine[];

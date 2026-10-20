@@ -14,7 +14,9 @@
  * the person's setup says otherwise): the plugin clones it from its host the way the CLI does
  * (`gh repo clone`, git over https without gh), and from there it is what Paseo's clone does after
  * its pick: the checkout is registered as a project with Paseo's own `project.add` and New
- * workspace opens on it.
+ * workspace opens on it. Opened from New workspace on one repository (`prefill`: a Mac that lacks
+ * the repository the person chose), it starts at the folder step on that repository's host and,
+ * once the clone is a project, closes back to New workspace instead of navigating.
  */
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -54,6 +56,7 @@ import {
   checkoutPathPreview,
   firstStep,
   folderProblem,
+  prefilledStep,
   GITHUB_COM,
   hostChoices,
   matching,
@@ -70,7 +73,7 @@ import {
   teamHint,
   type GithubStep,
 } from "./github-project-model";
-import { useGithubProjectStore } from "./github-project-store";
+import { type GithubProjectPrefill, useGithubProjectStore } from "./github-project-store";
 import { useGrouponPreferences } from "./preferences";
 import { GROUPON_GITHUB } from "./strings";
 
@@ -95,7 +98,14 @@ export function GithubProjectSheetHost() {
   const request = useGithubProjectStore((state) => state.request);
   const close = useGithubProjectStore((state) => state.close);
   if (!request) return null;
-  return <GithubProjectSheet key={request.id} serverId={request.serverId} onClose={close} />;
+  return (
+    <GithubProjectSheet
+      key={request.id}
+      serverId={request.serverId}
+      prefill={request.prefill}
+      onClose={close}
+    />
+  );
 }
 
 interface RowProps {
@@ -140,14 +150,24 @@ function Row({ id, title, subtitle, icon, disabled, onSelect, testID }: RowProps
   );
 }
 
-function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: () => void }) {
+function GithubProjectSheet({
+  serverId,
+  prefill,
+  onClose,
+}: {
+  serverId: string;
+  prefill: GithubProjectPrefill | null;
+  onClose: () => void;
+}) {
   const client = useHostRuntimeClient(serverId);
   const hostLabel = useHosts().find((host) => host.serverId === serverId)?.label ?? serverId;
   const openProject = useOpenProject(serverId);
   const queryClient = useQueryClient();
   const rememberedHost = useGrouponPreferences((state) => state.githubHost ?? null);
-  const [host, setHost] = useState(() => rememberedHost ?? GITHUB_COM);
-  const [chosenStep, setStep] = useState<GithubStep | null>(null);
+  const [host, setHost] = useState(() => prefill?.host ?? rememberedHost ?? GITHUB_COM);
+  const [chosenStep, setStep] = useState<GithubStep | null>(() =>
+    prefill ? prefilledStep(prefill.fullName) : null,
+  );
   const [query, setQuery] = useState("");
   const [folder, setFolder] = useState<string | null>(null);
   const [download, setDownload] = useState<Download>({ status: "idle" });
@@ -255,6 +275,8 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
           return;
         }
         onClose();
+        // New workspace asked for this clone: it picks the new project up on this Mac itself.
+        if (prefill) return;
         router.push(
           buildNewWorkspaceRoute({
             serverId,
@@ -267,7 +289,7 @@ function GithubProjectSheet({ serverId, onClose }: { serverId: string; onClose: 
         if (live.current) setDownload({ status: "failed", error: pluginProblemText(error) });
       }
     },
-    [client, download.status, host, onClose, openProject, serverId, shownFolder],
+    [client, download.status, host, onClose, openProject, prefill, serverId, shownFolder],
   );
 
   const header = useMemo<SheetHeader>(() => {

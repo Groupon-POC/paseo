@@ -83,6 +83,18 @@ export const GROUPON_YOUR_MACS = {
   settings: "Settings",
 } as const;
 
+export const GROUPON_MAC_PICKER = {
+  title: "Run on",
+  label: "Mac",
+  tooltip: "The Mac this workspace and its agent run on",
+  on: (mac: string) => `On ${mac}`,
+  thisMac: "This Mac",
+  connecting: "connecting",
+  noHand: "hand not running",
+  otherVault: "different vault",
+  failed: "could not connect",
+} as const;
+
 export const GROUPON_HISTORY = {
   title: "History",
   intro:

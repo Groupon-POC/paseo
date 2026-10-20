@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, this Mac by default.
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -111,6 +111,12 @@ import { buildNewWorkspaceProjectIconTargets } from "./new-workspace/project-ico
 import { useNewWorkspaceProjectPicker } from "./new-workspace/project-picker";
 import { useNewWorkspaceForm } from "./new-workspace/form";
 import { ImportSessionButton } from "./new-workspace/import-session-button";
+import { useHubMachinesStore } from "@/groupon/hub-sync";
+import {
+  defaultMacServerId,
+  macPickerOptions,
+  type MacPickerOption,
+} from "@/groupon/mac-picker-model";
 import { StartTicketButton } from "@/groupon/start-ticket-button";
 import { useStartTicketFromPage } from "@/groupon/start-ticket-sheet";
 import { useImportSession } from "@/hooks/use-import-session";
@@ -653,6 +659,10 @@ function submitWorkspaceDraft(input: SubmitDraftInput): SubmitOutcome {
 
 function useNewWorkspaceHostSelector(input: {
   initialServerId: string;
+  /** Groupon Desk: the hub's Macs; this Mac is the default when it is connected. */
+  macOptions: readonly MacPickerOption[];
+  /** False when the route names a project: that project's Mac stays the default. */
+  preferThisMac: boolean;
   allServerIds: string[];
   projects: HostProjectListItem[];
   lastActiveProject: HostProjectListItem | null;
@@ -660,7 +670,7 @@ function useNewWorkspaceHostSelector(input: {
   workspaceMultiplicityByServerId: ReadonlyMap<string, boolean>;
 }) {
   const routeServerId = input.initialServerId.trim();
-  const defaultServerId = useMemo(
+  const paseoDefaultServerId = useMemo(
     () =>
       resolveNewWorkspaceInitialServerId({
         allServerIds: input.allServerIds,
@@ -679,6 +689,9 @@ function useNewWorkspaceHostSelector(input: {
       input.workspaceMultiplicityByServerId,
     ],
   );
+  const defaultServerId = input.preferThisMac
+    ? defaultMacServerId(input.macOptions, paseoDefaultServerId)
+    : paseoDefaultServerId;
   const [automaticSelection, setAutomaticSelection] = useState(() => ({
     routeServerId,
     serverId: defaultServerId,
@@ -760,6 +773,7 @@ function useNewWorkspaceHostSelector(input: {
 
 interface NewWorkspaceInitialContextState {
   allHosts: HostProfile[];
+  macOptions: readonly MacPickerOption[];
   selectedServerId: string;
   hostPickerOpen: boolean;
   handleSelectHost: (id: string) => void;
@@ -820,6 +834,12 @@ function useNewWorkspaceInitialContext({
   );
   const hostConnectionStatusByServerId = useHostRuntimeConnectionStatuses(allServerIds);
   const workspaceMultiplicityByServerId = useHostFeatureMap(allServerIds, "workspaceMultiplicity");
+  const hubMachines = useHubMachinesStore((state) => state.machines);
+  const macOptions = useMemo(
+    () =>
+      macPickerOptions(hubMachines, (id) => hostConnectionStatusByServerId.get(id) === "online"),
+    [hostConnectionStatusByServerId, hubMachines],
+  );
   const {
     selectedServerId,
     hostPickerOpen,
@@ -828,6 +848,8 @@ function useNewWorkspaceInitialContext({
     openHostPicker,
   } = useNewWorkspaceHostSelector({
     initialServerId: serverId,
+    macOptions,
+    preferThisMac: routePlacement === null,
     allServerIds,
     projects,
     lastActiveProject,
@@ -837,6 +859,7 @@ function useNewWorkspaceInitialContext({
 
   return {
     allHosts,
+    macOptions,
     selectedServerId,
     hostPickerOpen,
     handleSelectHost,
@@ -870,6 +893,7 @@ export function NewWorkspaceScreen({
   );
   const {
     allHosts,
+    macOptions,
     selectedServerId,
     hostPickerOpen,
     handleSelectHost,
@@ -1488,6 +1512,7 @@ export function NewWorkspaceScreen({
       selectedServerId,
       onSelect: handleSelectWorkspaceHost,
       onAddHost: handleAddHost,
+      macOptions,
     },
     isolation: {
       anchorRef: isolationPickerAnchorRef,

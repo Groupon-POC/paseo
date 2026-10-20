@@ -59,6 +59,33 @@ export const GROUPON_MACHINES = {
   lastSeen: (when: string) => `last seen ${when}`,
 } as const;
 
+export const GROUPON_YOUR_MACS = {
+  title: "Your Macs",
+  noneConnected: "No Mac of yours is connected",
+  loading: "Looking for your Macs",
+  notInstalledTitle: "No Groupon Desk is connected yet",
+  notInstalled:
+    "You probably have no Groupon Desk installed and connected yet. Install it on your Mac, sign in with the same Groupon account, and the Mac appears here.",
+  download: "Download Groupon Desk for Mac",
+  noHand:
+    "Groupon Desk on this Mac is signed in but its work hand is not running: press Work window in Groupon Desk there.",
+  noHandCommand: "Or run groupon desk serve install in a terminal on that Mac.",
+  otherVault:
+    "Groupon Desk on this Mac keeps a different vault: open the vault here with the passphrase that Mac uses.",
+  failed: (message: string) => `Could not connect to it: ${message}`,
+  connected: "Connected",
+  connecting: "Connecting",
+  notRunning: "Work hand not running",
+  thisMac: "This Mac",
+  primary: "Primary",
+  lastSeen: (ago: string) => `seen ${ago}`,
+  refresh: "Refresh",
+  refreshing: "Refreshing",
+  loadFailed: (message: string) => `Could not read your Macs from the hub: ${message}`,
+  autoRefresh: "Checked again every 15 seconds.",
+  settings: "Settings",
+} as const;
+
 export const GROUPON_HISTORY = {
   title: "History",
   intro:

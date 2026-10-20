@@ -1,3 +1,5 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no Add host option; the Macs come from the hub.
+import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import { useCallback, useMemo, type ReactElement, type ReactNode } from "react";
 import { Pressable, View } from "react-native";
 import type { GestureResponderEvent } from "react-native";
@@ -214,7 +216,9 @@ export function HostPicker({
   const options = useMemo(() => {
     const hostOptions = orderedHosts.map((host) => ({ id: host.serverId, label: host.label }));
     if (includeAllHost) hostOptions.unshift({ id: ALL_HOSTS_OPTION_ID, label: "All hosts" });
-    if (includeAddHost) hostOptions.push({ id: ADD_HOST_OPTION_ID, label: "Add host" });
+    // Groupon Desk: no host is added by hand (`PASEO_MANUAL_HOSTS`); the Macs come from the hub.
+    if (includeAddHost && PASEO_MANUAL_HOSTS)
+      hostOptions.push({ id: ADD_HOST_OPTION_ID, label: "Add host" });
     if (includeEnableBuiltInDaemon)
       hostOptions.push({
         id: ENABLE_BUILT_IN_DAEMON_OPTION_ID,

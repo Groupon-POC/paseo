@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu; with no connected host it points at Your Macs, not Add host.
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { router } from "expo-router";
 import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
@@ -37,7 +37,8 @@ import {
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import { useGithubProjectStore } from "@/groupon/github-project-store";
-import { GROUPON_GITHUB } from "@/groupon/strings";
+import { GROUPON_GITHUB, GROUPON_YOUR_MACS } from "@/groupon/strings";
+import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import {
   applyAvailableAddProjectHosts,
   backAddProjectPage,
@@ -619,8 +620,9 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       if (state.hosts.length === 0) {
         choices.push({
           id: "add-host",
-          title: "Add host",
-          subtitle: "No connected hosts",
+          // Groupon Desk: Your Macs, where a Mac's hand is started; no host is added by hand.
+          title: PASEO_MANUAL_HOSTS ? "Add host" : GROUPON_YOUR_MACS.title,
+          subtitle: PASEO_MANUAL_HOSTS ? "No connected hosts" : GROUPON_YOUR_MACS.noneConnected,
           icon: Plus,
           testID: "add-project-flow-add-host",
           select: () => {

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the engine's site named as such; History; no QR scan or pairing link.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Your Macs in place of this screen while manual hosts are off; else the Groupon Desk logo, the engine's site named as such, History, no QR scan or pairing link.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, ScrollView } from "react-native";
@@ -19,7 +19,8 @@ import { getHostRuntimeStore, isHostRuntimeConnected, useHosts } from "@/runtime
 import { AddHostModal } from "./add-host-modal";
 import { AddRemoteSshHostModal } from "./add-remote-ssh-host-modal";
 import { PairLinkModal } from "./pair-link-modal";
-import { PASEO_PAIRING_OFFERS } from "@/groupon/pairing-policy";
+import { PASEO_MANUAL_HOSTS, PASEO_PAIRING_OFFERS } from "@/groupon/pairing-policy";
+import { YourMacsScreen } from "@/groupon/your-macs-screen";
 import { Button } from "@/components/ui/button";
 import { resolveAppVersion } from "@/utils/app-version";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
@@ -171,7 +172,16 @@ export interface WelcomeScreenProps {
   onHostAdded?: (profile: HostProfile) => void;
 }
 
-export function WelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
+/**
+ * Groupon Desk: the person's Macs from the hub, never an address to type (`PASEO_MANUAL_HOSTS`).
+ * Paseo's welcome screen below stays for a rebase, out of reach.
+ */
+export function WelcomeScreen(props: WelcomeScreenProps) {
+  if (!PASEO_MANUAL_HOSTS) return <YourMacsScreen />;
+  return <PaseoWelcomeScreen {...props} />;
+}
+
+function PaseoWelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
   const { theme } = useUnistyles();
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();

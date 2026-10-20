@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the About line naming Paseo and its author; the Groupon section; the worktree-scripts reminder switch; Your phone in place of Pair device.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no Paseo credit, no What's new, no language row; the Groupon section; the worktree-scripts reminder switch; Your phone in place of Pair device.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -42,7 +42,6 @@ import {
   Globe,
   PanelLeft,
   MessageSquare,
-  ChevronRight,
 } from "lucide-react-native";
 import { DropdownTrigger } from "@/components/ui/dropdown-trigger";
 import { ComboboxTrigger } from "@/components/ui/combobox-trigger";
@@ -94,10 +93,9 @@ import { isElectronRuntime } from "@/desktop/host";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
-import { GROUPON_ABOUT, GROUPON_PHONE, GROUPON_SETTINGS } from "@/groupon/strings";
+import { GROUPON_PHONE, GROUPON_SETTINGS } from "@/groupon/strings";
 import { GrouponSettingsPage } from "@/groupon/settings-section";
 import { GrouponPhonePage } from "@/groupon/phone-section";
-import { openChangelog } from "@/changelog";
 import { useAppDiagnosticStore } from "@/diagnostics/store";
 import { settingsStyles } from "@/styles/settings";
 import { THINKING_TONE_NATIVE_PCM_BASE64 } from "@/utils/thinking-tone.native-pcm";
@@ -358,6 +356,8 @@ function LanguageMenuItem({ value, activeLocale, selected, onChange }: LanguageM
   );
 }
 
+const GROUPON_DESK_ONE_LANGUAGE = true;
+
 function GeneralSection({ settings, handleLanguageChange }: GeneralSectionProps) {
   const { t, i18n } = useTranslation();
   const activeLocale = getActiveLocale(i18n.language);
@@ -371,6 +371,8 @@ function GeneralSection({ settings, handleLanguageChange }: GeneralSectionProps)
         t(selectedLanguageOption.labelKey),
       )
     : settings.language;
+  // Groupon Desk speaks English alone (the owner's word, 2026-10-20): no language row.
+  if (GROUPON_DESK_ONE_LANGUAGE) return null;
   return (
     <SettingsSection title={t("settings.general.title")}>
       <View style={settingsStyles.card}>
@@ -497,16 +499,6 @@ function AboutSection({ appVersion, appVersionText, isDesktopApp }: AboutSection
             </View>
             <Text style={styles.aboutValue}>{appVersionText}</Text>
           </View>
-          <View
-            style={[settingsStyles.row, settingsStyles.rowBorder]}
-            testID="settings-built-on-paseo"
-          >
-            <View style={settingsStyles.rowContent}>
-              <Text style={settingsStyles.rowTitle}>{GROUPON_ABOUT.builtOn}</Text>
-              <Text style={settingsStyles.rowHint}>{GROUPON_ABOUT.builtOnHint}</Text>
-            </View>
-          </View>
-          <WhatsNewRow />
           {isDesktopApp ? <DesktopAppUpdateRow /> : null}
         </View>
       </SettingsSection>
@@ -515,33 +507,6 @@ function AboutSection({ appVersion, appVersionText, isDesktopApp }: AboutSection
         <CommunityLinks />
       </View>
     </>
-  );
-}
-
-function WhatsNewRow() {
-  const { t } = useTranslation();
-  const { theme } = useUnistyles();
-
-  return (
-    <Pressable
-      style={[settingsStyles.row, settingsStyles.rowBorder]}
-      onPress={openChangelog}
-      accessibilityRole="button"
-      testID="settings-whats-new"
-    >
-      {({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => (
-        <>
-          <View style={settingsStyles.rowContent}>
-            <Text style={settingsStyles.rowTitle}>{t("changelog.title")}</Text>
-            <Text style={settingsStyles.rowHint}>{t("settings.about.whatsNewHint")}</Text>
-          </View>
-          <ChevronRight
-            size={theme.iconSize.sm}
-            color={hovered ? theme.colors.foreground : theme.colors.foregroundMuted}
-          />
-        </>
-      )}
-    </Pressable>
   );
 }
 

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in gate in front of the host runtime; the From GitHub sheet; no built-in daemon, the hand owns it.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in gate in front of the host runtime; the From GitHub sheet; the Improve this repository sheet; no built-in daemon, the hand owns it.
 import { ComposerEditingSessionsProvider } from "@/composer/editing-session";
 import "@/styles/unistyles";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
@@ -31,6 +31,7 @@ import { PluginCommandCenterActions } from "@/plugins/command-center/registratio
 import { AddProjectFlowHost } from "@/components/add-project-flow-host";
 import { GROUPON_DESK_HAND_OWNS_DAEMON } from "@/groupon/pairing-policy";
 import { GithubProjectSheetHost } from "@/groupon/github-project-sheet";
+import { ImproveRepositorySheetHost } from "@/groupon/improve-repository-sheet";
 import { WorktreeSetupCalloutSource } from "@/components/worktree-setup-callout-source";
 import { DownloadToast } from "@/components/download-toast";
 import { QuittingOverlay } from "@/components/quitting-overlay";
@@ -613,6 +614,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
         <CommandCenter />
         <AddProjectFlowHost />
         <GithubProjectSheetHost />
+        <ImproveRepositorySheetHost />
         <HostChooserModal />
         <HostConfirmationSheet />
         <ProviderSettingsHost />

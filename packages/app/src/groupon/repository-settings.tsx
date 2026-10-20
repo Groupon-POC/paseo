@@ -9,12 +9,13 @@
  * lands them, and each value it changes is marked as an override.
  * A repository without the file, or a daemon without the plugin, keeps Paseo's page as it is.
  * Under the values, the Encore card (`encore-state-section.tsx`) when the file names Encore apps
- * or release trains.
+ * or release trains. Above them, with the file or without, Improve this repository for this checkout
+ * (`improve-repository-sheet.tsx`); the file's `[prompts] improve_repository` shows among the values.
  */
 
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { PaseoConfigRaw } from "@getpaseo/protocol/messages";
-import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react-native";
+import { ChevronDown, ChevronRight, ExternalLink, WandSparkles } from "lucide-react-native";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
@@ -26,6 +27,8 @@ import { useFetchQuery } from "@/data/query";
 import { settingsStyles } from "@/styles/settings";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { EncoreStateSection } from "./encore-state-section";
+import { IMPROVE_PROMPT_KEY } from "./improve-repository-model";
+import { useImproveRepositoryStore } from "./improve-repository-store";
 import {
   readProjectSettings,
   type PluginRpcClient,
@@ -37,7 +40,7 @@ import {
   standardCaption,
   type LocalOverrides,
 } from "./repository-settings-model";
-import { GROUPON_REPOSITORY } from "./strings";
+import { GROUPON_IMPROVE, GROUPON_REPOSITORY } from "./strings";
 
 /** The repository's committed standard, read by the Groupon plugin on the Mac; undefined while it loads. */
 export function useRepositoryStandard(
@@ -85,12 +88,42 @@ export function RepositoryStandardGate({
       </View>
     );
   }
-  if (!answer?.settings) return children;
+  if (!answer?.settings) {
+    return (
+      <View>
+        <ImproveThisRepository serverId={serverId} repoRoot={repoRoot} />
+        {children}
+      </View>
+    );
+  }
   return (
     <View>
+      <ImproveThisRepository serverId={serverId} repoRoot={repoRoot} />
       <RepositorySettingsPanel answer={answer} overrides={overridesOf(localConfig)} />
       <EncoreStateSection client={client} serverId={serverId} repoRoot={repoRoot} />
       <OverrideOnThisMac>{children}</OverrideOnThisMac>
+    </View>
+  );
+}
+
+/** Opens Improve this repository on this checkout. */
+function ImproveThisRepository({ serverId, repoRoot }: { serverId: string; repoRoot: string }) {
+  const open = useImproveRepositoryStore((state) => state.open);
+  const handlePress = useCallback(
+    () => open({ serverId, path: repoRoot }),
+    [open, repoRoot, serverId],
+  );
+  return (
+    <View style={styles.improve}>
+      <Button
+        variant="outline"
+        size="sm"
+        leftIcon={WandSparkles}
+        onPress={handlePress}
+        testID="groupon-repository-improve"
+      >
+        {GROUPON_IMPROVE.title}
+      </Button>
     </View>
   );
 }
@@ -215,12 +248,18 @@ function RepositorySettingsPanel({
           />
           <OverrideNote value={overrides.commitMessages} />
         </SettingsSection>
-        <SettingsSection title={GROUPON_REPOSITORY.pullRequests} flush>
+        <SettingsSection title={GROUPON_REPOSITORY.pullRequests}>
           <ReadOnlyValue
             value={settings.prompts.create_pr ?? GROUPON_REPOSITORY.notSet}
             testID="groupon-pull-requests"
           />
           <OverrideNote value={overrides.pullRequests} />
+        </SettingsSection>
+        <SettingsSection title={GROUPON_IMPROVE.title} flush>
+          <ReadOnlyValue
+            value={settings.prompts[IMPROVE_PROMPT_KEY] ?? GROUPON_REPOSITORY.improveDefault}
+            testID="groupon-improve-prompt-value"
+          />
         </SettingsSection>
       </SettingsGroup>
 
@@ -321,5 +360,9 @@ const styles = StyleSheet.create((theme) => ({
   },
   overrideBody: {
     marginTop: theme.spacing[2],
+  },
+  improve: {
+    flexDirection: "row",
+    marginBottom: theme.spacing[4],
   },
 }));

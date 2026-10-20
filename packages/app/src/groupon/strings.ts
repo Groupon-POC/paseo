@@ -85,6 +85,10 @@ export const GROUPON_YOUR_MACS = {
   settings: "Settings",
 } as const;
 
+export const GROUPON_HELP = {
+  reportProblem: "Report a problem",
+} as const;
+
 export const GROUPON_MAC_PICKER = {
   title: "Run on",
   label: "Mac",

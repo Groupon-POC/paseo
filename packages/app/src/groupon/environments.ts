@@ -33,10 +33,17 @@ export const GROUPON_DESK_WEB_URL: Readonly<Record<GrouponEnvironmentId, string>
 /**
  * Groupon Desk for Mac, the menu-bar app whose hand puts a Mac on the hub: the disk image on the
  * one shelf every environment downloads from (the Atlas CLI shelf on staging's internal plane).
- * The Your Macs screen links it when no Mac of the person's runs a hand.
+ * The Your Macs screen links it only while the hub knows no Mac of the person at all.
  */
 export const GROUPON_DESK_DOWNLOAD_URL =
   "https://api-staging-internal.livingsocial.com/atlas/cli/groupon-desk.dmg";
+
+/**
+ * Where a person reports a problem with Groupon Desk: the program's feedback board in Asana, the
+ * same board `groupon feedback` files to. The Help menu's "Report a problem" opens it, in place of
+ * Paseo's Discord and GitHub issues.
+ */
+export const GROUPON_DESK_FEEDBACK_URL = "https://app.asana.com/0/1203479912683340/";
 
 /**
  * The Core a fresh install signs in to before the person picks one: production for every release

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace on a shared trunk (staging, production, main, the default branch, desk.toml's target_branch) is matched to no pull request.
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -57,6 +58,7 @@ import {
 import { branchNameFromRef } from "../utils/worktree-metadata.js";
 import { listPaseoWorktrees, type PaseoWorktreeInfo } from "../utils/worktree.js";
 import { READ_ONLY_GIT_ENV } from "./checkout-git-utils.js";
+import type { SharedTrunkQuery } from "../groupon/shared-trunk.js";
 import { classifyGitMetadataPath, getPrunedGitMetadataPaths } from "./git-metadata-event-rules.js";
 import {
   fetchWorkspaceGitRemote,
@@ -370,6 +372,12 @@ interface WorkspaceGitServiceDependencies {
   getCheckoutWorktreeState: typeof getCheckoutWorktreeState;
   getCheckoutDiff: typeof getCheckoutDiff;
   getPullRequestStatus: typeof getPullRequestStatus;
+  /**
+   * Groupon Desk: true when no pull request may be matched to the workspace (it sits on a shared
+   * trunk, or the pull request's head would be one). Paseo's behaviour (never) by default; the
+   * daemon's bootstrap hands in `isWorkspaceOnSharedTrunk`.
+   */
+  isOnSharedTrunk: (query: SharedTrunkQuery) => boolean;
   resolveBranchCheckout: typeof resolveBranchCheckout;
   resolveRepositoryDefaultBranch: typeof resolveRepositoryDefaultBranch;
   listBranchSuggestions: typeof listBranchSuggestions;
@@ -563,6 +571,7 @@ function buildDefaultWorkspaceGitServiceDeps(
     getCheckoutWorktreeState,
     getCheckoutDiff,
     getPullRequestStatus,
+    isOnSharedTrunk: () => false,
     resolveBranchCheckout,
     resolveRepositoryDefaultBranch,
     listBranchSuggestions,
@@ -2949,10 +2958,22 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
       return null;
     }
 
-    const lookupTarget =
+    const factsMatch =
       target.latestFacts?.isGit && target.latestFacts.currentBranch === git.currentBranch
-        ? target.latestFacts.pullRequestLookupTarget
+        ? target.latestFacts
         : null;
+    // Groupon Desk: a workspace on a shared trunk is never polled for a pull request.
+    if (
+      this.deps.isOnSharedTrunk({
+        facts: factsMatch,
+        currentBranch: git.currentBranch,
+        baseRef: git.baseRef,
+        repoRoot: git.repoRoot,
+      })
+    ) {
+      return null;
+    }
+    const lookupTarget = factsMatch ? factsMatch.pullRequestLookupTarget : null;
     if (target.latestFacts?.isGit && target.latestFacts.paseoWorktree.isPaseoOwnedWorktree) {
       return lookupTarget;
     }
@@ -3803,7 +3824,7 @@ async function loadForgeSnapshot(options: {
   cwd: string;
   forgeService: ForgeService | null;
   now: Date;
-  deps: Pick<WorkspaceGitServiceDependencies, "getPullRequestStatus">;
+  deps: Pick<WorkspaceGitServiceDependencies, "getPullRequestStatus" | "isOnSharedTrunk">;
   force?: boolean;
   reason?: string;
   facts?: CheckoutSnapshotFacts;
@@ -3824,6 +3845,20 @@ async function loadForgeSnapshot(options: {
     } catch (error) {
       return buildForgeSnapshot(forgeAuthStateFromError(error), null, null);
     }
+  }
+
+  // Groupon Desk: the pull request whose head is a shared trunk (the release train's, head
+  // staging) is nobody's workspace's; a workspace on a trunk shows none.
+  if (
+    options.facts?.isGit &&
+    options.deps.isOnSharedTrunk({
+      facts: options.facts,
+      currentBranch: options.facts.currentBranch,
+      baseRef: options.facts.resolvedBaseRef,
+      repoRoot: options.facts.worktreeRoot,
+    })
+  ) {
+    return buildForgeSnapshot("authenticated", null, null);
   }
 
   try {

@@ -154,6 +154,49 @@ replacing only the work window's tables (`packages/server/src/utils/paseo-config
 script cannot be named `setup`, `archive`, `run_mode` or `run`; another top-level key is never
 written. A new worktree gets an uncommitted copy of the file the same way it got `paseo.json`.
 
+## A workspace's branch and its pull request
+
+Measured on the owner's Mac on 2026-10-20: a workspace started from New workspace with a plain
+question sat on the repository's trunk, `staging`; the daemon matched it to the pull request
+whose head is `staging` (the release train, `STG -> PRD`, its checks cancelled), so the sidebar
+showed that pull request "failed", and auto-archive-on-merge archived the workspaces whenever an
+earlier train merged. Two rules now hold:
+
+- **A pull request belongs to a workspace's own branch, never to a trunk.** The shared trunks
+  are `staging`, `production`, `main`, `master`, `develop`, the repository's default branch
+  (`origin/HEAD`) and `.groupon/desk.toml`'s `[git] target_branch`
+  (`packages/server/src/groupon/shared-trunk.ts`). A workspace on a trunk, or one whose
+  pull-request lookup would land on a trunk, shows no pull request and no checks, is never polled
+  for one, and auto-archive-on-merge never fires for it (`workspace-git-service.ts`'s
+  `isOnSharedTrunk`, handed in by `bootstrap.ts`; `auto-archive-on-merge/archive-if-safe.ts`
+  also refuses a merged pull request whose head is a trunk). A pull request from another owner's
+  fork keeps matching: its head is that fork's branch.
+- **A workspace started without a ticket gets its own branch from the start.** The window
+  advertises the `groupon_workspace_placement` capability (`runtime/host-runtime.ts`) and the
+  daemon then places it (`packages/server/src/groupon/workspace-placement.ts`, from
+  `session.ts`'s `createRequestedWorkspace`): Local on a checkout that sits on a trunk becomes a
+  worktree cut from that trunk, and a worktree that branches off without a name gets
+  `<github login or unix user>/<slug of the first prompt, 40 characters>`
+  (`groupon/workspace-branch.ts`: the login from `gh api user` on the repository's host, else
+  the unix user; `-2`, `-3` when the name is taken here or on origin), kept as named (Paseo's
+  rename after the first message is skipped). A workspace started empty is `<login>/<worktree
+name>` until its first message renames it to `<login>/<slug of that message>`. Start a ticket's
+  branch is named by `groupon ticket name` and never reaches this; an agent's own request
+  (`callerAgentId`) and a background workspace keep Paseo's behaviour, and so does every client
+  that does not advertise the capability (Paseo's CLI, its tests).
+
+A pull request from a `<login>/<slug>` branch is renamed through `groupon ticket name` before it
+opens: the company's branch standard is `<tribe>/<INITIATIVE-KEY>/<TICKET-KEY>-<slug>`, and the
+pull-request prompt in the repository's `.groupon/desk.toml` already says so.
+
+The workspaces the release trains archived before this are listed per Mac in Settings > Groupon,
+"Archived by a release train" (`groupon/train-archived-section.tsx`): every archive record keeps
+the merged pull request's address, and the daemon answers which of them had a trunk as head
+(`groupon-desk.train-archived-workspaces`, a built-in RPC under the plugin id `groupon-desk`,
+answered by `session.ts` itself, `packages/server/src/groupon/train-archived.ts`). Restore is
+Paseo's own workspace recovery: it unarchives the record and recreates a removed worktree from its
+branch; a branch that is gone too cannot be restored, and Restore says so.
+
 ## How Groupon Desk ships it
 
 Groupon Desk's release build (`scripts/desk-release/build.mjs` in `groupon2/engineering-development`,

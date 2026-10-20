@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): Settings > Groupon, the account and the vault.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): Settings > Groupon, the account and the vault, and Restore for workspaces a release train archived.
 // In the desktop window, sign-out says it signs out this window only, never this Mac's sign-in.
 import { useCallback } from "react";
 import { Text, View } from "react-native";
@@ -15,6 +15,7 @@ import { useGrouponStore } from "./session";
 import { updatedAt } from "./your-macs-model";
 import { GROUPON_HISTORY, GROUPON_MACHINES, GROUPON_SETTINGS } from "./strings";
 import { HUB_HISTORY_ROUTE } from "./history-screen";
+import { GrouponTrainArchivedSection } from "./train-archived-section";
 
 function Row({
   title,
@@ -175,6 +176,7 @@ export function GrouponSettingsPage() {
     <>
       <GrouponAccountSection />
       <GrouponHistorySection />
+      <GrouponTrainArchivedSection />
       <GrouponMachinesSection />
     </>
   );

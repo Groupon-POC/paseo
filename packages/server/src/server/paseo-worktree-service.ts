@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): keepBranchName, a branch named from the first prompt is not renamed after the first message.
 import { stat } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -35,6 +36,8 @@ export interface CreatePaseoWorktreeInput extends CreateWorktreeCoreInput {
   title?: string;
   background?: boolean;
   callerWorkspaceId?: string;
+  /** Groupon Desk: the branch was named from the first prompt; never rename it after the first message. */
+  keepBranchName?: boolean;
 }
 
 export interface CreatePaseoWorktreeResult {
@@ -77,7 +80,9 @@ async function createPaseoWorktreeWithPriority(
   const workspaceCwdPlan = await planWorkspaceCwdForWorktree(input.cwd, deps.workspaceGitService);
   const createdWorktree = await createWorktreeCore(input, deps);
   try {
-    maybeMarkFirstAgentBranchAutoNameEligible({ createdWorktree });
+    if (!input.keepBranchName) {
+      maybeMarkFirstAgentBranchAutoNameEligible({ createdWorktree });
+    }
     const workspaceCwd = mapWorkspaceRelativeCwdToWorktree({
       relativeWorkspaceCwd: workspaceCwdPlan.relativeWorkspaceCwd,
       targetWorktreePath: createdWorktree.worktree.worktreePath,

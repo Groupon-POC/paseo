@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): never archives a workspace for a pull request whose head, or whose workspace's branch, is a shared trunk.
 import type { Logger } from "pino";
 
 import type { AgentManager } from "../agent/agent-manager.js";
@@ -15,6 +16,7 @@ import type {
 import type { ForgeService } from "../../services/forge-service.js";
 import type { TerminalManager } from "../../terminal/terminal-manager.js";
 import { isPaseoOwnedWorktreeCwd } from "../../utils/worktree.js";
+import { isSharedTrunkBranch, readDeskTargetBranch } from "../../groupon/shared-trunk.js";
 import type { WorkspaceArchiveContext } from "../workspace-registry.js";
 
 export interface AutoArchiveArchiveOptions {
@@ -60,6 +62,18 @@ export async function archiveIfSafe(input: {
   const pullRequest = snapshot.forge.pullRequest;
 
   if (!pullRequest?.isMerged) {
+    return;
+  }
+  // Groupon Desk: a release train (head staging) merging is never this workspace's merge.
+  const trunks = [snapshot.git.baseRef, readDeskTargetBranch(snapshot.git.repoRoot)];
+  if (
+    isSharedTrunkBranch(pullRequest.headRefName, trunks) ||
+    isSharedTrunkBranch(snapshot.git.currentBranch, trunks)
+  ) {
+    log.info(
+      { workspaceId, cwd, branch: pullRequest.headRefName, pullRequestUrl: pullRequest.url },
+      "Not auto-archiving: the merged pull request's head or the workspace's branch is a shared trunk",
+    );
     return;
   }
   if (snapshot.git.isDirty === true) {

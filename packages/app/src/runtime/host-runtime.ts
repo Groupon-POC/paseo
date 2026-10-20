@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): upsertTrustedOffer, a host from the hub's sealed pairing offer, over the hand's door or over Groupon's Core.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): upsertTrustedOffer, a host from the hub's sealed pairing offer, over the hand's door or over Groupon's Core; the window asks for Groupon's workspace placement (a ticketless workspace gets its own branch).
 import { useSyncExternalStore, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import equal from "fast-deep-equal/es6";
@@ -532,6 +532,7 @@ function createDefaultDeps(): HostRuntimeControllerDeps {
     : undefined;
   const appCapabilities = {
     ...browserAutomationCapabilities,
+    [CLIENT_CAPS.grouponWorkspacePlacement]: true,
   };
 
   return {

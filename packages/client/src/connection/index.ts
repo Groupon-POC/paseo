@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): groupon_workspace_placement is not a default capability; only the work window asks for it.
 export { OwnedSubscriptions, type OwnedSubscription, type SubscriptionObserver } from "./owned.js";
 import {
   OwnedSubscriptions,
@@ -142,7 +143,13 @@ export const DEFAULT_CLIENT_CAPABILITIES = {
   [CLIENT_CAPS.pluginTimelineItems]: true,
   [CLIENT_CAPS.workspaceSetupBlocked]: true,
   [CLIENT_CAPS.explicitEventSubscriptions]: true,
-} satisfies Record<Exclude<ClientCapability, typeof CLIENT_CAPS.browserHost>, true>;
+} satisfies Record<
+  Exclude<
+    ClientCapability,
+    typeof CLIENT_CAPS.browserHost | typeof CLIENT_CAPS.grouponWorkspacePlacement
+  >,
+  true
+>;
 
 /** Calling releases demand; ready waits for membership, or local attachment on broadcast hosts. */
 export type TimelineSubscription = (() => void) & {

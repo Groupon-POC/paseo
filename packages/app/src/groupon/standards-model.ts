@@ -101,13 +101,49 @@ export function pullLabel(answer: StandardsAnswer): string {
   return answer.layout === "pulled" ? GROUPON_STANDARDS.pullAgain : GROUPON_STANDARDS.pull;
 }
 
+/** A line that starts a block of its own (heading, list item, quote, table row, fence, rule, HTML, indented code). */
+const BLOCK_START =
+  /^(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|>|\||```|~~~|<|\s{4}|\t|(?:-{3,}|\*{3,}|_{3,}|={3,})\s*$)/;
+
 /**
- * The document without its front matter: the page shows the title and summary above it, so the
- * metadata block is not repeated as a table.
+ * Paragraph lines the source wraps at a column joined into one: the renderer reads a single
+ * line break as a break, made for chat, so a document wrapped at 100 columns would read in
+ * ragged half lines. Fenced code, tables, headings and list items are left as written, and a
+ * line ending in a hard break (two spaces, a backslash) keeps it.
+ */
+export function unwrapParagraphs(markdown: string): string {
+  const out: string[] = [];
+  let fenced = false;
+  for (const line of markdown.split("\n")) {
+    const trimmed = line.trim();
+    if (/^(```|~~~)/.test(trimmed)) {
+      fenced = !fenced;
+      out.push(line);
+      continue;
+    }
+    const previous = out[out.length - 1];
+    const joinable =
+      !fenced &&
+      trimmed !== "" &&
+      !BLOCK_START.test(line) &&
+      previous !== undefined &&
+      previous.trim() !== "" &&
+      !/^\s*(?:#{1,6}\s|\||```|~~~|<)/.test(previous) &&
+      !/(?: {2}|\\)$/.test(previous);
+    if (joinable) out[out.length - 1] = `${previous.trimEnd()} ${line.trimStart()}`;
+    else out.push(line);
+  }
+  return out.join("\n");
+}
+
+/**
+ * The document as the page renders it: without its front matter (the title and summary sit
+ * above it, so the metadata block is not repeated as a table), its paragraphs unwrapped.
  */
 export function markdownBody(markdown: string): string {
   const match = markdown.match(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/);
-  return match ? markdown.slice(match[0].length).replace(/^\s*\n/, "") : markdown;
+  const body = match ? markdown.slice(match[0].length).replace(/^\s*\n/, "") : markdown;
+  return unwrapParagraphs(body);
 }
 
 /** The command a repository without standards runs to bring them in for good. */

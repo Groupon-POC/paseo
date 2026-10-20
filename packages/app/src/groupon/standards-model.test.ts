@@ -6,6 +6,7 @@ import {
   chosenProject,
   documentHint,
   markdownBody,
+  unwrapParagraphs,
   pullLabel,
   standardsProjectsOf,
   standardsSourceText,
@@ -118,5 +119,49 @@ describe("markdownBody", () => {
       ),
     ).toBe("# Branch policy\n\nText.\n");
     expect(markdownBody("# No front matter\n\n---\n")).toBe("# No front matter\n\n---\n");
+  });
+});
+
+describe("unwrapParagraphs", () => {
+  it("joins a paragraph wrapped at a column, and leaves every other block as written", () => {
+    const source = [
+      "Every branch in every Groupon repository is named",
+      "the same way, and nobody types the name.",
+      "",
+      "## The format",
+      "",
+      "```",
+      "<tribe>/<INITIATIVE-KEY>/",
+      "<TICKET-KEY>-<slug>",
+      "```",
+      "",
+      "| Segment | What |",
+      "| --- | --- |",
+      "| tribe | the team |",
+      "",
+      "- one item",
+      "  continued",
+      "- two",
+      "hard break  ",
+      "kept",
+    ].join("\n");
+    expect(unwrapParagraphs(source).split("\n")).toEqual([
+      "Every branch in every Groupon repository is named the same way, and nobody types the name.",
+      "",
+      "## The format",
+      "",
+      "```",
+      "<tribe>/<INITIATIVE-KEY>/",
+      "<TICKET-KEY>-<slug>",
+      "```",
+      "",
+      "| Segment | What |",
+      "| --- | --- |",
+      "| tribe | the team |",
+      "",
+      "- one item continued",
+      "- two hard break  ",
+      "kept",
+    ]);
   });
 });

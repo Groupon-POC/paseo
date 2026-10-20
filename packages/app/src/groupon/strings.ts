@@ -329,8 +329,5 @@ export const GROUPON_STANDARDS = {
   documents: "Documents",
   reading: "Reading the standards",
   since: "since",
-  status: {
-    binding: "binding",
-    reporting: "reporting: a check reports, it does not block yet",
-  } as Record<string, string>,
+  sectionTitle: "Engineering standards",
 } as const;

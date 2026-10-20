@@ -87,12 +87,9 @@ export function standardsSourceText(answer: StandardsAnswer): string | null {
 
 /** A document's line under its title: its group, how binding it is, since when. */
 export function documentHint(document: StandardsDocument): string {
-  const status = document.status
-    ? (GROUPON_STANDARDS.status[document.status] ?? document.status)
-    : null;
   return [
     document.group,
-    status,
+    document.status,
     document.since ? `${GROUPON_STANDARDS.since} ${document.since}` : null,
   ]
     .filter(Boolean)
@@ -102,6 +99,15 @@ export function documentHint(document: StandardsDocument): string {
 /** The pull button's words: pulled once already, or never. */
 export function pullLabel(answer: StandardsAnswer): string {
   return answer.layout === "pulled" ? GROUPON_STANDARDS.pullAgain : GROUPON_STANDARDS.pull;
+}
+
+/**
+ * The document without its front matter: the page shows the title and summary above it, so the
+ * metadata block is not repeated as a table.
+ */
+export function markdownBody(markdown: string): string {
+  const match = markdown.match(/^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/);
+  return match ? markdown.slice(match[0].length).replace(/^\s*\n/, "") : markdown;
 }
 
 /** The command a repository without standards runs to bring them in for good. */

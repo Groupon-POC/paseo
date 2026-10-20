@@ -39,6 +39,7 @@ import {
   chosenDocument,
   chosenProject,
   documentHint,
+  markdownBody,
   pullLabel,
   standardsProjectsOf,
   standardsSourceText,
@@ -60,7 +61,7 @@ export function GrouponStandardsPage() {
   const remember = useGrouponPreferences((state) => state.rememberStandardsPlace);
   const project = chosenProject(rows, remembered);
   return (
-    <SettingsSection title={GROUPON_STANDARDS.title}>
+    <SettingsSection title={GROUPON_STANDARDS.sectionTitle}>
       <View style={styles.page} testID="groupon-standards-page">
         <Text style={styles.intro}>{GROUPON_STANDARDS.intro}</Text>
         {project ? (
@@ -353,7 +354,8 @@ function DocumentView({
     retry: false,
     staleTimeMs: 30_000,
   });
-  const markdown = read.data?.document?.markdown ?? null;
+  const source = read.data?.document?.markdown;
+  const markdown = source === undefined ? null : markdownBody(source);
   return (
     <View style={styles.preview} testID="groupon-standards-preview">
       <View style={styles.previewHeading}>

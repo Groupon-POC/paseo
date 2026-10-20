@@ -5,6 +5,7 @@ import {
   chosenDocument,
   chosenProject,
   documentHint,
+  markdownBody,
   pullLabel,
   standardsProjectsOf,
   standardsSourceText,
@@ -76,9 +77,7 @@ describe("the document the page opens", () => {
   });
 
   it("says a document's group, how binding it is and since when", () => {
-    expect(documentHint(BRANCHING)).toBe(
-      "Git · reporting: a check reports, it does not block yet · since 2026-09-17",
-    );
+    expect(documentHint(BRANCHING)).toBe("Git · reporting · since 2026-09-17");
     expect(documentHint({ ...BRANCHING, group: null, status: "binding", since: null })).toBe(
       "binding",
     );
@@ -108,5 +107,16 @@ describe("where the standards were read from", () => {
   it("offers to pull again once pulled", () => {
     expect(pullLabel(PULLED)).toBe("Pull again");
     expect(pullLabel({ ...PULLED, layout: "none" })).toBe("Pull the standards");
+  });
+});
+
+describe("markdownBody", () => {
+  it("drops the front matter the page already shows above the document", () => {
+    expect(
+      markdownBody(
+        "---\ntitle: Branch policy\nstatus: reporting\n---\n\n# Branch policy\n\nText.\n",
+      ),
+    ).toBe("# Branch policy\n\nText.\n");
+    expect(markdownBody("# No front matter\n\n---\n")).toBe("# No front matter\n\n---\n");
   });
 });

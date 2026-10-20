@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "On <Mac>", the hub Macs' picker, in place of Host, never Paseo's Host picker.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "On <Mac>", the hub Macs' picker, in place of Host, never Paseo's Host picker; Repository, each repository of all the person's Macs once, in place of Project, with the line under the fields when the chosen Mac lacks it.
 import { useCallback, useMemo, type ReactElement, type ReactNode, type RefObject } from "react";
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -8,7 +8,9 @@ import { Combobox, type ComboboxOption, type ComboboxProps } from "@/components/
 import { HostStatusDot } from "@/components/host-status-dot";
 import { MacPicker } from "@/groupon/mac-picker";
 import { macPickerTriggerLabel, type MacPickerOption } from "@/groupon/mac-picker-model";
-import { GROUPON_MAC_PICKER } from "@/groupon/strings";
+import { RepositoryOption } from "@/groupon/repository-picker";
+import type { RepositoryEntry } from "@/groupon/repository-picker-model";
+import { GROUPON_MAC_PICKER, GROUPON_REPOSITORY_PICKER } from "@/groupon/strings";
 import type { LaunchTarget } from "@/new-workspace-launch/target";
 import type { HostProjectListItem } from "@/projects/host-projects";
 import type { HostProfile } from "@/types/host-connection";
@@ -21,7 +23,7 @@ import {
 } from "./field-trigger";
 import { branchIcon, folderIcon, ProjectIcon, pullRequestIcon } from "./icons";
 import { LaunchControl } from "./launch-control";
-import { AddProjectOption, IsolationOption, ProjectOption, RefOption } from "./options";
+import { AddProjectOption, IsolationOption, RefOption } from "./options";
 
 type Isolation = "local" | "worktree";
 type RenderOption = NonNullable<ComboboxProps["renderOption"]>;
@@ -37,12 +39,15 @@ export interface NewWorkspaceFormProps {
   isCompact: boolean;
   isPending: boolean;
   project: PickerControl & {
+    /** Groupon Desk: one option per repository (`repository-picker-model.ts`). */
     options: ComboboxOption[];
-    projectByOptionId: Map<string, HostProjectListItem>;
+    repositoryById: ReadonlyMap<string, RepositoryEntry>;
     iconDataByProjectViewKey: Map<string, string | null>;
     selectedProject: HostProjectListItem | null;
     selectedOptionId: string;
     triggerLabel: string;
+    /** The line under the fields when the chosen Mac lacks the repository; null otherwise. */
+    notice: ReactNode;
     selectedServerId: string;
     /** COMPAT(workspaceMultiplicity): without it only worktree-capable projects are selectable. */
     supportsWorkspaceMultiplicity: boolean;
@@ -83,42 +88,70 @@ export interface NewWorkspaceFormProps {
   };
 }
 
-function isProjectSelectable(
-  project: HostProjectListItem,
+/** A repository can be chosen unless only a folder Paseo cannot make a worktree of stands for it. */
+function isRepositorySelectable(
+  entry: RepositoryEntry,
   supportsWorkspaceMultiplicity: boolean,
 ): boolean {
   return (
     supportsWorkspaceMultiplicity ||
-    project.hosts.some((host) => host.worktreeSupport !== "unsupported")
+    entry.remote !== null ||
+    (entry.project?.hosts.some((host) => host.worktreeSupport !== "unsupported") ?? false)
   );
+}
+
+/** A repository row: Paseo's icon of its project (a folder while only the hub knows it). */
+function RepositoryRow({
+  entry,
+  iconDataUri,
+  ...row
+}: Parameters<RenderOption>[0] & {
+  entry: RepositoryEntry | undefined;
+  iconDataUri: string | null;
+  disabled: boolean;
+}): ReactElement {
+  const project = entry?.project ?? null;
+  const leadingSlot = useMemo(
+    () => (
+      <View style={styles.iconBox}>
+        {project ? (
+          <ProjectIcon
+            projectViewKey={project.viewKey}
+            projectName={project.projectName}
+            iconDataUri={iconDataUri}
+          />
+        ) : (
+          folderIcon
+        )}
+      </View>
+    ),
+    [iconDataUri, project],
+  );
+  return <RepositoryOption {...row} leadingSlot={leadingSlot} />;
 }
 
 function useProjectPicker(
   project: NewWorkspaceFormProps["project"],
   isPending: boolean,
 ): { renderOption: RenderOption; footer: ReactNode } {
-  const { projectByOptionId, iconDataByProjectViewKey, selectedServerId } = project;
+  const { repositoryById, iconDataByProjectViewKey } = project;
   const { supportsWorkspaceMultiplicity, onAddProject } = project;
   const renderOption = useCallback<RenderOption>(
     (row) => {
-      const item = projectByOptionId.get(row.option.id);
+      const entry = repositoryById.get(row.option.id);
+      const viewKey = entry?.project?.viewKey;
       return (
-        <ProjectOption
+        <RepositoryRow
           {...row}
-          project={item}
-          iconDataUri={item ? (iconDataByProjectViewKey.get(item.viewKey) ?? null) : null}
-          selectedServerId={selectedServerId}
-          disabled={isPending || !item || !isProjectSelectable(item, supportsWorkspaceMultiplicity)}
+          entry={entry}
+          iconDataUri={viewKey ? (iconDataByProjectViewKey.get(viewKey) ?? null) : null}
+          disabled={
+            isPending || !entry || !isRepositorySelectable(entry, supportsWorkspaceMultiplicity)
+          }
         />
       );
     },
-    [
-      iconDataByProjectViewKey,
-      isPending,
-      projectByOptionId,
-      selectedServerId,
-      supportsWorkspaceMultiplicity,
-    ],
+    [iconDataByProjectViewKey, isPending, repositoryById, supportsWorkspaceMultiplicity],
   );
   const footer = useMemo(() => <AddProjectOption onPress={onAddProject} />, [onAddProject]);
   return { renderOption, footer };
@@ -241,9 +274,9 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
     <FieldTrigger
       ref={project.anchorRef}
       variant={variant}
-      label={t("newWorkspace.fields.project")}
-      accessibilityLabel="Workspace project"
-      tooltip={t("newWorkspace.tooltips.project")}
+      label={GROUPON_REPOSITORY_PICKER.label}
+      accessibilityLabel="Workspace repository"
+      tooltip={GROUPON_REPOSITORY_PICKER.tooltip}
       icon={projectIcon}
       value={project.triggerLabel}
       onPress={project.open}
@@ -300,14 +333,18 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         value={project.selectedOptionId}
         onSelect={project.onSelect}
         searchable
-        searchPlaceholder="Search projects"
-        title={t("newWorkspace.fields.project")}
+        searchPlaceholder={GROUPON_REPOSITORY_PICKER.searchPlaceholder}
+        title={GROUPON_REPOSITORY_PICKER.title}
         open={project.openState}
         onOpenChange={project.onOpenChange}
         desktopPlacement="bottom-start"
         desktopMinWidth={360}
         anchorRef={project.anchorRef}
-        emptyText="No projects available."
+        emptyText={
+          project.options.length === 0
+            ? GROUPON_REPOSITORY_PICKER.empty
+            : GROUPON_REPOSITORY_PICKER.noMatch
+        }
         renderOption={projectPicker.renderOption}
         footer={projectPicker.footer}
       />
@@ -352,25 +389,39 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
             stack keeps one height and nothing above the composer jumps. */}
         {isolationField ? null : <View style={styles.reservedField} pointerEvents="none" />}
         {baseField ? null : <View style={styles.reservedField} pointerEvents="none" />}
+        {project.notice}
         {pickers}
       </View>
     );
   }
 
   return (
-    <View testID="new-workspace-ref-picker-row" style={styles.desktopRow} pointerEvents="box-none">
-      <View style={styles.desktopControl}>{projectField}</View>
-      {hostField ? <View style={styles.desktopControl}>{hostField}</View> : null}
-      {isolationField ? <View style={styles.desktopControl}>{isolationField}</View> : null}
-      {baseField ? <View style={styles.desktopControl}>{baseField}</View> : null}
-      <View style={styles.launchSpacer} pointerEvents="none" />
-      {launchField}
-      {pickers}
-    </View>
+    <>
+      <View
+        testID="new-workspace-ref-picker-row"
+        style={styles.desktopRow}
+        pointerEvents="box-none"
+      >
+        <View style={styles.desktopControl}>{projectField}</View>
+        {hostField ? <View style={styles.desktopControl}>{hostField}</View> : null}
+        {isolationField ? <View style={styles.desktopControl}>{isolationField}</View> : null}
+        {baseField ? <View style={styles.desktopControl}>{baseField}</View> : null}
+        <View style={styles.launchSpacer} pointerEvents="none" />
+        {launchField}
+        {pickers}
+      </View>
+      {project.notice}
+    </>
   );
 }
 
 const styles = StyleSheet.create((theme) => ({
+  iconBox: {
+    width: theme.iconSize.md,
+    height: theme.iconSize.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   compactStack: {
     marginBottom: theme.spacing[4],
     paddingHorizontal: theme.spacing[4],

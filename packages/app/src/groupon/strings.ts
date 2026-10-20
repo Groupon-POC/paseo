@@ -105,6 +105,30 @@ export const GROUPON_MAC_PICKER = {
   unknownMac: "a Mac",
 } as const;
 
+/** New workspace's Repository field: a project is a repository, the same one on every Mac. */
+export const GROUPON_REPOSITORY_PICKER = {
+  label: "Repository",
+  title: "Repository",
+  tooltip: "The repository to work in, the same on every Mac that has it",
+  searchPlaceholder: "Search repositories",
+  choose: "Choose a repository",
+  empty: "No repository on your Macs yet: add one with Add project, or clone one From GitHub.",
+  noMatch: "No repository matches.",
+  onNoMac: "on none of your Macs",
+  thisMac: "This Mac",
+  holds: (path: string) => `has it at ${path}`,
+  missing: "not on this Mac",
+  missingCloneable: "not here yet: choose it to clone it",
+  notOn: (repository: string, mac: string) => `${repository} is not on ${mac} yet.`,
+  folderNotOn: (folder: string, mac: string) =>
+    `${folder} is a folder on another Mac. Choose a repository on ${mac}.`,
+  cloneOn: (mac: string) => `Clone it on ${mac}`,
+  adding: (path: string, mac: string) => `Opening ${path} on ${mac}`,
+  refused: "the Mac refused it",
+  addFailed: (path: string, mac: string, reason: string) =>
+    `${path} on ${mac} did not open as a project: ${reason}`,
+} as const;
+
 export const GROUPON_HISTORY = {
   title: "History",
   intro:

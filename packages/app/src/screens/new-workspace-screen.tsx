@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, this Mac by default, one row per Mac; My tasks under the composer.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer.
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -117,6 +117,17 @@ import {
   macPickerOptions,
   type MacPickerOption,
 } from "@/groupon/mac-picker-model";
+import { useGrouponPreferences } from "@/groupon/preferences";
+import {
+  RepositoryNotice,
+  useRepositoryChoice,
+  useRepositoryEntries,
+} from "@/groupon/repository-picker";
+import {
+  defaultMacForRepository,
+  preselectedRepositoryId,
+  type RepositoryEntry,
+} from "@/groupon/repository-picker-model";
 import { StartTicketButton } from "@/groupon/start-ticket-button";
 import { JiraTasksCard } from "@/groupon/jira-tasks-card";
 import { useStartTicketFromPage } from "@/groupon/start-ticket-sheet";
@@ -664,6 +675,8 @@ function useNewWorkspaceHostSelector(input: {
   macOptions: readonly MacPickerOption[];
   /** False when the route names a project: that project's Mac stays the default. */
   preferThisMac: boolean;
+  /** Groupon Desk: the Mac the preselected repository starts on; it wins over Paseo's default. */
+  repositoryServerId: string | null;
   allServerIds: string[];
   projects: HostProjectListItem[];
   lastActiveProject: HostProjectListItem | null;
@@ -690,9 +703,12 @@ function useNewWorkspaceHostSelector(input: {
       input.workspaceMultiplicityByServerId,
     ],
   );
-  const defaultServerId = input.preferThisMac
-    ? defaultMacServerId(input.macOptions, paseoDefaultServerId)
-    : paseoDefaultServerId;
+  const defaultServerId =
+    input.repositoryServerId ??
+    (input.preferThisMac
+      ? defaultMacServerId(input.macOptions, paseoDefaultServerId)
+      : paseoDefaultServerId);
+  const followsRepository = input.repositoryServerId !== null;
   const [automaticSelection, setAutomaticSelection] = useState(() => ({
     routeServerId,
     serverId: defaultServerId,
@@ -706,7 +722,7 @@ function useNewWorkspaceHostSelector(input: {
   useEffect(() => {
     setAutomaticSelection((current) => {
       const nextServerId =
-        current.routeServerId === routeServerId
+        current.routeServerId === routeServerId && !followsRepository
           ? resolveNewWorkspaceAutomaticServerId({
               allServerIds: input.allServerIds,
               routeServerId: input.initialServerId,
@@ -727,6 +743,7 @@ function useNewWorkspaceHostSelector(input: {
     });
   }, [
     defaultServerId,
+    followsRepository,
     input.allServerIds,
     input.hostConnectionStatusByServerId,
     input.initialServerId,
@@ -784,6 +801,8 @@ interface NewWorkspaceInitialContextState {
   routeProject: HostProjectListItem | null;
   routeProjectContextViewKey: string | null;
   lastActiveProject: HostProjectListItem | null;
+  repositoryEntries: RepositoryEntry[];
+  preselectedRepositoryId: string | null;
 }
 
 function useNewWorkspaceInitialContext({
@@ -847,6 +866,24 @@ function useNewWorkspaceInitialContext({
       ),
     [allHosts, hostConnectionStatusByServerId, hubMachines],
   );
+  // Groupon Desk: the repositories of all the person's Macs; the page opens on the one of where
+  // the person is, on this Mac when it holds it, else on the first Mac that does.
+  const hostLabel = useCallback(
+    (id: string) => allHosts.find((host) => host.serverId === id)?.label ?? id,
+    [allHosts],
+  );
+  const repositoryEntries = useRepositoryEntries({ projects, macOptions, hostLabel });
+  const lastRepositoryId = useGrouponPreferences((state) => state.lastRepositoryId ?? null);
+  const preselectedId = preselectedRepositoryId({
+    entries: repositoryEntries,
+    routeProject,
+    lastActiveProject,
+    lastRepositoryId,
+  });
+  const preselectedEntry = repositoryEntries.find((entry) => entry.id === preselectedId) ?? null;
+  const repositoryServerId = preselectedEntry
+    ? defaultMacForRepository(preselectedEntry, macOptions)
+    : null;
   const {
     selectedServerId,
     hostPickerOpen,
@@ -857,6 +894,7 @@ function useNewWorkspaceInitialContext({
     initialServerId: serverId,
     macOptions,
     preferThisMac: routePlacement === null,
+    repositoryServerId,
     allServerIds,
     projects,
     lastActiveProject,
@@ -876,6 +914,8 @@ function useNewWorkspaceInitialContext({
     routeProject,
     routeProjectContextViewKey: routePlacement?.viewKey ?? null,
     lastActiveProject,
+    repositoryEntries,
+    preselectedRepositoryId: preselectedId,
   };
 }
 
@@ -910,6 +950,8 @@ export function NewWorkspaceScreen({
     routeProject,
     routeProjectContextViewKey,
     lastActiveProject,
+    repositoryEntries,
+    preselectedRepositoryId: preselectedRepository,
   } = useNewWorkspaceInitialContext({
     serverId,
     sourceDirectory: sourceDirectoryProp,
@@ -994,12 +1036,8 @@ export function NewWorkspaceScreen({
   const client = useHostRuntimeClient(selectedServerId);
   const isConnected = useHostRuntimeIsConnected(selectedServerId);
   const {
-    selectedProject,
-    selectedSourceDirectory,
-    projectPickerOptions,
+    selectedProject: paseoSelectedProject,
     projectByOptionId,
-    selectedProjectOptionId,
-    projectTriggerLabel,
     handleSelectProjectOption: selectProjectOption,
   } = useNewWorkspaceProjectPicker({
     selectedServerId,
@@ -1009,6 +1047,19 @@ export function NewWorkspaceScreen({
     lastActiveProject,
     allowAllProjects: supportsWorkspaceMultiplicity,
   });
+  // Groupon Desk: the field lists repositories; Paseo's pick is kept on the chosen repository's
+  // project on the chosen Mac, and is no project while that Mac lacks the repository.
+  const repositoryChoice = useRepositoryChoice({
+    entries: repositoryEntries,
+    preselectedId: preselectedRepository,
+    macOptions,
+    selectedServerId,
+    paseoSelectedProject,
+    paseoProjectByOptionId: projectByOptionId,
+    selectPaseoProject: selectProjectOption,
+    selectMac: handleSelectHost,
+  });
+  const { selectedProject, selectedSourceDirectory } = repositoryChoice;
   const projectIconTargets = useMemo(
     () => buildNewWorkspaceProjectIconTargets(projects, selectedServerId),
     [projects, selectedServerId],
@@ -1175,24 +1226,35 @@ export function NewWorkspaceScreen({
     [chatDraft],
   );
 
+  // Groupon Desk: the field picks a repository; the Mac follows it (`useRepositoryChoice`).
+  const chooseRepository = repositoryChoice.choose;
   const handleSelectProjectOption = useCallback(
     (id: string) => {
-      // selectProjectOption enforces selectability (worktree-only when
-      // multiplicity is off, any project when it's on); don't re-gate here on
-      // canCreateWorktree or non-git projects become unselectable.
-      selectProjectOption(id);
+      chooseRepository(id);
       setProjectPickerOpen(false);
-      clearPickerSelectionForTargetChange(selectedProjectOptionId, id);
     },
-    [clearPickerSelectionForTargetChange, selectProjectOption, selectedProjectOptionId],
+    [chooseRepository],
   );
+  // A branch or pull request picked for one repository does not carry over to another.
+  const repositoryEntryId = repositoryChoice.entryId;
+  const previousRepositoryEntryId = useRef(repositoryEntryId);
+  useEffect(() => {
+    const previous = previousRepositoryEntryId.current;
+    previousRepositoryEntryId.current = repositoryEntryId;
+    if (previous !== repositoryEntryId) {
+      clearPickerSelectionForTargetChange(previous, repositoryEntryId);
+    }
+  }, [clearPickerSelectionForTargetChange, repositoryEntryId]);
 
+  const repositoryMacChosen = repositoryChoice.macChosen;
   const handleSelectWorkspaceHost = useCallback(
     (id: string) => {
       handleSelectHost(id);
       clearPickerSelectionForTargetChange(selectedServerId, id);
+      // A Mac without the chosen repository offers its clone right there.
+      repositoryMacChosen(id);
     },
-    [clearPickerSelectionForTargetChange, handleSelectHost, selectedServerId],
+    [clearPickerSelectionForTargetChange, handleSelectHost, repositoryMacChosen, selectedServerId],
   );
 
   const handleAddProject = useCallback(() => {
@@ -1223,7 +1285,7 @@ export function NewWorkspaceScreen({
   useKeyboardActionHandler({
     handlerId: "new-workspace-project-pick",
     actions: PROJECT_PICK_ACTIONS,
-    enabled: projectPickerOptions.length > 0,
+    enabled: repositoryChoice.options.length > 0,
     priority: 0,
     handle: handleProjectPick,
   });
@@ -1491,6 +1553,10 @@ export function NewWorkspaceScreen({
       ? t("newWorkspace.refPicker.searching")
       : t("newWorkspace.refPicker.noMatchingRefs");
 
+  const repositoryNotice = useMemo(
+    () => <RepositoryNotice choice={repositoryChoice} />,
+    [repositoryChoice],
+  );
   const formStack = useNewWorkspaceForm({
     isCompact,
     isPending,
@@ -1499,12 +1565,13 @@ export function NewWorkspaceScreen({
       open: openProjectPicker,
       openState: projectPickerOpen,
       onOpenChange: handleProjectPickerOpenChange,
-      options: projectPickerOptions,
-      projectByOptionId,
+      options: repositoryChoice.options,
+      repositoryById: repositoryChoice.entryById,
       iconDataByProjectViewKey: projectIconDataByProjectViewKey,
       selectedProject,
-      selectedOptionId: selectedProjectOptionId,
-      triggerLabel: projectTriggerLabel,
+      selectedOptionId: repositoryChoice.entryId,
+      triggerLabel: repositoryChoice.triggerLabel,
+      notice: repositoryNotice,
       selectedServerId,
       supportsWorkspaceMultiplicity,
       onSelect: handleSelectProjectOption,
@@ -1519,7 +1586,7 @@ export function NewWorkspaceScreen({
       selectedServerId,
       onSelect: handleSelectWorkspaceHost,
       onAddHost: handleAddHost,
-      macOptions,
+      macOptions: repositoryChoice.macOptions,
     },
     isolation: {
       anchorRef: isolationPickerAnchorRef,

@@ -9,7 +9,9 @@
  * repositories (Mobile-Next's next-pwa-app is one), with no team step. The sheet opens on the
  * host, organisation and team chosen last time (or the first organisation the person is in, all
  * teams), the way Desk's Dark Factory screen remembers its organisation; Back reaches the teams
- * and the organisations. Pure, so the steps and the lists are tested without a screen.
+ * and the organisations. New workspace opens it on one repository already chosen (a Mac that
+ * lacks the repository the person picked): straight at the folder step (`prefilledStep`).
+ * Pure, so the steps and the lists are tested without a screen.
  */
 
 import type {
@@ -192,6 +194,18 @@ export function folderProblem(folder: string): string | null {
   if (!trimmed) return "Type the folder the repository goes into.";
   if (trimmed === "~" || trimmed.startsWith("~/") || trimmed.startsWith("/")) return null;
   return "Start the folder with / or ~/ (it is a folder on the Mac).";
+}
+
+/** The folder step for a repository named by `owner/name`, as New workspace's clone opens the sheet. */
+export function prefilledStep(fullName: string): GithubStep | null {
+  const [organisation, name, ...rest] = fullName.split("/");
+  if (!organisation || !name || rest.length > 0) return null;
+  return {
+    kind: "folder",
+    organisation,
+    team: ALL_TEAMS,
+    repository: { name, fullName, description: null, isPrivate: true, permission: null },
+  };
 }
 
 /** One step back; null from the first step (the sheet closes). An organisation opened on its own repositories goes back to the organisations. */

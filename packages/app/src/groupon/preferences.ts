@@ -5,7 +5,7 @@
  * set up worktree scripts for a project without a repository file (off by default: the owner
  * wants no such card for anyone unless they ask for it, 2026-10-19), and where From GitHub opens:
  * the GitHub host last switched to, and on each host the organisation and team last picked; and
- * the repository the Standards page read last.
+ * the repository the Standards page read last; and the repository New workspace was last on.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -30,6 +30,8 @@ const GrouponPreferencesSchema = z.object({
   githubPlaces: z.record(z.string(), GithubPlaceSchema).nullable().optional(),
   /** The Mac and checkout the Standards page read last. */
   standardsPlace: StandardsPlaceSchema.nullable().optional(),
+  /** The repository New workspace was last on (`repository-picker-model.ts`'s entry id). */
+  lastRepositoryId: z.string().nullable().optional(),
 });
 
 type GrouponPreferences = z.infer<typeof GrouponPreferencesSchema>;
@@ -39,6 +41,7 @@ interface GrouponPreferencesState extends GrouponPreferences {
   rememberGithubHost: (host: string) => void;
   rememberGithubPlace: (host: string, organisation: string, team: string) => void;
   rememberStandardsPlace: (serverId: string, repoRoot: string) => void;
+  rememberRepository: (repositoryId: string) => void;
 }
 
 export const DEFAULT_GROUPON_PREFERENCES: GrouponPreferences = { remindWorktreeScripts: false };
@@ -55,6 +58,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
         })),
       rememberStandardsPlace: (serverId, repoRoot) =>
         set({ standardsPlace: { serverId, repoRoot } }),
+      rememberRepository: (repositoryId) => set({ lastRepositoryId: repositoryId }),
     }),
     {
       name: "groupon-desk-preferences",
@@ -66,6 +70,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
         githubHost: state.githubHost ?? null,
         githubPlaces: state.githubPlaces ?? null,
         standardsPlace: state.standardsPlace ?? null,
+        lastRepositoryId: state.lastRepositoryId ?? null,
       }),
       version: 1,
     },

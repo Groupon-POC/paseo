@@ -16,6 +16,7 @@ import {
   OTHER_ORGANISATIONS_SHOWN,
   otherOrganisationsMatching,
   placeOn,
+  prefilledStep,
   previousStep,
   repositoriesOf,
   signInNeeded,
@@ -310,5 +311,35 @@ describe("From GitHub on two hosts", () => {
       kind: "teams",
       organisation: "merchant-experience",
     });
+  });
+});
+
+describe("prefilledStep", () => {
+  it("opens New workspace's clone at the folder step of the repository it names", () => {
+    const step = prefilledStep("groupon2/infra-development");
+    expect(step).toEqual({
+      kind: "folder",
+      organisation: "groupon2",
+      team: ALL_TEAMS,
+      repository: {
+        name: "infra-development",
+        fullName: "groupon2/infra-development",
+        description: null,
+        isPrivate: true,
+        permission: null,
+      },
+    });
+    expect(
+      step &&
+        checkoutPathPreview(
+          "~/Documents/GitHub/",
+          step.kind === "folder" ? step.repository : repo("x"),
+        ),
+    ).toBe("~/Documents/GitHub/infra-development");
+  });
+
+  it("names no step for anything that is not owner/name", () => {
+    expect(prefilledStep("infra-development")).toBeNull();
+    expect(prefilledStep("group/sub/repo")).toBeNull();
   });
 });

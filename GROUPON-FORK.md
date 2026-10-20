@@ -75,6 +75,25 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (`screens/new-workspace-screen.tsx`, `screens/new-workspace/form/index.tsx`), so the
   repository list, Local / Worktree and the started task belong to that Mac. Paseo's Host picker
   is not shown on New workspace.
+- **Project on New workspace: "Repository" instead, one repository on every Mac.** A project is a
+  repository, the same one on every Mac (owner, 2026-10-20: "I am starting it inside a workspace,
+  which is in effect always a GitHub repository, so I would expect the same thing to open on the
+  other computer"). The field lists each repository once by its remote's `owner/name`, with the
+  Macs that hold a checkout of it: Paseo's projects on every connected Mac merged with the hub's
+  checkouts, which every Mac's hand reports (`GET /user/groupon_desk/work/overview`, re-read every
+  minute); a folder with no remote stays listed under its Mac (`groupon/repository-picker-model.ts`,
+  `groupon/repository-picker.tsx`). The page opens on the repository of where the person is (the
+  group or workspace New workspace was pressed in, else the last workspace), else the repository
+  chosen last time on this device, never on an empty field when one of these exists. The Mac
+  follows the repository: this Mac when it holds it, else the first connected Mac that does; the
+  "On <Mac>" list says per Mac where it holds the repository or that it does not, and choosing a
+  Mac that lacks it opens From GitHub at the folder step of that repository on that Mac
+  (`github-project-store.ts`' `prefill`), which closes back to New workspace after the clone. A
+  checkout the hub reports on the chosen Mac that Paseo's daemon does not list yet is opened there
+  as a project. While the chosen Mac lacks the repository, one line under the fields says so with
+  "Clone it on <Mac>", and the page has no project (never another repository in its place). Paseo's
+  own project pick (`screens/new-workspace/project-picker.ts`) is kept, unchanged, and driven onto
+  the repository's project on the chosen Mac.
 - **Paseo's built-in daemon: the hand owns it.** The daemon on a Mac starts only by Groupon
   Desk's hand (`groupon desk serve`, a launchd agent), which registers it on Core's relay; the
   window never runs one of its own (owner, 2026-10-20; the monorepo's design

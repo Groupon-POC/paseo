@@ -39,8 +39,11 @@ export function rolloutTone(rollout: EncoreRollout | null): "good" | "bad" | "ne
   return "bad";
 }
 
+/** What the standing's words and the access offer read: a project's app and a catalog app alike. */
+type Standing = Pick<EncoreAppState, "standing" | "role" | "requestPending" | "approver">;
+
 /** The person's standing on the app, in a sentence. */
-export function standingText(app: EncoreAppState): string {
+export function standingText(app: Standing): string {
   switch (app.standing) {
     case "member":
       return app.role ? `${GROUPON_ENCORE.member} (${app.role})` : GROUPON_ENCORE.member;
@@ -65,7 +68,7 @@ export function standingText(app: EncoreAppState): string {
  * "Ask for access" is offered to somebody who is not a member, and to somebody nobody could say
  * about (with the sentence that it files a request), unless a request of theirs already waits.
  */
-export function accessOffer(app: EncoreAppState): "none" | "ask" | "ask-unknown" {
+export function accessOffer(app: Standing): "none" | "ask" | "ask-unknown" {
   if (app.requestPending === true) return "none";
   if (app.standing === "not-member") return "ask";
   if (app.standing === "unknown") return "ask-unknown";

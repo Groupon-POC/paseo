@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon settings section; the Your phone section; Add host leads to Your Macs.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon settings section; the Your phone section; the Standards section; Add host leads to Your Macs.
 import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import { Buffer } from "buffer";
 import { buildAgentDeepLinkRoute } from "@getpaseo/protocol/agent-deep-link";
@@ -493,6 +493,7 @@ export function resolveKnownHostRoute(input: {
 
 export const SETTINGS_SECTION_SLUGS = [
   "groupon",
+  "standards",
   "phone",
   "general",
   "appearance",

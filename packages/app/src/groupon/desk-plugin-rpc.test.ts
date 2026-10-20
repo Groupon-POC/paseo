@@ -10,6 +10,10 @@ import {
   isEncoreAccessAnswer,
   isEncoreStateAnswer,
   isProjectSettingsAnswer,
+  isEncoreAppsAnswer,
+  isStandardsAnswer,
+  readEncoreApps,
+  readStandards,
   readEncoreState,
   requestEncoreAccess,
   pluginProblemText,
@@ -180,6 +184,58 @@ function fakeClient(answers: Record<string, unknown[]>) {
   return { client, calls };
 }
 
+const SAMPLE_ENCORE_APPS = {
+  apps: [
+    {
+      slug: "groupon-core-v3s2",
+      description: "Core plane. The daily-business backend.",
+      repositoryUrl: "https://github.com/groupon2/engineering-development",
+      standing: "member",
+      role: "owner",
+      requestPending: false,
+      approver: "owner@groupon.com",
+    },
+    {
+      slug: "groupon-finance-s422",
+      description: "Finance plane, in its own repository.",
+      repositoryUrl: null,
+      standing: "not-member",
+      role: null,
+      requestPending: true,
+      approver: "owner@groupon.com",
+    },
+  ],
+  problem: null,
+  environment: "production",
+  readAt: "2026-10-20T12:00:00.000Z",
+};
+
+const SAMPLE_STANDARDS = {
+  layout: "pulled",
+  folder: ".standards/_documentation/engineering-standards",
+  version: "2026-10-19.1b57b79",
+  canPull: true,
+  documents: [
+    {
+      file: "branching.md",
+      title: "Branch policy",
+      group: "Git",
+      summary:
+        "The backend names it <tribe>/<INITIATIVE-KEY>/<TICKET-KEY>-<slug> from the Jira ticket.",
+      status: "reporting",
+      since: "2026-09-17",
+    },
+  ],
+  document: {
+    file: "branching.md",
+    title: "Branch policy",
+    markdown: "---\ntitle: Branch policy\n---\n\n# Branch policy\n",
+  },
+  pull: null,
+  problem: null,
+  readAt: "2026-10-20T12:00:00.000Z",
+};
+
 describe("the Groupon plugin's RPCs", () => {
   it("keeps the plugin's names", () => {
     expect(GROUPON_PLUGIN_ID).toBe("groupon");
@@ -193,6 +249,8 @@ describe("the Groupon plugin's RPCs", () => {
       projectSettings: "groupon.project-settings",
       encoreState: "groupon.encore-state",
       requestEncoreAccess: "groupon.encore-request-access",
+      encoreApps: "groupon.encore-apps",
+      standards: "groupon.standards",
     });
   });
 
@@ -273,6 +331,26 @@ describe("the Groupon plugin's RPCs", () => {
     expect(calls.map(({ method, input }) => [method, input])).toEqual([
       ["groupon.encore-state", { projectRoot: "/r" }],
       ["groupon.encore-request-access", { slug: "groupon-core-v3s2" }],
+    ]);
+  });
+
+  it("reads every Encore app and a checkout's standards through the plugin", async () => {
+    const { client, calls } = fakeClient({
+      [GROUPON_RPC.encoreApps]: [SAMPLE_ENCORE_APPS],
+      [GROUPON_RPC.standards]: [SAMPLE_STANDARDS, SAMPLE_STANDARDS, SAMPLE_STANDARDS],
+    });
+    expect(isEncoreAppsAnswer(SAMPLE_ENCORE_APPS)).toBe(true);
+    expect(isStandardsAnswer(SAMPLE_STANDARDS)).toBe(true);
+    expect(isStandardsAnswer({ ...SAMPLE_STANDARDS, layout: "copied" })).toBe(false);
+    expect((await readEncoreApps(client)).apps).toHaveLength(2);
+    expect((await readStandards(client, "/r")).documents[0]?.file).toBe("branching.md");
+    await readStandards(client, "/r", "read", "branching.md");
+    await readStandards(client, "/r", "pull");
+    expect(calls.map(({ method, input }) => [method, input])).toEqual([
+      ["groupon.encore-apps", {}],
+      ["groupon.standards", { projectRoot: "/r", action: "list" }],
+      ["groupon.standards", { projectRoot: "/r", action: "read", document: "branching.md" }],
+      ["groupon.standards", { projectRoot: "/r", action: "pull" }],
     ]);
   });
 

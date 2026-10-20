@@ -277,3 +277,60 @@ export const GROUPON_SHARE = {
   answered: "Answer sent to the owner's Mac.",
   wrote: (name: string) => `${name} wrote`,
 } as const;
+
+/** The home page's Your access: the Encore apps and the GitHub organisations the person is in. */
+export const GROUPON_ACCESS = {
+  title: "Your access",
+  readOn: "Read on",
+  refresh: "Read again",
+  notConnected: "No Mac is connected: Your access is read by the Groupon plugin on one of them.",
+  encoreTitle: "Encore apps",
+  encoreCaption: "Every Encore app the platform hands out, and where you stand on each.",
+  encoreEmpty: "The platform hands out no Encore app.",
+  encoreCount: (member: number, total: number) =>
+    `You are a member of ${member} of ${total} ${total === 1 ? "app" : "apps"}.`,
+  githubTitle: "GitHub",
+  githubCaption: "The organisations and teams you are in, on github.com and on GitHub Enterprise.",
+  notSignedIn: "Not signed in",
+  signInHint: "gh on this Mac is not signed in here. Run this in a terminal, then read again:",
+  signInLabel: "The command that signs gh in",
+  signedInAs: "Signed in as",
+  noOrganisation: "You are in no organisation here.",
+  notMember: "not in it yet",
+  membershipUnknown: "GitHub would not say",
+  noTeam: "no team",
+  otherOrganisations: (count: number) =>
+    `${count.toLocaleString("en-US")} other ${count === 1 ? "organisation" : "organisations"} here, whose visible repositories you can clone (From GitHub).`,
+  askWhere: "Where to ask for access:",
+  askWhereLink: "the admin's GitHub onboarding page",
+  enterprise: "GitHub Enterprise",
+} as const;
+
+/** The Standards page and its home tile: the engineering standards of the repository you work in. */
+export const GROUPON_STANDARDS = {
+  title: "Standards",
+  tileDescription:
+    "How to name a branch, title a pull request and run the flow, from the repository",
+  intro:
+    "The engineering standards of the repository you work in, read from the repository itself: how to name a branch, how to title and open a pull request, the flow.",
+  project: "Repository",
+  noProject: "Add a project first: the standards are read from a repository on one of your Macs.",
+  readFrom: "Read from",
+  pulledVersion: "pulled, version",
+  sourceNote: "this repository's own files, where the standards are written",
+  none: "This repository carries no engineering standards yet.",
+  noneHint:
+    "Pull the standards to read them here (groupon standards pull writes them into .standards/), or bring them in for good with groupon standards adopt, which prints the prompt to give your agent.",
+  adoptLabel: "The command that brings the standards in",
+  pull: "Pull the standards",
+  pullAgain: "Pull again",
+  pulling: "Pulling the standards",
+  refresh: "Read again",
+  documents: "Documents",
+  reading: "Reading the standards",
+  since: "since",
+  status: {
+    binding: "binding",
+    reporting: "reporting: a check reports, it does not block yet",
+  } as Record<string, string>,
+} as const;

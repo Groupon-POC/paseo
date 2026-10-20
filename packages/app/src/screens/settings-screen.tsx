@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no Paseo credit, no What's new, no language row; the Groupon section; the worktree-scripts reminder switch; Your phone in place of Pair device.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no Paseo credit, no What's new, no language row; the Groupon section; the Standards section; the worktree-scripts reminder switch; Your phone in place of Pair device.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -42,6 +42,7 @@ import {
   Globe,
   PanelLeft,
   MessageSquare,
+  BookOpen,
 } from "lucide-react-native";
 import { DropdownTrigger } from "@/components/ui/dropdown-trigger";
 import { ComboboxTrigger } from "@/components/ui/combobox-trigger";
@@ -93,7 +94,13 @@ import { isElectronRuntime } from "@/desktop/host";
 import { useDesktopAppUpdater } from "@/desktop/updates/use-desktop-app-updater";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
-import { GROUPON_PHONE, GROUPON_SETTINGS, GROUPON_YOUR_MACS } from "@/groupon/strings";
+import {
+  GROUPON_PHONE,
+  GROUPON_SETTINGS,
+  GROUPON_STANDARDS,
+  GROUPON_YOUR_MACS,
+} from "@/groupon/strings";
+import { GrouponStandardsPage } from "@/groupon/standards-page";
 import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import { GrouponSettingsPage } from "@/groupon/settings-section";
 import { GrouponPhonePage } from "@/groupon/phone-section";
@@ -163,6 +170,13 @@ const SIDEBAR_SECTION_ITEMS: SidebarSectionItem[] = [
     label: GROUPON_SETTINGS.section,
     icon: Building2,
     Content: GrouponSettingsPage,
+  },
+  {
+    id: "standards",
+    labelKey: "",
+    label: GROUPON_STANDARDS.title,
+    icon: BookOpen,
+    Content: GrouponStandardsPage,
   },
   {
     id: "phone",

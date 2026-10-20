@@ -86,3 +86,19 @@ the History screen's workspace card opens `groupon/share-screen.tsx` (who has ac
 `groupon/shared-sidebar.tsx`) and on the History screen, and a shared chat opens in the History
 reader with the share key out of the owner's box, with a composer and Allow / Deny when the role is
 write (`groupon/history-chat-screen.tsx`, `groupon/share-model.ts`).
+
+## Your access and the Standards page
+
+The home page (`screens/open-project-screen.tsx`) carries Your access beside its tiles on a wide
+window and above them on a narrow one (`groupon/home-access.tsx`, its words in
+`groupon/home-access-model.ts`): every Encore app the platform hands out with the person's standing
+and Ask for access (the plugin's `groupon.encore-apps` and `groupon.encore-request-access`), and per
+GitHub host the organisations and teams the person is in, the command that signs gh in where it is
+not, and the admin's page where access is asked for (`groupon.github-access`). Both are read by the
+Groupon plugin on the Mac the window runs beside (else the first Mac), on open and every minute.
+A Standards tile opens Settings > Standards (`groupon/standards-page.tsx`, `groupon/standards-model.ts`):
+the engineering standards of the repository picked, read from the repository itself by the plugin
+(`groupon.standards`: `.standards/` after `groupon standards pull`, else the repository's own
+`_documentation/engineering-standards/`), the branch-name and pull-request standards first, rendered
+with the file pane's markdown preview, and Pull the standards, which runs `groupon standards pull`
+in that checkout. A repository without standards says so and points at `groupon standards adopt`.

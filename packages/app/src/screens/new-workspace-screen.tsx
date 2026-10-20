@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, this Mac by default.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, this Mac by default; My tasks under the composer.
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -118,6 +118,7 @@ import {
   type MacPickerOption,
 } from "@/groupon/mac-picker-model";
 import { StartTicketButton } from "@/groupon/start-ticket-button";
+import { JiraTasksCard } from "@/groupon/jira-tasks-card";
 import { useStartTicketFromPage } from "@/groupon/start-ticket-sheet";
 import { useImportSession } from "@/hooks/use-import-session";
 import {
@@ -1629,6 +1630,7 @@ export function NewWorkspaceScreen({
         {composer}
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </NewWorkspaceLayout>
+      <JiraTasksCard serverId={selectedServerId} onTakeTicket={startTicket.openFor} />
       {importSession.sheet}
       {startTicket.sheet}
     </FileDropZone>

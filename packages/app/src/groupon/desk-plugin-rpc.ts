@@ -25,6 +25,9 @@ export const GROUPON_RPC = {
   projectSettings: "groupon.project-settings",
   encoreState: "groupon.encore-state",
   requestEncoreAccess: "groupon.encore-request-access",
+  jiraSearch: "groupon.jira-search",
+  jiraFields: "groupon.jira-fields",
+  jiraSavedView: "groupon.jira-saved-view",
 } as const;
 
 export type PluginRpcClient = Pick<DaemonClient, "invokePluginRpc">;
@@ -188,6 +191,66 @@ export interface EncoreAccessAnswer {
   message: string;
 }
 
+/** A Jira field a My tasks column can show. `kind` says how its cells read (`datetime`, `status`, `user`...). */
+export interface JiraField {
+  id: string;
+  name: string;
+  kind: string;
+  custom: boolean;
+  sortable: boolean;
+  clauseName: string | null;
+}
+
+export interface JiraCell {
+  text: string;
+  iconUrl: string | null;
+  url: string | null;
+  /** A status's grouping: todo, in_progress, done; null on any other cell. */
+  category: string | null;
+}
+
+export interface JiraRow {
+  key: string;
+  url: string;
+  cells: Record<string, JiraCell>;
+}
+
+export interface JiraSearchPage {
+  data: JiraRow[];
+  nextCursor: string | null;
+  total: number | null;
+  fields: JiraField[];
+  /** The query as Jira ran it, the platform's scope included. */
+  jql: string;
+}
+
+/** Why a My tasks read gave nothing: the CLI on that Mac is signed out, or anything else. */
+export interface JiraProblem {
+  kind: "signed-out" | "failed";
+  message: string;
+}
+
+export interface JiraSavedView {
+  jql: string;
+  columns: string[];
+  updatedAt: string;
+}
+
+export interface JiraSearchAnswer {
+  page: JiraSearchPage | null;
+  problem: JiraProblem | null;
+}
+
+export interface JiraFieldsAnswer {
+  fields: JiraField[] | null;
+  problem: JiraProblem | null;
+}
+
+export interface JiraSavedViewAnswer {
+  view: JiraSavedView | null;
+  problem: JiraProblem | null;
+}
+
 export interface TicketStartInput {
   ticket: string;
   projectRoot: string;
@@ -275,6 +338,60 @@ export function isEncoreAccessAnswer(value: unknown): value is EncoreAccessAnswe
     typeof value.slug === "string" &&
     (value.state === "filed" || value.state === "already-waiting" || value.state === "failed") &&
     typeof value.message === "string"
+  );
+}
+
+const isJiraProblem = (value: unknown): value is JiraProblem | null =>
+  value === null ||
+  (isRecord(value) &&
+    (value.kind === "signed-out" || value.kind === "failed") &&
+    typeof value.message === "string");
+
+const isJiraField = (value: unknown): value is JiraField =>
+  isRecord(value) &&
+  typeof value.id === "string" &&
+  typeof value.name === "string" &&
+  typeof value.kind === "string";
+
+const isJiraRow = (value: unknown): value is JiraRow =>
+  isRecord(value) &&
+  typeof value.key === "string" &&
+  typeof value.url === "string" &&
+  isRecord(value.cells) &&
+  Object.values(value.cells).every((cell) => isRecord(cell) && typeof cell.text === "string");
+
+export function isJiraSearchAnswer(value: unknown): value is JiraSearchAnswer {
+  if (!isRecord(value) || !isJiraProblem(value.problem)) return false;
+  const page = value.page;
+  if (page === null) return true;
+  return (
+    isRecord(page) &&
+    Array.isArray(page.data) &&
+    page.data.every(isJiraRow) &&
+    Array.isArray(page.fields) &&
+    page.fields.every(isJiraField) &&
+    (page.nextCursor === null || typeof page.nextCursor === "string") &&
+    (page.total === null || typeof page.total === "number")
+  );
+}
+
+export function isJiraFieldsAnswer(value: unknown): value is JiraFieldsAnswer {
+  return (
+    isRecord(value) &&
+    isJiraProblem(value.problem) &&
+    (value.fields === null || (Array.isArray(value.fields) && value.fields.every(isJiraField)))
+  );
+}
+
+export function isJiraSavedViewAnswer(value: unknown): value is JiraSavedViewAnswer {
+  if (!isRecord(value) || !isJiraProblem(value.problem)) return false;
+  const view = value.view;
+  return (
+    view === null ||
+    (isRecord(view) &&
+      typeof view.jql === "string" &&
+      Array.isArray(view.columns) &&
+      view.columns.every((column) => typeof column === "string"))
   );
 }
 
@@ -369,6 +486,39 @@ export async function requestEncoreAccess(
   const output = await call(client, GROUPON_RPC.requestEncoreAccess, { slug });
   if (!isEncoreAccessAnswer(output))
     throw new Error("The access request came back in a shape this app does not read");
+  return output;
+}
+
+/** One page of the person's Jira search, run by the platform inside its scope. */
+export async function searchJira(
+  client: PluginRpcClient,
+  input: { jql: string; fields: string[]; cursor: string | null; limit: number },
+): Promise<JiraSearchAnswer> {
+  const output = await call(client, GROUPON_RPC.jiraSearch, { ...input });
+  if (!isJiraSearchAnswer(output))
+    throw new Error("The Jira search came back in a shape this app does not read");
+  return output;
+}
+
+/** The Jira fields a column can show. */
+export async function readJiraFields(
+  client: PluginRpcClient,
+  refresh: boolean,
+): Promise<JiraFieldsAnswer> {
+  const output = await call(client, GROUPON_RPC.jiraFields, { refresh });
+  if (!isJiraFieldsAnswer(output))
+    throw new Error("The Jira fields came back in a shape this app does not read");
+  return output;
+}
+
+/** The person's saved My tasks view; with `save`, saved over first. */
+export async function jiraSavedView(
+  client: PluginRpcClient,
+  save?: { jql: string; columns: string[] },
+): Promise<JiraSavedViewAnswer> {
+  const output = await call(client, GROUPON_RPC.jiraSavedView, save ? { save } : {});
+  if (!isJiraSavedViewAnswer(output))
+    throw new Error("The saved view came back in a shape this app does not read");
   return output;
 }
 

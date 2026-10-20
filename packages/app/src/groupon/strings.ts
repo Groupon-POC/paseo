@@ -289,3 +289,31 @@ export const GROUPON_SHARE = {
   answered: "Answer sent to the owner's Mac.",
   wrote: (name: string) => `${name} wrote`,
 } as const;
+
+export const GROUPON_TASKS = {
+  title: "My tasks",
+  caption:
+    "From Jira, read by the platform for you. Every change to the filters or columns is kept as your default.",
+  assigneeMine: "Current user",
+  assigneeAnyone: "Anyone",
+  type: "Type",
+  status: "Status",
+  anyTime: "Any time",
+  lastDays: "Last {n} days",
+  moreFilters: "More filters (JQL)",
+  moreFiltersPlaceholder: "labels = cli ORDER BY priority DESC",
+  clearFilters: "Clear filters",
+  columns: "Columns",
+  columnsTitle: "Columns",
+  columnsSearch: "Search Jira's fields",
+  columnsSearchClear: "Clear the search",
+  restoreDefaults: "Restore defaults",
+  take: "Take to development",
+  previous: "Previous",
+  next: "Next",
+  loading: "Reading your tasks from Jira",
+  noTasks: "No task matches these filters.",
+  signedOut: "Sign in to see your Jira tasks: run groupon login on this Mac.",
+  notSaved: "Your default could not be saved:",
+  fieldsLoading: "Reading Jira's fields",
+} as const;

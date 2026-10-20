@@ -120,7 +120,7 @@ export function YourMacsScreen() {
         ) : null}
         {model.kind === "unreadable" ? <Text style={styles.error}>{model.message}</Text> : null}
 
-        {model.kind === "macs" && model.showInstall ? (
+        {model.kind === "macs" && model.notice === "install" ? (
           <View style={styles.card} testID="your-macs-install">
             <Text style={styles.cardTitle}>{GROUPON_YOUR_MACS.notInstalledTitle}</Text>
             <Text style={styles.body}>{GROUPON_YOUR_MACS.notInstalled}</Text>
@@ -132,6 +132,12 @@ export function YourMacsScreen() {
             >
               {GROUPON_YOUR_MACS.download}
             </Button>
+          </View>
+        ) : null}
+
+        {model.kind === "macs" && model.notice === "noneServing" ? (
+          <View style={styles.card} testID="your-macs-none-serving">
+            <Text style={styles.body}>{GROUPON_YOUR_MACS.noneServing}</Text>
           </View>
         ) : null}
 

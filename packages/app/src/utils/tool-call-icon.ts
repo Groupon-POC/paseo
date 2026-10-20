@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the paseo tool-call icon draws the { G } mark.
 import type { ComponentType } from "react";
 import {
   Bot,
@@ -12,7 +13,7 @@ import {
 } from "lucide-react-native";
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import type { ToolCallDetail } from "@getpaseo/protocol/agent-types";
-import { PaseoLogo } from "@/components/icons/paseo-logo";
+import { GrouponMark } from "@/groupon/groupon-mark";
 import { resolveToolCallIconName, type ToolCallIcon } from "./tool-call-icon-name";
 
 export type ToolCallIconComponent = ComponentType<{ size?: number; color?: string }>;
@@ -27,7 +28,7 @@ const ICON_COMPONENTS: Record<ToolCallIcon, ToolCallIconComponent> = {
   sparkles: Sparkles,
   brain: Brain,
   mic_vocal: MicVocal,
-  paseo: PaseoLogo,
+  paseo: GrouponMark,
 };
 
 export function componentForToolCallIcon(name: ToolCallIcon): ToolCallIconComponent {

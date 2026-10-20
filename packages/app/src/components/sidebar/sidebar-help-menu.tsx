@@ -1,6 +1,7 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no What's new, Discord or GitHub issue (Paseo's channels); Report a problem opens the program's feedback board.
 import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
-import { Activity, CircleHelp, Gift, Keyboard } from "lucide-react-native";
+import { Activity, CircleHelp, Gift, Keyboard, MessageSquareWarning } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { DiscordIcon } from "@/components/icons/discord-icon";
@@ -29,6 +30,11 @@ import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
 import { openChangelog } from "@/changelog";
 import { openExternalUrl } from "@/utils/open-external-url";
+import { GROUPON_DESK_FEEDBACK_URL } from "@/groupon/environments";
+import { GROUPON_HELP } from "@/groupon/strings";
+
+/** Groupon Desk is not Paseo's product: no What's new, Discord or GitHub issue (Paseo's channels). */
+const GROUPON_DESK_HIDES_PASEO_HELP = true;
 
 const DISCORD_URL = "https://discord.gg/jz8T2uahpH";
 const GITHUB_ISSUE_URL = "https://github.com/getpaseo/paseo/issues/new";
@@ -37,6 +43,7 @@ const ThemedGift = withUnistyles(Gift);
 const ThemedKeyboard = withUnistyles(Keyboard);
 const ThemedDiscordIcon = withUnistyles(DiscordIcon);
 const ThemedGitHubIcon = withUnistyles(GitHubIcon);
+const ThemedReportIcon = withUnistyles(MessageSquareWarning);
 const foregroundMutedColorMapping = (theme: Theme) => ({
   color: theme.colors.foregroundMuted,
 });
@@ -51,6 +58,9 @@ const discordLeadingIcon = (
 );
 const githubLeadingIcon = (
   <ThemedGitHubIcon size={ICON_SIZE.sm} uniProps={foregroundMutedColorMapping} />
+);
+const reportProblemLeadingIcon = (
+  <ThemedReportIcon size={ICON_SIZE.sm} uniProps={foregroundMutedColorMapping} />
 );
 const changelogLeadingIcon = (
   <ThemedGift size={ICON_SIZE.sm} uniProps={foregroundMutedColorMapping} />
@@ -98,6 +108,10 @@ export function SidebarHelpMenu() {
     void openExternalUrl(GITHUB_ISSUE_URL);
   }, []);
 
+  const openReportProblem = useCallback(() => {
+    void openExternalUrl(GROUPON_DESK_FEEDBACK_URL);
+  }, []);
+
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <Tooltip delayDuration={300} enabledOnDesktop={!open}>
@@ -137,13 +151,15 @@ export function SidebarHelpMenu() {
             {t("sidebar.help.shortcuts")}
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem
-          testID="sidebar-help-changelog"
-          leading={changelogLeadingIcon}
-          onSelect={openChangelog}
-        >
-          {t("sidebar.help.whatsNew")}
-        </DropdownMenuItem>
+        {GROUPON_DESK_HIDES_PASEO_HELP ? null : (
+          <DropdownMenuItem
+            testID="sidebar-help-changelog"
+            leading={changelogLeadingIcon}
+            onSelect={openChangelog}
+          >
+            {t("sidebar.help.whatsNew")}
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           testID="sidebar-help-diagnostics"
           leading={diagnosticLeadingIcon}
@@ -153,20 +169,32 @@ export function SidebarHelpMenu() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>{t("sidebar.help.reportIssue")}</DropdownMenuLabel>
-        <DropdownMenuItem
-          testID="sidebar-help-discord"
-          leading={discordLeadingIcon}
-          onSelect={openDiscord}
-        >
-          {t("sidebar.help.discord")}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          testID="sidebar-help-github"
-          leading={githubLeadingIcon}
-          onSelect={openGitHubIssue}
-        >
-          {t("sidebar.help.github")}
-        </DropdownMenuItem>
+        {GROUPON_DESK_HIDES_PASEO_HELP ? (
+          <DropdownMenuItem
+            testID="sidebar-help-report-problem"
+            leading={reportProblemLeadingIcon}
+            onSelect={openReportProblem}
+          >
+            {GROUPON_HELP.reportProblem}
+          </DropdownMenuItem>
+        ) : (
+          <>
+            <DropdownMenuItem
+              testID="sidebar-help-discord"
+              leading={discordLeadingIcon}
+              onSelect={openDiscord}
+            >
+              {t("sidebar.help.discord")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              testID="sidebar-help-github"
+              leading={githubLeadingIcon}
+              onSelect={openGitHubIssue}
+            >
+              {t("sidebar.help.github")}
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <View style={styles.versionList}>
           <DropdownMenuHint

@@ -9,8 +9,9 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
+import { isWeb } from "@/constants/platform";
 import { StyleSheet } from "react-native-unistyles";
-import { GrouponDeskLogo } from "@/components/icons/groupon-desk-logo";
+import { ThemedGrouponMark } from "./groupon-mark";
 import { Button } from "@/components/ui/button";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EditingTextInput } from "@/components/ui/text-input";
@@ -64,7 +65,7 @@ export function GrouponGate({ children }: { children: ReactNode }) {
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.column}>
-        <GrouponDeskLogo size={72} tile />
+        <ThemedGrouponMark size={120} />
         <Text style={styles.title}>{GROUPON_GATE.title}</Text>
         {status === "loading" ? <ActivityIndicator /> : null}
         {status === "signedOut" ? <SignInStep /> : null}
@@ -227,7 +228,9 @@ function VaultStep() {
       <Text style={styles.body}>
         {GROUPON_GATE.signedInAs} {identity?.email ?? identity?.name ?? "?"}
       </Text>
-      <Text style={styles.hint}>{GROUPON_GATE.vaultIntro}</Text>
+      <Text style={styles.hint}>
+        {isWeb ? GROUPON_GATE.vaultIntroWeb : GROUPON_GATE.vaultIntro}
+      </Text>
       <EditingTextInput
         initialValue=""
         onChangeText={setPassphrase}

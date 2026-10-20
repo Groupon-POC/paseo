@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Your Macs in place of this screen while manual hosts are off; else the Groupon Desk logo, the engine's site named as such, History, no QR scan or pairing link.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Your Macs in place of this screen while manual hosts are off; else the { G } mark, the engine's site named as such, History, no QR scan or pairing link.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, ScrollView } from "react-native";
@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { resolveAppVersion } from "@/utils/app-version";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { buildOpenProjectRoute } from "@/utils/host-routes";
-import { GrouponDeskLogo } from "@/components/icons/groupon-desk-logo";
+import { ThemedGrouponMark } from "@/groupon/groupon-mark";
 import { HUB_HISTORY_ROUTE } from "@/groupon/history-screen";
 import { GROUPON_HISTORY } from "@/groupon/strings";
 import { openExternalUrl } from "@/utils/open-external-url";
@@ -314,7 +314,7 @@ function PaseoWelcomeScreen({ onHostAdded }: WelcomeScreenProps) {
         testID="welcome-screen"
       >
         <View style={styles.content}>
-          <GrouponDeskLogo size={96} tile />
+          <ThemedGrouponMark size={132} />
           <View style={styles.copyBlock}>
             <Text style={styles.title}>{t("onboarding.title")}</Text>
             <Text style={styles.subtitle}>{t("onboarding.subtitle")}</Text>

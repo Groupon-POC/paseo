@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; the History tile; the From GitHub tile; Your phone in place of Pair device; the Standards tile; Your access beside the tiles.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the { G } mark; the History tile; the From GitHub tile; Your phone in place of Pair device.
 import { useHosts, useHostRuntimeLastError } from "@/runtime/host-runtime";
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
@@ -6,7 +6,7 @@ import { View, Text, Pressable, ScrollView } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useRouter } from "expo-router";
 import { BookOpen, FolderOpen, History, Inbox, Plug, Smartphone } from "lucide-react-native";
-import { GrouponDeskLogo } from "@/components/icons/groupon-desk-logo";
+import { ThemedGrouponMark } from "@/groupon/groupon-mark";
 import { HUB_HISTORY_ROUTE } from "@/groupon/history-screen";
 import {
   GROUPON_GITHUB,
@@ -87,7 +87,7 @@ export function OpenProjectScreen() {
       >
         <View style={styles.content}>
           <View style={styles.logo}>
-            <GrouponDeskLogo size={52} tile />
+            <ThemedGrouponMark size={96} />
           </View>
           {hosts.map((host) => (
             <HostError key={host.serverId} serverId={host.serverId} label={host.label} />

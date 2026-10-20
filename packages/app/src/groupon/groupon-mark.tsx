@@ -12,8 +12,9 @@ interface GrouponMarkProps {
 /**
  * The Groupon G set in curly braces, the same vector as the app icon
  * (`packages/desktop/assets/brand/icon-mono.svg`), drawn in one colour (`ThemedGrouponMark`
- * takes the theme's foreground). Where Paseo drew its own logo (the startup splash, the welcome
- * screen), this is what Groupon Desk shows.
+ * takes the theme's foreground). Where Paseo drew its own logo (the startup splash, the sign-in
+ * gate, Your Macs, the home page, Paseo's own tool calls), this is what Groupon Desk shows; the
+ * plain G on a green tile is not the window's sign (owner, 2026-10-20).
  */
 const BRACE =
   "M308 333.6 C280.29 333.6 257.82 356.06 257.82 383.78 L257.82 452 C257.82 485 245.12 496.48 229.6 512 C245.12 527.52 257.82 539 257.82 572 L257.82 640.22 C257.82 667.94 280.29 690.4 308 690.4";

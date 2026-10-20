@@ -52,6 +52,7 @@ export function GrouponAccountSection() {
       lastUnlock.ms,
       lastUnlock.iterations,
       lastUnlock.engine,
+      isWeb,
     );
   }
 

@@ -93,6 +93,8 @@ export const GROUPON_MAC_PICKER = {
   noHand: "hand not running",
   otherVault: "different vault",
   failed: "could not connect",
+  storedHost: "stored host",
+  unknownMac: "a Mac",
 } as const;
 
 export const GROUPON_HISTORY = {

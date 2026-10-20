@@ -178,3 +178,38 @@ describe("seenAgo", () => {
     expect(seenAgo(at, now)).toBe(expected);
   });
 });
+
+describe("yourMacsModel, one row per Mac", () => {
+  it("shows two hub records naming one daemon as one Mac, the record reached directly", () => {
+    const daemon = {
+      state: "added" as const,
+      serverId: "srv_mini",
+      relay: "wss://core/relay",
+    };
+    const model = yourMacsModel(
+      input({
+        views: [
+          view({
+            ...daemon,
+            machine: machine({
+              machine: "old",
+              name: "CY2T43V547",
+              lastSeenAt: "2026-10-19T08:00:00.000Z",
+            }),
+            label: "CY2T43V547",
+          }),
+          view({
+            ...daemon,
+            direct: "127.0.0.1:6770",
+            machine: machine({ machine: "mini", alias: "Tomas - Mac Mini in Office Prague" }),
+            label: "Tomas - Mac Mini in Office Prague",
+          }),
+        ],
+        isOnline: (serverId) => serverId === "srv_mini",
+      }),
+    );
+    expect(model.kind === "macs" ? model.rows.map((row) => [row.id, row.label]) : null).toEqual([
+      ["mini", "Tomas - Mac Mini in Office Prague"],
+    ]);
+  });
+});

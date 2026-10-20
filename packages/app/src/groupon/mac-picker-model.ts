@@ -5,8 +5,11 @@
  * its agent start on. Pure, so it is tested without React.
  *
  * Responsibilities:
- * - one option per hub Mac, this Mac first, then Your Macs' order (connected first, the primary,
- *   the most recently seen)
+ * - one option per Mac, keyed by its daemon's server id (and the hub's machine id), named by the
+ *   hub's alias or name, never by the label Paseo's host registry stored for that daemon; this Mac
+ *   first, then Your Macs' order (connected first, the primary, the most recently seen)
+ * - a registry host no hub Mac stands behind (an earlier session's direct host): left out of a
+ *   release build; listed last, marked "stored host", only in a development build
  * - which can be chosen: a connected Mac only (Your Macs' `connected`); every other Mac is listed
  *   greyed with a short reason ("hand not running", "connecting", "different vault")
  * - the Mac chosen by default: this Mac when it is connected, else Paseo's own choice
@@ -22,7 +25,7 @@ import { GROUPON_MAC_PICKER } from "./strings";
 import { yourMacRows, type YourMacState } from "./your-macs-model";
 
 export interface MacPickerOption {
-  /** The hub's machine id: unique even for a Mac whose host was never added. */
+  /** The hub's machine id (unique even for a Mac whose host was never added); `stored:<server id>` for a stored host. */
   id: string;
   label: string;
   /** The host to switch to; null for a Mac that cannot be chosen now. */
@@ -40,13 +43,21 @@ const NOTE_BY_STATE: Record<Exclude<YourMacState, "connected">, string> = {
   failed: GROUPON_MAC_PICKER.failed,
 };
 
+/** A host in Paseo's registry: its server id and the label the registry keeps for it. */
+export interface RegistryHost {
+  serverId: string;
+  label: string;
+}
+
 export function macPickerOptions(
   views: readonly HubMachineView[],
   isOnline: (serverId: string) => boolean,
+  registryHosts: readonly RegistryHost[] = [],
+  includeStoredHosts = false,
 ): MacPickerOption[] {
   const rows = yourMacRows(views, isOnline);
   const ordered = [...rows.filter((row) => row.isThisMac), ...rows.filter((row) => !row.isThisMac)];
-  return ordered.map((row) => {
+  const macs = ordered.map((row): MacPickerOption => {
     const selectable = row.state === "connected" && row.openServerId !== null;
     const reason = row.state === "connected" ? null : NOTE_BY_STATE[row.state];
     return {
@@ -58,6 +69,22 @@ export function macPickerOptions(
       note: reason ?? (row.isThisMac ? GROUPON_MAC_PICKER.thisMac : null),
     };
   });
+  if (!includeStoredHosts) return macs;
+  // Every daemon a hub record names, chosen or not, so a stored host never repeats a hub Mac.
+  const onHub = new Set(views.flatMap((view) => (view.serverId ? [view.serverId] : [])));
+  const stored = registryHosts
+    .filter((host) => !onHub.has(host.serverId))
+    .map(
+      (host): MacPickerOption => ({
+        id: `stored:${host.serverId}`,
+        label: host.label,
+        serverId: isOnline(host.serverId) ? host.serverId : null,
+        isThisMac: false,
+        selectable: isOnline(host.serverId),
+        note: GROUPON_MAC_PICKER.storedHost,
+      }),
+    );
+  return [...macs, ...stored];
 }
 
 /** This Mac when it can be chosen; otherwise Paseo's own default stays. */
@@ -69,12 +96,11 @@ export function defaultMacServerId(
   return thisMac?.serverId ?? paseoDefault;
 }
 
-/** "On <Mac>" for the chosen host; the host's own label when it is no hub Mac. */
+/** "On <Mac>" for the chosen host, named as the picker names it, never by the registry's label. */
 export function macPickerTriggerLabel(
   options: readonly MacPickerOption[],
   selectedServerId: string,
-  hostLabel: string | null,
 ): string {
   const chosen = options.find((option) => option.serverId === selectedServerId);
-  return GROUPON_MAC_PICKER.on(chosen?.label ?? hostLabel ?? "a Mac");
+  return GROUPON_MAC_PICKER.on(chosen?.label ?? GROUPON_MAC_PICKER.unknownMac);
 }

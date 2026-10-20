@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app.
 import type { PluginRegistries } from "@getpaseo/protocol/plugin-registry";
 import { describeHookWorkspace } from "./plugins/lifecycle/index.js";
 import express from "express";
@@ -736,8 +737,8 @@ export async function createPaseoDaemon(
 
   // CORS - allow same-origin + configured origins
   const fixedAllowedOrigins = [
-    // Packaged desktop renderers use the custom paseo:// protocol scheme.
-    "paseo://app",
+    // The packaged work window (Groupon Desk) serves its renderer from its own groupon-desk scheme.
+    "groupon-desk://app",
     // For TCP, add localhost variants
     ...(listenTarget.type === "tcp"
       ? [

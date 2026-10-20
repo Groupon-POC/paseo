@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): links of the work window's scheme, groupon-desk, are redacted like Paseo's.
 import { open, statfs } from "node:fs/promises";
 import { cpus, freemem, loadavg, platform, release, totalmem, type } from "node:os";
 import path from "node:path";
@@ -557,6 +558,7 @@ export function redactDiagnostic(
 
   return redacted
     .replace(/paseo:\/\/\S+/gi, "paseo://[redacted]")
+    .replace(/groupon-desk:\/\/\S+/gi, "groupon-desk://[redacted]")
     .replace(
       /([?&](?:password|token|secret|key|publicKey|daemonPublicKeyB64)=)[^&\s"']+/gi,
       "$1[redacted]",

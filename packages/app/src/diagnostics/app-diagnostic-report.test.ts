@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a groupon-desk link in collected text is redacted too.
 import { describe, expect, test } from "vitest";
 import {
   formatHostRuntimeSection,
@@ -109,6 +110,7 @@ describe("app diagnostics report", () => {
         "\\\\.\\pipe\\paseo-secret",
         "password=tcp-password",
         "paseo://pairing-secret",
+        "groupon-desk://h/desk-link-secret/agent/a1",
       ].join("\n"),
       [host],
     );
@@ -120,5 +122,6 @@ describe("app diagnostics report", () => {
     expect(redacted).not.toContain("\\\\.\\pipe\\paseo-secret");
     expect(redacted).not.toContain("tcp-password");
     expect(redacted).not.toContain("pairing-secret");
+    expect(redacted).not.toContain("desk-link-secret");
   });
 });

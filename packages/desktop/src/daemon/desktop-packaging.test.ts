@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the window registers groupon-desk agent links, never paseo ones.
 import { spawnSync } from "node:child_process";
 import {
   chmodSync,
@@ -119,11 +120,12 @@ describe("desktop packaging", () => {
     expect(runtimeTrace).toContain('"packages/server/dist/server/skills/**"');
   });
 
-  it("registers Paseo agent links with the operating system", () => {
+  it("registers Groupon Desk agent links with the operating system, never Paseo's", () => {
     const config = readFileSync(join(packageRoot, "electron-builder.yml"), "utf8");
 
-    expect(config).toContain("name: Paseo agent link");
-    expect(config).toContain("- paseo");
+    expect(config).toContain("name: Groupon Desk agent link");
+    expect(config).toMatch(/^      - groupon-desk$/m);
+    expect(config).not.toMatch(/^      - paseo$/m);
   });
 
   // electron-builder packs production dependencies declared in package.json into

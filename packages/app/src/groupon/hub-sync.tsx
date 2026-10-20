@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): every Mac on the hub becomes a Paseo host, through the hand's door or through Core; this Mac's connects directly.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): every Mac on the hub becomes a Paseo host, through the hand's door or through Core; this Mac's connects directly; the list stays current while the window is open.
 
 /**
  * After sign-in, the person's Macs come from the hub (`GET /user/groupon_desk/machines`). Each Mac
@@ -14,11 +14,31 @@
  * - anything else (the web build on a phone or a laptop, a desktop app on a Mac without a hand):
  *   straight to Core, whose address replaces the door's (`core-relay.ts`, the phone's path); the
  *   daemon's key in the offer, and so the end-to-end seal, is the same either way
+ *
+ * The list stays current while the window is open (`GrouponHubSync`, `createHubResync`): a Mac
+ * that signs in, or whose hand starts or stops, after the window opened shows up without a
+ * restart. The hub is read again
+ * - every 30 s while the window is in the foreground (`HUB_RESYNC_MS`), paused while it is hidden:
+ *   the hub has no push to the window, so this is what bounds how late a new Mac appears; one
+ *   GET of `/user/groupon_desk/machines` per open window every 30 s is a small, flat load on Core,
+ *   and half a minute is soon enough for a Mac somebody just signed in on
+ * - at once when the window becomes visible again or regains focus
+ * - when Paseo's runtime sees a hub Mac's connection go online or drop (Core's relay closes the
+ *   socket when the daemon leaves, and the client reconnects when it is back): the cheap signal
+ *   the app already has, for a Mac it already knows; a Mac it does not know yet waits for the
+ *   interval
+ * An event-driven read follows the previous one by at least 5 s, and two reads never overlap. A
+ * read that fails keeps the last list and its error line until a read succeeds.
  */
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { create } from "zustand";
-import { getHostRuntimeStore, useHostRegistryStatus } from "@/runtime/host-runtime";
+import { useAppActivelyVisible, useAppVisible } from "@/hooks/use-app-visible";
+import {
+  getHostRuntimeStore,
+  isHostRuntimeConnected,
+  useHostRegistryStatus,
+} from "@/runtime/host-runtime";
 import { coreRelayEndpoint } from "./core-relay";
 import { openSealedText } from "./crypto";
 import { fetchMachines, machineLabel, PAIRING_OFFER_KIND, type HubMachine } from "./hub";
@@ -131,7 +151,8 @@ export const useHubMachinesStore = create<HubMachinesState>((set, get) => ({
   sync: async () => {
     const { sealKey, coreUrl } = useGrouponStore.getState();
     if (!sealKey || get().syncing) return;
-    set({ syncing: true, error: null });
+    // The error line stays until a read succeeds, so a failing retry does not blink it away.
+    set({ syncing: true });
     try {
       const [{ machines }, localDaemons] = await Promise.all([fetchMachines(), readLocalDaemons()]);
       const viaCore = relayForDevice(localDaemons, coreUrl);
@@ -139,7 +160,7 @@ export const useHubMachinesStore = create<HubMachinesState>((set, get) => ({
       for (const machine of machines) {
         views.push(await addMachine(machine, sealKey, localDaemons, viaCore));
       }
-      set({ machines: views, lastSyncAt: new Date().toISOString() });
+      set({ machines: views, lastSyncAt: new Date().toISOString(), error: null });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -148,12 +169,134 @@ export const useHubMachinesStore = create<HubMachinesState>((set, get) => ({
   },
 }));
 
-/** Mounted once behind the gate: syncs when the host registry has loaded. */
+/** How often the hub is read again while the window is in the foreground (header: why 30 s). */
+export const HUB_RESYNC_MS = 30_000;
+/** The least time between two reads started by an event (focus, visibility, the relay). */
+export const HUB_EVENT_RESYNC_GAP_MS = 5_000;
+
+export interface HubResync {
+  /** Read now, foreground or not, unless a read is in flight (the first read after sign-in). */
+  syncNow(): void;
+  /** The window entered or left the foreground: the interval runs only while it is in it. */
+  setForeground(foreground: boolean): void;
+  /** Something suggests the list moved (focus, a hub Mac's connection): read if in foreground. */
+  nudge(): void;
+  stop(): void;
+}
+
+/**
+ * The schedule of hub reads, without React: an interval while in the foreground, a read on
+ * entering it and on a nudge, at least `gapMs` after the previous read for anything event-driven,
+ * and never a second read while one is in flight.
+ */
+export function createHubResync({
+  sync,
+  intervalMs = HUB_RESYNC_MS,
+  gapMs = HUB_EVENT_RESYNC_GAP_MS,
+  now = Date.now,
+}: {
+  sync: () => Promise<void>;
+  intervalMs?: number;
+  gapMs?: number;
+  now?: () => number;
+}): HubResync {
+  let timer: ReturnType<typeof setInterval> | null = null;
+  let inFlight = false;
+  let lastStartedAt = Number.NEGATIVE_INFINITY;
+
+  const run = () => {
+    if (inFlight) return;
+    inFlight = true;
+    lastStartedAt = now();
+    void sync()
+      .catch(() => undefined)
+      .finally(() => {
+        inFlight = false;
+      });
+  };
+  const runIfDue = () => {
+    if (now() - lastStartedAt >= gapMs) run();
+  };
+  const stop = () => {
+    if (timer !== null) clearInterval(timer);
+    timer = null;
+  };
+
+  return {
+    syncNow: run,
+    setForeground(foreground) {
+      if (!foreground) {
+        stop();
+        return;
+      }
+      if (timer !== null) return;
+      timer = setInterval(run, intervalMs);
+      runIfDue();
+    },
+    nudge() {
+      if (timer !== null) runIfDue();
+    },
+    stop,
+  };
+}
+
+/**
+ * The hub Macs Paseo's runtime has online right now, as one sorted string (a stable snapshot):
+ * it changes when one of them connects or drops, the relay signal `GrouponHubSync` reads.
+ */
+export function useOnlineServerIds(serverIds: readonly string[]): string {
+  const runtime = getHostRuntimeStore();
+  const read = useCallback(
+    () =>
+      serverIds
+        .filter((serverId) => isHostRuntimeConnected(runtime.getSnapshot(serverId)))
+        .sort()
+        .join(","),
+    [runtime, serverIds],
+  );
+  return useSyncExternalStore((onChange) => runtime.subscribeAll(onChange), read, read);
+}
+
+const EMPTY_SERVER_IDS: readonly string[] = [];
+
+function hubServerIds(machines: readonly HubMachineView[]): readonly string[] {
+  const ids = machines.flatMap((view) => (view.serverId ? [view.serverId] : []));
+  return ids.length > 0 ? ids : EMPTY_SERVER_IDS;
+}
+
+/**
+ * Mounted once behind the gate: reads the hub once the host registry has loaded, then keeps the
+ * list current while the window is open (the schedule in this file's header).
+ */
 export function GrouponHubSync() {
-  const registryStatus = useHostRegistryStatus();
-  const sync = useHubMachinesStore((state) => state.sync);
+  const ready = useHostRegistryStatus() === "ready";
+  const visible = useAppVisible();
+  const focused = useAppActivelyVisible();
+  const machines = useHubMachinesStore((state) => state.machines);
+  const [serverIds, setServerIds] = useState(EMPTY_SERVER_IDS);
+  const online = useOnlineServerIds(serverIds);
+  const [resync] = useState(() =>
+    createHubResync({ sync: () => useHubMachinesStore.getState().sync() }),
+  );
+
+  // Only a change in which Macs the hub names re-subscribes the relay signal, not every read.
   useEffect(() => {
-    if (registryStatus === "ready") void sync();
-  }, [registryStatus, sync]);
+    const next = hubServerIds(machines);
+    setServerIds((current) => (current.join(",") === next.join(",") ? current : next));
+  }, [machines]);
+
+  useEffect(() => () => resync.stop(), [resync]);
+  useEffect(() => {
+    if (ready) resync.syncNow();
+  }, [ready, resync]);
+  useEffect(() => {
+    if (ready) resync.setForeground(visible);
+  }, [ready, visible, resync]);
+  useEffect(() => {
+    if (ready && focused) resync.nudge();
+  }, [ready, focused, resync]);
+  useEffect(() => {
+    if (ready) resync.nudge();
+  }, [ready, online, resync]);
   return null;
 }

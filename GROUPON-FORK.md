@@ -56,7 +56,11 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   in Groupon Desk there, or `groupon desk serve install`); when every listed Mac is in that state,
   one line above the list says the Macs are signed in but none is serving; only with no Mac on the
   hub at all does the screen say Groupon Desk is probably not installed and connected yet and link
-  its disk image (`GROUPON_DESK_DOWNLOAD_URL`). The hub is re-read every 15 s. The sidebar's and the settings'
+  its disk image (`GROUPON_DESK_DOWNLOAD_URL`). The hub is re-read every 15 s on that screen, and for the
+  whole window (`groupon/hub-sync.tsx`, so Your Macs and the `On <Mac>` picker never need a restart) every
+  30 s while it is in the foreground, at once when it regains focus or visibility, and when a hub
+  Mac's connection comes online or drops; a failed read keeps the last list and its error line.
+  Your Macs and Settings show when the hub was last read ("updated 14:05") beside Refresh. The sidebar's and the settings'
   host pickers have no Add host option (`components/hosts/host-picker.tsx`), the settings with no
   host show Your Macs where Paseo had Add host and never mount the add-host modals
   (`screens/settings-screen.tsx`), and every other "Add host" link (`buildSettingsAddHostRoute`,

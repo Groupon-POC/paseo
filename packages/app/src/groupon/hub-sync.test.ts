@@ -1,6 +1,6 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): a Mac on the hub becomes a host only when its offer opens, through the door or through Core.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): a Mac on the hub becomes a host only when its offer opens, through the door or through Core; the list is read again on a schedule.
 import { createCipheriv, hkdfSync, randomBytes } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const upsertTrustedOffer = vi.fn(
   async (_url: string, _label?: string, relay?: { endpoint: string; useTls: boolean }) => ({
@@ -21,14 +21,39 @@ const upsertConnectionFromListen = vi.fn(
 );
 vi.mock("@/runtime/host-runtime", () => ({
   getHostRuntimeStore: () => ({ upsertTrustedOffer, upsertConnectionFromListen }),
+  isHostRuntimeConnected: () => false,
   useHostRegistryStatus: () => "ready",
 }));
+vi.mock("@/hooks/use-app-visible", () => ({
+  useAppVisible: () => true,
+  useAppActivelyVisible: () => true,
+}));
+const session: { sealKey: Uint8Array | null; coreUrl: string } = {
+  sealKey: null,
+  coreUrl: "https://api-core.livingsocial.com",
+};
 vi.mock("./session", () => ({
-  useGrouponStore: { getState: () => ({ sealKey: null }) },
+  useGrouponStore: { getState: () => session },
   grouponRequest: vi.fn(),
 }));
+const fetchMachines = vi.fn();
+vi.mock("./hub", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./hub")>()),
+  fetchMachines: () => fetchMachines(),
+}));
+vi.mock("./local-daemon", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./local-daemon")>()),
+  readLocalDaemons: async () => [],
+}));
 
-const { addMachine, relayForDevice } = await import("./hub-sync");
+const {
+  addMachine,
+  createHubResync,
+  HUB_EVENT_RESYNC_GAP_MS,
+  HUB_RESYNC_MS,
+  relayForDevice,
+  useHubMachinesStore,
+} = await import("./hub-sync");
 const { sealKeyFromVaultKey } = await import("./crypto");
 
 const LABEL = "groupon-desk-relay/1";
@@ -152,5 +177,160 @@ describe("addMachine", () => {
       label: "Tomas's MacBook",
       error: "bad offer",
     });
+  });
+});
+
+/** A sync that stays in flight until the test settles it. */
+function pendingSync() {
+  const settles: Array<() => void> = [];
+  const sync = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        settles.push(resolve);
+      }),
+  );
+  const settle = async () => {
+    for (const resolve of settles.splice(0)) resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  };
+  return { sync, settle };
+}
+
+describe("createHubResync", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reads the hub every 30 s while the window is in the foreground", async () => {
+    const sync = vi.fn(async () => undefined);
+    const resync = createHubResync({ sync });
+
+    resync.setForeground(true);
+    expect(sync).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(HUB_RESYNC_MS);
+    expect(sync).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(HUB_RESYNC_MS);
+    expect(sync).toHaveBeenCalledTimes(3);
+    resync.stop();
+  });
+
+  it("does not read while the window is hidden, and reads at once when it is back", async () => {
+    const sync = vi.fn(async () => undefined);
+    const resync = createHubResync({ sync });
+    resync.setForeground(true);
+    resync.setForeground(false);
+    sync.mockClear();
+
+    await vi.advanceTimersByTimeAsync(HUB_RESYNC_MS * 4);
+    resync.nudge();
+    expect(sync).not.toHaveBeenCalled();
+
+    resync.setForeground(true);
+    expect(sync).toHaveBeenCalledTimes(1);
+    resync.stop();
+  });
+
+  it("reads again when the window regains focus, but not twice within the gap", async () => {
+    const sync = vi.fn(async () => undefined);
+    const resync = createHubResync({ sync });
+    resync.setForeground(true);
+    sync.mockClear();
+
+    resync.nudge();
+    expect(sync).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(HUB_EVENT_RESYNC_GAP_MS);
+    resync.nudge();
+    expect(sync).toHaveBeenCalledTimes(1);
+    resync.nudge();
+    expect(sync).toHaveBeenCalledTimes(1);
+    resync.stop();
+  });
+
+  it("never starts a read while one is in flight", async () => {
+    const { sync, settle } = pendingSync();
+    const resync = createHubResync({ sync });
+
+    resync.syncNow();
+    resync.setForeground(true);
+    await vi.advanceTimersByTimeAsync(HUB_RESYNC_MS * 3);
+    resync.nudge();
+    resync.syncNow();
+    expect(sync).toHaveBeenCalledTimes(1);
+
+    await settle();
+    await vi.advanceTimersByTimeAsync(HUB_RESYNC_MS);
+    expect(sync).toHaveBeenCalledTimes(2);
+    resync.stop();
+  });
+
+  it("keeps the schedule going after a read fails", async () => {
+    const sync = vi.fn(async () => {
+      throw new Error("hub down");
+    });
+    const resync = createHubResync({ sync });
+    resync.setForeground(true);
+    await vi.advanceTimersByTimeAsync(HUB_RESYNC_MS);
+    expect(sync).toHaveBeenCalledTimes(2);
+    resync.stop();
+  });
+});
+
+describe("useHubMachinesStore.sync", () => {
+  beforeEach(() => {
+    session.sealKey = sealKeyFromVaultKey(new Uint8Array(vaultKey));
+    fetchMachines.mockReset();
+    useHubMachinesStore.setState({ machines: [], syncing: false, lastSyncAt: null, error: null });
+  });
+  afterEach(() => {
+    session.sealKey = null;
+  });
+
+  it("asks the hub once while a read is in flight", async () => {
+    let answer: (value: { machines: unknown[] }) => void = () => undefined;
+    fetchMachines.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const { sync } = useHubMachinesStore.getState();
+
+    const first = sync();
+    const second = sync();
+    answer({ machines: [machine()] });
+    await Promise.all([first, second]);
+
+    expect(fetchMachines).toHaveBeenCalledTimes(1);
+    expect(useHubMachinesStore.getState().machines).toHaveLength(1);
+  });
+
+  it("keeps the last list and the error line through a failing read until one succeeds", async () => {
+    fetchMachines.mockResolvedValueOnce({ machines: [machine()] });
+    const { sync } = useHubMachinesStore.getState();
+    await sync();
+    const listed = useHubMachinesStore.getState();
+
+    fetchMachines.mockRejectedValueOnce(new Error("hub down"));
+    await sync();
+    expect(useHubMachinesStore.getState()).toMatchObject({
+      machines: listed.machines,
+      lastSyncAt: listed.lastSyncAt,
+      error: "hub down",
+    });
+
+    let answer: (value: { machines: unknown[] }) => void = () => undefined;
+    fetchMachines.mockReturnValueOnce(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    const retry = sync();
+    expect(useHubMachinesStore.getState()).toMatchObject({ syncing: true, error: "hub down" });
+    answer({ machines: [machine()] });
+    await retry;
+    expect(useHubMachinesStore.getState().error).toBeNull();
   });
 });

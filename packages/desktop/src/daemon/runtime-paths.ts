@@ -80,7 +80,7 @@ export function resolveDaemonRunnerEntrypoint(): NodeEntrypointSpec {
  * Info.plist carries LSUIElement. Node's `process.title` checks a process in with LaunchServices,
  * so a child started from the bundle's main executable instead becomes a Foreground app with its
  * own bouncing Dock tile. electron-builder names the Helper after `productName`, which in Groupon
- * Desk ("Groupon Desk Helper.app") is not the executable's name (`Paseo`); upstream they match.
+ * Desk ("Groupon Desk Work Helper.app") is not the executable's name (`Paseo`); upstream they match.
  */
 export function findMacNodeHelperPath(
   execPath: string,

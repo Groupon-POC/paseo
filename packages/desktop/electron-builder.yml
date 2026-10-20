@@ -1,4 +1,4 @@
-# Changed for Groupon Desk (fork of Paseo, Apache-2.0): productName Groupon Desk, appId com.groupon.desk.work, URL scheme groupon-desk.
+# Changed for Groupon Desk (fork of Paseo, Apache-2.0): productName Groupon Desk Work, appId com.groupon.desk.work, URL scheme groupon-desk.
 npmRebuild: false
 # Groupon Desk nests this app in its bundle as the work window (tools/groupon-desk, scripts/desk-release
 # in groupon2/engineering-development). Its own id, so macOS never takes it for upstream Paseo or for
@@ -9,7 +9,7 @@ npmRebuild: false
 appId: com.groupon.desk.work
 # The name in the menu bar, the Dock and the About panel. The executable and the bundle file keep
 # Paseo's name, which the packaging hooks and the smoke tests look for.
-productName: Groupon Desk
+productName: Groupon Desk Work
 executableName: Paseo
 # The window's own scheme: its pages load from groupon-desk://app, and macOS hands it
 # groupon-desk://h/<server>/agent/<agent> links. The menu-bar app keeps groupondesk://.

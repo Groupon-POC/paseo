@@ -99,7 +99,8 @@ names Groupon Desk or nothing:
 
 - **The name.** The packaged Electron app is "Groupon Desk Work" (`packages/desktop/src/app-name.ts`:
   the application menu, the About panel, the window title, a notification's title), the name of
-  the bundle Groupon Desk nests; its state stays in the folder the earlier name gave it
+  the bundle Groupon Desk nests (`productName` in `packages/desktop/package.json` and
+  `packages/desktop/electron-builder.yml`); its state stays in the folder the earlier name gave it
   (`~/Library/Application Support/Groupon Desk`). The web app and the phone app are "Groupon Desk".
 - **Paseo's web pages.** `PASEO_WEB_LINKS` (`groupon/paseo-web-links.ts`) is off: a docs link or
   button to paseo.sh (`components/ui/external-link.tsx`, the skills, daemon and changelog headers),

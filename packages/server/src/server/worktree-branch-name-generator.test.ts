@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
@@ -15,6 +15,7 @@ import {
   writePaseoWorktreeFirstAgentBranchAutoNameMetadata,
   writePaseoWorktreeMetadata,
 } from "../utils/worktree-metadata.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 const cleanupPaths: string[] = [];
 const BRANCH_PROMPT_BASELINE = `Generate a title and a git branch name for a coding agent from the user prompt and attachments.
@@ -228,9 +229,9 @@ describe("generateBranchNameFromFirstAgentContext", () => {
   });
 
   test.each([
-    ["paseo.json missing", undefined],
-    ["paseo.json exists but invalid JSON", "{ nope"],
-    ["paseo.json valid but missing metadataGeneration", {}],
+    [".groupon/desk.toml missing", undefined],
+    [".groupon/desk.toml exists but invalid JSON", "{ nope"],
+    [".groupon/desk.toml valid but missing metadataGeneration", {}],
     [
       "metadataGeneration exists but missing branchName",
       { metadataGeneration: { commitMessage: { instructions: "Use Conventional Commits." } } },
@@ -340,7 +341,7 @@ describe("generateBranchNameFromFirstAgentContext", () => {
 async function generateBranchPromptWithConfig(config: unknown): Promise<{ prompt: string }> {
   const repoRoot = createTempDir("paseo-branch-config-");
   if (typeof config === "string") {
-    writeFileSync(path.join(repoRoot, "paseo.json"), config);
+    writeProjectConfig(repoRoot, config);
   } else if (config !== undefined) {
     writeConfig(repoRoot, config);
   }
@@ -373,5 +374,5 @@ function createTempDir(prefix: string): string {
 }
 
 function writeConfig(repoRoot: string, config: unknown): void {
-  writeFileSync(path.join(repoRoot, "paseo.json"), `${JSON.stringify(config)}\n`);
+  writeProjectConfig(repoRoot, config);
 }

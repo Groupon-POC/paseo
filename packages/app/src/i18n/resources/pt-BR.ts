@@ -2804,13 +2804,13 @@ export const ptBR: TranslationResources = {
         savedToast: "Projeto atualizado",
       },
       readFailures: {
-        invalidTitle: "Não foi possível analisar paseo.json",
+        invalidTitle: "Não foi possível analisar .groupon/desk.toml",
         invalidDescription: "Corrija o arquivo no disco e recarregue.",
         missingTitle: "Este host não tem este projeto",
         missingSingleHost: "O host selecionado não tem registro deste projeto.",
-        transportTitle: "Não foi possível carregar paseo.json",
+        transportTitle: "Não foi possível carregar .groupon/desk.toml",
         transportFallback: "O host não respondeu.",
-        failedTitle: "Não foi possível carregar paseo.json",
+        failedTitle: "Não foi possível carregar .groupon/desk.toml",
         failedDescription: "Recarregue para tentar novamente.",
       },
       worktree: {
@@ -2821,7 +2821,7 @@ export const ptBR: TranslationResources = {
           "Veja a documentação para mais detalhes e as variáveis de ambiente disponíveis para estes comandos",
         setup: "Configuração",
         setupAccessibility: "Comandos de configuração do worktree",
-        uncommittedTitle: "Faça commit das alterações no paseo.json",
+        uncommittedTitle: "Faça commit das alterações no .groupon/desk.toml",
         uncommittedDescription:
           "Novos worktrees usam o script de configuração do branch base selecionado.",
         teardown: "Desmontagem",
@@ -2865,8 +2865,9 @@ export const ptBR: TranslationResources = {
       },
       writeFailures: {
         staleTitle: "Configuração alterada no disco",
-        staleDescription: "Recarregue para buscar o paseo.json mais recente antes de salvar.",
-        failedTitle: "Não foi possível salvar paseo.json",
+        staleDescription:
+          "Recarregue para buscar o .groupon/desk.toml mais recente antes de salvar.",
+        failedTitle: "Não foi possível salvar .groupon/desk.toml",
         failedDescription: "Tente novamente ou recarregue a versão mais recente do disco.",
       },
       actions: {

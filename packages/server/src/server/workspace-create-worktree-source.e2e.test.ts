@@ -7,6 +7,7 @@ import { expect, onTestFinished, test } from "vitest";
 
 import { DaemonClient } from "./test-utils/index.js";
 import { createTestPaseoDaemon } from "./test-utils/paseo-daemon.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 // The reshaped workspace.create.request forwards its worktree `source`
 // (action/refName/branchName/githubPrNumber/worktreeSlug) into createWorktreeCore.
@@ -71,26 +72,23 @@ test.each([false, true])(
   async (withSetupService) => {
     const daemon = await createTestPaseoDaemon();
     const { repoDir, tempRoot } = createGitRepoWithBranch();
-    writeFileSync(
-      path.join(repoDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          ...(withSetupService
-            ? {
-                // Launch the Windows service asynchronously so it outlives
-                // the setup command instead of holding setup open.
-                setup:
-                  process.platform === "win32"
-                    ? "Start-Process -FilePath node -ArgumentList 'setup.cjs','serve' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden; while (!(Test-Path setup-pid.txt)) { Start-Sleep -Milliseconds 25 }"
-                    : "node setup.cjs",
-              }
-            : {}),
-          terminals: [
-            { name: "preview", command: "echo paseo-auto-terminal >> terminal-marker.txt" },
-          ],
-        },
-      }),
-    );
+    writeProjectConfig(repoDir, {
+      worktree: {
+        ...(withSetupService
+          ? {
+              // Launch the Windows service asynchronously so it outlives
+              // the setup command instead of holding setup open.
+              setup:
+                process.platform === "win32"
+                  ? "Start-Process -FilePath node -ArgumentList 'setup.cjs','serve' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden; while (!(Test-Path setup-pid.txt)) { Start-Sleep -Milliseconds 25 }"
+                  : "node setup.cjs",
+            }
+          : {}),
+        terminals: [
+          { name: "preview", command: "echo paseo-auto-terminal >> terminal-marker.txt" },
+        ],
+      },
+    });
     writeFileSync(
       path.join(repoDir, "setup.cjs"),
       `
@@ -109,8 +107,11 @@ if (process.argv[2] === "serve") {
 }
 `,
     );
-    execFileSync("git", ["add", "paseo.json", "setup.cjs"], { cwd: repoDir, stdio: "pipe" });
-    execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add paseo.json"], {
+    execFileSync("git", ["add", ".groupon/desk.toml", "setup.cjs"], {
+      cwd: repoDir,
+      stdio: "pipe",
+    });
+    execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add .groupon/desk.toml"], {
       cwd: repoDir,
       stdio: "pipe",
     });

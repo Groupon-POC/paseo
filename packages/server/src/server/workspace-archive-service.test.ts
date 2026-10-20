@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import pino, { type Logger } from "pino";
@@ -19,6 +19,7 @@ import {
   resolveWorkspaceIdAtPath,
 } from "./workspace-archive-service.js";
 import { WorkspaceAutomationBlockedError } from "./workspace-automation-gate.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 const cleanupPaths: string[] = [];
 
@@ -222,16 +223,13 @@ describe("archiveByScope", () => {
 
   test("workspace scope runs teardown while keeping a directory referenced by a sibling", async () => {
     const { tempDir, repoDir } = createGitRepo();
-    writeFileSync(
-      path.join(repoDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          teardown: [
-            "node -e \"require('fs').writeFileSync(process.env.PASEO_SOURCE_CHECKOUT_PATH + '/shared-teardown.log', 'ok')\"",
-          ],
-        },
-      }),
-    );
+    writeProjectConfig(repoDir, {
+      worktree: {
+        teardown: [
+          "node -e \"require('fs').writeFileSync(process.env.PASEO_SOURCE_CHECKOUT_PATH + '/shared-teardown.log', 'ok')\"",
+        ],
+      },
+    });
     execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
     execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "shared teardown"], {
       cwd: repoDir,
@@ -267,14 +265,11 @@ describe("archiveByScope", () => {
   test("workspace scope skips teardown while repository automation is blocked", async () => {
     const { tempDir, repoDir } = createGitRepo();
     const marker = path.join(repoDir, "blocked-teardown.log");
-    writeFileSync(
-      path.join(repoDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          teardown: [`node -e "require('fs').writeFileSync('${marker}', 'unsafe')"`],
-        },
-      }),
-    );
+    writeProjectConfig(repoDir, {
+      worktree: {
+        teardown: [`node -e "require('fs').writeFileSync('${marker}', 'unsafe')"`],
+      },
+    });
     execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
     execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "blocked teardown"], {
       cwd: repoDir,
@@ -403,16 +398,13 @@ describe("archiveByScope", () => {
     const nestedRelative = path.join("packages", "app");
     const sourceNested = path.join(repoDir, nestedRelative);
     mkdirSync(sourceNested, { recursive: true });
-    writeFileSync(
-      path.join(sourceNested, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          teardown: [
-            "node -e \"require('fs').writeFileSync(process.env.PASEO_SOURCE_CHECKOUT_PATH + '/nested-teardown.log', process.cwd())\"",
-          ],
-        },
-      }),
-    );
+    writeProjectConfig(sourceNested, {
+      worktree: {
+        teardown: [
+          "node -e \"require('fs').writeFileSync(process.env.PASEO_SOURCE_CHECKOUT_PATH + '/nested-teardown.log', process.cwd())\"",
+        ],
+      },
+    });
     execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
     execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "nested teardown"], {
       cwd: repoDir,
@@ -460,26 +452,20 @@ describe("archiveByScope", () => {
     const nestedRelative = path.join("packages", "app");
     const sourceNested = path.join(repoDir, nestedRelative);
     mkdirSync(sourceNested, { recursive: true });
-    writeFileSync(
-      path.join(repoDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          teardown: [
-            "node -e \"const fs=require('fs');const out=process.env.PASEO_SOURCE_CHECKOUT_PATH+'/root-scope-teardown.log';if(fs.existsSync(out))process.exit(2);fs.writeFileSync(out,'ok')\"",
-          ],
-        },
-      }),
-    );
-    writeFileSync(
-      path.join(sourceNested, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          teardown: [
-            "node -e \"require('fs').writeFileSync(process.env.PASEO_SOURCE_CHECKOUT_PATH+'/nested-scope-teardown.log','ok')\"",
-          ],
-        },
-      }),
-    );
+    writeProjectConfig(repoDir, {
+      worktree: {
+        teardown: [
+          "node -e \"const fs=require('fs');const out=process.env.PASEO_SOURCE_CHECKOUT_PATH+'/root-scope-teardown.log';if(fs.existsSync(out))process.exit(2);fs.writeFileSync(out,'ok')\"",
+        ],
+      },
+    });
+    writeProjectConfig(sourceNested, {
+      worktree: {
+        teardown: [
+          "node -e \"require('fs').writeFileSync(process.env.PASEO_SOURCE_CHECKOUT_PATH+'/nested-scope-teardown.log','ok')\"",
+        ],
+      },
+    });
     execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
     execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "scope teardown"], {
       cwd: repoDir,

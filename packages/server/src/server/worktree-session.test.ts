@@ -51,6 +51,7 @@ import type { WorkspaceGitService } from "./workspace-git-service.js";
 import { isPlatform } from "../test-utils/platform.js";
 import { createWorkspaceProvisioningService } from "./session/workspace-provisioning/workspace-provisioning-service.js";
 import { WorkspaceAutomationBlockedError } from "./workspace-automation-gate.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 interface LegacyCreateWorktreeTestOptions {
   branchName: string;
@@ -458,15 +459,12 @@ describe("create-agent worktree setup boundary", () => {
     const paseoHome = path.join(tempDir, ".paseo");
     const setupMarker = path.join(tempDir, "setup-ran");
     const emitted: SessionOutboundMessage[] = [];
-    writeFileSync(
-      path.join(repoDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          setup: [`node -e "require('fs').writeFileSync('${setupMarker}', 'ran')"`],
-          terminals: [{ command: "unsafe-terminal" }],
-        },
-      }),
-    );
+    writeProjectConfig(repoDir, {
+      worktree: {
+        setup: [`node -e "require('fs').writeFileSync('${setupMarker}', 'ran')"`],
+        terminals: [{ command: "unsafe-terminal" }],
+      },
+    });
 
     try {
       const result = await createPaseoWorktreeWorkflow(
@@ -625,7 +623,7 @@ function createGitRepo(options?: { paseoConfig?: Record<string, unknown> }) {
   execFileSync("git", ["config", "user.name", "Test"], { cwd: repoDir, stdio: "pipe" });
   writeFileSync(path.join(repoDir, "README.md"), "hello\n");
   if (options?.paseoConfig) {
-    writeFileSync(path.join(repoDir, "paseo.json"), JSON.stringify(options.paseoConfig, null, 2));
+    writeProjectConfig(repoDir, options.paseoConfig);
   }
   execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
   execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "initial"], {
@@ -678,14 +676,11 @@ describe("runWorktreeSetupInBackground", () => {
     cleanupPaths.push(tempDir);
     const sourceWorkspaceCwd = path.join(repoDir, "packages", "app");
     mkdirSync(sourceWorkspaceCwd, { recursive: true });
-    writeFileSync(
-      path.join(sourceWorkspaceCwd, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          setup: ["pwd > setup-cwd.txt"],
-        },
-      }),
-    );
+    writeProjectConfig(sourceWorkspaceCwd, {
+      worktree: {
+        setup: ["pwd > setup-cwd.txt"],
+      },
+    });
     execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
     execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add app setup"], {
       cwd: repoDir,
@@ -829,8 +824,8 @@ describe("runWorktreeSetupInBackground", () => {
     const { tempDir, repoDir } = createGitRepo();
     cleanupPaths.push(tempDir);
 
-    writeFileSync(path.join(repoDir, "paseo.json"), "{ invalid json\n");
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+    writeProjectConfig(repoDir, "{ invalid json\n");
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "broken config"], {
       cwd: repoDir,
       stdio: "pipe",
@@ -885,15 +880,15 @@ describe("runWorktreeSetupInBackground", () => {
     expect(progressMessages[0]?.payload.error).toBeNull();
     expect(progressMessages[1]?.payload.status).toBe("failed");
     expect(progressMessages[1]?.payload.error).toMatch(
-      /Failed to parse paseo\.json at .*paseo\.json/,
+      /Failed to parse \.groupon\/desk\.toml at .*desk\.toml/,
     );
     expect(progressMessages[1]?.payload.detail.commands).toEqual([]);
     expect(snapshots.get(workspaceId)).toMatchObject({
       status: "failed",
-      error: expect.stringMatching(/Failed to parse paseo\.json at .*paseo\.json/),
+      error: expect.stringMatching(/Failed to parse \.groupon\/desk\.toml at .*desk\.toml/),
     });
     expect(existsSync(worktreePath)).toBe(true);
-    expect(existsSync(path.join(worktreePath, "paseo.json"))).toBe(true);
+    expect(existsSync(path.join(worktreePath, ".groupon/desk.toml"))).toBe(true);
     expect(emitWorkspaceUpdateForWorkspaceId).toHaveBeenCalledWith(workspaceId);
   });
 
@@ -1371,15 +1366,12 @@ describe("runWorktreeSetupInBackground", () => {
     cleanupPaths.push(tempDir);
     execFileSync("git", ["init", "-b", "fork-branch"], { cwd: tempDir, stdio: "ignore" });
     const setupMarker = path.join(tempDir, "setup-ran");
-    writeFileSync(
-      path.join(tempDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          setup: [`node -e "require('fs').writeFileSync('setup-ran', 'ran')"`],
-          terminals: [{ command: "start-preview" }],
-        },
-      }),
-    );
+    writeProjectConfig(tempDir, {
+      worktree: {
+        setup: [`node -e "require('fs').writeFileSync('setup-ran', 'ran')"`],
+        terminals: [{ command: "start-preview" }],
+      },
+    });
     const emitted: SessionOutboundMessage[] = [];
     let blocked = true;
     const operations: Array<(signal: AbortSignal) => Promise<void>> = [];

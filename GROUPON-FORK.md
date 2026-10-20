@@ -13,6 +13,8 @@ comment are listed here instead (Apache-2.0, section 4(b)):
 | File                                                                                                                                                                                                   | What changed                                                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `packages/app/package.json`, `package-lock.json`                                                                                                                                                       | `tweetnacl` as the app's own dependency: a colleague's device opens a shared workspace's key from the NaCl box the owner's hand made |
+| `packages/server/package.json`, `packages/app/package.json` (development), `package-lock.json`                                                                                                         | `smol-toml`: the daemon reads and writes a project's config in `.groupon/desk.toml`; the app's end-to-end helpers write it           |
+| `paseo.json` (removed)                                                                                                                                                                                 | This repository's own worktree setup and scripts moved to `.groupon/desk.toml`                                                       |
 | `packages/desktop/package.json`                                                                                                                                                                        | `productName` Groupon Desk                                                                                                           |
 | `packages/app/eas.json`                                                                                                                                                                                | Paseo's App Store Connect id removed                                                                                                 |
 | `packages/app/public/manifest.json`                                                                                                                                                                    | The web app's name and description                                                                                                   |
@@ -86,6 +88,20 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (`~/.groupon/paseo`) alone, never in `~/.paseo`.
 - **The Core a fresh install starts on.** Production in every release build, the web build
   included; the local Core only in a development bundle (`defaultEnvironmentId`).
+
+## A project's config: `.groupon/desk.toml`, never `paseo.json`
+
+Paseo keeps a project's worktree setup, teardown, terminals and scripts in `paseo.json` at the
+repository root. The fork reads and writes them in the repository file Groupon Desk already has,
+`.groupon/desk.toml` (owner, 2026-10-20: no Paseo file in a repository, and no fallback to one), in
+Paseo's shape as TOML: `[worktree]` (`setup`, `teardown`, `[[worktree.terminals]]`,
+`[worktree.servicePorts]`), `[scripts.<name>]` (`command`, `type`, `port`) and
+`[metadataGeneration.<kind>]`. The rest of the file is Groupon Desk's (`[scripts]`'s own keys
+`setup`, `archive`, `run_mode` and `[scripts.run.*]`, `[prompts]`, `[git]`, `[encore]`, comments): the
+daemon never reads it as Paseo config and a save from the Projects page keeps it byte for byte,
+replacing only the work window's tables (`packages/server/src/utils/paseo-config-file.ts`). A
+script cannot be named `setup`, `archive`, `run_mode` or `run`; another top-level key is never
+written. A new worktree gets an uncommitted copy of the file the same way it got `paseo.json`.
 
 ## How Groupon Desk ships it
 

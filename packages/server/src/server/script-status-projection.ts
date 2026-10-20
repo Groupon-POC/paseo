@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the warning names .groupon/desk.toml.
 import type { Logger } from "pino";
 import type {
   ScriptStatusUpdateMessage,
@@ -43,7 +44,7 @@ export function readPaseoConfigForProjection(
   }
   logger.warn(
     { configPath: result.configPath, workspaceDirectory, err: result.error },
-    "Failed to parse paseo.json; treating workspace as having no scripts",
+    "Failed to parse .groupon/desk.toml; treating workspace as having no scripts",
   );
   return null;
 }

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import type { PaseoConfigRaw } from "@getpaseo/protocol/paseo-config-schema";
 import { hasUncommittedWorktreeSetupChanges } from "./worktree-setup-commit-status.js";
+import { writeProjectConfig } from "../../../test-utils/project-config.js";
 
 const tempDirs: string[] = [];
 
@@ -28,7 +29,7 @@ function makeGitRepo(config?: PaseoConfigRaw): string {
 }
 
 function writeConfig(repoRoot: string, config: PaseoConfigRaw): void {
-  writeFileSync(join(repoRoot, "paseo.json"), `${JSON.stringify(config, null, 2)}\n`);
+  writeProjectConfig(repoRoot, config);
 }
 
 describe("worktree setup commit status", () => {
@@ -50,7 +51,7 @@ describe("worktree setup commit status", () => {
       true,
     );
 
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoRoot });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoRoot });
     await expect(hasUncommittedWorktreeSetupChanges({ repoRoot, currentConfig })).resolves.toBe(
       true,
     );
@@ -81,12 +82,12 @@ describe("worktree setup commit status", () => {
     );
   });
 
-  test("resolves paseo.json relative to a nested project root", async () => {
+  test("resolves .groupon/desk.toml relative to a nested project root", async () => {
     const repoRoot = makeGitRepo();
     const projectRoot = join(repoRoot, "packages", "app");
     mkdirSync(projectRoot, { recursive: true });
     writeConfig(projectRoot, { worktree: { setup: "npm ci" } });
-    execFileSync("git", ["add", "packages/app/paseo.json"], { cwd: repoRoot });
+    execFileSync("git", ["add", "packages/app/.groupon/desk.toml"], { cwd: repoRoot });
     execFileSync("git", ["commit", "-m", "add nested config"], { cwd: repoRoot });
     const currentConfig = { worktree: { setup: "npm install" } };
     writeConfig(projectRoot, currentConfig);

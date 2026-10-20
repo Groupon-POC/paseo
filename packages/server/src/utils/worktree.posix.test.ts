@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the project config is .groupon/desk.toml.
 // POSIX-only: git worktree and teardown shell fixtures
 /* eslint-disable max-nested-callbacks */
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -47,6 +48,8 @@ import {
 import { delimiter, dirname, join } from "path";
 import { tmpdir } from "os";
 import net from "node:net";
+import { writeProjectConfig } from "../test-utils/project-config.js";
+import { parse as parseToml } from "smol-toml";
 
 function loadConfigForTest(repoRoot: string): PaseoConfig | null {
   const result = readPaseoConfig(repoRoot);
@@ -423,10 +426,7 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       execFileSync("git", ["config", "user.name", "Test"], { cwd: remoteCloneDir });
       execFileSync("git", ["checkout", "-b", "contributor/feature"], { cwd: remoteCloneDir });
       writeFileSync(join(remoteCloneDir, "file.txt"), "from-pr\n");
-      writeFileSync(
-        join(remoteCloneDir, "paseo.json"),
-        JSON.stringify({ worktree: { setup: ['echo "setup ran" > setup.log'] } }),
-      );
+      writeProjectConfig(remoteCloneDir, { worktree: { setup: ['echo "setup ran" > setup.log'] } });
       execFileSync("git", ["add", "."], { cwd: remoteCloneDir });
       execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "pr branch"], {
         cwd: remoteCloneDir,
@@ -824,8 +824,8 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       expect(branches).toContain("hello-2");
     });
 
-    it("runs setup commands from paseo.json", async () => {
-      // Create paseo.json with setup commands
+    it("runs setup commands from .groupon/desk.toml", async () => {
+      // Create .groupon/desk.toml with setup commands
       const paseoConfig = {
         worktree: {
           setup: [
@@ -837,11 +837,15 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
           ],
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
-      execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add paseo.json"], {
-        cwd: repoDir,
-      });
+      writeProjectConfig(repoDir, paseoConfig);
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
+      execFileSync(
+        "git",
+        ["-c", "commit.gpgsign=false", "commit", "-m", "add .groupon/desk.toml"],
+        {
+          cwd: repoDir,
+        },
+      );
 
       const result = await createLegacyWorktreeForTest({
         branchName: "main",
@@ -866,14 +870,14 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       expect(portValue).toBeGreaterThan(0);
     });
 
-    it("runs string setup scripts from paseo.json as a single shell command", async () => {
+    it("runs string setup scripts from .groupon/desk.toml as a single shell command", async () => {
       const paseoConfig = {
         worktree: {
           setup: 'greeting="hello from string setup"\necho "$greeting" > setup.log',
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
+      writeProjectConfig(repoDir, paseoConfig);
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
       execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add string setup"], {
         cwd: repoDir,
       });
@@ -906,14 +910,11 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       writeFileSync(join(home, ".bash_profile"), "export PATH=/usr/bin:/bin\n");
       const bashEnvPath = join(home, "bash-env");
       writeFileSync(bashEnvPath, "export PATH=/usr/bin:/bin\n");
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          worktree: {
-            setup: "command -v paseo-shim >/dev/null && paseo-shim ok > setup-path.log",
-          },
-        }),
-      );
+      writeProjectConfig(repoDir, {
+        worktree: {
+          setup: "command -v paseo-shim >/dev/null && paseo-shim ok > setup-path.log",
+        },
+      });
 
       const originalHome = process.env.HOME;
       const originalPath = process.env.PATH;
@@ -957,40 +958,29 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
     });
 
     it("treats blank lifecycle strings as empty", () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          worktree: {
-            setup: " \n\t ",
-            teardown: " \n ",
-          },
-        }),
-      );
+      writeProjectConfig(repoDir, {
+        worktree: {
+          setup: " \n\t ",
+          teardown: " \n ",
+        },
+      });
 
       expect(getWorktreeSetupCommands(repoDir)).toEqual([]);
       expect(getWorktreeTeardownCommands(repoDir)).toEqual([]);
     });
 
     it("filters non-string and blank entries from lifecycle arrays", () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          worktree: {
-            setup: [
-              'echo "first" > setup-array.log',
-              null,
-              "   ",
-              'echo "second" >> setup-array.log',
-            ],
-            teardown: [
-              'echo "first" > "$PASEO_SOURCE_CHECKOUT_PATH/teardown-array.log"',
-              null,
-              "",
-              'echo "second" >> "$PASEO_SOURCE_CHECKOUT_PATH/teardown-array.log"',
-            ],
-          },
-        }),
-      );
+      writeProjectConfig(repoDir, {
+        worktree: {
+          setup: ['echo "first" > setup-array.log', 42, "   ", 'echo "second" >> setup-array.log'],
+          teardown: [
+            'echo "first" > "$PASEO_SOURCE_CHECKOUT_PATH/teardown-array.log"',
+            42,
+            "",
+            'echo "second" >> "$PASEO_SOURCE_CHECKOUT_PATH/teardown-array.log"',
+          ],
+        },
+      });
 
       expect(getWorktreeSetupCommands(repoDir)).toEqual([
         'echo "first" > setup-array.log',
@@ -1008,11 +998,15 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
           setup: ['echo "setup ran" > setup.log'],
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
-      execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add paseo.json"], {
-        cwd: repoDir,
-      });
+      writeProjectConfig(repoDir, paseoConfig);
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
+      execFileSync(
+        "git",
+        ["-c", "commit.gpgsign=false", "commit", "-m", "add .groupon/desk.toml"],
+        {
+          cwd: repoDir,
+        },
+      );
 
       const result = await createLegacyWorktreeForTest({
         branchName: "main",
@@ -1033,8 +1027,8 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
           setup: ['echo "first line"; echo "second line" 1>&2'],
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
+      writeProjectConfig(repoDir, paseoConfig);
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
       execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add streaming setup"], {
         cwd: repoDir,
       });
@@ -1118,17 +1112,21 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
     });
 
     it("cleans up worktree if setup command fails", async () => {
-      // Create paseo.json with failing setup command
+      // Create .groupon/desk.toml with failing setup command
       const paseoConfig = {
         worktree: {
           setup: ["exit 1"],
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
-      execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add paseo.json"], {
-        cwd: repoDir,
-      });
+      writeProjectConfig(repoDir, paseoConfig);
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
+      execFileSync(
+        "git",
+        ["-c", "commit.gpgsign=false", "commit", "-m", "add .groupon/desk.toml"],
+        {
+          cwd: repoDir,
+        },
+      );
 
       const expectedWorktreePath = join(paseoHome, "worktrees", "test-repo", "fail-test");
 
@@ -1146,7 +1144,7 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       expect(existsSync(expectedWorktreePath)).toBe(false);
     });
 
-    it("reads worktree terminal specs from paseo.json with optional name", async () => {
+    it("reads worktree terminal specs from .groupon/desk.toml with optional name", async () => {
       const paseoConfig = {
         worktree: {
           terminals: [
@@ -1155,7 +1153,7 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
           ],
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
+      writeProjectConfig(repoDir, paseoConfig);
 
       expect(getWorktreeTerminalSpecs(repoDir)).toEqual([
         { name: "Dev Server", command: "npm run dev" },
@@ -1167,7 +1165,7 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       const paseoConfig = {
         worktree: {
           terminals: [
-            null,
+            "not a terminal",
             {},
             { name: "   ", command: "   " },
             { name: " Watch ", command: "npm run watch", cwd: "packages/app" },
@@ -1175,7 +1173,7 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
           ],
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
+      writeProjectConfig(repoDir, paseoConfig);
 
       expect(getWorktreeTerminalSpecs(repoDir)).toEqual([
         { name: "Watch", command: "npm run watch" },
@@ -1184,16 +1182,13 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
     });
 
     it("parses omitted script type as a plain script", async () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          scripts: {
-            typecheck: {
-              command: " npm run typecheck ",
-            },
+      writeProjectConfig(repoDir, {
+        scripts: {
+          typecheck: {
+            command: " npm run typecheck ",
           },
-        }),
-      );
+        },
+      });
 
       const scriptConfigs = getScriptConfigs(loadConfigForTest(repoDir));
       const typecheck = scriptConfigs.get("typecheck");
@@ -1206,18 +1201,15 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
     });
 
     it("parses service scripts and preserves optional port", async () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          scripts: {
-            server: {
-              type: "service",
-              command: "npm run dev",
-              port: 4321,
-            },
+      writeProjectConfig(repoDir, {
+        scripts: {
+          server: {
+            type: "service",
+            command: "npm run dev",
+            port: 4321,
           },
-        }),
-      );
+        },
+      });
 
       const scriptConfigs = getScriptConfigs(loadConfigForTest(repoDir));
       const server = scriptConfigs.get("server");
@@ -1232,32 +1224,29 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
     });
 
     it("ignores invalid script entries gracefully", async () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          scripts: {
-            valid: {
-              command: "npm run valid",
-            },
-            invalidType: {
-              type: "worker",
-              command: "npm run worker",
-            },
-            missingCommand: {
-              type: "service",
-            },
-            blankCommand: {
-              command: "   ",
-            },
-            nonObject: "npm run nope",
-            invalidPort: {
-              type: "service",
-              command: "npm run dev",
-              port: "3000",
-            },
+      writeProjectConfig(repoDir, {
+        scripts: {
+          valid: {
+            command: "npm run valid",
           },
-        }),
-      );
+          invalidType: {
+            type: "worker",
+            command: "npm run worker",
+          },
+          missingCommand: {
+            type: "service",
+          },
+          blankCommand: {
+            command: "   ",
+          },
+          nonObject: "npm run nope",
+          invalidPort: {
+            type: "service",
+            command: "npm run dev",
+            port: "3000",
+          },
+        },
+      });
 
       expect(getScriptConfigs(loadConfigForTest(repoDir))).toEqual(
         new Map([
@@ -1268,11 +1257,8 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       );
     });
 
-    it("seeds an uncommitted paseo.json from the main repo into a new worktree", async () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({ scripts: { dev: { command: "echo hi" } } }),
-      );
+    it("seeds an uncommitted .groupon/desk.toml from the main repo into a new worktree", async () => {
+      writeProjectConfig(repoDir, { scripts: { dev: { command: "echo hi" } } });
 
       const result = await createLegacyWorktreeForTest({
         cwd: repoDir,
@@ -1282,37 +1268,39 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
         paseoHome,
       });
 
-      const worktreeConfigPath = join(result.worktreePath, "paseo.json");
+      const worktreeConfigPath = join(result.worktreePath, ".groupon/desk.toml");
       expect(existsSync(worktreeConfigPath)).toBe(true);
-      expect(JSON.parse(readFileSync(worktreeConfigPath, "utf8"))).toEqual({
+      expect(parseToml(readFileSync(worktreeConfigPath, "utf8"))).toEqual({
         scripts: { dev: { command: "echo hi" } },
       });
     });
 
-    it("keeps a new worktree clean when its upstream ref has a newer paseo.json", async () => {
+    it("keeps a new worktree clean when its upstream ref has a newer .groupon/desk.toml", async () => {
       const remoteDir = join(tempDir, "remote.git");
       const updaterDir = join(tempDir, "updater");
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({ worktree: { setup: "echo old" } }),
+      writeProjectConfig(repoDir, { worktree: { setup: "echo old" } });
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
+      execFileSync(
+        "git",
+        ["-c", "commit.gpgsign=false", "commit", "-m", "add .groupon/desk.toml"],
+        {
+          cwd: repoDir,
+        },
       );
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
-      execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add paseo.json"], {
-        cwd: repoDir,
-      });
       execFileSync("git", ["clone", "--bare", repoDir, remoteDir]);
       execFileSync("git", ["remote", "add", "origin", remoteDir], { cwd: repoDir });
       execFileSync("git", ["clone", remoteDir, updaterDir]);
       execFileSync("git", ["config", "user.email", "test@test.com"], { cwd: updaterDir });
       execFileSync("git", ["config", "user.name", "Test"], { cwd: updaterDir });
-      writeFileSync(
-        join(updaterDir, "paseo.json"),
-        JSON.stringify({ worktree: { setup: "echo new" } }),
+      writeProjectConfig(updaterDir, { worktree: { setup: "echo new" } });
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: updaterDir });
+      execFileSync(
+        "git",
+        ["-c", "commit.gpgsign=false", "commit", "-m", "update .groupon/desk.toml"],
+        {
+          cwd: updaterDir,
+        },
       );
-      execFileSync("git", ["add", "paseo.json"], { cwd: updaterDir });
-      execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "update paseo.json"], {
-        cwd: updaterDir,
-      });
       execFileSync("git", ["push", "origin", "main"], { cwd: updaterDir });
       execFileSync("git", ["fetch", "origin"], { cwd: repoDir });
 
@@ -1328,8 +1316,8 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
         paseoHome,
       });
 
-      const worktreeConfigPath = join(result.worktreePath, "paseo.json");
-      expect(JSON.parse(readFileSync(worktreeConfigPath, "utf8"))).toEqual({
+      const worktreeConfigPath = join(result.worktreePath, ".groupon/desk.toml");
+      expect(parseToml(readFileSync(worktreeConfigPath, "utf8"))).toEqual({
         worktree: { setup: "echo new" },
       });
       expect(
@@ -1340,21 +1328,19 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       ).toBe("");
     });
 
-    it("preserves a dangling paseo.json symlink from the selected ref", async () => {
-      const externalConfigPath = join(tempDir, "outside-paseo.json");
+    it("preserves a dangling .groupon/desk.toml symlink from the selected ref", async () => {
+      const externalConfigPath = join(tempDir, "outside-desk.toml");
       execFileSync("git", ["checkout", "-b", "symlink-config"], { cwd: repoDir });
-      symlinkSync(externalConfigPath, join(repoDir, "paseo.json"));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
+      mkdirSync(join(repoDir, ".groupon"), { recursive: true });
+      symlinkSync(externalConfigPath, join(repoDir, ".groupon/desk.toml"));
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
       execFileSync(
         "git",
-        ["-c", "commit.gpgsign=false", "commit", "-m", "add paseo.json symlink"],
+        ["-c", "commit.gpgsign=false", "commit", "-m", "add .groupon/desk.toml symlink"],
         { cwd: repoDir },
       );
       execFileSync("git", ["checkout", "main"], { cwd: repoDir });
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({ worktree: { setup: "echo source" } }),
-      );
+      writeProjectConfig(repoDir, { worktree: { setup: "echo source" } });
 
       const result = await createLegacyWorktreeForTest({
         cwd: repoDir,
@@ -1368,7 +1354,7 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
         paseoHome,
       });
 
-      const worktreeConfigPath = join(result.worktreePath, "paseo.json");
+      const worktreeConfigPath = join(result.worktreePath, ".groupon/desk.toml");
       expect(lstatSync(worktreeConfigPath).isSymbolicLink()).toBe(true);
       expect(readlinkSync(worktreeConfigPath)).toBe(externalConfigPath);
       expect(existsSync(externalConfigPath)).toBe(false);
@@ -1380,7 +1366,7 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       ).toBe("");
     });
 
-    it("creates a worktree without error when no paseo.json exists in the main repo", async () => {
+    it("creates a worktree without error when no .groupon/desk.toml exists in the main repo", async () => {
       const result = await createLegacyWorktreeForTest({
         cwd: repoDir,
         worktreeSlug: "no-config",
@@ -1389,7 +1375,7 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
         paseoHome,
       });
 
-      expect(existsSync(join(result.worktreePath, "paseo.json"))).toBe(false);
+      expect(existsSync(join(result.worktreePath, ".groupon/desk.toml"))).toBe(false);
     });
   });
 
@@ -1506,7 +1492,7 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       expect(remaining.some((worktree) => worktree.path === created.worktreePath)).toBe(false);
     });
 
-    it("runs teardown commands from paseo.json before deleting a worktree", async () => {
+    it("runs teardown commands from .groupon/desk.toml before deleting a worktree", async () => {
       const paseoConfig = {
         worktree: {
           teardown: [
@@ -1518,8 +1504,8 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
           ],
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
+      writeProjectConfig(repoDir, paseoConfig);
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
       execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add teardown commands"], {
         cwd: repoDir,
       });
@@ -1547,15 +1533,15 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
       expect(teardownLog).toContain(`port=${runtimeEnv.PASEO_WORKTREE_PORT}`);
     });
 
-    it("runs string teardown scripts from paseo.json as a single shell command", async () => {
+    it("runs string teardown scripts from .groupon/desk.toml as a single shell command", async () => {
       const paseoConfig = {
         worktree: {
           teardown:
             'cleanup_message="teardown string"\necho "$cleanup_message" > "$PASEO_SOURCE_CHECKOUT_PATH/teardown.log"',
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
+      writeProjectConfig(repoDir, paseoConfig);
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
       execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add string teardown"], {
         cwd: repoDir,
       });
@@ -1584,8 +1570,8 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
           ],
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
+      writeProjectConfig(repoDir, paseoConfig);
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
       execFileSync(
         "git",
         ["-c", "commit.gpgsign=false", "commit", "-m", "add teardown port logging"],
@@ -1615,8 +1601,8 @@ describe.skipIf(isPlatform("win32"))("worktree POSIX-only", () => {
           ],
         },
       };
-      writeFileSync(join(repoDir, "paseo.json"), JSON.stringify(paseoConfig));
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir });
+      writeProjectConfig(repoDir, paseoConfig);
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir });
       execFileSync(
         "git",
         ["-c", "commit.gpgsign=false", "commit", "-m", "add failing teardown commands"],

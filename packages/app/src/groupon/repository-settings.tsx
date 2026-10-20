@@ -4,8 +4,9 @@
  * The Projects page of a repository that carries `.groupon/desk.toml`: every field filled from the
  * default branch's copy (the Groupon plugin on the Mac reads it with git, `groupon.project-settings`)
  * and read-only, with the file's link; Branch names is the company standard (`groupon ticket name`).
- * Paseo's own editable page stays, collapsed, as "Override on this Mac": it writes this checkout's
- * `paseo.json`, which applies on this Mac only, and each value it changes is marked as an override.
+ * Paseo's own editable page stays, collapsed, as "Override on this Mac": it writes the work window's
+ * sections of this checkout's `.groupon/desk.toml`, which apply on this Mac only until a pull request
+ * lands them, and each value it changes is marked as an override.
  * A repository without the file, or a daemon without the plugin, keeps Paseo's page as it is.
  * Under the values, the Encore card (`encore-state-section.tsx`) when the file names Encore apps
  * or release trains.
@@ -62,7 +63,7 @@ interface GateProps {
   client: DaemonClient;
   serverId: string;
   repoRoot: string;
-  /** This checkout's `paseo.json`, as Paseo read it. */
+  /** The work window's sections of this checkout's `.groupon/desk.toml`, as the daemon read them. */
   localConfig: PaseoConfigRaw | null;
   /** Paseo's own editable page for this checkout. */
   children: ReactNode;

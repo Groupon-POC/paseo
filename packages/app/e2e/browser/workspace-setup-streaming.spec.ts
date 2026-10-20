@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the project config is .groupon/desk.toml.
 import { daemonTest, test, expect } from "../support/fixtures";
 import { createTempGitRepo } from "../support/helpers/workspace";
 import {
@@ -206,7 +207,7 @@ test.describe("Workspace setup streaming", () => {
   test("keeps a workspace usable when its setup config cannot be parsed", async ({ page }) => {
     const client = await connectWorkspaceSetupClient();
     const repo = await createTempGitRepo("setup-invalid-config-", {
-      files: [{ path: "paseo.json", content: "{ invalid json\n" }],
+      files: [{ path: ".groupon/desk.toml", content: "[worktree\n" }],
     });
 
     try {
@@ -220,18 +221,18 @@ test.describe("Workspace setup streaming", () => {
         worktreeSlug: "workspace-setup-invalid-config",
       });
       const failedPayload = await failed;
-      expect(failedPayload.error).toContain("Failed to parse paseo.json");
+      expect(failedPayload.error).toContain("Failed to parse .groupon/desk.toml");
       expect(failedPayload.detail.commands).toEqual([]);
 
       await openHomeWithProject(page, repo.path);
       await navigateToWorkspaceViaSidebar(page, workspace.id);
       await expectFailedSetupTabSeededInMainPane(page, workspace.id);
-      await expect(page.getByText(/Failed to parse paseo\.json at/)).toBeVisible();
+      await expect(page.getByText(/Failed to parse \.groupon\/desk\.toml at/)).toBeVisible();
       await closeSetupTab(page, workspace.id);
       await clickNewChat(page);
       await expectComposerVisible(page);
       await openFileExplorer(page);
-      await expectExplorerEntryVisible(page, "paseo.json");
+      await expectExplorerEntryVisible(page, ".groupon");
     } finally {
       await client.close();
       await repo.cleanup();

@@ -1,4 +1,4 @@
-import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -8,6 +8,7 @@ import { ProjectConfigSession, type ProjectConfigSessionHost } from "./project-c
 import { statPaseoConfigPath } from "../../../utils/paseo-config-file.js";
 import type { PersistedProjectRecord } from "../../workspace-registry.js";
 import type { SessionOutboundMessage } from "../../messages.js";
+import { writeProjectConfig } from "../../../test-utils/project-config.js";
 
 const tempDirs: string[] = [];
 
@@ -52,13 +53,10 @@ describe("ProjectConfigSession", () => {
     execFileSync("git", ["init", "-b", "main"], { cwd: repoRoot });
     execFileSync("git", ["config", "user.email", "test@test.com"], { cwd: repoRoot });
     execFileSync("git", ["config", "user.name", "Test"], { cwd: repoRoot });
-    writeFileSync(join(repoRoot, "paseo.json"), JSON.stringify({ worktree: { setup: "npm ci" } }));
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoRoot });
+    writeProjectConfig(repoRoot, { worktree: { setup: "npm ci" } });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoRoot });
     execFileSync("git", ["commit", "-m", "add config"], { cwd: repoRoot });
-    writeFileSync(
-      join(repoRoot, "paseo.json"),
-      JSON.stringify({ worktree: { setup: "npm install" } }),
-    );
+    writeProjectConfig(repoRoot, { worktree: { setup: "npm install" } });
     const { subsystem, emitted } = makeSubsystem([projectRecord(repoRoot)]);
 
     await subsystem.handleReadProjectConfigRequest({
@@ -81,7 +79,7 @@ describe("ProjectConfigSession", () => {
 
   test("read resolves a known root despite a trailing slash and returns the raw config + revision", async () => {
     const repoRoot = makeRoot();
-    writeFileSync(join(repoRoot, "paseo.json"), JSON.stringify({ worktree: { setup: "npm ci" } }));
+    writeProjectConfig(repoRoot, { worktree: { setup: "npm ci" } });
     const { subsystem, emitted } = makeSubsystem([projectRecord(repoRoot)]);
 
     await subsystem.handleReadProjectConfigRequest({
@@ -112,10 +110,7 @@ describe("ProjectConfigSession", () => {
     "read resolves a symlink to an active root via realpath",
     async () => {
       const repoRoot = makeRoot();
-      writeFileSync(
-        join(repoRoot, "paseo.json"),
-        JSON.stringify({ worktree: { setup: "npm ci" } }),
-      );
+      writeProjectConfig(repoRoot, { worktree: { setup: "npm ci" } });
       const linkRoot = join(makeRoot(), "link");
       symlinkSync(repoRoot, linkRoot, "dir");
       const { subsystem, emitted } = makeSubsystem([projectRecord(repoRoot)]);
@@ -218,8 +213,8 @@ describe("ProjectConfigSession", () => {
     execFileSync("git", ["init", "-b", "main"], { cwd: repoRoot });
     execFileSync("git", ["config", "user.email", "test@test.com"], { cwd: repoRoot });
     execFileSync("git", ["config", "user.name", "Test"], { cwd: repoRoot });
-    writeFileSync(join(repoRoot, "paseo.json"), JSON.stringify({ worktree: { setup: "npm ci" } }));
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoRoot });
+    writeProjectConfig(repoRoot, { worktree: { setup: "npm ci" } });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoRoot });
     execFileSync("git", ["commit", "-m", "add config"], { cwd: repoRoot });
     const { subsystem, emitted } = makeSubsystem([projectRecord(repoRoot)]);
 
@@ -245,7 +240,7 @@ describe("ProjectConfigSession", () => {
 
   test("write rejects a stale revision and an unknown root with their inline domain failures", async () => {
     const staleRoot = makeRoot();
-    writeFileSync(join(staleRoot, "paseo.json"), JSON.stringify({ worktree: { setup: "old" } }));
+    writeProjectConfig(staleRoot, { worktree: { setup: "old" } });
     const unknownRoot = makeRoot();
     const { subsystem, emitted } = makeSubsystem([projectRecord(staleRoot)]);
 

@@ -24,6 +24,7 @@ import { createWorktree, getPaseoWorktreesRoot } from "../utils/worktree.js";
 import { isPlatform } from "../test-utils/platform.js";
 import { areEquivalentPaths, createRealpathAwarePathMatcher } from "../utils/path.js";
 import { deriveProjectKey } from "./project-key.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 const cleanupPaths: string[] = [];
 
@@ -243,7 +244,7 @@ test("seeds an uncommitted exact-project config into the mapped worktree directo
   writeFileSync(path.join(sourceDir, "package.json"), "{}\n");
   commitAll(repoDir, "add subproject");
   const config = JSON.stringify({ worktree: { setup: ["npm install"] } });
-  writeFileSync(path.join(sourceDir, "paseo.json"), config);
+  writeProjectConfig(sourceDir, config);
 
   const result = await createPaseoWorktree(
     {
@@ -255,8 +256,8 @@ test("seeds an uncommitted exact-project config into the mapped worktree directo
     createDeps(),
   );
 
-  expect(readFileSync(path.join(result.workspace.cwd, "paseo.json"), "utf8")).toBe(config);
-  expect(existsSync(path.join(result.worktree.worktreePath, "paseo.json"))).toBe(false);
+  expect(readFileSync(path.join(result.workspace.cwd, ".groupon/desk.toml"), "utf8")).toBe(config);
+  expect(existsSync(path.join(result.worktree.worktreePath, ".groupon/desk.toml"))).toBe(false);
 });
 
 test("does not overwrite a committed exact-project config with source checkout edits", async () => {
@@ -266,12 +267,9 @@ test("does not overwrite a committed exact-project config with source checkout e
   mkdirSync(sourceDir, { recursive: true });
   writeFileSync(path.join(sourceDir, "package.json"), "{}\n");
   const committedConfig = JSON.stringify({ worktree: { setup: ["npm ci"] } });
-  writeFileSync(path.join(sourceDir, "paseo.json"), committedConfig);
+  writeProjectConfig(sourceDir, committedConfig);
   commitAll(repoDir, "add subproject config");
-  writeFileSync(
-    path.join(sourceDir, "paseo.json"),
-    JSON.stringify({ worktree: { setup: ["npm install"] } }),
-  );
+  writeProjectConfig(sourceDir, { worktree: { setup: ["npm install"] } });
 
   const result = await createPaseoWorktree(
     {
@@ -283,7 +281,9 @@ test("does not overwrite a committed exact-project config with source checkout e
     createDeps(),
   );
 
-  expect(readFileSync(path.join(result.workspace.cwd, "paseo.json"), "utf8")).toBe(committedConfig);
+  expect(readFileSync(path.join(result.workspace.cwd, ".groupon/desk.toml"), "utf8")).toBe(
+    committedConfig,
+  );
   expect(
     execFileSync("git", ["status", "--porcelain"], {
       cwd: result.worktree.worktreePath,

@@ -2828,13 +2828,13 @@ export const fr: TranslationResources = {
         savedToast: "Projet mis à jour",
       },
       readFailures: {
-        invalidTitle: "Impossible d’analyser paseo.json",
+        invalidTitle: "Impossible d’analyser .groupon/desk.toml",
         invalidDescription: "Corrigez le fichier sur le disque, puis rechargez.",
         missingTitle: "Ce projet n’existe pas sur cet hôte",
         missingSingleHost: "L’hôte sélectionné n’a aucune trace de ce projet.",
-        transportTitle: "Impossible de charger paseo.json",
+        transportTitle: "Impossible de charger .groupon/desk.toml",
         transportFallback: "L’hôte n’a pas répondu.",
-        failedTitle: "Impossible de charger paseo.json",
+        failedTitle: "Impossible de charger .groupon/desk.toml",
         failedDescription: "Rechargez pour réessayer.",
       },
       worktree: {
@@ -2845,7 +2845,7 @@ export const fr: TranslationResources = {
           "Consultez la documentation pour plus de détails et la liste des variables d’environnement disponibles pour ces commandes",
         setup: "Configuration",
         setupAccessibility: "Commandes de configuration du worktree",
-        uncommittedTitle: "Commitez les modifications de paseo.json",
+        uncommittedTitle: "Commitez les modifications de .groupon/desk.toml",
         uncommittedDescription:
           "Les nouveaux worktrees utilisent le script de configuration de la branche de base sélectionnée.",
         teardown: "Démontage",
@@ -2892,8 +2892,8 @@ export const fr: TranslationResources = {
       writeFailures: {
         staleTitle: "Configuration modifiée sur le disque",
         staleDescription:
-          "Rechargez pour récupérer la dernière version de paseo.json avant d’enregistrer.",
-        failedTitle: "Impossible d’enregistrer paseo.json",
+          "Rechargez pour récupérer la dernière version de .groupon/desk.toml avant d’enregistrer.",
+        failedTitle: "Impossible d’enregistrer .groupon/desk.toml",
         failedDescription: "Réessayez ou rechargez la dernière version depuis le disque.",
       },
       actions: {

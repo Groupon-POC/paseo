@@ -5,6 +5,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { ScriptRouteStore, ServiceProxyRouteCollisionError } from "./script-proxy.js";
 import { createBranchChangeRouteHandler } from "./script-route-branch-handler.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 function createWorkspaceRepo(options?: {
   branchName?: string;
@@ -24,7 +25,7 @@ function createWorkspaceRepo(options?: {
   execFileSync("git", ["config", "user.name", "Test"], { cwd: repoDir, stdio: "pipe" });
   writeFileSync(path.join(repoDir, "README.md"), "hello\n");
   if (options?.paseoConfig) {
-    writeFileSync(path.join(repoDir, "paseo.json"), JSON.stringify(options.paseoConfig, null, 2));
+    writeProjectConfig(repoDir, options.paseoConfig);
   }
   execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
   execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "initial"], {

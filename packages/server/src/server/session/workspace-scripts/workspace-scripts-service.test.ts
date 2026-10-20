@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pino } from "pino";
@@ -25,6 +25,7 @@ import type {
 import type { WorkspaceGitService } from "../../workspace-git-service.js";
 import { createWorkspaceScriptsService } from "./workspace-scripts-service.js";
 import { deriveProjectServiceSlug } from "../../workspace-git-metadata.js";
+import { writeProjectConfig } from "../../../test-utils/project-config.js";
 
 // The production module reads only WorkspaceGitService.{peekSnapshot,getProjectSlug},
 // WorkspaceRegistry.get, and forwards the launcher + opaque managers to the injected
@@ -167,7 +168,7 @@ describe("buildSnapshot", () => {
     ).toEqual([]);
   });
 
-  test("returns no scripts for a workspace without a paseo.json", async () => {
+  test("returns no scripts for a workspace without a .groupon/desk.toml", async () => {
     const dir = mkdtempSync(join(tmpdir(), "workspace-scripts-"));
     tempDirs.push(dir);
     const { service } = buildService();
@@ -179,10 +180,9 @@ describe("buildSnapshot", () => {
   test("projects service hostnames without a Git snapshot", async () => {
     const directory = mkdtempSync(join(tmpdir(), "workspace-scripts-"));
     tempDirs.push(directory);
-    writeFileSync(
-      join(directory, "paseo.json"),
-      JSON.stringify({ scripts: { app: { type: "service", command: "npm run app", port: 3000 } } }),
-    );
+    writeProjectConfig(directory, {
+      scripts: { app: { type: "service", command: "npm run app", port: 3000 } },
+    });
     const project = {
       projectId: "prj_no_snapshot",
       rootPath: directory,
@@ -235,10 +235,9 @@ describe("stop", () => {
   test("kills the supervised terminal and returns the stopped service metadata", async () => {
     const dir = mkdtempSync(join(tmpdir(), "workspace-scripts-"));
     tempDirs.push(dir);
-    writeFileSync(
-      join(dir, "paseo.json"),
-      JSON.stringify({ scripts: { web: { type: "service", command: "npm run web", port: 3000 } } }),
-    );
+    writeProjectConfig(dir, {
+      scripts: { web: { type: "service", command: "npm run web", port: 3000 } },
+    });
     const runtimeStore = new WorkspaceScriptRuntimeStore();
     runtimeStore.set({
       workspaceId: "ws-1",
@@ -427,10 +426,9 @@ describe("start", () => {
   test("predicts the same service hostname that start registers", async () => {
     const directory = mkdtempSync(join(tmpdir(), "workspace-scripts-"));
     tempDirs.push(directory);
-    writeFileSync(
-      join(directory, "paseo.json"),
-      JSON.stringify({ scripts: { app: { type: "service", command: "npm run app", port: 3000 } } }),
-    );
+    writeProjectConfig(directory, {
+      scripts: { app: { type: "service", command: "npm run app", port: 3000 } },
+    });
     const project = {
       projectId: "prj_hostname",
       rootPath: directory,

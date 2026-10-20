@@ -13,6 +13,7 @@ import {
   DaemonClient,
   type DaemonTestContext,
 } from "./test-utils/index.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 // Model B archive is scoped to a single workspace RECORD (by workspaceId), not
 // to a directory on disk. A directory can back multiple workspaces, so archiving
@@ -407,17 +408,14 @@ test.skipIf(process.platform === "win32")(
     const repoDir = createGitRepo();
     const setupStartedPath = path.join(repoDir, "setup-started");
     const stopSetupPath = path.join(repoDir, "stop-setup");
-    writeFileSync(
-      path.join(repoDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          setup: [
-            `node -e "const fs=require('fs'),path=require('path');const source=process.env.PASEO_SOURCE_CHECKOUT_PATH;const worktree=process.env.PASEO_WORKTREE_PATH;const target=path.join(worktree,'node_modules/react-native-svg/lib/typescript');fs.writeFileSync(path.join(source,'setup-started'),'started');while(!fs.existsSync(path.join(source,'stop-setup'))){try{fs.mkdirSync(target,{recursive:true});fs.writeFileSync(path.join(target,'active'),String(Date.now()))}catch{}}"`,
-          ],
-        },
-      }),
-    );
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+    writeProjectConfig(repoDir, {
+      worktree: {
+        setup: [
+          `node -e "const fs=require('fs'),path=require('path');const source=process.env.PASEO_SOURCE_CHECKOUT_PATH;const worktree=process.env.PASEO_WORKTREE_PATH;const target=path.join(worktree,'node_modules/react-native-svg/lib/typescript');fs.writeFileSync(path.join(source,'setup-started'),'started');while(!fs.existsSync(path.join(source,'stop-setup'))){try{fs.mkdirSync(target,{recursive:true});fs.writeFileSync(path.join(target,'active'),String(Date.now()))}catch{}}"`,
+        ],
+      },
+    });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync(
       "git",
       ["-c", "commit.gpgsign=false", "commit", "-m", "add active worktree setup"],

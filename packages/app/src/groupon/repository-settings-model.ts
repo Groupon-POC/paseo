@@ -2,23 +2,24 @@
 
 /**
  * A Groupon repository says how a worktree is prepared and run in `.groupon/desk.toml` on its
- * default branch (Paseo's `paseo.json` beside it is the shim that calls `groupon desk repo ...`).
- * That file is the default for everyone: the Projects page shows it read-only, nobody is nudged to
- * set worktree scripts up, and what a person changes in Paseo's own `paseo.json` in their checkout
- * is an override on that Mac only, marked as one. Pure, so the rules are tested without a screen.
+ * default branch; its `[worktree]` and `[scripts.<name>]` sections are what the work window runs,
+ * and they call `groupon desk repo ...`, which reads the rest of the file. That file is the default
+ * for everyone: the Projects page shows it read-only, nobody is nudged to set worktree scripts up,
+ * and what a person changes in those sections in their checkout is an override on that Mac only,
+ * marked as one. Pure, so the rules are tested without a screen.
  */
 
 import type { PaseoConfigRaw } from "@getpaseo/protocol/messages";
 import type { ProjectSettingsAnswer } from "./desk-plugin-rpc";
 
-/** The shim's own commands (monorepo `paseo.json`): routing to the desk file, never an override. */
+/** The commands the repository's `[worktree]` and `[scripts.<name>]` carry: routing to the desk file, never an override. */
 export const SHIM_SETUP = "groupon desk repo setup";
 export const SHIM_TEARDOWN = "groupon desk repo archive";
 export const shimRunCommand = (id: string): string => `groupon desk repo run ${id}`;
 
-/** The repository decides: its default branch carries the desk file or Paseo's own file. */
+/** The repository decides: its default branch (or this checkout) carries the desk file. */
 export function hasRepositoryStandard(answer: ProjectSettingsAnswer | null | undefined): boolean {
-  return Boolean(answer && (answer.settings !== null || answer.hasPaseoJson));
+  return Boolean(answer && answer.settings !== null);
 }
 
 /** A lifecycle command as Paseo keeps it (a string, or a list run in order), as one line. */
@@ -57,7 +58,7 @@ const instructionsOf = (entry: unknown): string | null => {
   return typeof instructions === "string" && instructions.trim() ? instructions : null;
 };
 
-/** What this checkout's `paseo.json` sets beyond the shim: each is an override on this Mac. */
+/** What this checkout's `[worktree]` and `[scripts.<name>]` set beyond the desk commands: each is an override on this Mac. */
 export function overridesOf(config: PaseoConfigRaw | null | undefined): LocalOverrides {
   if (!config) return EMPTY;
   const setup = commandText(config.worktree?.setup);

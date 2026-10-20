@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the project config lives in .groupon/desk.toml.
 import { realpathSync } from "node:fs";
 import { resolve, sep } from "path";
 import type pino from "pino";
@@ -21,7 +22,7 @@ export interface ProjectConfigSessionOptions {
 }
 
 /**
- * A client's read/write surface for a project's on-disk paseo.json. Resolves the
+ * A client's read/write surface for a project's config in .groupon/desk.toml. Resolves the
  * request's repoRoot against the known (non-archived) project roots — accepting a
  * trailing slash or a symlink via realpath — then reads or writes the config
  * substrate and emits the matching response. Reaches no state beyond the injected

@@ -1,9 +1,10 @@
 import { type ChildProcess } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 const execFileMock = vi.hoisted(() => vi.fn());
 const spawnProcessMock = vi.hoisted(() => vi.fn());
@@ -77,15 +78,11 @@ describe("worktree shell selection", () => {
     process.env.BASH_ENV = "should-not-leak";
     try {
       mkdirSync(join(worktreePath, ".git"), { recursive: true });
-      writeFileSync(
-        join(worktreePath, "paseo.json"),
-        JSON.stringify({
-          worktree: {
-            teardown: ["Write-Output 'teardown'"],
-          },
-        }),
-        "utf8",
-      );
+      writeProjectConfig(worktreePath, {
+        worktree: {
+          teardown: ["Write-Output 'teardown'"],
+        },
+      });
 
       const { runWorktreeTeardownCommands } = await import("./worktree.js");
       await runWorktreeTeardownCommands({
@@ -130,15 +127,11 @@ describe("worktree shell selection", () => {
     const originalBashEnv = process.env.BASH_ENV;
     process.env.BASH_ENV = "should-not-leak";
     try {
-      writeFileSync(
-        join(worktreePath, "paseo.json"),
-        JSON.stringify({
-          worktree: {
-            setup: ["Write-Output 'setup'"],
-          },
-        }),
-        "utf8",
-      );
+      writeProjectConfig(worktreePath, {
+        worktree: {
+          setup: ["Write-Output 'setup'"],
+        },
+      });
 
       const { runWorktreeSetupCommands } = await import("./worktree.js");
       await runWorktreeSetupCommands({

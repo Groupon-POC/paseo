@@ -2791,13 +2791,13 @@ export const ja: TranslationResources = {
         savedToast: "プロジェクトを更新しました",
       },
       readFailures: {
-        invalidTitle: "paseo.jsonを解析できませんでした",
+        invalidTitle: ".groupon/desk.tomlを解析できませんでした",
         invalidDescription: "ディスク上のファイルを修正してから再読み込みしてください。",
         missingTitle: "このホストにはこのプロジェクトがありません",
         missingSingleHost: "選択したホストにはこのプロジェクトの記録がありません。",
-        transportTitle: "paseo.jsonを読み込めませんでした",
+        transportTitle: ".groupon/desk.tomlを読み込めませんでした",
         transportFallback: "ホストが応答しませんでした。",
-        failedTitle: "paseo.jsonを読み込めませんでした",
+        failedTitle: ".groupon/desk.tomlを読み込めませんでした",
         failedDescription: "再読み込みして再試行してください。",
       },
       worktree: {
@@ -2808,7 +2808,7 @@ export const ja: TranslationResources = {
           "これらのコマンドで使用可能な詳細と環境変数についてはドキュメントを参照してください",
         setup: "セットアップ",
         setupAccessibility: "ワークツリーセットアップコマンド",
-        uncommittedTitle: "paseo.json の変更をコミットしてください",
+        uncommittedTitle: ".groupon/desk.toml の変更をコミットしてください",
         uncommittedDescription:
           "新しいワークツリーでは、選択したベースブランチのセットアップスクリプトが使われます。",
         teardown: "削除時",
@@ -2852,8 +2852,9 @@ export const ja: TranslationResources = {
       },
       writeFailures: {
         staleTitle: "設定がディスク上で変更されました",
-        staleDescription: "保存する前に最新のpaseo.jsonを取得するために再読み込みしてください。",
-        failedTitle: "paseo.jsonを保存できませんでした",
+        staleDescription:
+          "保存する前に最新の.groupon/desk.tomlを取得するために再読み込みしてください。",
+        failedTitle: ".groupon/desk.tomlを保存できませんでした",
         failedDescription: "再試行するか、ディスクから最新バージョンを再読み込みしてください。",
       },
       actions: {

@@ -2892,13 +2892,13 @@ export const en = {
         savedToast: "Project updated",
       },
       readFailures: {
-        invalidTitle: "paseo.json couldn't be parsed",
+        invalidTitle: ".groupon/desk.toml couldn't be parsed",
         invalidDescription: "Fix the file on disk, then reload.",
         missingTitle: "This host doesn't have this project",
         missingSingleHost: "The selected host has no record of this project.",
-        transportTitle: "Couldn't load paseo.json",
+        transportTitle: "Couldn't load .groupon/desk.toml",
         transportFallback: "The host didn't respond.",
-        failedTitle: "Couldn't load paseo.json",
+        failedTitle: "Couldn't load .groupon/desk.toml",
         failedDescription: "Reload to try again.",
       },
       worktree: {
@@ -2909,7 +2909,7 @@ export const en = {
           "See docs for more details and the environment variables available to these commands",
         setup: "Setup",
         setupAccessibility: "Worktree setup commands",
-        uncommittedTitle: "Commit paseo.json changes",
+        uncommittedTitle: "Commit .groupon/desk.toml changes",
         uncommittedDescription:
           "New worktrees use the setup script from the base branch you select.",
         teardown: "Teardown",
@@ -2953,8 +2953,8 @@ export const en = {
       },
       writeFailures: {
         staleTitle: "Config changed on disk",
-        staleDescription: "Reload to fetch the latest paseo.json before saving.",
-        failedTitle: "Couldn't save paseo.json",
+        staleDescription: "Reload to fetch the latest .groupon/desk.toml before saving.",
+        failedTitle: "Couldn't save .groupon/desk.toml",
         failedDescription: "Try again, or reload the latest version from disk.",
       },
       actions: {

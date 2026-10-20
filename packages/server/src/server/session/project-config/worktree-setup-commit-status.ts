@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the committed config is HEAD's .groupon/desk.toml.
 import {
   PaseoConfigRawSchema,
   normalizeLifecycleCommands,
@@ -5,6 +6,10 @@ import {
 } from "@getpaseo/protocol/paseo-config-schema";
 import { READ_ONLY_GIT_ENV } from "../../checkout-git-utils.js";
 import { runGitCommand } from "../../../utils/run-git-command.js";
+import {
+  PASEO_CONFIG_FILE_NAME,
+  paseoConfigFromDeskToml,
+} from "../../../utils/paseo-config-file.js";
 
 export async function hasUncommittedWorktreeSetupChanges(input: {
   repoRoot: string;
@@ -22,7 +27,7 @@ async function resolveConfigGitPath(repoRoot: string): Promise<string> {
     cwd: repoRoot,
     envOverlay: READ_ONLY_GIT_ENV,
   });
-  return `${stdout.trim()}paseo.json`;
+  return `${stdout.trim()}${PASEO_CONFIG_FILE_NAME}`;
 }
 
 async function readCommittedConfig(
@@ -46,7 +51,7 @@ async function readCommittedConfig(
     cwd: repoRoot,
     envOverlay: READ_ONLY_GIT_ENV,
   });
-  return PaseoConfigRawSchema.parse(JSON.parse(stdout));
+  return PaseoConfigRawSchema.parse(paseoConfigFromDeskToml(stdout));
 }
 
 function stringArraysEqual(left: string[], right: string[]): boolean {

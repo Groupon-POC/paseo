@@ -59,6 +59,17 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   the add-project flow with no host) opens Your Macs. Paseo's `add-host-modal.tsx`,
   `add-host-method-modal.tsx` and `add-remote-ssh-host-modal.tsx` stay, unreachable; Paseo's
   end-to-end specs that drive them (`e2e/`) do not apply to this fork.
+- **Paseo's built-in daemon: the hand owns it.** The daemon on a Mac starts only by Groupon
+  Desk's hand (`groupon desk serve`, a launchd agent), which registers it on Core's relay; the
+  window never runs one of its own (owner, 2026-10-20; the monorepo's design
+  `groupon-desk-work-window-design.md`, sections 12a and 12b). `GROUPON_DESK_HAND_OWNS_DAEMON`
+  (`groupon/pairing-policy.ts`) keeps the app from starting Paseo's built-in daemon at launch or
+  on retry (`app/_layout.tsx`), from polling the desktop for one (`hooks/use-is-local-daemon.ts`),
+  and from offering Enable or Manage built-in daemon; the desktop's main process carries the same
+  switch (`packages/desktop/src/daemon/groupon-local-daemon.ts`): it refuses
+  `start_desktop_daemon` and `restart_desktop_daemon`, answers `desktop_daemon_status` as stopped
+  without launching Paseo's CLI, and looks for this Mac's daemon in the hand's home
+  (`~/.groupon/paseo`) alone, never in `~/.paseo`.
 - **The Core a fresh install starts on.** Production in every release build, the web build
   included; the local Core only in a development bundle (`defaultEnvironmentId`).
 
@@ -70,7 +81,12 @@ this branch with `npm run build:desktop -- --publish never --mac dir --<arch>` a
 in the menu-bar app as `Groupon Desk.app/Contents/Helpers/Groupon Desk Work.app`; Desk's "Work
 window" button opens it. The app id is `com.groupon.desk.work`. Signing and notarisation come from
 the environment that build sets (`CSC_NAME`, `APPLE_API_KEY`, `APPLE_API_KEY_ID`,
-`APPLE_API_ISSUER`; on a local build ad-hoc with `-c.mac.identity=-` and without the hardened runtime, `-c.mac.hardenedRuntime=false`, since ad-hoc code under it cannot load Electron Framework). The app never checks Paseo's
+`APPLE_API_ISSUER`; on a local build ad-hoc with `-c.mac.identity=-` and without the hardened runtime, `-c.mac.hardenedRuntime=false`, since ad-hoc code under it cannot load Electron Framework). A child the app starts in node
+mode (Paseo's CLI) runs as the bundle's Helper, which carries `LSUIElement`
+(`packages/desktop/src/daemon/runtime-paths.ts`): the Helper is named after `productName`
+("Groupon Desk Helper.app") while the executable keeps Paseo's name, and a child started from the
+main executable instead checks in with LaunchServices as a Foreground app the moment it sets
+`process.title` (Paseo's supervisor and daemon do), so each got its own bouncing Dock tile. The app never checks Paseo's
 update feed (`packages/desktop/src/features/auto-updater.ts`): Groupon Desk's own update replaces
 both.
 

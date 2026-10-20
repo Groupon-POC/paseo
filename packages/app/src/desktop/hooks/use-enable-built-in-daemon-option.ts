@@ -1,6 +1,8 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): never offered while the hand owns this Mac's daemon.
 import { useCallback } from "react";
 import { router } from "expo-router";
 import { getIsElectron } from "@/constants/platform";
+import { GROUPON_DESK_HAND_OWNS_DAEMON } from "@/groupon/pairing-policy";
 import { useLocalDaemonServerIdState } from "@/hooks/use-is-local-daemon";
 import { useHosts } from "@/runtime/host-runtime";
 import { useDesktopSettings } from "@/desktop/settings/desktop-settings";
@@ -31,7 +33,11 @@ export function useEnableBuiltInDaemonOption(): EnableBuiltInDaemonOption {
     localDaemon.status === "resolved" &&
     localDaemon.serverId !== null &&
     hosts.some((host) => host.serverId === localDaemon.serverId);
-  const visible = isElectron && localDaemon.status === "resolved" && !isLocalhostConfigured;
+  const visible =
+    !GROUPON_DESK_HAND_OWNS_DAEMON &&
+    isElectron &&
+    localDaemon.status === "resolved" &&
+    !isLocalhostConfigured;
 
   const onPress = useCallback(() => {
     void (async () => {

@@ -1,5 +1,7 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no desktop daemon to look for while the hand owns this Mac's.
 import { useQuery } from "@tanstack/react-query";
 import { getDesktopDaemonStatus, shouldUseDesktopDaemon } from "@/desktop/daemon/desktop-daemon";
+import { GROUPON_DESK_HAND_OWNS_DAEMON } from "@/groupon/pairing-policy";
 
 const DESKTOP_DAEMON_SERVER_ID_QUERY_KEY = ["desktop-daemon-server-id"] as const;
 
@@ -15,8 +17,14 @@ async function loadDesktopDaemonServerId(): Promise<DesktopDaemonServerIdResult>
   };
 }
 
+// The hand's daemon is reached like any hub Mac, never as the window's own "local daemon", so its
+// host shows no stop or manage controls and nothing polls the desktop once a second for one.
+function isDesktopDaemonApp(): boolean {
+  return !GROUPON_DESK_HAND_OWNS_DAEMON && shouldUseDesktopDaemon();
+}
+
 function useLocalDaemonServerIdQuery() {
-  const isDesktopApp = shouldUseDesktopDaemon();
+  const isDesktopApp = isDesktopDaemonApp();
 
   return useQuery({
     queryKey: DESKTOP_DAEMON_SERVER_ID_QUERY_KEY,
@@ -33,7 +41,7 @@ function useLocalDaemonServerIdQuery() {
 }
 
 export function useLocalDaemonServerId(): string | null {
-  const isDesktopApp = shouldUseDesktopDaemon();
+  const isDesktopApp = isDesktopDaemonApp();
   const query = useLocalDaemonServerIdQuery();
 
   if (!isDesktopApp) {
@@ -49,7 +57,7 @@ export type LocalDaemonServerIdState =
   | { status: "resolved"; serverId: string | null };
 
 export function useLocalDaemonServerIdState(): LocalDaemonServerIdState {
-  const isDesktopApp = shouldUseDesktopDaemon();
+  const isDesktopApp = isDesktopDaemonApp();
   const query = useLocalDaemonServerIdQuery();
 
   if (!isDesktopApp) {

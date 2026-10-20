@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): Paseo's pairing offers and manual hosts are not offered in Groupon Desk.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): Paseo's pairing offers, manual hosts and built-in daemon are not offered in Groupon Desk.
 
 /**
  * Whether the app offers Paseo's pairing: a QR code or a `#offer=` / `relay://` link that adds a
@@ -18,3 +18,16 @@ export const PASEO_PAIRING_OFFERS = false;
  * screen is Your Macs (`your-macs-screen.tsx`); an Add host link anywhere leads there.
  */
 export const PASEO_MANUAL_HOSTS = false;
+
+/**
+ * Whether Groupon Desk's hand owns this Mac's daemon. On in every build (owner, 2026-10-20; the
+ * monorepo's design `groupon-desk-work-window-design.md`, sections 12a and 12b): the daemon starts
+ * only by the hand (`groupon desk serve`, a launchd agent), which registers it on Core's relay; the
+ * window finds the person's Macs through the hub, connects directly to this Mac's daemon and
+ * through the relay to the others, and never runs a daemon of its own. So the window never starts
+ * Paseo's built-in daemon at launch, retries none, shows no "Manage built-in daemon" or "Enable
+ * built-in daemon" controls, and does not poll the desktop for one. The desktop's main process
+ * carries the same switch (`packages/desktop/src/daemon/groupon-local-daemon.ts`) and refuses a
+ * start even if asked.
+ */
+export const GROUPON_DESK_HAND_OWNS_DAEMON = true;

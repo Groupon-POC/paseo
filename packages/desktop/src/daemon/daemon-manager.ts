@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the local credential of the hand's daemon too; this Mac's daemons for a direct connection.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the local credential of the hand's daemon too; this Mac's daemons for a direct connection; the hand alone starts a daemon.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
@@ -33,6 +33,8 @@ import {
   installCli,
 } from "../integrations/cli-install/index.js";
 import {
+  GROUPON_DESK_HAND_OWNS_DAEMON,
+  HAND_OWNS_DAEMON_MESSAGE,
   localDaemonHomes,
   readLocalCredentialForRunningDaemon,
   readLocalDaemons,
@@ -229,6 +231,11 @@ function resolveDesktopAppVersion(): string {
 export async function resolveDesktopDaemonStatus(): Promise<DesktopDaemonStatus> {
   const home = getPaseoHome();
 
+  // The hand's daemon is not the window's: nothing to manage here, and no CLI child to launch.
+  if (GROUPON_DESK_HAND_OWNS_DAEMON) {
+    return statusFromDaemonProbe({ localDaemon: "stopped" }, home);
+  }
+
   try {
     // The app polls this while no local daemon runs. Answer that case in-process,
     // since launching the CLI once per poll keeps spawning processes while idle.
@@ -283,6 +290,7 @@ function assertBuiltInDaemonManagementEnabled(settings: DesktopSettings): void {
 }
 
 async function startDaemon(): Promise<DesktopDaemonStatus> {
+  if (GROUPON_DESK_HAND_OWNS_DAEMON) throw new Error(HAND_OWNS_DAEMON_MESSAGE);
   assertBuiltInDaemonManagementEnabled(await getDesktopSettingsStore().get());
 
   const current = await resolveDesktopDaemonStatus();
@@ -367,6 +375,7 @@ export async function stopDesktopDaemon(
 }
 
 async function restartDaemon(): Promise<DesktopDaemonStatus> {
+  if (GROUPON_DESK_HAND_OWNS_DAEMON) throw new Error(HAND_OWNS_DAEMON_MESSAGE);
   await runExternalCliJsonCommand(["daemon", "restart", "--home", getPaseoHome(), "--json"]);
   return resolveDesktopDaemonStatus();
 }

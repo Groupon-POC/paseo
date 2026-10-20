@@ -9,7 +9,13 @@ import {
   isJobAnswer,
   isEncoreAccessAnswer,
   isEncoreStateAnswer,
+  isJiraFieldsAnswer,
+  isJiraSavedViewAnswer,
+  isJiraSearchAnswer,
   isProjectSettingsAnswer,
+  jiraSavedView,
+  readJiraFields,
+  searchJira,
   readEncoreState,
   requestEncoreAccess,
   pluginProblemText,
@@ -180,6 +186,52 @@ function fakeClient(answers: Record<string, unknown[]>) {
   return { client, calls };
 }
 
+const SAMPLE_JIRA_FIELD = {
+  id: "summary",
+  name: "Summary",
+  kind: "text",
+  custom: false,
+  sortable: true,
+  clauseName: "summary",
+};
+
+const SAMPLE_JIRA_SEARCH = {
+  page: {
+    data: [
+      {
+        key: "ENC-10373",
+        url: "https://groupondev.atlassian.net/browse/ENC-10373",
+        cells: {
+          summary: { text: "Count the paid orders", iconUrl: null, url: null, category: null },
+          status: { text: "To Do", iconUrl: null, url: null, category: "todo" },
+        },
+      },
+    ],
+    nextCursor: "tok-2",
+    total: 151,
+    fields: [SAMPLE_JIRA_FIELD],
+    jql: '(assignee = "712020:abc") AND (status = "To Do") ORDER BY created DESC',
+  },
+  problem: null,
+};
+
+const SAMPLE_JIRA_SIGNED_OUT = {
+  page: null,
+  problem: {
+    kind: "signed-out",
+    message: "The groupon CLI on this Mac is not signed in: run groupon login there.",
+  },
+};
+
+const SAMPLE_JIRA_VIEW = {
+  view: {
+    jql: 'assignee = currentUser() AND status = "To Do" ORDER BY created DESC',
+    columns: ["issuekey", "summary"],
+    updatedAt: "2026-10-20T10:00:00.000Z",
+  },
+  problem: null,
+};
+
 describe("the Groupon plugin's RPCs", () => {
   it("keeps the plugin's names", () => {
     expect(GROUPON_PLUGIN_ID).toBe("groupon");
@@ -193,7 +245,38 @@ describe("the Groupon plugin's RPCs", () => {
       projectSettings: "groupon.project-settings",
       encoreState: "groupon.encore-state",
       requestEncoreAccess: "groupon.encore-request-access",
+      jiraSearch: "groupon.jira-search",
+      jiraFields: "groupon.jira-fields",
+      jiraSavedView: "groupon.jira-saved-view",
     });
+  });
+
+  it("reads My tasks' sample answers and refuses another shape", () => {
+    expect(isJiraSearchAnswer(SAMPLE_JIRA_SEARCH)).toBe(true);
+    expect(isJiraSearchAnswer(SAMPLE_JIRA_SIGNED_OUT)).toBe(true);
+    expect(isJiraSearchAnswer({ page: { rows: [] }, problem: null })).toBe(false);
+    expect(isJiraFieldsAnswer({ fields: [SAMPLE_JIRA_FIELD], problem: null })).toBe(true);
+    expect(isJiraSavedViewAnswer(SAMPLE_JIRA_VIEW)).toBe(true);
+    expect(isJiraSavedViewAnswer({ view: null, problem: null })).toBe(true);
+  });
+
+  it("searches, reads the fields and saves the view through the plugin", async () => {
+    const { client, calls } = fakeClient({
+      [GROUPON_RPC.jiraSearch]: [SAMPLE_JIRA_SEARCH],
+      [GROUPON_RPC.jiraFields]: [{ fields: [SAMPLE_JIRA_FIELD], problem: null }],
+      [GROUPON_RPC.jiraSavedView]: [SAMPLE_JIRA_VIEW],
+    });
+    const input = { jql: "status = Done", fields: ["summary"], cursor: null, limit: 25 };
+
+    expect((await searchJira(client, input)).page?.total).toBe(151);
+    expect((await readJiraFields(client, false)).fields).toHaveLength(1);
+    const save = { jql: "status = Done ORDER BY created DESC", columns: ["summary"] };
+    expect((await jiraSavedView(client, save)).view?.columns).toEqual(["issuekey", "summary"]);
+    expect(calls.map(({ method, input: sent }) => [method, sent])).toEqual([
+      ["groupon.jira-search", input],
+      ["groupon.jira-fields", { refresh: false }],
+      ["groupon.jira-saved-view", { save }],
+    ]);
   });
 
   it("reads the plugin's sample answers", () => {

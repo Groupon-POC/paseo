@@ -6,7 +6,7 @@
  * without a terminal: the branch name and the readiness grading (the CLI itself, so its comment on
  * the ticket and its desk record are the CLI's), then Paseo's worktree on that branch and the
  * agent with the CLI's flow order. A ticket the readiness check hands back shows its questions and
- * the link, and nothing is created.
+ * the link, and nothing is created. My tasks' "Take to development" opens it with the key filled in.
  */
 
 import { router } from "expo-router";
@@ -56,6 +56,8 @@ export interface StartTicketInitial {
   model: string | null;
   effort: string | null;
   modeId: string | null;
+  /** The key to start with: My tasks' row the person took; empty when opened from the button. */
+  ticket?: string;
 }
 
 type Run =
@@ -91,16 +93,21 @@ export function useStartTicketFromPage(input: {
   return useStartTicket(initial);
 }
 
-/** The page's button and sheet: `open` shows the sheet for the page's current choices. */
+/**
+ * The page's button and sheet: `open` shows the sheet for the page's current choices, `openFor`
+ * the same with a ticket's key filled in (My tasks' Take to development).
+ */
 export function useStartTicket(initial: StartTicketInitial): {
   open: () => void;
+  openFor: (ticket: string) => void;
   sheet: React.ReactElement | null;
 } {
   const [opened, setOpened] = useState<StartTicketInitial | null>(null);
   const open = useCallback(() => setOpened(initial), [initial]);
+  const openFor = useCallback((ticket: string) => setOpened({ ...initial, ticket }), [initial]);
   const close = useCallback(() => setOpened(null), []);
   const sheet = opened ? <StartTicketSheet initial={opened} onClose={close} /> : null;
-  return { open, sheet };
+  return { open, openFor, sheet };
 }
 
 function Chip({
@@ -183,7 +190,7 @@ function StartTicketSheet({
   const { entries } = useProvidersSnapshot(serverId);
   const agents = useMemo(() => agentChoices(entries), [entries]);
 
-  const [ticket, setTicket] = useState("");
+  const [ticket, setTicket] = useState(initial.ticket ?? "");
   const [repositoryKey, setRepositoryKey] = useState<string | null>(initial.projectViewKey);
   const [provider, setProvider] = useState<string | null>(initial.provider);
   const [model, setModel] = useState<string | null>(initial.model);
@@ -300,7 +307,7 @@ function StartTicketSheet({
         <View style={styles.field}>
           <Text style={styles.label}>{GROUPON_TICKET.ticketLabel}</Text>
           <EditingTextInput
-            initialValue=""
+            initialValue={initial.ticket ?? ""}
             onChangeText={setTicket}
             autoCapitalize="characters"
             autoCorrect={false}

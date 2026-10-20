@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; My tasks under the composer.
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -112,6 +112,7 @@ import { useNewWorkspaceProjectPicker } from "./new-workspace/project-picker";
 import { useNewWorkspaceForm } from "./new-workspace/form";
 import { ImportSessionButton } from "./new-workspace/import-session-button";
 import { StartTicketButton } from "@/groupon/start-ticket-button";
+import { JiraTasksCard } from "@/groupon/jira-tasks-card";
 import { useStartTicketFromPage } from "@/groupon/start-ticket-sheet";
 import { useImportSession } from "@/hooks/use-import-session";
 import {
@@ -1604,6 +1605,7 @@ export function NewWorkspaceScreen({
         {composer}
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </NewWorkspaceLayout>
+      <JiraTasksCard serverId={selectedServerId} onTakeTicket={startTicket.openFor} />
       {importSession.sheet}
       {startTicket.sheet}
     </FileDropZone>

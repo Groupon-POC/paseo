@@ -86,3 +86,17 @@ the History screen's workspace card opens `groupon/share-screen.tsx` (who has ac
 `groupon/shared-sidebar.tsx`) and on the History screen, and a shared chat opens in the History
 reader with the share key out of the owner's box, with a composer and Allow / Deny when the role is
 write (`groupon/history-chat-screen.tsx`, `groupon/share-model.ts`).
+
+## My tasks on the New workspace page
+
+Under the composer of the New workspace page (`screens/new-workspace-screen.tsx`, one marked line
+mounting `groupon/jira-tasks-card.tsx`), a card lists the person's Jira tasks: a filter bar
+modelled on Jira's (Assignee = Current user, Type, Status, Created in the last N days, More
+filters as free JQL, Clear filters; `groupon/jira-tasks-filters.tsx`), the table with the person's
+columns (Jira's own nine by default, picked in `groupon/jira-tasks-columns.tsx`), paging, and as
+the last column "Take to development", which opens Start a ticket with that key. Every change is
+saved, after a pause, as the person's default view on the internal plane, so every window opens
+the same. The Groupon plugin on the page's Mac answers `groupon.jira-search`,
+`groupon.jira-fields` and `groupon.jira-saved-view` through that Mac's `groupon` CLI; the filter
+bar's JQL and its reading back are `groupon/jira-tasks-model.ts`. Not drawn on a phone-sized
+layout, where the composer sits at the bottom.

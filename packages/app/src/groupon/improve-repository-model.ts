@@ -8,7 +8,7 @@
  * Responsibilities:
  * - `requestedRepositoryId`: the repository the sheet opens on (the row or page it was opened
  *   from, else where the person is, else the repository chosen last)
- * - `improveMacs`, `improveMacServerId`, `improveMacProblem`: only Macs holding the repository;
+ * - `improveMacs`, `improveMacServerId`, `improveChosenMac`, `improveMacProblem`: only Macs holding the repository;
  *   only a serving one (its hand running) can be chosen; why none can
  * - `improvePrompt`: the repository's `[prompts] improve_repository`, else the window's default
  * - `improveAgent`: the agent and model New workspace used last when this Mac offers them
@@ -116,6 +116,15 @@ export function improveMacServerId(
   const asked = wanted ? serving.find((row) => row.mac.serverId === wanted) : undefined;
   const chosen = asked ?? serving.find((row) => row.mac.isThisMac) ?? serving[0];
   return chosen?.mac.serverId ?? null;
+}
+
+/** The chosen Mac's row; none without a serving Mac (a Mac without a hand has no server id either). */
+export function improveChosenMac(
+  holding: readonly ImproveMac[],
+  serverId: string | null,
+): ImproveMac | null {
+  if (serverId === null) return null;
+  return holding.find((row) => row.mac.selectable && row.mac.serverId === serverId) ?? null;
 }
 
 /** Why no Mac can take the run: none holds the repository, or none holding it is serving. */

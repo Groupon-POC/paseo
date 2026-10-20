@@ -12,6 +12,7 @@ import {
   IMPROVE_PROMPT_KEY,
   IMPROVE_WORKTREE_SLUG,
   improveAgent,
+  improveChosenMac,
   improveMacProblem,
   improveMacServerId,
   improveMacs,
@@ -169,6 +170,14 @@ describe("Improve this repository: the Mac", () => {
     expect(improveMacServerId(improveMacs(MONOREPO, [airWithoutHand, MINI]), null)).toBe(
       "srv_mini",
     );
+  });
+
+  it("has no chosen Mac, and so no preview or Start, when none holding the repository serves", () => {
+    // Every Mac without a hand has a null server id: a null choice must not match one of them.
+    const holding = improveMacs(ON_STUDIO, MACS);
+    expect(improveChosenMac(holding, improveMacServerId(holding, null))).toBeNull();
+    const monorepo = improveMacs(MONOREPO, MACS);
+    expect(improveChosenMac(monorepo, "srv_mini")?.checkout.projectId).toBe("p_mono_mini");
   });
 
   it("says why no Mac can take it: none holds it, or none holding it is serving", () => {

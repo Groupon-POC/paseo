@@ -50,6 +50,7 @@ import {
   IMPROVE_WORKTREE_SLUG,
   improveWorkspaceRequest,
   improveAgent,
+  improveChosenMac,
   improveMacProblem,
   improveMacServerId,
   improveMacs,
@@ -144,7 +145,7 @@ function useImproveChoice(context: ImproveRequestContext) {
     holding,
     serverId,
     macProblem: improveMacProblem(entry, holding),
-    chosen: holding.find((row) => row.mac.serverId === serverId) ?? null,
+    chosen: improveChosenMac(holding, serverId),
     chooseRepository,
     chooseMac: setPickedServerId,
   };

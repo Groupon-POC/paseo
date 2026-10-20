@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, this Mac by default.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, this Mac by default, one row per Mac.
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -835,10 +835,16 @@ function useNewWorkspaceInitialContext({
   const hostConnectionStatusByServerId = useHostRuntimeConnectionStatuses(allServerIds);
   const workspaceMultiplicityByServerId = useHostFeatureMap(allServerIds, "workspaceMultiplicity");
   const hubMachines = useHubMachinesStore((state) => state.machines);
+  // A registry host no hub Mac stands behind is listed only in a development build.
   const macOptions = useMemo(
     () =>
-      macPickerOptions(hubMachines, (id) => hostConnectionStatusByServerId.get(id) === "online"),
-    [hostConnectionStatusByServerId, hubMachines],
+      macPickerOptions(
+        hubMachines,
+        (id) => hostConnectionStatusByServerId.get(id) === "online",
+        allHosts,
+        __DEV__,
+      ),
+    [allHosts, hostConnectionStatusByServerId, hubMachines],
   );
   const {
     selectedServerId,

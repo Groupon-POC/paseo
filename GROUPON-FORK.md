@@ -65,10 +65,14 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   person's Macs from the hub (`groupon/mac-picker.tsx`, its model `groupon/mac-picker-model.ts`),
   this Mac first and chosen by default unless the route names a project; a Mac that is not
   connected (Your Macs' notion) is listed greyed with the reason, "hand not running",
-  "connecting" or "different vault", and cannot be chosen. Choosing a Mac is Paseo's host switch
+  "connecting" or "different vault", and cannot be chosen. One row per Mac: keyed by its daemon's
+  server id and the hub's machine id, named by the hub's alias or name, never by the label Paseo's
+  host registry stored (two hub records naming one daemon are one Mac, in Your Macs too); a
+  registry host no hub Mac stands behind is left out of a release build and listed as "stored
+  host" only in a development build. Choosing a Mac is Paseo's host switch
   (`screens/new-workspace-screen.tsx`, `screens/new-workspace/form/index.tsx`), so the
   repository list, Local / Worktree and the started task belong to that Mac. Paseo's Host picker
-  stays for a host that no hub Mac names.
+  is not shown on New workspace.
 - **Paseo's built-in daemon: the hand owns it.** The daemon on a Mac starts only by Groupon
   Desk's hand (`groupon desk serve`, a launchd agent), which registers it on Core's relay; the
   window never runs one of its own (owner, 2026-10-20; the monorepo's design

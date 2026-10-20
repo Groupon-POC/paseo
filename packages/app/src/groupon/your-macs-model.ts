@@ -6,7 +6,8 @@
  * states are tested without React.
  *
  * Responsibilities:
- * - one row per Mac on the hub, in the state a person acts on: connected, connecting (its hand is
+ * - one row per Mac on the hub (`uniqueMacViews`: two hub records naming one daemon are one Mac),
+ *   in the state a person acts on: connected, connecting (its hand is
  *   on Core's relay, or it is this Mac and its daemon answers directly), its hand not running,
  *   a different vault, or an error
  * - the screen as a whole: still loading, the hub unreadable, no Mac with a running hand
@@ -111,12 +112,37 @@ function compareRows(a: YourMacRow, b: YourMacRow): number {
   );
 }
 
+/** How strongly a hub record stands for its daemon: added, then reached directly, then seen last. */
+function compareViewsForOneDaemon(a: HubMachineView, b: HubMachineView): number {
+  return (
+    Number(b.state === "added") - Number(a.state === "added") ||
+    Number(b.direct !== null) - Number(a.direct !== null) ||
+    b.machine.lastSeenAt.localeCompare(a.machine.lastSeenAt)
+  );
+}
+
+/**
+ * One view per Mac: hub records that name the same daemon (server id) are one Mac, kept as the
+ * record that stands for it best; a record without a server id is its own Mac (its machine id).
+ */
+export function uniqueMacViews(views: readonly HubMachineView[]): HubMachineView[] {
+  const byKey = new Map<string, HubMachineView>();
+  for (const view of views) {
+    const key = view.serverId ? `server:${view.serverId}` : `machine:${view.machine.machine}`;
+    const kept = byKey.get(key);
+    if (!kept || compareViewsForOneDaemon(view, kept) < 0) byKey.set(key, view);
+  }
+  return [...byKey.values()];
+}
+
 /** One row per hub Mac, connected first (also New workspace's Mac picker, `mac-picker-model.ts`). */
 export function yourMacRows(
   views: readonly HubMachineView[],
   isOnline: (serverId: string) => boolean,
 ): YourMacRow[] {
-  return views.map((view) => rowOf(view, isOnline)).sort(compareRows);
+  return uniqueMacViews(views)
+    .map((view) => rowOf(view, isOnline))
+    .sort(compareRows);
 }
 
 export function yourMacsModel(input: YourMacsInput): YourMacsModel {

@@ -133,10 +133,63 @@ describe("defaultMacServerId", () => {
   });
 });
 
+describe("one row per Mac", () => {
+  // The owner's dev window, 2026-10-20: Paseo's registry kept the earlier session's direct host,
+  // labelled by the hostname, beside the hub's Mac on the same daemon.
+  const mini = added("mini", {
+    direct: "127.0.0.1:6770",
+    machine: machine("mini", {
+      alias: "Tomas - Mac Mini in Office Prague",
+      relayConnectedAt: "2026-10-20T08:00:00.000Z",
+    }),
+    label: "Tomas - Mac Mini in Office Prague",
+  });
+  const registry = [
+    { serverId: "srv_mini", label: "CY2T43V547" },
+    { serverId: "srv_old_desktop", label: "CY2T43V547" },
+  ];
+
+  it("lists a Mac once, by the hub's name, never by the registry's label", () => {
+    const options = macPickerOptions([mini], online("srv_mini"), registry, false);
+    expect(options.map((option) => [option.id, option.label, option.serverId])).toEqual([
+      ["mini", "Tomas - Mac Mini in Office Prague", "srv_mini"],
+    ]);
+  });
+
+  it("keeps a stored host with no hub Mac behind it out of a release build", () => {
+    const options = macPickerOptions([mini], online("srv_mini", "srv_old_desktop"), registry);
+    expect(options.some((option) => option.label === "CY2T43V547")).toBe(false);
+  });
+
+  it("in a development build lists such a host last, marked stored host, the hub's Mac still once", () => {
+    const options = macPickerOptions([mini], online("srv_mini"), registry, true);
+    expect(
+      options.map((option) => [option.id, option.label, option.selectable, option.note]),
+    ).toEqual([
+      ["mini", "Tomas - Mac Mini in Office Prague", true, GROUPON_MAC_PICKER.thisMac],
+      ["stored:srv_old_desktop", "CY2T43V547", false, GROUPON_MAC_PICKER.storedHost],
+    ]);
+  });
+
+  it("merges two hub records that name one daemon into one row, the one reached directly", () => {
+    const stale = added("mini-old", {
+      machine: machine("mini-old", { name: "CY2T43V547", lastSeenAt: "2026-10-19T08:00:00.000Z" }),
+      label: "CY2T43V547",
+      serverId: "srv_mini",
+    });
+    const options = macPickerOptions([stale, mini], online("srv_mini"));
+    expect(options.map((option) => [option.id, option.label])).toEqual([
+      ["mini", "Tomas - Mac Mini in Office Prague"],
+    ]);
+  });
+});
+
 describe("macPickerTriggerLabel", () => {
-  it("says On <Mac>, or the host's own label for a host that is no hub Mac", () => {
+  it("says On <Mac> by the picker's name for it, never a registry label", () => {
     const options = macPickerOptions([added("studio")], online("srv_studio"));
-    expect(macPickerTriggerLabel(options, "srv_studio", null)).toBe("On Tomas - studio");
-    expect(macPickerTriggerLabel(options, "srv_other", "Build box")).toBe("On Build box");
+    expect(macPickerTriggerLabel(options, "srv_studio")).toBe("On Tomas - studio");
+    expect(macPickerTriggerLabel(options, "srv_other")).toBe(
+      GROUPON_MAC_PICKER.on(GROUPON_MAC_PICKER.unknownMac),
+    );
   });
 });

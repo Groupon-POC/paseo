@@ -18,6 +18,7 @@ import { deriveWorktreeProjectHash } from "../../utils/worktree.js";
 import { isPlatform } from "../../test-utils/platform.js";
 import type { AgentTimelineItem } from "../agent/agent-sdk-types.js";
 import type { SessionOutboundMessage } from "../messages.js";
+import { writeProjectConfig } from "../../test-utils/project-config.js";
 
 function tmpCwd(): string {
   return mkdtempSync(path.join(tmpdir(), "daemon-e2e-"));
@@ -423,7 +424,7 @@ test("returns isGit false for non-git directory", async () => {
   rmSync(cwd, { recursive: true, force: true });
 }, 60000); // 1 minute timeout
 
-test("runs paseo.json setup asynchronously and reports status via timeline tool_call", async () => {
+test("runs .groupon/desk.toml setup asynchronously and reports status via timeline tool_call", async () => {
   const repoRoot = tmpCwd();
 
   const { execSync } = await import("child_process");
@@ -444,12 +445,9 @@ test("runs paseo.json setup asynchronously and reports status via timeline tool_
 
   const setupCommand =
     'while [ ! -f "$PASEO_WORKTREE_PATH/allow-setup" ]; do sleep 0.05; done; echo "done" > "$PASEO_WORKTREE_PATH/setup-done.txt"';
-  writeFileSync(
-    path.join(repoRoot, "paseo.json"),
-    JSON.stringify({ worktree: { setup: [setupCommand] } }),
-  );
-  execSync("git add paseo.json", { cwd: repoRoot, stdio: "pipe" });
-  execSync("git -c commit.gpgsign=false commit -m 'add paseo.json'", {
+  writeProjectConfig(repoRoot, { worktree: { setup: [setupCommand] } });
+  execSync("git add .groupon/desk.toml", { cwd: repoRoot, stdio: "pipe" });
+  execSync("git -c commit.gpgsign=false commit -m 'add .groupon/desk.toml'", {
     cwd: repoRoot,
     stdio: "pipe",
   });
@@ -519,24 +517,21 @@ test("bootstraps configured worktree terminals after setup succeeds", async () =
 
     const setupCommand =
       'while [ ! -f "$PASEO_WORKTREE_PATH/allow-setup" ]; do sleep 0.05; done; echo "done" > "$PASEO_WORKTREE_PATH/setup-done.txt"; echo "$PASEO_WORKTREE_PORT" > "$PASEO_WORKTREE_PATH/setup-port.txt"';
-    writeFileSync(
-      path.join(repoRoot, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          setup: [setupCommand],
-          terminals: [
-            {
-              name: "Dev Server",
-              command: "tail -f /dev/null",
-            },
-            {
-              command: "tail -f /dev/null",
-            },
-          ],
-        },
-      }),
-    );
-    execSync("git add paseo.json", { cwd: repoRoot, stdio: "pipe" });
+    writeProjectConfig(repoRoot, {
+      worktree: {
+        setup: [setupCommand],
+        terminals: [
+          {
+            name: "Dev Server",
+            command: "tail -f /dev/null",
+          },
+          {
+            command: "tail -f /dev/null",
+          },
+        ],
+      },
+    });
+    execSync("git add .groupon/desk.toml", { cwd: repoRoot, stdio: "pipe" });
     execSync("git -c commit.gpgsign=false commit -m 'add setup and terminals'", {
       cwd: repoRoot,
       stdio: "pipe",
@@ -660,21 +655,18 @@ test("reports failures via timeline tool_call without deleting the created workt
 
   const setupCommand =
     'echo "started" > "$PASEO_WORKTREE_PATH/setup-start.txt"; sleep 0.1; echo "boom" 1>&2; exit 7';
-  writeFileSync(
-    path.join(repoRoot, "paseo.json"),
-    JSON.stringify({
-      worktree: {
-        setup: [setupCommand],
-        terminals: [
-          {
-            name: "Should Not Start",
-            command: 'echo "should-not-run" > should-not-run.txt; tail -f /dev/null',
-          },
-        ],
-      },
-    }),
-  );
-  execSync("git add paseo.json", { cwd: repoRoot, stdio: "pipe" });
+  writeProjectConfig(repoRoot, {
+    worktree: {
+      setup: [setupCommand],
+      terminals: [
+        {
+          name: "Should Not Start",
+          command: 'echo "should-not-run" > should-not-run.txt; tail -f /dev/null',
+        },
+      ],
+    },
+  });
+  execSync("git add .groupon/desk.toml", { cwd: repoRoot, stdio: "pipe" });
   execSync("git -c commit.gpgsign=false commit -m 'add failing setup'", {
     cwd: repoRoot,
     stdio: "pipe",
@@ -796,21 +788,18 @@ test("archiving a worktree shuts down its terminals but leaves the worktree on d
   execSync("git branch -M main", { cwd: repoRoot, stdio: "pipe" });
 
   const teardownMarkerPath = path.join(repoRoot, "teardown-marker.txt");
-  writeFileSync(
-    path.join(repoRoot, "paseo.json"),
-    JSON.stringify({
-      worktree: {
-        terminals: [
-          {
-            name: "Dev Server",
-            command: 'echo "dev-server" > dev-terminal.txt; tail -f /dev/null',
-          },
-        ],
-        teardown: [`echo "$PASEO_WORKTREE_PATH" > "${teardownMarkerPath}"`],
-      },
-    }),
-  );
-  execSync("git add paseo.json", { cwd: repoRoot, stdio: "pipe" });
+  writeProjectConfig(repoRoot, {
+    worktree: {
+      terminals: [
+        {
+          name: "Dev Server",
+          command: 'echo "dev-server" > dev-terminal.txt; tail -f /dev/null',
+        },
+      ],
+      teardown: [`echo "$PASEO_WORKTREE_PATH" > "${teardownMarkerPath}"`],
+    },
+  });
+  execSync("git add .groupon/desk.toml", { cwd: repoRoot, stdio: "pipe" });
   execSync("git -c commit.gpgsign=false commit -m 'add worktree terminal + teardown'", {
     cwd: repoRoot,
     stdio: "pipe",

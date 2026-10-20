@@ -1,6 +1,10 @@
-import { chmod, readFile, writeFile } from "node:fs/promises";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the project config is .groupon/desk.toml, in TOML.
+import { appendFile, chmod, mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
+import { stringify as stringifyToml } from "smol-toml";
+
+const PROJECT_CONFIG_PATH = ".groupon/desk.toml";
 import { expect, type Page } from "@playwright/test";
 import type { WebSocketRoute } from "@playwright/test";
 import { gotoAppShell, openSettings } from "./app";
@@ -179,15 +183,15 @@ export async function expectSaveButtonDisabled(page: Page): Promise<void> {
 }
 
 export async function expectUncommittedSetupWarning(page: Page): Promise<void> {
-  const warning = page.getByRole("alert").filter({ hasText: "Commit paseo.json changes" });
-  await expect(warning).toContainText("Commit paseo.json changes");
+  const warning = page.getByRole("alert").filter({ hasText: "Commit .groupon/desk.toml changes" });
+  await expect(warning).toContainText("Commit .groupon/desk.toml changes");
   await expect(warning).toContainText(
     "New worktrees use the setup script from the base branch you select.",
   );
 }
 
 export async function expectNoUncommittedSetupWarning(page: Page): Promise<void> {
-  const warning = page.getByRole("alert").filter({ hasText: "Commit paseo.json changes" });
+  const warning = page.getByRole("alert").filter({ hasText: "Commit .groupon/desk.toml changes" });
   await expect(warning).toHaveCount(0);
 }
 
@@ -245,42 +249,39 @@ export async function removeProjectScript(page: Page, scriptName: string): Promi
 // --- File manipulation ---
 
 export async function corruptPaseoConfig(repoPath: string): Promise<void> {
-  await writeFile(path.join(repoPath, "paseo.json"), "{not valid json}");
+  await writeFile(path.join(repoPath, PROJECT_CONFIG_PATH), "[worktree\nnot valid toml\n");
 }
 
 export async function bumpPaseoConfigOnDisk(repoPath: string): Promise<void> {
-  const configPath = path.join(repoPath, "paseo.json");
-  const raw = await readFile(configPath, "utf8");
-  const config = JSON.parse(raw) as Record<string, unknown>;
-  config._bump = Date.now();
-  await writeFile(configPath, JSON.stringify(config, null, 2) + "\n");
+  await appendFile(path.join(repoPath, PROJECT_CONFIG_PATH), `# bumped ${Date.now()}\n`);
 }
 
 export async function restorePaseoConfig(
   repoPath: string,
   config: Record<string, unknown>,
 ): Promise<void> {
-  await writeFile(path.join(repoPath, "paseo.json"), JSON.stringify(config, null, 2) + "\n");
+  await mkdir(path.join(repoPath, ".groupon"), { recursive: true });
+  await writeFile(path.join(repoPath, PROJECT_CONFIG_PATH), stringifyToml(config));
 }
 
 export function commitPaseoConfig(repoPath: string): void {
-  execFileSync("git", ["add", "paseo.json"], { cwd: repoPath });
+  execFileSync("git", ["add", PROJECT_CONFIG_PATH], { cwd: repoPath });
   execFileSync("git", ["commit", "-m", "Update project config"], { cwd: repoPath });
 }
 
 // The daemon writes atomically via a temp file + rename, so blocking writes requires
 // removing write permission from the *directory*, not just the file.
 export async function blockPaseoConfigWrites(repoPath: string): Promise<void> {
-  await chmod(repoPath, 0o555);
+  await chmod(path.join(repoPath, ".groupon"), 0o555);
 }
 
 export async function unblockPaseoConfigWrites(repoPath: string): Promise<void> {
-  await chmod(repoPath, 0o755);
+  await chmod(path.join(repoPath, ".groupon"), 0o755);
 }
 
 // --- WebSocket helpers ---
 
-// Proxies all daemon WS traffic transparently, but rejects paseo.json reads
+// Proxies all daemon WS traffic transparently, but rejects project config reads
 // until the test explicitly allows recovery. Closing the transport leaves the
 // client-side RPC pending across reconnects, so this injects the same correlated
 // rpc_error shape the daemon emits for failed async session requests.

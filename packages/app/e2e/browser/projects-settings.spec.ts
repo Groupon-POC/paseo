@@ -1,4 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the project config is .groupon/desk.toml, in TOML; only the work window's sections are written.
 import { chmod, readFile } from "node:fs/promises";
+import { parse as parseToml } from "smol-toml";
 import path from "node:path";
 import { expect, test as base, type Page } from "../support/fixtures";
 import { connectSeedClient, seedWorkspace } from "../support/helpers/seed-client";
@@ -91,7 +93,6 @@ const initialPaseoConfig = {
       customScriptField: "preserved",
     },
   },
-  customTopLevelField: "preserved",
 };
 
 const test = base.extend<ProjectsSettingsFixtures>({
@@ -108,7 +109,7 @@ const test = base.extend<ProjectsSettingsFixtures>({
 
     // Defensive: restore directory write permission in case the test left it blocked
     // (write_failed test), so that cleanup can remove files inside.
-    await chmod(workspace.repoPath, 0o755).catch(() => undefined);
+    await chmod(path.join(workspace.repoPath, ".groupon"), 0o755).catch(() => undefined);
     await workspace.cleanup();
   },
   gitlabRemoteProject: async ({ page: _page }, provide) => {
@@ -134,7 +135,7 @@ async function expectProjectConfigSaved(project: ProjectsSettingsProject): Promi
     .poll(
       async () => {
         const contents = await readProjectConfigFile(project);
-        return JSON.parse(contents) as unknown;
+        return parseToml(contents) as unknown;
       },
       {
         timeout: 30_000,
@@ -154,15 +155,11 @@ async function expectProjectConfigSaved(project: ProjectsSettingsProject): Promi
           customScriptField: initialPaseoConfig.scripts.dev.customScriptField,
         },
       },
-      customTopLevelField: initialPaseoConfig.customTopLevelField,
     });
-
-  const savedConfig = await readProjectConfigFile(project);
-  expect(savedConfig).toBe(`${JSON.stringify(JSON.parse(savedConfig), null, 2)}\n`);
 }
 
 async function readProjectConfigFile(project: ProjectsSettingsProject): Promise<string> {
-  return readFile(path.join(project.path, "paseo.json"), "utf8");
+  return readFile(path.join(project.path, ".groupon/desk.toml"), "utf8");
 }
 
 async function addProjectFromSidebar(page: Page, projectPath: string): Promise<string> {
@@ -376,7 +373,7 @@ test.describe("Projects settings — error UX", () => {
     await expectProjectSettingsFormVisible(page);
   });
 
-  test("invalid paseo.json shows read-error callout, reload after fix shows form", async ({
+  test("invalid .groupon/desk.toml shows read-error callout, reload after fix shows form", async ({
     page,
     editableProject,
   }) => {

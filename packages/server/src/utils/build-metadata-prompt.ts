@@ -1,4 +1,5 @@
-import { readPaseoConfigJson } from "./paseo-config-file.js";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): metadata instructions come from .groupon/desk.toml.
+import { readPaseoConfigData } from "./paseo-config-file.js";
 import {
   PaseoConfigSchema,
   type PaseoMetadataGeneration,
@@ -11,7 +12,7 @@ export interface RepoRootResolver {
 }
 
 // A style section carries the default guidance for one artifact. The project
-// owner replaces it wholesale via paseo.json metadataGeneration.<configKey>.instructions
+// owner replaces it wholesale via .groupon/desk.toml [metadataGeneration.<configKey>] instructions
 // — their text is used instead of the default, never appended alongside it, so the
 // two never conflict. The contract block (what to produce, the JSON shape, and any
 // correctness/safety rules) lives outside the sections and is never overridable.
@@ -52,8 +53,8 @@ async function readProjectMetadataOverrides(
   }
   try {
     const repoRoot = await options.workspaceGitService.resolveRepoRoot(options.cwd);
-    const json = readPaseoConfigJson(repoRoot);
-    return PaseoConfigSchema.parse(json).metadataGeneration;
+    const data = readPaseoConfigData(repoRoot);
+    return PaseoConfigSchema.parse(data).metadataGeneration;
   } catch {
     return undefined;
   }

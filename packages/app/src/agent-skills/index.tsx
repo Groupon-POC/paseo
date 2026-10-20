@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no link to Paseo's skills docs.
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
@@ -14,6 +15,7 @@ import { confirmDialog } from "@/utils/confirm-dialog";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { SkillSelectionSheet } from "./selection-sheet";
 import { useAgentSkills } from "./use-agent-skills";
+import { showsWebLink } from "@/groupon/paseo-web-links";
 
 const OP_KIND_ORDER: Record<AgentSkillOperation["kind"], number> = {
   add: 0,
@@ -25,6 +27,7 @@ const ThemedCheck = withUnistyles(Check);
 const ThemedSettings = withUnistyles(Settings2);
 const ThemedArrowUpRight = withUnistyles(ArrowUpRight);
 const SKILLS_DOCS_URL = "https://paseo.sh/docs/skills";
+const SHOWS_SKILLS_DOCS = showsWebLink(SKILLS_DOCS_URL);
 const foregroundMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const mutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
@@ -97,19 +100,20 @@ export function AgentSkillsSection({ serverId }: { serverId: string }) {
     [],
   );
   const trailing = useMemo(
-    () => (
-      <Button
-        variant="ghost"
-        size="sm"
-        leftIcon={docsIcon}
-        textStyle={settingsStyles.sectionHeaderLinkText}
-        style={settingsStyles.sectionHeaderLink}
-        onPress={handleOpenDocs}
-        accessibilityLabel={t("settings.host.skills.openDocs")}
-      >
-        {t("settings.host.skills.docs")}
-      </Button>
-    ),
+    () =>
+      SHOWS_SKILLS_DOCS ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={docsIcon}
+          textStyle={settingsStyles.sectionHeaderLinkText}
+          style={settingsStyles.sectionHeaderLink}
+          onPress={handleOpenDocs}
+          accessibilityLabel={t("settings.host.skills.openDocs")}
+        >
+          {t("settings.host.skills.docs")}
+        </Button>
+      ) : null,
     [docsIcon, handleOpenDocs, t],
   );
 

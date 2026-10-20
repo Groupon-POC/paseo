@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon Desk logo; no Open GitHub issue or Docs to Paseo's pages.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import Animated, {
@@ -27,6 +27,7 @@ import { getDesktopDaemonLogs, type DesktopDaemonLogs } from "@/desktop/daemon/d
 import { TitlebarDragRegion } from "@/components/desktop/titlebar-drag-region";
 import { isNative, isWeb } from "@/constants/platform";
 import { CODE_SURFACE_DATASET } from "@/styles/code-surface";
+import { PASEO_WEB_LINKS } from "@/groupon/paseo-web-links";
 
 interface StartupSplashScreenProps {
   bootstrapState?: {
@@ -434,12 +435,16 @@ export function StartupSplashScreen({ bootstrapState }: StartupSplashScreenProps
             <Button variant="secondary" leftIcon={copyIcon} onPress={handleCopyLogs}>
               Copy logs
             </Button>
-            <Button variant="outline" leftIcon={warningIcon} onPress={openGithubIssue}>
-              Open GitHub issue
-            </Button>
-            <Button variant="outline" leftIcon={bookIcon} onPress={openDocs}>
-              Docs
-            </Button>
+            {PASEO_WEB_LINKS ? (
+              <>
+                <Button variant="outline" leftIcon={warningIcon} onPress={openGithubIssue}>
+                  Open GitHub issue
+                </Button>
+                <Button variant="outline" leftIcon={bookIcon} onPress={openDocs}>
+                  Docs
+                </Button>
+              </>
+            ) : null}
             <Button variant="default" leftIcon={retryIcon} onPress={bootstrapState.retry}>
               Retry
             </Button>

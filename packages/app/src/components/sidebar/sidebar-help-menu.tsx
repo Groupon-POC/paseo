@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no What's new, Discord or GitHub issue (Paseo's channels); Report a problem opens the program's feedback board.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no What's new (Paseo's changelog), Discord or GitHub issue while Paseo's web links are off; Report a problem opens the program's feedback board.
 import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 import { Activity, CircleHelp, Gift, Keyboard, MessageSquareWarning } from "lucide-react-native";
@@ -29,12 +29,10 @@ import type { HostProfile } from "@/types/host-connection";
 import { formatVersionWithPrefix } from "@/desktop/updates/desktop-updates";
 import { resolveAppVersion } from "@/utils/app-version";
 import { openChangelog } from "@/changelog";
+import { PASEO_WEB_LINKS } from "@/groupon/paseo-web-links";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { GROUPON_DESK_FEEDBACK_URL } from "@/groupon/environments";
 import { GROUPON_HELP } from "@/groupon/strings";
-
-/** Groupon Desk is not Paseo's product: no What's new, Discord or GitHub issue (Paseo's channels). */
-const GROUPON_DESK_HIDES_PASEO_HELP = true;
 
 const DISCORD_URL = "https://discord.gg/jz8T2uahpH";
 const GITHUB_ISSUE_URL = "https://github.com/getpaseo/paseo/issues/new";
@@ -151,7 +149,7 @@ export function SidebarHelpMenu() {
             {t("sidebar.help.shortcuts")}
           </DropdownMenuItem>
         ) : null}
-        {GROUPON_DESK_HIDES_PASEO_HELP ? null : (
+        {PASEO_WEB_LINKS ? (
           <DropdownMenuItem
             testID="sidebar-help-changelog"
             leading={changelogLeadingIcon}
@@ -159,7 +157,7 @@ export function SidebarHelpMenu() {
           >
             {t("sidebar.help.whatsNew")}
           </DropdownMenuItem>
-        )}
+        ) : null}
         <DropdownMenuItem
           testID="sidebar-help-diagnostics"
           leading={diagnosticLeadingIcon}
@@ -169,15 +167,7 @@ export function SidebarHelpMenu() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel>{t("sidebar.help.reportIssue")}</DropdownMenuLabel>
-        {GROUPON_DESK_HIDES_PASEO_HELP ? (
-          <DropdownMenuItem
-            testID="sidebar-help-report-problem"
-            leading={reportProblemLeadingIcon}
-            onSelect={openReportProblem}
-          >
-            {GROUPON_HELP.reportProblem}
-          </DropdownMenuItem>
-        ) : (
+        {PASEO_WEB_LINKS ? (
           <>
             <DropdownMenuItem
               testID="sidebar-help-discord"
@@ -194,6 +184,14 @@ export function SidebarHelpMenu() {
               {t("sidebar.help.github")}
             </DropdownMenuItem>
           </>
+        ) : (
+          <DropdownMenuItem
+            testID="sidebar-help-report-problem"
+            leading={reportProblemLeadingIcon}
+            onSelect={openReportProblem}
+          >
+            {GROUPON_HELP.reportProblem}
+          </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
         <View style={styles.versionList}>

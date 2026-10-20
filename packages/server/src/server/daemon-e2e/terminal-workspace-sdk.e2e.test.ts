@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, test } from "vitest";
 import { createPaseoClient, type PaseoClient } from "@getpaseo/client";
 import { DaemonClient } from "../test-utils/daemon-client.js";
 import { createTestPaseoDaemon, type TestPaseoDaemon } from "../test-utils/paseo-daemon.js";
+import { writeProjectConfig } from "../../test-utils/project-config.js";
 
 let daemon: TestPaseoDaemon;
 let client: DaemonClient;
@@ -194,12 +195,9 @@ test("listing by workspace ID keeps terminals in a shared directory separate", a
 });
 
 test("script status started and stopped by one client reaches every subscribed client", async () => {
-  await writeFile(
-    path.join(cwd, "paseo.json"),
-    JSON.stringify({
-      scripts: { sleeper: { type: "script", command: 'node -e "setInterval(() => {}, 60000)"' } },
-    }),
-  );
+  writeProjectConfig(cwd, {
+    scripts: { sleeper: { type: "script", command: 'node -e "setInterval(() => {}, 60000)"' } },
+  });
   const observer = new DaemonClient({ url: `ws://127.0.0.1:${daemon.port}/ws` });
   const bystander = new DaemonClient({ url: `ws://127.0.0.1:${daemon.port}/ws` });
   try {

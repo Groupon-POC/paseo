@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the project config is read from .groupon/desk.toml, never paseo.json.
 import { execFile } from "child_process";
 import { promisify } from "util";
 import {
@@ -17,7 +18,11 @@ import {
   buildStringCommandShellInvocation,
   createStringCommandShellEnv,
 } from "./string-command-shell.js";
-import { readPaseoConfigJson, resolvePaseoConfigPath } from "./paseo-config-file.js";
+import {
+  PASEO_CONFIG_FILE_NAME,
+  readPaseoConfigData,
+  resolvePaseoConfigPath,
+} from "./paseo-config-file.js";
 export {
   PaseoConfigRawSchema,
   PaseoLifecycleCommandRawSchema,
@@ -260,11 +265,11 @@ export type ReadPaseoConfigResult =
 
 export function readPaseoConfig(repoRoot: string): ReadPaseoConfigResult {
   try {
-    const json = readPaseoConfigJson(repoRoot);
-    if (json === null) {
+    const data = readPaseoConfigData(repoRoot);
+    if (data === null) {
       return { ok: true, config: null };
     }
-    return { ok: true, config: PaseoConfigSchema.parse(json) };
+    return { ok: true, config: PaseoConfigSchema.parse(data) };
   } catch (error) {
     return { ok: false, configPath: resolvePaseoConfigPath(repoRoot), error };
   }
@@ -272,9 +277,12 @@ export function readPaseoConfig(repoRoot: string): ReadPaseoConfigResult {
 
 export function paseoConfigParseError(failure: { configPath: string; error: unknown }): Error {
   const detail = failure.error instanceof Error ? failure.error.message : String(failure.error);
-  return new Error(`Failed to parse paseo.json at ${failure.configPath}: ${detail}`, {
-    cause: failure.error,
-  });
+  return new Error(
+    `Failed to parse ${PASEO_CONFIG_FILE_NAME} at ${failure.configPath}: ${detail}`,
+    {
+      cause: failure.error,
+    },
+  );
 }
 
 function readPaseoConfigOrThrow(repoRoot: string): PaseoConfig | null {
@@ -649,7 +657,7 @@ export async function runWorktreeSetupCommands(options: {
   signal?: AbortSignal;
   onEvent?: (event: WorktreeSetupCommandProgressEvent) => void;
 }): Promise<WorktreeSetupCommandResult[]> {
-  // Read paseo.json from the worktree (it will have the same content as the source repo)
+  // Read the project config from the worktree (it will have the same content as the source repo)
   const setupCommands = getWorktreeSetupCommands(options.worktreePath);
   if (setupCommands.length === 0) {
     return [];
@@ -812,8 +820,11 @@ export async function seedPaseoConfigFile(options: {
   sourceCwd: string;
   targetCwd: string;
 }): Promise<void> {
-  const sourceConfigPath = join(options.sourceCwd, "paseo.json");
-  const targetConfigPath = join(options.targetCwd, "paseo.json");
+  const sourceConfigPath = join(options.sourceCwd, PASEO_CONFIG_FILE_NAME);
+  const targetConfigPath = join(options.targetCwd, PASEO_CONFIG_FILE_NAME);
+  if (existsSync(sourceConfigPath)) {
+    mkdirSync(dirname(targetConfigPath), { recursive: true });
+  }
   await copyFile(sourceConfigPath, targetConfigPath, fsConstants.COPYFILE_EXCL).catch((error) => {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "EEXIST" && code !== "ENOENT") throw error;

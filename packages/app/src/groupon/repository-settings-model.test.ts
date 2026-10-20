@@ -9,7 +9,7 @@ import {
   standardCaption,
 } from "./repository-settings-model";
 
-/** The monorepo's committed shim, word for word. */
+/** The monorepo's committed [worktree] and [scripts.<name>] sections in .groupon/desk.toml, word for word. */
 const SHIM = {
   worktree: { setup: "groupon desk repo setup", teardown: "groupon desk repo archive" },
   scripts: {
@@ -34,14 +34,12 @@ const ANSWER: ProjectSettingsAnswer = {
   fileUrl: "https://github.com/groupon2/engineering-development/blob/staging/.groupon/desk.toml",
   fetchedAt: null,
   problem: null,
-  hasPaseoJson: true,
 };
 
 describe("the repository's standard", () => {
-  it("decides when the default branch carries the desk file or Paseo's own file", () => {
+  it("decides when the repository carries the desk file, never for any other file", () => {
     expect(hasRepositoryStandard(ANSWER)).toBe(true);
-    expect(hasRepositoryStandard({ ...ANSWER, settings: null, hasPaseoJson: true })).toBe(true);
-    expect(hasRepositoryStandard({ ...ANSWER, settings: null, hasPaseoJson: false })).toBe(false);
+    expect(hasRepositoryStandard({ ...ANSWER, settings: null })).toBe(false);
     expect(hasRepositoryStandard(undefined)).toBe(false);
   });
 
@@ -58,7 +56,7 @@ describe("the repository's standard", () => {
     expect(hasOverrides(overridesOf(null))).toBe(false);
   });
 
-  it("marks what this checkout's paseo.json changes beyond the shim", () => {
+  it("marks what this checkout's [worktree] and [scripts.<name>] change beyond the desk commands", () => {
     const local = {
       ...SHIM,
       worktree: { setup: ["npm ci", "make"], teardown: "groupon desk repo archive" },

@@ -16,6 +16,7 @@ import {
 } from "../utils/worktree.js";
 import type { TerminalManager } from "../terminal/terminal-manager.js";
 import type { TerminalSession } from "../terminal/terminal.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 interface CreateAgentWorktreeTestOptions {
   cwd: string;
@@ -93,15 +94,12 @@ describe("runAsyncWorktreeBootstrap", () => {
   });
 
   it("does not fail setup when live timeline emission throws", async () => {
-    writeFileSync(
-      join(repoDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          setup: ['echo "ok"'],
-        },
-      }),
-    );
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+    writeProjectConfig(repoDir, {
+      worktree: {
+        setup: ['echo "ok"'],
+      },
+    });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add setup"], {
       cwd: repoDir,
       stdio: "pipe",
@@ -145,15 +143,12 @@ describe("runAsyncWorktreeBootstrap", () => {
   it("truncates each command output to 64kb in the middle", async () => {
     const largeOutputCommand =
       "node -e \"process.stdout.write('prefix-'); process.stdout.write('x'.repeat(70000)); process.stdout.write('-suffix')\"";
-    writeFileSync(
-      join(repoDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          setup: [largeOutputCommand],
-        },
-      }),
-    );
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+    writeProjectConfig(repoDir, {
+      worktree: {
+        setup: [largeOutputCommand],
+      },
+    });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add large output setup"], {
       cwd: repoDir,
       stdio: "pipe",
@@ -203,20 +198,17 @@ describe("runAsyncWorktreeBootstrap", () => {
   });
 
   it("waits for terminal output before sending bootstrap commands", async () => {
-    writeFileSync(
-      join(repoDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          terminals: [
-            {
-              name: "Ready Terminal",
-              command: "echo ready",
-            },
-          ],
-        },
-      }),
-    );
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+    writeProjectConfig(repoDir, {
+      worktree: {
+        terminals: [
+          {
+            name: "Ready Terminal",
+            command: "echo ready",
+          },
+        ],
+      },
+    });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync(
       "git",
       ["-c", "commit.gpgsign=false", "commit", "-m", "add terminal bootstrap config"],
@@ -494,8 +486,8 @@ describe("runAsyncWorktreeBootstrap", () => {
     scripts: Record<string, { command: string; type?: "script" | "service" }>,
     message = "add script config",
   ): void {
-    writeFileSync(join(repoDir, "paseo.json"), JSON.stringify({ scripts }));
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+    writeProjectConfig(repoDir, { scripts });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", message], {
       cwd: repoDir,
       stdio: "pipe",
@@ -837,7 +829,7 @@ describe("runAsyncWorktreeBootstrap", () => {
     });
   });
 
-  it("starts a service added to paseo.json without restarting the daemon", async () => {
+  it("starts a service added to .groupon/desk.toml without restarting the daemon", async () => {
     const backend = {
       type: "service" as const,
       command: "uv run uvicorn app.main:app --reload --port $PASEO_PORT",
@@ -860,15 +852,12 @@ describe("runAsyncWorktreeBootstrap", () => {
     };
     const backendResult = await spawnWorkspaceScript({ ...options, scriptName: "backend-dev" });
 
-    writeFileSync(
-      join(repoDir, "paseo.json"),
-      JSON.stringify({
-        scripts: {
-          "backend-dev": backend,
-          web: { type: "service", command: "pnpm run dev -- --port $PASEO_PORT" },
-        },
-      }),
-    );
+    writeProjectConfig(repoDir, {
+      scripts: {
+        "backend-dev": backend,
+        web: { type: "service", command: "pnpm run dev -- --port $PASEO_PORT" },
+      },
+    });
     const webResult = await spawnWorkspaceScript({ ...options, scriptName: "web" });
 
     expect(webResult.port).toEqual(expect.any(Number));
@@ -940,22 +929,19 @@ describe("runAsyncWorktreeBootstrap", () => {
   });
 
   it("refreshes a stopped service port on respawn and updates the route", async () => {
-    writeFileSync(
-      join(repoDir, "paseo.json"),
-      JSON.stringify({
-        scripts: {
-          api: {
-            type: "service",
-            command: "npm run api",
-          },
-          worker: {
-            type: "service",
-            command: "npm run worker",
-          },
+    writeProjectConfig(repoDir, {
+      scripts: {
+        api: {
+          type: "service",
+          command: "npm run api",
         },
-      }),
-    );
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+        worker: {
+          type: "service",
+          command: "npm run worker",
+        },
+      },
+    });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync(
       "git",
       ["-c", "commit.gpgsign=false", "commit", "-m", "add respawn service script config"],
@@ -1047,18 +1033,15 @@ describe("runAsyncWorktreeBootstrap", () => {
   });
 
   it("removes the current service route on exit after a branch rename", async () => {
-    writeFileSync(
-      join(repoDir, "paseo.json"),
-      JSON.stringify({
-        scripts: {
-          api: {
-            type: "service",
-            command: "npm run api",
-          },
+    writeProjectConfig(repoDir, {
+      scripts: {
+        api: {
+          type: "service",
+          command: "npm run api",
         },
-      }),
-    );
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+      },
+    });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync(
       "git",
       ["-c", "commit.gpgsign=false", "commit", "-m", "add renamed service script config"],
@@ -1109,22 +1092,19 @@ describe("runAsyncWorktreeBootstrap", () => {
   });
 
   it("fails normalized service env name collisions before terminal creation", async () => {
-    writeFileSync(
-      join(repoDir, "paseo.json"),
-      JSON.stringify({
-        scripts: {
-          "app-server": {
-            type: "service",
-            command: "npm run app-server",
-          },
-          "app.server": {
-            type: "service",
-            command: "npm run app-dot-server",
-          },
+    writeProjectConfig(repoDir, {
+      scripts: {
+        "app-server": {
+          type: "service",
+          command: "npm run app-server",
         },
-      }),
-    );
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+        "app.server": {
+          type: "service",
+          command: "npm run app-dot-server",
+        },
+      },
+    });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync(
       "git",
       ["-c", "commit.gpgsign=false", "commit", "-m", "add colliding service config"],
@@ -1158,21 +1138,18 @@ describe("runAsyncWorktreeBootstrap", () => {
       routeStore.getRouteEntry("app-server--feature-collision-service--repo.localhost"),
     ).toBeNull();
 
-    writeFileSync(
-      join(repoDir, "paseo.json"),
-      JSON.stringify({
-        scripts: {
-          "app-server": {
-            type: "service",
-            command: "npm run app-server",
-          },
-          worker: {
-            type: "service",
-            command: "npm run worker",
-          },
+    writeProjectConfig(repoDir, {
+      scripts: {
+        "app-server": {
+          type: "service",
+          command: "npm run app-server",
         },
-      }),
-    );
+        worker: {
+          type: "service",
+          command: "npm run worker",
+        },
+      },
+    });
 
     await spawnWorkspaceScript({
       repoRoot: repoDir,
@@ -1201,18 +1178,15 @@ describe("runAsyncWorktreeBootstrap", () => {
   });
 
   it("binds services to the network when the daemon listens on a non-loopback host", async () => {
-    writeFileSync(
-      join(repoDir, "paseo.json"),
-      JSON.stringify({
-        scripts: {
-          web: {
-            type: "service",
-            command: "npm run dev",
-          },
+    writeProjectConfig(repoDir, {
+      scripts: {
+        web: {
+          type: "service",
+          command: "npm run dev",
         },
-      }),
-    );
-    execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+      },
+    });
+    execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
     execFileSync(
       "git",
       ["-c", "commit.gpgsign=false", "commit", "-m", "add remote service script config"],

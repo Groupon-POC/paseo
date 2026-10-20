@@ -198,7 +198,7 @@ export const GROUPON_TICKET = {
 export const GROUPON_REPOSITORY = {
   openFile: "The file on GitHub",
   overridesPresent:
-    "This Mac overrides some of these values in this checkout's paseo.json; each is marked below.",
+    "This Mac overrides some of these values in this checkout's .groupon/desk.toml; each is marked below.",
   overridden: "Overridden on this Mac:",
   lifecycleTitle: "Worktree lifecycle hooks",
   setup: "Setup",
@@ -218,7 +218,7 @@ export const GROUPON_REPOSITORY = {
   envRequired: "Variables a script needs (names only)",
   overrideTitle: "Override on this Mac",
   overrideHint:
-    "Optional. Paseo's own settings in this checkout's paseo.json: they apply on this Mac only, are marked as overrides above, and are never the repository's default. Do not commit them.",
+    "Optional. The work window's own sections of .groupon/desk.toml in this checkout ([worktree], [scripts.<name>]): a change applies on this Mac only, is marked as an override above, and becomes the repository's default only through a pull request.",
 } as const;
 
 export const GROUPON_PREFERENCES = {

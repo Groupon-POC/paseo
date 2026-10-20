@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo.
 import { getErrorMessage } from "@getpaseo/protocol/error-utils";
 import {
   daemonInstallOriginRuntime,
@@ -45,7 +46,7 @@ const defaultRuntime: DaemonSelfUpdateRuntime = {
 };
 
 const DESKTOP_MANAGED_UPDATE_ERROR =
-  "This daemon is managed by Paseo Desktop. Update Paseo Desktop on the host.";
+  "This daemon is managed by Groupon Desk. Update Groupon Desk on the host.";
 
 export class DaemonSelfUpdater {
   private inProgress = false;

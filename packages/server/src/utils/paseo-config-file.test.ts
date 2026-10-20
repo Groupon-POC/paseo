@@ -1,4 +1,13 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the substrate is .groupon/desk.toml.
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -9,6 +18,10 @@ import {
   statPaseoConfigPath,
   writePaseoConfigForEdit,
 } from "./paseo-config-file.js";
+import { projectConfigText, writeProjectConfig } from "../test-utils/project-config.js";
+
+const OWNED_COMMENT =
+  "# The work window's own sections: what it runs when it prepares or archives a worktree and its Run menu (written by its Projects page).";
 
 describe("paseo config file substrate", () => {
   let tempDir: string;
@@ -21,14 +34,14 @@ describe("paseo config file substrate", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("returns null config and revision when paseo.json is missing", () => {
+  it("returns null config and revision when .groupon/desk.toml is missing", () => {
     const result = readPaseoConfigForEdit(tempDir);
 
     expect(result).toEqual({ ok: true, config: null, revision: null });
   });
 
-  it("returns invalid_project_config for invalid JSON", () => {
-    writeFileSync(join(tempDir, "paseo.json"), "{ invalid json\n");
+  it("returns invalid_project_config for a file that is not TOML", () => {
+    writeProjectConfig(tempDir, "[worktree\nsetup = \n");
 
     const result = readPaseoConfigForEdit(tempDir);
 
@@ -39,15 +52,12 @@ describe("paseo config file substrate", () => {
   });
 
   it("preserves raw lifecycle string and array forms with a revision token", () => {
-    writeFileSync(
-      join(tempDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          setup: "npm install",
-          teardown: ["npm run clean", "npm run reset"],
-        },
-      }),
-    );
+    writeProjectConfig(tempDir, {
+      worktree: {
+        setup: "npm install",
+        teardown: ["npm run clean", "npm run reset"],
+      },
+    });
 
     const result = readPaseoConfigForEdit(tempDir);
 
@@ -64,22 +74,19 @@ describe("paseo config file substrate", () => {
   });
 
   it("keeps runtime lifecycle commands normalized for execution", () => {
-    writeFileSync(
-      join(tempDir, "paseo.json"),
-      JSON.stringify({
-        worktree: {
-          setup: "npm install",
-          teardown: ["npm run clean", "", 42, "npm run reset"],
-        },
-      }),
-    );
+    writeProjectConfig(tempDir, {
+      worktree: {
+        setup: "npm install",
+        teardown: ["npm run clean", "", 42, "npm run reset"],
+      },
+    });
 
     expect(getWorktreeSetupCommands(tempDir)).toEqual(["npm install"]);
     expect(getWorktreeTeardownCommands(tempDir)).toEqual(["npm run clean", "npm run reset"]);
   });
 
-  it("writes pretty JSON with a trailing newline when revision matches", () => {
-    writeFileSync(join(tempDir, "paseo.json"), JSON.stringify({ worktree: { setup: "old" } }));
+  it("writes the work window's sections as TOML when revision matches", () => {
+    writeProjectConfig(tempDir, { worktree: { setup: "old" } });
     const expectedRevision = statPaseoConfigPath(tempDir);
 
     const result = writePaseoConfigForEdit({
@@ -93,8 +100,8 @@ describe("paseo config file substrate", () => {
       config: { worktree: { setup: "npm install" } },
       revision: statPaseoConfigPath(tempDir),
     });
-    expect(readFileSync(join(tempDir, "paseo.json"), "utf8")).toBe(
-      '{\n  "worktree": {\n    "setup": "npm install"\n  }\n}\n',
+    expect(readFileSync(join(tempDir, ".groupon/desk.toml"), "utf8")).toBe(
+      `${OWNED_COMMENT}\n[worktree]\nsetup = "npm install"\n`,
     );
   });
 
@@ -102,9 +109,9 @@ describe("paseo config file substrate", () => {
   it.skipIf(isPlatform("win32"))(
     "rejects stale writes when the current revision changed before rename",
     () => {
-      writeFileSync(join(tempDir, "paseo.json"), JSON.stringify({ worktree: { setup: "old" } }));
+      writeProjectConfig(tempDir, { worktree: { setup: "old" } });
       const expectedRevision = statPaseoConfigPath(tempDir);
-      writeFileSync(join(tempDir, "paseo.json"), JSON.stringify({ worktree: { setup: "new" } }));
+      writeProjectConfig(tempDir, { worktree: { setup: "new" } });
       const currentRevision = statPaseoConfigPath(tempDir);
 
       const result = writePaseoConfigForEdit({
@@ -117,15 +124,14 @@ describe("paseo config file substrate", () => {
         ok: false,
         error: { code: "stale_project_config", currentRevision },
       });
-      expect(readFileSync(join(tempDir, "paseo.json"), "utf8")).toBe(
-        JSON.stringify({ worktree: { setup: "new" } }),
+      expect(readFileSync(join(tempDir, ".groupon/desk.toml"), "utf8")).toBe(
+        projectConfigText({ worktree: { setup: "new" } }),
       );
     },
   );
 
-  it("round-trips unknown top-level, worktree, and script-entry fields", () => {
+  it("round-trips unknown worktree and script-entry fields, never writes another top-level key", () => {
     const config = {
-      extraTop: { keep: true },
       worktree: {
         setup: ["npm install"],
         customWorktreeField: "preserve me",
@@ -141,7 +147,7 @@ describe("paseo config file substrate", () => {
 
     const result = writePaseoConfigForEdit({
       repoRoot: tempDir,
-      config,
+      config: { ...config, extraTop: { keep: true } },
       expectedRevision: null,
     });
 
@@ -173,7 +179,7 @@ describe("paseo config file substrate", () => {
     });
   });
 
-  it("creates paseo.json when the file is still missing and expected revision is null", () => {
+  it("creates .groupon/desk.toml when the file is still missing and expected revision is null", () => {
     mkdirSync(join(tempDir, "nested"));
 
     const result = writePaseoConfigForEdit({
@@ -187,5 +193,97 @@ describe("paseo config file substrate", () => {
       config: { scripts: { dev: { command: "npm run dev" } } },
       revision: statPaseoConfigPath(join(tempDir, "nested")),
     });
+  });
+
+  it("keeps Groupon Desk's own sections and comments byte for byte and replaces its own in place", () => {
+    const desk = [
+      "# How a task is prepared here.",
+      "[scripts]",
+      'setup = "pnpm install"',
+      "",
+      "[scripts.run.core]",
+      'command = "pnpm backend:core"',
+      "",
+      "# old comment of the window's section",
+      "[worktree]",
+      'setup = "old"',
+      "",
+      "[scripts.web]",
+      'command = "old web"',
+      "",
+      "[git]",
+      'target_branch = "staging"',
+      "",
+    ].join("\n");
+    writeProjectConfig(tempDir, desk);
+
+    const result = writePaseoConfigForEdit({
+      repoRoot: tempDir,
+      config: {
+        worktree: { setup: "groupon desk repo setup" },
+        scripts: { web: { command: "new web" } },
+      },
+      expectedRevision: statPaseoConfigPath(tempDir),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(readFileSync(join(tempDir, ".groupon/desk.toml"), "utf8")).toBe(
+      [
+        "# How a task is prepared here.",
+        "[scripts]",
+        'setup = "pnpm install"',
+        "",
+        "[scripts.run.core]",
+        'command = "pnpm backend:core"',
+        "",
+        OWNED_COMMENT,
+        "[worktree]",
+        'setup = "groupon desk repo setup"',
+        "",
+        "[scripts.web]",
+        'command = "new web"',
+        "",
+        "[git]",
+        'target_branch = "staging"',
+        "",
+      ].join("\n"),
+    );
+    expect(readPaseoConfigForEdit(tempDir)).toMatchObject({
+      ok: true,
+      config: {
+        worktree: { setup: "groupon desk repo setup" },
+        scripts: { web: { command: "new web" } },
+      },
+    });
+  });
+
+  it("reads the desk's own [scripts] keys as no work window script", () => {
+    writeProjectConfig(
+      tempDir,
+      '[scripts]\nsetup = "pnpm install"\nrun_mode = "concurrent"\n\n[scripts.run.core]\ncommand = "pnpm backend:core"\n\n[scripts.core]\ncommand = "groupon desk repo run core"\n',
+    );
+
+    expect(readPaseoConfigForEdit(tempDir)).toMatchObject({
+      ok: true,
+      config: { scripts: { core: { command: "groupon desk repo run core" } } },
+    });
+  });
+
+  it("refuses a script named like one of the desk's own [scripts] keys", () => {
+    const result = writePaseoConfigForEdit({
+      repoRoot: tempDir,
+      config: { scripts: { run: { command: "npm start" } } },
+      expectedRevision: null,
+    });
+
+    expect(result).toEqual({ ok: false, error: { code: "invalid_project_config" } });
+    expect(existsSync(join(tempDir, ".groupon/desk.toml"))).toBe(false);
+  });
+
+  it("never reads a paseo.json at the repository root", () => {
+    writeFileSync(join(tempDir, "paseo.json"), JSON.stringify({ worktree: { setup: "npm ci" } }));
+
+    expect(readPaseoConfigForEdit(tempDir)).toEqual({ ok: true, config: null, revision: null });
+    expect(getWorktreeSetupCommands(tempDir)).toEqual([]);
   });
 });

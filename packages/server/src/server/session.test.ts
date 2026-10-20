@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo.
 import {
   createMessageReceiptsStub,
   createTestCreationService,
@@ -58,6 +59,7 @@ import {
 } from "../services/github-service.js";
 import type { CheckDetails, ForgeService } from "../services/forge-service.js";
 import type { GitHubPullRequestStatusFacts } from "../services/github-facts.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 interface SessionHandlerInternals {
   interruptAgentIfRunning(agentId: string): Promise<void>;
@@ -1644,7 +1646,7 @@ describe("project config RPC authorization", () => {
 
   test("read_project_config_request accepts the same root with a trailing slash", async () => {
     const repoRoot = makeRoot();
-    writeFileSync(join(repoRoot, "paseo.json"), JSON.stringify({ worktree: { setup: "npm ci" } }));
+    writeProjectConfig(repoRoot, { worktree: { setup: "npm ci" } });
     const messages: unknown[] = [];
     const session = createSessionForTest({
       messages,
@@ -1679,10 +1681,7 @@ describe("project config RPC authorization", () => {
     "read_project_config_request accepts a symlink to an active project root",
     async () => {
       const repoRoot = makeRoot();
-      writeFileSync(
-        join(repoRoot, "paseo.json"),
-        JSON.stringify({ worktree: { setup: "npm ci" } }),
-      );
+      writeProjectConfig(repoRoot, { worktree: { setup: "npm ci" } });
       const linkRoot = join(makeRoot(), "link");
       symlinkSync(repoRoot, linkRoot, "dir");
       const messages: unknown[] = [];
@@ -1763,10 +1762,9 @@ describe("project config RPC authorization", () => {
 
   test("read_project_config_request emits raw lifecycle forms for a known project root", async () => {
     const repoRoot = makeRoot();
-    writeFileSync(
-      join(repoRoot, "paseo.json"),
-      JSON.stringify({ worktree: { setup: "npm install", teardown: ["npm run clean"] } }),
-    );
+    writeProjectConfig(repoRoot, {
+      worktree: { setup: "npm install", teardown: ["npm run clean"] },
+    });
     const messages: unknown[] = [];
     const session = createSessionForTest({
       messages,
@@ -1798,7 +1796,7 @@ describe("project config RPC authorization", () => {
 
   test("write_project_config_request emits stale and write-failed inline domain failures", async () => {
     const staleRoot = makeRoot();
-    writeFileSync(join(staleRoot, "paseo.json"), JSON.stringify({ worktree: { setup: "old" } }));
+    writeProjectConfig(staleRoot, { worktree: { setup: "old" } });
     const writeFailedRoot = join(makeRoot(), "not-a-directory");
     writeFileSync(writeFailedRoot, "file");
     const messages: unknown[] = [];
@@ -2512,13 +2510,13 @@ diff --git a/file.txt b/file.txt
   }
 
   function writeConfig(repoRoot: string, config: unknown): void {
-    writeFileSync(join(repoRoot, "paseo.json"), `${JSON.stringify(config)}\n`);
+    writeProjectConfig(repoRoot, config);
   }
 
   async function generateCommitPromptWithConfig(config: unknown): Promise<string> {
     const repoRoot = makeRoot();
     if (typeof config === "string") {
-      writeFileSync(join(repoRoot, "paseo.json"), config);
+      writeProjectConfig(repoRoot, config);
     } else if (config !== undefined) {
       writeConfig(repoRoot, config);
     }
@@ -2660,9 +2658,9 @@ diff --git a/file.txt b/file.txt
   });
 
   test.each([
-    ["paseo.json missing", undefined],
-    ["paseo.json exists but invalid JSON", "{ nope"],
-    ["paseo.json valid but missing metadataGeneration", {}],
+    [".groupon/desk.toml missing", undefined],
+    [".groupon/desk.toml exists but invalid JSON", "{ nope"],
+    [".groupon/desk.toml valid but missing metadataGeneration", {}],
     ["metadataGeneration is schema-invalid", { metadataGeneration: "not an object" }],
     [
       "metadataGeneration exists but missing commitMessage",
@@ -2808,13 +2806,13 @@ diff --git a/file.txt b/file.txt
   }
 
   function writeConfig(repoRoot: string, config: unknown): void {
-    writeFileSync(join(repoRoot, "paseo.json"), `${JSON.stringify(config)}\n`);
+    writeProjectConfig(repoRoot, config);
   }
 
   async function generatePullRequestCallWithConfig(config: unknown): Promise<unknown> {
     const repoRoot = makeRoot();
     if (typeof config === "string") {
-      writeFileSync(join(repoRoot, "paseo.json"), config);
+      writeProjectConfig(repoRoot, config);
     } else if (config !== undefined) {
       writeConfig(repoRoot, config);
     }
@@ -2938,9 +2936,9 @@ diff --git a/file.txt b/file.txt
   });
 
   test.each([
-    ["paseo.json missing", undefined],
-    ["paseo.json exists but invalid JSON", "{ nope"],
-    ["paseo.json valid but missing metadataGeneration", {}],
+    [".groupon/desk.toml missing", undefined],
+    [".groupon/desk.toml exists but invalid JSON", "{ nope"],
+    [".groupon/desk.toml valid but missing metadataGeneration", {}],
     ["metadataGeneration is schema-invalid", { metadataGeneration: "not an object" }],
     [
       "metadataGeneration exists but missing pullRequest",
@@ -3044,7 +3042,7 @@ diff --git a/file.txt b/file.txt
       "/tmp/request-worktree",
       {
         title: "Update changes",
-        body: "Automated PR generated by Paseo.",
+        body: "Automated PR generated by Groupon Desk.",
         base: "main",
       },
       expect.anything(),

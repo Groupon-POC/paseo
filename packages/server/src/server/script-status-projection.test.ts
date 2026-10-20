@@ -14,6 +14,7 @@ import { WorkspaceScriptRuntimeStore } from "./workspace-script-runtime-store.js
 import { readPaseoConfig } from "../utils/worktree.js";
 import type { PaseoConfig } from "@getpaseo/protocol/paseo-config-schema";
 import { createTestLogger } from "../test-utils/test-logger.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 function createWorkspaceRepo(options?: {
   branchName?: string;
@@ -33,7 +34,7 @@ function createWorkspaceRepo(options?: {
   execFileSync("git", ["config", "user.name", "Test"], { cwd: repoDir, stdio: "pipe" });
   writeFileSync(path.join(repoDir, "README.md"), "hello\n");
   if (options?.paseoConfig) {
-    writeFileSync(path.join(repoDir, "paseo.json"), JSON.stringify(options.paseoConfig, null, 2));
+    writeProjectConfig(repoDir, options.paseoConfig);
   }
   execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
   execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "initial"], {
@@ -449,11 +450,11 @@ describe("script-status-projection", () => {
     }
   });
 
-  it("readPaseoConfig fails with configPath and error when paseo.json is malformed", () => {
+  it("readPaseoConfig fails with configPath and error when .groupon/desk.toml is malformed", () => {
     const workspace = createWorkspaceRepo();
-    const configPath = path.join(workspace.repoDir, "paseo.json");
-    writeFileSync(
-      configPath,
+    const configPath = path.join(workspace.repoDir, ".groupon/desk.toml");
+    writeProjectConfig(
+      workspace.repoDir,
       '{\n<<<<<<< HEAD\n  "scripts": {}\n=======\n  "scripts": {}\n>>>>>>> origin/main\n}\n',
     );
 
@@ -462,7 +463,7 @@ describe("script-status-projection", () => {
       expect(result.ok).toBe(false);
       if (result.ok) throw new Error("unreachable");
       expect(result.configPath).toBe(configPath);
-      expect(result.error).toBeInstanceOf(SyntaxError);
+      expect(result.error).toBeInstanceOf(Error);
     } finally {
       workspace.cleanup();
     }

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): expectations follow messages that name no engine or name Groupon Desk.
 import { test } from "../support/fixtures";
 import { installHostClientsScenario, readHost } from "../support/helpers/plugin-hosts";
 
@@ -12,7 +13,7 @@ test("plugin discovers offline hosts and borrows another host without installing
     await readHost(page, "Secondary", `${hosts.serverId}:plugins=false`);
     await hosts.disposeSecondaryAndExpectObservationReleased();
     await readHost(page, "Secondary", `${hosts.serverId}:plugins=false`);
-    await readHost(page, "missing", "Unknown Paseo host: missing");
+    await readHost(page, "missing", "Unknown host: missing");
     await hosts.reloadAndExpectObservationReleased();
     await readHost(page, "Secondary", `${hosts.serverId}:plugins=false`);
     await page.screenshot({ path: test.info().outputPath("two-hosts.png") });
@@ -23,7 +24,7 @@ test("plugin discovers offline hosts and borrows another host without installing
     await readHost(page, "Secondary", `${hosts.serverId}:plugins=false`);
     await page.screenshot({ path: test.info().outputPath("two-hosts-compact.png") });
     await hosts.disconnectSecondary();
-    await readHost(page, "Secondary", `Paseo host is disconnected: ${hosts.serverId}`);
+    await readHost(page, "Secondary", `Host is disconnected: ${hosts.serverId}`);
     await readHost(page, "selected", "selected:plugins=true");
   } finally {
     await hosts.close();

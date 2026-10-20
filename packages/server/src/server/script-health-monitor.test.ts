@@ -10,6 +10,7 @@ import { ScriptHealthMonitor, type ScriptHealthEntry } from "./script-health-mon
 import { spawnWorkspaceScript } from "./worktree-bootstrap.js";
 import { WorkspaceScriptRuntimeStore } from "./workspace-script-runtime-store.js";
 import type { TerminalManager } from "./terminal/terminal-manager.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 interface TcpServerHandle {
   port: number;
@@ -34,7 +35,7 @@ function createWorkspaceRepo(options?: {
   execFileSync("git", ["config", "user.name", "Test"], { cwd: repoDir, stdio: "pipe" });
   writeFileSync(path.join(repoDir, "README.md"), "hello\n");
   if (options?.paseoConfig) {
-    writeFileSync(path.join(repoDir, "paseo.json"), JSON.stringify(options.paseoConfig, null, 2));
+    writeProjectConfig(repoDir, options.paseoConfig);
   }
   execFileSync("git", ["add", "."], { cwd: repoDir, stdio: "pipe" });
   execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "initial"], {

@@ -1,6 +1,8 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the project config is .groupon/desk.toml, in TOML.
 import { execSync } from "node:child_process";
 import { mkdtemp, readFile, writeFile, rm, mkdir, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { stringify as stringifyToml } from "smol-toml";
 import path from "node:path";
 
 const TEMP_CLEANUP_RETRIES = 5;
@@ -78,10 +80,8 @@ export const createTempGitRepo = async (
   execSync("git config commit.gpgsign false", { cwd: repoPath, stdio: "ignore" });
   await writeFile(path.join(repoPath, "README.md"), "# Temp Repo\n");
   if (options?.paseoConfig) {
-    await writeFile(
-      path.join(repoPath, "paseo.json"),
-      JSON.stringify(options.paseoConfig, null, 2),
-    );
+    await mkdir(path.join(repoPath, ".groupon"), { recursive: true });
+    await writeFile(path.join(repoPath, ".groupon/desk.toml"), stringifyToml(options.paseoConfig));
   }
   for (const file of options?.files ?? []) {
     const filePath = path.join(repoPath, file.path);
@@ -90,7 +90,7 @@ export const createTempGitRepo = async (
   }
   execSync("git add README.md", { cwd: repoPath, stdio: "ignore" });
   if (options?.paseoConfig) {
-    execSync("git add paseo.json", { cwd: repoPath, stdio: "ignore" });
+    execSync("git add .groupon/desk.toml", { cwd: repoPath, stdio: "ignore" });
   }
   for (const file of options?.files ?? []) {
     execSync(`git add ${JSON.stringify(file.path)}`, { cwd: repoPath, stdio: "ignore" });

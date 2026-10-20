@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a plugin's host errors name no engine.
 import { createPaseoApi, type PaseoApi } from "@getpaseo/client";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { PluginHostSummary } from "@getpaseo/plugin/client";
@@ -30,11 +31,11 @@ export function createPluginHosts(source: PluginHostsSource, signal: AbortSignal
   function resolve(serverId: string): DaemonClient {
     if (signal.aborted) throw new Error("Plugin has stopped");
     if (!source.getHosts().some((host) => host.serverId === serverId)) {
-      throw new Error(`Unknown Paseo host: ${serverId}`);
+      throw new Error(`Unknown host: ${serverId}`);
     }
     const host = source.getSnapshot(serverId);
     if (host?.connectionStatus !== "online" || !host.client) {
-      throw new Error(`Paseo host is disconnected: ${serverId}`);
+      throw new Error(`Host is disconnected: ${serverId}`);
     }
     return host.client;
   }
@@ -87,9 +88,9 @@ export function createPluginHosts(source: PluginHostsSource, signal: AbortSignal
           const value: unknown = Reflect.get(target, key, target);
           if (typeof value !== "function") return value;
           return (...args: unknown[]) => {
-            if (lifetime.signal.aborted) throw new Error(`Paseo client is released: ${serverId}`);
+            if (lifetime.signal.aborted) throw new Error(`Host client is released: ${serverId}`);
             if (resolve(serverId) !== client) {
-              throw new Error(`Paseo connection changed; call getPaseoClient again: ${serverId}`);
+              throw new Error(`Host connection changed; call getPaseoClient again: ${serverId}`);
             }
             return Reflect.apply(value, target, args);
           };

@@ -20,6 +20,7 @@ import type {
   AgentSessionConfig,
   AgentStreamEvent,
 } from "./agent-sdk-types.js";
+import { writeProjectConfig } from "../../test-utils/project-config.js";
 
 interface StructuredContent {
   [key: string]: unknown;
@@ -822,22 +823,18 @@ describe("agent MCP end-to-end (offline)", () => {
 
       const setupCommand =
         'while [ ! -f "$PASEO_WORKTREE_PATH/allow-setup" ]; do sleep 0.05; done; echo "done" > "$PASEO_WORKTREE_PATH/setup-done.txt"';
-      await writeFile(
-        path.join(repoRoot, "paseo.json"),
-        JSON.stringify({
-          worktree: {
-            setup: [setupCommand],
-            terminals: [
-              {
-                name: "Dev Server",
-                command: 'echo "dev-server" > dev-terminal.txt; tail -f /dev/null',
-              },
-            ],
-          },
-        }),
-        "utf8",
-      );
-      execSync("git add paseo.json", { cwd: repoRoot, stdio: "pipe" });
+      writeProjectConfig(repoRoot, {
+        worktree: {
+          setup: [setupCommand],
+          terminals: [
+            {
+              name: "Dev Server",
+              command: 'echo "dev-server" > dev-terminal.txt; tail -f /dev/null',
+            },
+          ],
+        },
+      });
+      execSync("git add .groupon/desk.toml", { cwd: repoRoot, stdio: "pipe" });
       execSync("git -c commit.gpgsign=false commit -m 'add worktree config'", {
         cwd: repoRoot,
         stdio: "pipe",

@@ -24,6 +24,7 @@ import {
 } from "../utils/worktree.js";
 import { createTerminalManager, type TerminalManager } from "../terminal/terminal-manager.js";
 import type { TerminalSession } from "../terminal/terminal.js";
+import { writeProjectConfig } from "../test-utils/project-config.js";
 
 interface CreateAgentWorktreeTestOptions {
   cwd: string;
@@ -130,15 +131,12 @@ describe.skipIf(isPlatform("win32"))("worktree-bootstrap POSIX-only", () => {
       rmSync(tempDir, { recursive: true, force: true });
     });
     it("streams running setup updates live and persists only a final setup timeline row", async () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          worktree: {
-            setup: ['echo "line-one"; echo "line-two" 1>&2', 'echo "line-three"'],
-          },
-        }),
-      );
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+      writeProjectConfig(repoDir, {
+        worktree: {
+          setup: ['echo "line-one"; echo "line-two" 1>&2', 'echo "line-three"'],
+        },
+      });
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
       execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add setup"], {
         cwd: repoDir,
         stdio: "pipe",
@@ -241,17 +239,14 @@ describe.skipIf(isPlatform("win32"))("worktree-bootstrap POSIX-only", () => {
     });
 
     it("keeps only the final carriage-return-updated content in command logs", async () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          worktree: {
-            setup: [
-              `node -e "process.stdout.write('fetch 1/3\\\\rfetch 2/3\\\\rfetch 3/3\\\\nready\\\\n')"`,
-            ],
-          },
-        }),
-      );
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+      writeProjectConfig(repoDir, {
+        worktree: {
+          setup: [
+            `node -e "process.stdout.write('fetch 1/3\\\\rfetch 2/3\\\\rfetch 3/3\\\\nready\\\\n')"`,
+          ],
+        },
+      });
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
       execFileSync(
         "git",
         ["-c", "commit.gpgsign=false", "commit", "-m", "add carriage return setup"],
@@ -299,21 +294,18 @@ describe.skipIf(isPlatform("win32"))("worktree-bootstrap POSIX-only", () => {
     });
 
     it("shares the same worktree runtime port across setup and bootstrap terminals", async () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          worktree: {
-            setup: ['echo "$PASEO_WORKTREE_PORT" > setup-port.txt'],
-            terminals: [
-              {
-                name: "Port Terminal",
-                command: "true",
-              },
-            ],
-          },
-        }),
-      );
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+      writeProjectConfig(repoDir, {
+        worktree: {
+          setup: ['echo "$PASEO_WORKTREE_PORT" > setup-port.txt'],
+          terminals: [
+            {
+              name: "Port Terminal",
+              command: "true",
+            },
+          ],
+        },
+      });
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
       execFileSync(
         "git",
         ["-c", "commit.gpgsign=false", "commit", "-m", "add port setup and terminals"],
@@ -415,24 +407,21 @@ describe.skipIf(isPlatform("win32"))("worktree-bootstrap POSIX-only", () => {
     });
 
     it("injects real peer service env into terminal-backed services", async () => {
-      writeFileSync(
-        join(repoDir, "paseo.json"),
-        JSON.stringify({
-          scripts: {
-            api: {
-              type: "service",
-              command:
-                "node -e \"const fs=require('fs'); fs.writeFileSync('api-env.json.tmp', JSON.stringify(process.env)); fs.renameSync('api-env.json.tmp', 'api-env.json'); setTimeout(()=>{}, 30000)\"",
-            },
-            web: {
-              type: "service",
-              command:
-                "node -e \"const fs=require('fs'); fs.writeFileSync('web-env.json.tmp', JSON.stringify(process.env)); fs.renameSync('web-env.json.tmp', 'web-env.json'); setTimeout(()=>{}, 30000)\"",
-            },
+      writeProjectConfig(repoDir, {
+        scripts: {
+          api: {
+            type: "service",
+            command:
+              "node -e \"const fs=require('fs'); fs.writeFileSync('api-env.json.tmp', JSON.stringify(process.env)); fs.renameSync('api-env.json.tmp', 'api-env.json'); setTimeout(()=>{}, 30000)\"",
           },
-        }),
-      );
-      execFileSync("git", ["add", "paseo.json"], { cwd: repoDir, stdio: "pipe" });
+          web: {
+            type: "service",
+            command:
+              "node -e \"const fs=require('fs'); fs.writeFileSync('web-env.json.tmp', JSON.stringify(process.env)); fs.renameSync('web-env.json.tmp', 'web-env.json'); setTimeout(()=>{}, 30000)\"",
+          },
+        },
+      });
+      execFileSync("git", ["add", ".groupon/desk.toml"], { cwd: repoDir, stdio: "pipe" });
       execFileSync(
         "git",
         ["-c", "commit.gpgsign=false", "commit", "-m", "add real peer env services"],

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the desktop script is in .groupon/desk.toml.
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import {
@@ -8,12 +9,15 @@ import {
 
 describe("desktop dev process ownership", () => {
   test("makes the signal-handling runner the workspace terminal process", () => {
-    const paseoConfig = JSON.parse(
-      readFileSync(new URL("../../../paseo.json", import.meta.url), "utf8"),
+    const projectConfig = readFileSync(
+      new URL("../../../.groupon/desk.toml", import.meta.url),
+      "utf8",
     );
     const devScript = readFileSync(new URL("./dev.sh", import.meta.url), "utf8");
 
-    expect(paseoConfig.scripts.desktop.command).toContain("exec ./packages/desktop/scripts/dev.sh");
+    expect(projectConfig).toMatch(
+      /\[scripts\.desktop\][^[]*exec \.\/packages\/desktop\/scripts\/dev\.sh/,
+    );
     expect(devScript).toContain('npm --prefix "$DESKTOP_DIR" run build:main');
     expect(devScript).toContain('exec node "$SCRIPT_DIR/dev-runner.mjs"');
   });

@@ -1,4 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no link to Paseo's configuration docs.
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { showsWebLink } from "@/groupon/paseo-web-links";
 import React, { type ReactElement, useCallback, useMemo, useState } from "react";
 import { Alert, Text, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
@@ -409,19 +411,20 @@ export function LocalDaemonSection() {
   );
 
   const advancedSettingsButton = useMemo(
-    () => (
-      <Button
-        variant="ghost"
-        size="sm"
-        leftIcon={advancedSettingsIcon}
-        textStyle={settingsStyles.sectionHeaderLinkText}
-        style={settingsStyles.sectionHeaderLink}
-        onPress={handleOpenAdvancedSettings}
-        accessibilityLabel={t("desktop.daemon.openAdvancedSettings")}
-      >
-        {t("desktop.daemon.advancedSettings")}
-      </Button>
-    ),
+    () =>
+      showsWebLink(ADVANCED_DAEMON_SETTINGS_URL) ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          leftIcon={advancedSettingsIcon}
+          textStyle={settingsStyles.sectionHeaderLinkText}
+          style={settingsStyles.sectionHeaderLink}
+          onPress={handleOpenAdvancedSettings}
+          accessibilityLabel={t("desktop.daemon.openAdvancedSettings")}
+        >
+          {t("desktop.daemon.advancedSettings")}
+        </Button>
+      ) : null,
     [advancedSettingsIcon, handleOpenAdvancedSettings, t],
   );
 

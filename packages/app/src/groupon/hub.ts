@@ -159,6 +159,43 @@ export interface HubOverview {
   shares?: HubShare[];
   /** What colleagues shared with the person (absent from an older hub). */
   sharedWithMe?: HubSharedWorkspace[];
+  /** Who has one of those workspaces open now (absent from an older hub). */
+  presence?: HubPresenceSummary[];
+}
+
+/** One person with a workspace open now, as the hub's check-in answers it. */
+export interface HubPresencePerson {
+  userId: string;
+  name: string;
+  email: string;
+  role: "owner" | HubShareRole;
+  /** The caller. */
+  you: boolean;
+  /** The devices they have it open on, as each window named itself. */
+  devices: string[];
+  seenAt: string;
+}
+
+/** The Mac a workspace runs on, as Core's relay sees it now. */
+export interface HubPresenceHand {
+  machine: string;
+  label: string;
+  connected: boolean;
+  relayClients: number;
+}
+
+/** Who is in one workspace now: the owner first, each person once. */
+export interface HubWorkspacePresence {
+  workspaceId: string;
+  people: HubPresencePerson[];
+  hand: HubPresenceHand | null;
+  sharedWith: number;
+}
+
+/** The overview's line for a workspace somebody has open now. */
+export interface HubPresenceSummary {
+  workspaceId: string;
+  people: { userId: string; name: string; you: boolean }[];
 }
 
 /** The seal's kind for a Mac's Paseo pairing offer; its scope is the Mac's id (the hand's `relay.ts`). */
@@ -213,6 +250,21 @@ export function shareWorkspace(
     `/user/groupon_desk/work/workspaces/${encodeURIComponent(workspaceId)}/shares`,
     "POST",
     { granteeEmail, role, issuedBy: ISSUED_BY },
+  );
+}
+
+/**
+ * Say this window has the workspace open (one of the person's, or one shared with them) and hear
+ * who else is in it; the window repeats it every 15 s while the workspace is on screen.
+ */
+export function checkInPresence(
+  workspaceId: string,
+  device: string,
+): Promise<{ presence: HubWorkspacePresence }> {
+  return grouponSend(
+    `/user/groupon_desk/work/workspaces/${encodeURIComponent(workspaceId)}/presence`,
+    "POST",
+    { device },
   );
 }
 

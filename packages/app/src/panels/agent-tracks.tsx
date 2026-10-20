@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the row of who is in this workspace now (`groupon/presence-row.tsx`), beside the subagents and the diff.
 import { memo, useCallback, type ReactElement } from "react";
 import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
 import { useWorkspaceHasDiffStat } from "@/composer/workspace-diff-stat";
@@ -6,6 +7,7 @@ import { ComposerTrackBar } from "@/composer/tracks";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { usePaneContext } from "@/panels/pane-context";
 import { useSettings } from "@/hooks/use-settings";
+import { PresenceRow, presenceVisible, usePaseoWorkspacePresence } from "@/groupon/presence-row";
 import { PluginComposerPills } from "@/plugins";
 import { useSessionStore } from "@/stores/session-store";
 import {
@@ -92,6 +94,7 @@ export const AgentTracks = memo(function AgentTracks({
     [openSubagentTarget],
   );
   const opensInSheet = useSubagentOpensInSheet(workspaceKey);
+  const presence = usePaseoWorkspacePresence(serverId, workspaceId);
   const handleOpenChanges = useCallback(() => {
     if (!workspaceKey) {
       return;
@@ -111,6 +114,7 @@ export const AgentTracks = memo(function AgentTracks({
       tasks,
       archiveFinishedStatus,
       hasPluginComposerPills,
+      hasGrouponPresence: presenceVisible(presence.view),
     })
   ) {
     return null;
@@ -119,6 +123,7 @@ export const AgentTracks = memo(function AgentTracks({
   return (
     <ComposerTrackBar>
       <AgentTaskList tasks={tasks} />
+      <PresenceRow view={presence.view} hubWorkspaceId={presence.hubWorkspaceId} />
       <SubagentsTrack
         serverId={serverId}
         rows={subagentRows}
@@ -150,16 +155,20 @@ export function hasAgentTracks({
   tasks,
   archiveFinishedStatus,
   hasPluginComposerPills = false,
+  hasGrouponPresence = false,
 }: {
   subagentRows: readonly SubagentRow[];
   tasks: readonly TodoEntry[] | undefined;
   archiveFinishedStatus: ArchiveFinishedStatus;
   hasPluginComposerPills?: boolean;
+  /** Groupon Desk: the presence row has something to show. */
+  hasGrouponPresence?: boolean;
 }): boolean {
   return (
     subagentRows.length > 0 ||
     Boolean(tasks?.length) ||
     archiveFinishedStatus.kind !== "idle" ||
-    hasPluginComposerPills
+    hasPluginComposerPills ||
+    hasGrouponPresence
   );
 }

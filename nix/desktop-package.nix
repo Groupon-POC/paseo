@@ -1,3 +1,4 @@
+# Changed for Groupon Desk (fork of Paseo, Apache-2.0): the window loads from groupon-desk://app.
 {
   lib,
   stdenv,
@@ -205,7 +206,7 @@ buildNpmPackage {
         --add-flags "$out/share/paseo-desktop/electron-app" \
         --add-flags "--no-sandbox" \
         --add-flags "--class=paseo-desktop" \
-        --set EXPO_DEV_URL "paseo://app/" \
+        --set EXPO_DEV_URL "groupon-desk://app/" \
         --set CHROME_DESKTOP "paseo-desktop.desktop"
 
       copyDesktopItems

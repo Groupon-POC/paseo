@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the app's own scheme in the refused list is groupon-desk.
 import { describe, expect, it } from "vitest";
 
 import { createExternalUrlOpener } from "./opener";
@@ -27,7 +28,7 @@ describe("desktop opener", () => {
     for (const input of [
       "file:///private/data",
       "javascript:alert(1)",
-      "paseo://settings",
+      "groupon-desk://settings",
       "/docs",
       null,
     ]) {

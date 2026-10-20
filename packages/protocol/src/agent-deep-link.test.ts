@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the agent links' scheme is groupon-desk; a paseo link is refused.
 import { describe, expect, it } from "vitest";
 import {
   buildAgentDeepLink,
@@ -11,15 +12,16 @@ describe("agent deep links", () => {
 
     const link = buildAgentDeepLink(target);
 
-    expect(link).toBe("paseo://h/server%2Fmain/agent/agent%20123");
+    expect(link).toBe("groupon-desk://h/server%2Fmain/agent/agent%20123");
     expect(buildAgentDeepLinkRoute(target)).toBe("/h/server%2Fmain/agent/agent%20123");
     expect(parseAgentDeepLink(link)).toEqual(target);
   });
 
   it("rejects links outside the exact agent route", () => {
     expect(parseAgentDeepLink("https://h/server/agent/agent-1")).toBeNull();
-    expect(parseAgentDeepLink("paseo://app/h/server/agent/agent-1")).toBeNull();
-    expect(parseAgentDeepLink("paseo://h/server/agent/agent-1?message=hello")).toBeNull();
-    expect(parseAgentDeepLink("paseo://h/server/agent/agent-1/extra")).toBeNull();
+    expect(parseAgentDeepLink("groupon-desk://app/h/server/agent/agent-1")).toBeNull();
+    expect(parseAgentDeepLink("groupon-desk://h/server/agent/agent-1?message=hello")).toBeNull();
+    expect(parseAgentDeepLink("groupon-desk://h/server/agent/agent-1/extra")).toBeNull();
+    expect(parseAgentDeepLink("paseo://h/server/agent/agent-1")).toBeNull();
   });
 });

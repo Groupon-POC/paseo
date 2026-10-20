@@ -1,4 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the app is named Groupon Desk, Groupon Desk DEV in development.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the app is named Groupon Desk, Groupon Desk DEV in development;
+// the window serves its pages from the scheme groupon-desk (origin groupon-desk://app), never Paseo's own scheme.
 // The name is set first, before electron-log or anything else reads it.
 import { APP_NAME } from "./app-name.js";
 import { protectConsoleStreams } from "./diagnostics/console-streams.js";
@@ -115,7 +116,7 @@ import {
 import { AgentNavigationInbox, parseAgentDeepLinkFromArgv } from "./agent-navigation.js";
 
 const DEV_SERVER_URL = process.env.EXPO_DEV_URL ?? "http://localhost:8081";
-const APP_SCHEME = "paseo";
+const APP_SCHEME = "groupon-desk";
 const PASEO_DEBUG = process.env.PASEO_DEBUG === "1";
 const DISABLE_SINGLE_INSTANCE_LOCK = process.env.PASEO_DISABLE_SINGLE_INSTANCE_LOCK === "1";
 const DESKTOP_WINDOW_CHROME_MODE = resolveDesktopWindowChromeMode({

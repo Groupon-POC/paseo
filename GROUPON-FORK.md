@@ -104,6 +104,22 @@ main executable instead checks in with LaunchServices as a Foreground app the mo
 update feed (`packages/desktop/src/features/auto-updater.ts`): Groupon Desk's own update replaces
 both.
 
+## The window's scheme: `groupon-desk`
+
+The packaged window serves its pages from its own scheme, `groupon-desk` (Paseo's is `paseo`), so
+every call it makes carries the origin `groupon-desk://app`: Core's CORS allowlists name it, the
+daemon allows it (`packages/server/src/server/bootstrap.ts`), and the hand's relay door must admit
+it. The same scheme is the window's macOS URL scheme (`packages/desktop/electron-builder.yml`):
+`groupon-desk://h/<server>/agent/<agent>` opens an agent, built and read by
+`packages/protocol/src/agent-deep-link.ts` (`paseo agent open` hands it to the window). The
+menu-bar app keeps its own `groupondesk` scheme, so the two never claim the same links. There is
+no fallback: a `paseo://` page, origin or link is not served, allowed or read (owner, 2026-10-20:
+nobody used the old one). Moving the origin also moved the window's local storage, so a window
+built before the rename starts with empty settings once. Upstream's native mobile tests under
+`packages/app/e2e/mobile/` still open `paseo://` links: they drive upstream's own iOS and Android
+app (`sh.paseo.debug`), which this fork does not build; the fork's Expo scheme is `groupondesk`
+(`packages/app/app.config.js`).
+
 ## Sharing a workspace with a colleague
 
 The monorepo's design section 13 (`_documentation/design/groupon-desk-work-window-design.md`): a

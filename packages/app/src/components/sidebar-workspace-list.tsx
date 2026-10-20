@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a project row's "+" (new workspace) always shows, as in Conductor.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a project row's "+" (new workspace) always shows, as in Conductor; its menu offers Improve this repository.
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
   View,
@@ -38,7 +38,14 @@ import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop
 import { type GestureType } from "react-native-gesture-handler";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
 import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
-import { ExternalLink, Settings, MoreVertical, Plus, Trash2 } from "lucide-react-native";
+import {
+  ExternalLink,
+  Settings,
+  MoreVertical,
+  Plus,
+  Trash2,
+  WandSparkles,
+} from "lucide-react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import { DraggableList, type DraggableRenderItemInfo } from "./draggable-list";
 import type { DraggableListDragHandleProps } from "./draggable-list.types";
@@ -137,6 +144,8 @@ import {
 } from "@/utils/sidebar-project-row-model";
 import { redirectIfArchivingActiveWorkspace } from "@/utils/sidebar-workspace-archive-redirect";
 import { openExternalUrl } from "@/utils/open-external-url";
+import { useImproveRepositoryStore } from "@/groupon/improve-repository-store";
+import { GROUPON_IMPROVE } from "@/groupon/strings";
 import { useWorkspaceArchive } from "@/workspace/use-workspace-archive";
 import {
   getCurrentProjectRemoveReadiness,
@@ -166,6 +175,7 @@ const ThemedPlus = withUnistyles(Plus);
 const ThemedMoreVertical = withUnistyles(MoreVertical);
 const ThemedTrash2 = withUnistyles(Trash2);
 const ThemedSettings = withUnistyles(Settings);
+const ThemedWandSparkles = withUnistyles(WandSparkles);
 
 const foregroundColorMapping = (theme: Theme) => ({
   color: theme.colors.foreground,
@@ -462,6 +472,7 @@ function ProjectRowTrailingActions({
 
 const trash2LeadingIcon = <ThemedTrash2 size={14} uniProps={foregroundMutedColorMapping} />;
 const settingsLeadingIcon = <ThemedSettings size={14} uniProps={foregroundMutedColorMapping} />;
+const improveLeadingIcon = <ThemedWandSparkles size={14} uniProps={foregroundMutedColorMapping} />;
 const openInNewWindowLeadingIcon = (
   <ThemedExternalLink size={14} uniProps={foregroundMutedColorMapping} />
 );
@@ -561,9 +572,27 @@ function ProjectMenuItems({
         toast.error(t("sidebar.project.actions.openNewWindowFailed"));
       });
   }, [projectPath, t, toast]);
+  const openImprove = useImproveRepositoryStore((state) => state.open);
+  const handleImprove = useCallback(
+    () =>
+      openImprove({
+        projectViewKey,
+        serverId: settingsTarget?.serverId ?? null,
+        path: projectPath.trim() || null,
+      }),
+    [openImprove, projectPath, projectViewKey, settingsTarget],
+  );
 
   return (
     <>
+      <ProjectMenuItem
+        surface={surface}
+        testID={`sidebar-project-menu-improve-${projectViewKey}`}
+        leading={improveLeadingIcon}
+        onSelect={handleImprove}
+      >
+        {GROUPON_IMPROVE.menuItem}
+      </ProjectMenuItem>
       {settingsTarget ? (
         <ProjectMenuItem
           surface={surface}

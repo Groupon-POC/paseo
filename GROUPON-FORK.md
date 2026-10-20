@@ -257,3 +257,22 @@ the engineering standards of the repository picked, read from the repository its
 `_documentation/engineering-standards/`), the branch-name and pull-request standards first, rendered
 with the file pane's markdown preview, and Pull the standards, which runs `groupon standards pull`
 in that checkout. A repository without standards says so and points at `groupon standards adopt`.
+
+## Improve this repository
+
+The owner's word of 2026-10-20: "a solution for 'How to improve my repository', where a prompt
+starts on how to tune a repository so that it adapts easily to a person". One sheet
+(`groupon/improve-repository-sheet.tsx`, its rules in `groupon/improve-repository-model.ts`, opened
+through `groupon/improve-repository-store.ts`) is reached three ways: the home page's Improve this
+repository tile, the sidebar repository row's menu, and a button on the Projects page. It shows the
+repository (preselected from where it was opened, else where the person is, else the repository
+chosen last, as New workspace does), the Macs that hold it (only one whose hand is running can be
+chosen, the guard of New workspace's Mac picker and Start a ticket), a read-only preview of what the
+agent will do, and Start. Start creates a workspace on that Mac in a fresh worktree,
+`improve-repository`, cut from the default branch, with the agent and model New workspace used last
+(else a Claude agent), and sends one prompt: the repository's own `[prompts] improve_repository`
+from `.groupon/desk.toml` (read through the plugin's `groupon.project-settings`, which passes every
+`[prompts]` key through), else the window's default, `GROUPON_IMPROVE.defaultPrompt` in
+`groupon/strings.ts`: `groupon standards adopt` and `groupon standards pull`, `.groupon/desk.toml`,
+one command each to set up, run and validate with a short Start here, file headers, and one pull
+request by the repository's own convention, never merged. The workspace then shows as any other.

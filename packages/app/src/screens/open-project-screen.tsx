@@ -1,21 +1,31 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the { G } mark; the History tile; the From GitHub tile; Your phone in place of Pair device; Your access wraps under the tiles rather than being cut.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the { G } mark; the History tile; the From GitHub tile; Your phone in place of Pair device; Your access wraps under the tiles rather than being cut; the Improve this repository tile.
 import { useHosts, useHostRuntimeLastError } from "@/runtime/host-runtime";
 import { useCallback, useEffect, useState, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useRouter } from "expo-router";
-import { BookOpen, FolderOpen, History, Inbox, Plug, Smartphone } from "lucide-react-native";
+import {
+  BookOpen,
+  FolderOpen,
+  History,
+  Inbox,
+  Plug,
+  Smartphone,
+  WandSparkles,
+} from "lucide-react-native";
 import { ThemedGrouponMark } from "@/groupon/groupon-mark";
 import { HUB_HISTORY_ROUTE } from "@/groupon/history-screen";
 import {
   GROUPON_GITHUB,
   GROUPON_HISTORY,
+  GROUPON_IMPROVE,
   GROUPON_PHONE,
   GROUPON_STANDARDS,
 } from "@/groupon/strings";
 import { HomeAccess } from "@/groupon/home-access";
 import { useOpenGithubProject } from "@/groupon/github-project-store";
+import { useImproveRepositoryStore } from "@/groupon/improve-repository-store";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import { CommunityLinks } from "@/components/community-links";
 import { MenuHeader } from "@/components/headers/menu-header";
@@ -67,6 +77,8 @@ export function OpenProjectScreen() {
     () => router.push(buildSettingsSectionRoute("standards")),
     [router],
   );
+  const openImprove = useImproveRepositoryStore((state) => state.open);
+  const handleOpenImprove = useCallback(() => openImprove(), [openImprove]);
 
   const handleOpenProviders = useCallback(() => {
     chooseHost({
@@ -146,6 +158,13 @@ export function OpenProjectScreen() {
                 description={GROUPON_STANDARDS.tileDescription}
                 onPress={handleOpenStandards}
                 testID="open-project-standards"
+              />
+              <HomeTile
+                icon={WandSparkles}
+                title={GROUPON_IMPROVE.title}
+                description={GROUPON_IMPROVE.tileDescription}
+                onPress={handleOpenImprove}
+                testID="open-project-improve-repository"
               />
             </View>
             <HomeAccess />

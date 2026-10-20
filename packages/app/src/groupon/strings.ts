@@ -265,6 +265,8 @@ export const GROUPON_REPOSITORY = {
   branchNamesStandard: "The company standard: groupon ticket name decides.",
   commitMessages: "Commit messages",
   pullRequests: "Pull requests",
+  improveDefault:
+    "Not set in the file: Improve this repository sends the window's default prompt ([prompts] improve_repository replaces it).",
   gitTitle: "Git",
   targetBranch: "Target branch",
   envRequired: "Variables a script needs (names only)",
@@ -434,4 +436,66 @@ export const GROUPON_STANDARDS = {
   reading: "Reading the standards",
   since: "since",
   sectionTitle: "Engineering standards",
+} as const;
+
+/**
+ * Improve this repository: one built-in prompt that tunes a repository so a newcomer, a person or
+ * an agent, finds their way in it. A repository may replace it with its own text in
+ * `.groupon/desk.toml`, `[prompts] improve_repository`.
+ */
+export const GROUPON_IMPROVE = {
+  title: "Improve this repository",
+  tileDescription: "Tune a repository so a newcomer and an agent are at home in it in five minutes",
+  menuItem: "Improve this repository",
+  intro:
+    "An agent reads the repository, brings in the standards, sets up .groupon/desk.toml and a short Start here, then opens one pull request. It never merges.",
+  repositoryLabel: "Repository",
+  macLabel: "Mac",
+  previewLabel: "What the agent will do",
+  noRepository:
+    "No repository on your Macs yet: add one with Add project, or clone one From GitHub.",
+  chooseRepository: "Choose the repository to improve.",
+  notOnAnyMac: (repository: string) =>
+    `${repository} is on none of your Macs: clone it From GitHub first.`,
+  noMacServing: (repository: string, macs: string) =>
+    `No Mac that holds ${repository} is serving (${macs}): press Work window in Groupon Desk there, or run groupon desk serve install.`,
+  noAgent: "No agent is ready on this Mac: set one up under Setup providers.",
+  readingPrompt: "Reading the repository's own prompt",
+  promptFromRepository:
+    "The repository's own prompt, from .groupon/desk.toml ([prompts] improve_repository):",
+  promptDefault: "The window's default prompt (the repository sets none in .groupon/desk.toml):",
+  noAnswer: "the Groupon plugin on that Mac did not answer",
+  promptUnread: (problem: string) =>
+    `The repository's file could not be read (${problem}); the window's default prompt is used.`,
+  where: (worktree: string, mac: string) =>
+    `A new worktree, ${worktree}, on ${mac}, cut from the repository's default branch.`,
+  agent: (agent: string, model: string) => `The agent: ${agent}, ${model}.`,
+  showFullPrompt: "Show the whole prompt",
+  hideFullPrompt: "Hide the whole prompt",
+  start: "Start",
+  starting: "Creating the worktree and starting the agent",
+  createFailed: "The workspace was not created.",
+  workspaceTitle: "Improve this repository",
+  /** The default's steps, one line each, shown as the preview. */
+  steps: [
+    "Read the README, AGENTS.md or CLAUDE.md, the scripts and .groupon/desk.toml",
+    "Bring in the engineering standards: groupon standards adopt, then groupon standards pull",
+    "Add or fix .groupon/desk.toml: setup, run scripts, prompts, target branch, Encore apps",
+    "One command to set up, one to run, one to validate, and a short Start here",
+    "A short header on every source file that has none",
+    "One pull request by the repository's own convention, with what it could not decide; never merged",
+  ],
+  defaultPrompt: [
+    "Improve this repository so that a newcomer, a person or an agent, can work in it within their first five minutes. Work only in this worktree. Never merge anything and never push to the target branch.",
+    "",
+    "1. Read before you change anything: the README, AGENTS.md or CLAUDE.md, the package manifests and their scripts (package.json, Makefile, scripts/), the CI workflows, and .groupon/desk.toml if it exists. Note what a newcomer has to know and what is missing or wrong.",
+    "2. Bring in the engineering standards. Run `groupon standards adopt` in this folder: off a terminal it prints the adoption prompt (`--out <file>` writes it to a file instead). Follow that prompt as written; the standards are copied whole and never edited in the copy. Then run `groupon standards pull` so the copy is current.",
+    "3. Add or fix .groupon/desk.toml: [scripts] setup (what a fresh worktree needs: install, generated files), the run scripts as [scripts.run.<id>], [prompts] (create_pr, fix_errors, code_review, commit_messages, and improve_repository if this repository wants its own version of this prompt), [git] target_branch, and an [encore.apps.<id>] table for each Encore app the repository deploys. Name only commands that exist here. Never put a secret in the file, only the names of the variables a script needs.",
+    '4. Make the first five minutes easy: one command to set up, one to run, one to validate, each named in the README and in AGENTS.md; a short "Start here" at the top of the README; AGENTS.md as the one entry point for agents, with CLAUDE.md only pointing at it.',
+    "5. Write a short header at the top of every source file that has none: one line on what the file is for, then what it owns and what must not be broken, only where there is something to say.",
+    "6. Run the validate command you named until it passes.",
+    "7. Open one pull request following this repository's own convention (its branch name, title and template). Say what changed and list what you could not decide and why. Never merge it.",
+    "",
+    "A step that does not fit this repository is skipped and named in the pull request, never forced.",
+  ].join("\n"),
 } as const;

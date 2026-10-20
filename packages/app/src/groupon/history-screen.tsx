@@ -13,7 +13,7 @@ import {
   type HistoryRepository,
   type HistoryWorkspace,
 } from "./history";
-import { hubShareRoute } from "./share-menu-item";
+import { hubShareRoute } from "./share-route";
 import { sharedTree, sharesOfWorkspace, type SharedWorkspaceEntry } from "./share-model";
 import { GROUPON_HISTORY, GROUPON_SHARE } from "./strings";
 

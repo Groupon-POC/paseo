@@ -22,6 +22,8 @@ import {
   type MessageBody,
   type OpenedMessage,
 } from "./history";
+import { presenceView } from "./presence-model";
+import { PresenceRow, useHubPresence } from "./presence-row";
 import { useGrouponStore } from "./session";
 import {
   openPermissionRequests,
@@ -230,6 +232,8 @@ export function HubHistoryChatScreen({
   }, [load]);
 
   const isShared = shared !== null;
+  // A colleague in a shared chat checks in, so the owner sees them, and sees who else is in it.
+  const presence = useHubPresence(shared?.entry.workspace.id ?? null);
   useEffect(() => {
     if (!isShared) return;
     const timer = setInterval(() => void load(), SHARED_REFRESH_MS);
@@ -241,6 +245,11 @@ export function HubHistoryChatScreen({
       <BackHeader title={title ?? GROUPON_HISTORY.title} />
       <ScrollView contentContainerStyle={styles.scroll}>
         {context ? <Text style={styles.muted}>{context}</Text> : null}
+        {isShared ? (
+          <View style={styles.presence}>
+            <PresenceRow view={presenceView(presence.data, "colleague")} hubWorkspaceId={null} />
+          </View>
+        ) : null}
         {messages ? (
           <Text style={styles.muted}>{GROUPON_HISTORY.messages(messages.length)}</Text>
         ) : null}
@@ -377,6 +386,7 @@ function PermissionButtons({
 }
 
 const styles = StyleSheet.create((theme) => ({
+  presence: { flexDirection: "row" },
   root: { flex: 1, backgroundColor: theme.colors.surface0 },
   scroll: {
     padding: theme.spacing[4],

@@ -12,8 +12,10 @@ import {
   type HubOverview,
   type HubShareRole,
 } from "./hub";
+import { presenceLines } from "./presence-model";
+import { useHubPresence } from "./presence-row";
 import { hubWorkspaceForPath, normaliseEmail, sharesOfWorkspace } from "./share-model";
-import { GROUPON_SHARE } from "./strings";
+import { GROUPON_PRESENCE, GROUPON_SHARE } from "./strings";
 
 function errorText(caught: unknown): string {
   return caught instanceof Error ? caught.message : String(caught);
@@ -135,6 +137,7 @@ export function HubShareScreen({ workspaceId, path }: { workspaceId?: string; pa
               </Button>
             </View>
             {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+            <PeopleNow workspaceId={workspace.id} />
             <Text style={styles.label}>{GROUPON_SHARE.whoHasAccess}</Text>
             {grants.length === 0 ? <Text style={styles.muted}>{GROUPON_SHARE.nobody}</Text> : null}
             {grants.map((grant) => (
@@ -153,6 +156,26 @@ export function HubShareScreen({ workspaceId, path }: { workspaceId?: string; pa
         ) : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
+    </View>
+  );
+}
+
+/** "People in this session now": the same check-in the row above the composer reads. */
+function PeopleNow({ workspaceId }: { workspaceId: string }) {
+  const presence = useHubPresence(workspaceId);
+  const onlyYou = (presence.data?.people ?? []).every((person) => person.you);
+  return (
+    <View testID="hub-share-presence">
+      <Text style={styles.label}>{GROUPON_PRESENCE.section}</Text>
+      {presence.data && onlyYou ? (
+        <Text style={styles.muted}>{GROUPON_PRESENCE.nobodyElse}</Text>
+      ) : (
+        presenceLines(presence.data).map((line) => (
+          <Text key={line} style={styles.muted}>
+            {line}
+          </Text>
+        ))
+      )}
     </View>
   );
 }

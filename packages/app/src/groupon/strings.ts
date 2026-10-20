@@ -352,6 +352,22 @@ export const GROUPON_SHARE = {
   wrote: (name: string) => `${name} wrote`,
 } as const;
 
+export const GROUPON_PRESENCE = {
+  shareChip: "Share",
+  shareChipLabel: "Share this workspace with a colleague",
+  rowLabel: (count: number) =>
+    `${count} ${count === 1 ? "person" : "people"} in this session now. Open Share.`,
+  you: "you",
+  owner: "owner",
+  canWrite: "may write",
+  canRead: "reads",
+  hand: (label: string, connected: boolean) =>
+    `${label}, runs the agent${connected ? ", connected through Groupon" : ", not connected through Groupon right now"}`,
+  section: "People in this session now",
+  nobodyElse: "Only you right now.",
+  person: (name: string, facts: string[]) => [name, ...facts].join(" · "),
+} as const;
+
 export const GROUPON_TASKS = {
   title: "My tasks",
   caption:

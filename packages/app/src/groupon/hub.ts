@@ -21,6 +21,15 @@ export interface HubMachine {
   relaySessionId: string | null;
   relayConnectedAt: string | null;
   relayOfferSealed: string | null;
+  /** The hand's latest load sample (Core's `DeskMachineLoad`); null before the first, absent on an older Core. */
+  load?: HubMachineLoad | null;
+}
+
+/** One load sample of a Mac, as its hand measured it every 10 s: whole percents, and when. */
+export interface HubMachineLoad {
+  cpuPercent: number;
+  memoryPercent: number;
+  sampledAt: string;
 }
 
 export interface HubRepository {

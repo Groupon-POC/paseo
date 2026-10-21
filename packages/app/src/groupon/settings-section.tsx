@@ -17,6 +17,7 @@ import { updatedAt } from "./your-macs-model";
 import { vaultHint, vaultRuntime } from "./vault-hint";
 import { GROUPON_HISTORY, GROUPON_MACHINES, GROUPON_SETTINGS } from "./strings";
 import { HUB_HISTORY_ROUTE } from "./history-screen";
+import { InstallSection } from "./install-card";
 import { GrouponTrainArchivedSection } from "./train-archived-section";
 
 function Row({
@@ -169,6 +170,7 @@ export function GrouponSettingsPage() {
   return (
     <>
       <GrouponAccountSection />
+      <InstallSection />
       <GrouponHistorySection />
       <GrouponTrainArchivedSection />
       <GrouponMachinesSection />

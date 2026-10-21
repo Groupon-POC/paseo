@@ -1,7 +1,7 @@
 {
   "id": "/",
   "name": "Groupon Desk",
-  "short_name": "Groupon Desk",
+  "short_name": "Desk",
   "description": "Groupon Desk: your coding agents on every Mac, from anywhere.",
   "start_url": "/",
   "scope": "/",
@@ -11,17 +11,9 @@
   "background_color": "#181B1A",
   "categories": ["developer", "productivity", "utilities"],
   "icons": [
-    {
-      "src": "/pwa-icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/pwa-icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    { "src": "/pwa-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/pwa-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

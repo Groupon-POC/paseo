@@ -12,6 +12,7 @@
  * Groupon's SSO page).
  *
  * Constraints:
+ * - Launched from the home screen (standalone), sign-in is the device code, never the redirect
  * - Never open the device code's sign-in page from script: only the person's tap on the card's
  *   link opens it (Safari blocks a page opened after the code arrives as a pop-up). The redirect
  *   moves this same tab, which no browser blocks.
@@ -44,6 +45,8 @@ import {
 } from "./environments";
 import { useHideShellEnvironmentBadge } from "./environment-badge";
 import { GrouponHubSync } from "./hub-sync";
+import { GateInstallCard } from "./install-card";
+import { launchedStandalone } from "./install-card-model";
 import { signedInMessageAuthor } from "./message-author";
 import { setMessageAuthorSource } from "./message-author-source";
 import { finishSsoRedirect, useGrouponStore } from "./session";
@@ -110,6 +113,7 @@ export function GrouponGate({ children }: { children: ReactNode }) {
         {status === "loading" ? <ActivityIndicator /> : null}
         {status === "signedOut" ? <SignInStep /> : null}
         {status === "vault" ? <VaultStep /> : null}
+        {status !== "loading" ? <GateInstallCard /> : null}
       </View>
     </ScrollView>
   );
@@ -124,7 +128,12 @@ function SignInStep() {
   const compact = useIsCompactFormFactor();
   const pageOrigin = browserPageOrigin();
   const [codeChosen, setCodeChosen] = useState(false);
-  const redirect = !codeChosen && redirectSignInOffered(pageOrigin, environmentId);
+  // Launched from the home screen the page is an app window: a redirect to the gateway and back
+  // can land in the browser's own storage, not the app's, so the device code is the way in there.
+  const redirect =
+    !codeChosen &&
+    !launchedStandalone(typeof window === "undefined" ? undefined : window) &&
+    redirectSignInOffered(pageOrigin, environmentId);
   const [localUrl, setLocalUrl] = useState(
     environmentId === "local" ? coreUrl : "http://localhost:4000",
   );

@@ -17,7 +17,7 @@ comment are listed here instead (Apache-2.0, section 4(b)):
 | `paseo.json` (removed)                                                                                                                                                                                 | This repository's own worktree setup and scripts moved to `.groupon/desk.toml`                                                                                                                                                                                                                                        |
 | `packages/desktop/package.json`                                                                                                                                                                        | `productName` Groupon Desk Work                                                                                                                                                                                                                                                                                       |
 | `packages/app/eas.json`                                                                                                                                                                                | Paseo's App Store Connect id removed                                                                                                                                                                                                                                                                                  |
-| `packages/app/public/manifest.json`                                                                                                                                                                    | The web app's name and description                                                                                                                                                                                                                                                                                    |
+| `packages/app/public/manifest.json`                                                                                                                                                                    | The web app's name, short name Desk, description and icons (any and maskable)                                                                                                                                                                                                                                         |
 | `packages/app/assets/images/icon.png`, `splash-icon.png`, `android-icon-foreground.png`                                                                                                                | The work window's icon, the Groupon G in curly braces `{ G }`, rendered from `packages/desktop/assets/brand/icon.svg`                                                                                                                                                                                                 |
 | `packages/app/assets/images/notification-icon.png`                                                                                                                                                     | Groupon Desk's icon, rendered from the Desk's `AppIcon.png`                                                                                                                                                                                                                                                           |
 | `packages/app/assets/images/favicon*.png` (the six status variants and `favicon.png`)                                                                                                                  | The `{ G }` on the green tile: `favicon-*.svg` (each marked in its first line) crop `packages/desktop/assets/brand/icon.svg` to its tile (viewBox `100 100 824 824`, no shadow), the status variants add Paseo's dot at the same place; rendered to 48 by 48 with `sharp`, `favicon.png` a copy of `favicon-dark.png` |
@@ -133,6 +133,26 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (`~/.groupon/paseo`) alone, never in `~/.paseo`.
 - **The Core a fresh install starts on.** Production in every release build, the web build
   included; the local Core only in a development bundle (`defaultEnvironmentId`).
+
+## The web build is an installable app
+
+`packages/app/public/manifest.json` (name "Groupon Desk", short name "Desk", `display: standalone`,
+`start_url: /`, theme and background `#181B1A`, the `{ G }` icons at 192 and 512, each declared as
+`any` and as `maskable`) and the head of `packages/app/public/index.html` (`apple-touch-icon` 180,
+`apple-mobile-web-app-capable`, `mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`
+`black-translucent`, `apple-mobile-web-app-title` Desk) make "Add to Home Screen" open it full screen.
+A small card says so (`groupon/install-card.tsx`, its model `groupon/install-card-model.ts`): on
+iOS Safari not yet installed, the three steps with the Share icon; on Android Chrome, an Install
+button bound to the browser's `beforeinstallprompt` (`groupon/install-prompt.ts` keeps the event from
+the moment the page loads). It sits under the gate's sign-in and vault steps with "Not now"
+(remembered on the device, `installCardDismissed`) and in Settings > Groupon as Home screen, where
+it has no dismissal so the steps stay reachable. Nothing shows in the Electron window, a phone app or a
+desktop browser, nor once launched from the home screen (`navigator.standalone` or
+`display-mode: standalone`). Installed, the browser keeps the site's storage, where Safari deletes a
+site's data after seven days without a visit; the card's last line says it keeps the person signed in.
+Launched from the home screen, the gate signs in by the device code and not by the redirect to the
+SSO gateway (`launchedStandalone`), because a redirect out of an app window can return in the
+browser's storage, not the app's.
 
 ## No trace of Paseo a person meets
 

@@ -5,7 +5,7 @@
  * set up worktree scripts for a project without a repository file (off by default: the owner
  * wants no such card for anyone unless they ask for it, 2026-10-19), and where From GitHub opens:
  * the GitHub host last switched to, and on each host the organisation and team last picked; and
- * the repository the Standards page read last; and the repository New workspace was last on.
+ * the repository the Standards page read last; and the repository New workspace was last on; and whether the add-to-home-screen card was dismissed.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -32,6 +32,8 @@ const GrouponPreferencesSchema = z.object({
   standardsPlace: StandardsPlaceSchema.nullable().optional(),
   /** The repository New workspace was last on (`repository-picker-model.ts`'s entry id). */
   lastRepositoryId: z.string().nullable().optional(),
+  /** "Not now" on the add-to-home-screen card (`install-card.tsx`), kept on this device. */
+  installCardDismissed: z.boolean().optional(),
 });
 
 type GrouponPreferences = z.infer<typeof GrouponPreferencesSchema>;
@@ -42,6 +44,7 @@ interface GrouponPreferencesState extends GrouponPreferences {
   rememberGithubPlace: (host: string, organisation: string, team: string) => void;
   rememberStandardsPlace: (serverId: string, repoRoot: string) => void;
   rememberRepository: (repositoryId: string) => void;
+  dismissInstallCard: () => void;
 }
 
 export const DEFAULT_GROUPON_PREFERENCES: GrouponPreferences = { remindWorktreeScripts: false };
@@ -59,6 +62,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
       rememberStandardsPlace: (serverId, repoRoot) =>
         set({ standardsPlace: { serverId, repoRoot } }),
       rememberRepository: (repositoryId) => set({ lastRepositoryId: repositoryId }),
+      dismissInstallCard: () => set({ installCardDismissed: true }),
     }),
     {
       name: "groupon-desk-preferences",
@@ -71,6 +75,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
         githubPlaces: state.githubPlaces ?? null,
         standardsPlace: state.standardsPlace ?? null,
         lastRepositoryId: state.lastRepositoryId ?? null,
+        installCardDismissed: state.installCardDismissed ?? false,
       }),
       version: 1,
     },

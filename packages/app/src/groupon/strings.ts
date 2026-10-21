@@ -279,6 +279,20 @@ export const GROUPON_PHONE = {
   qrUnavailable: "The code could not be drawn; type the address instead.",
 } as const;
 
+export const GROUPON_INSTALL = {
+  /** The Settings section that keeps the guide reachable once the card was dismissed. */
+  section: "Home screen",
+  iosTitle: "Add Groupon Desk to your home screen",
+  iosIntro: "Open it like an app, full screen, from your home screen:",
+  /** Step 1 carries the Share icon beside it. */
+  iosSteps: ["Tap Share", "Tap Add to Home Screen", "Tap Add"],
+  installTitle: "Install Groupon Desk",
+  installIntro: "Put Groupon Desk on your home screen and open it like an app, full screen.",
+  install: "Install",
+  notNow: "Not now",
+  keepsSignedIn: "Installed, it keeps you signed in.",
+} as const;
+
 export const GROUPON_TICKET = {
   button: "Start a ticket",
   title: "Start a ticket",

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the folder pages (Search for directory, Choose parent directory, Choose destination) browse one folder at a time, so each keeps the folder looked at and whether hidden folders show.
 export interface AddProjectHost {
   serverId: string;
   label: string;
@@ -26,18 +27,33 @@ interface SearchPageState extends PageState {
   query: string;
 }
 
+/** Groupon Desk: a page that browses the Mac's folders (`groupon/folder-browser-model.ts`). */
+interface FolderBrowseState {
+  /** The folder looked at: `~` at first, then a path the daemon answered. */
+  folder: string;
+  showHidden: boolean;
+}
+
+export const FOLDER_BROWSE_START = "~";
+
 export type AddProjectPage =
   | ({ kind: "host" } & SearchPageState)
   | ({ kind: "method"; hostId: string; isSubmitting: boolean } & PageState)
-  | ({ kind: "directory-search"; hostId: string; isSubmitting: boolean } & SearchPageState)
+  | ({
+      kind: "directory-search";
+      hostId: string;
+      isSubmitting: boolean;
+    } & SearchPageState &
+      FolderBrowseState)
   | ({ kind: "github-search"; hostId: string } & SearchPageState)
   | ({
       kind: "github-location";
       hostId: string;
       repository: GithubRepositoryChoice;
       isSubmitting: boolean;
-    } & SearchPageState)
-  | ({ kind: "new-directory-parent"; hostId: string } & SearchPageState)
+    } & SearchPageState &
+      FolderBrowseState)
+  | ({ kind: "new-directory-parent"; hostId: string } & SearchPageState & FolderBrowseState)
   | {
       kind: "new-directory-name";
       hostId: string;
@@ -152,6 +168,7 @@ export function openDirectorySearchPage(
 ): AddProjectFlowState {
   return pushAddProjectPage(state, {
     ...searchPage("directory-search"),
+    ...folderBrowseStart(),
     hostId,
     isSubmitting: false,
   });
@@ -175,6 +192,7 @@ export function openGithubLocationPage(
     query: draft?.query ?? "",
     activeIndex: draft?.activeIndex ?? 0,
     error: null,
+    ...folderBrowseStart(),
     hostId,
     repository,
     isSubmitting: false,
@@ -185,7 +203,55 @@ export function openNewDirectoryParentPage(
   state: AddProjectFlowState,
   hostId: string,
 ): AddProjectFlowState {
-  return pushAddProjectPage(state, { ...searchPage("new-directory-parent"), hostId });
+  return pushAddProjectPage(state, {
+    ...searchPage("new-directory-parent"),
+    ...folderBrowseStart(),
+    hostId,
+  });
+}
+
+function folderBrowseStart(): FolderBrowseState {
+  return { folder: FOLDER_BROWSE_START, showHidden: false };
+}
+
+type FolderBrowsePage = Extract<AddProjectPage, FolderBrowseState>;
+
+export function isFolderBrowsePage(page: AddProjectPage): page is FolderBrowsePage {
+  return (
+    page.kind === "directory-search" ||
+    page.kind === "github-location" ||
+    page.kind === "new-directory-parent"
+  );
+}
+
+/** Groupon Desk: go into `path` on a folder page; the field empties, the first row is active. */
+export function browseAddProjectFolder(
+  state: AddProjectFlowState,
+  path: string,
+): AddProjectFlowState {
+  const page = currentAddProjectPage(state);
+  if (!isFolderBrowsePage(page)) return state;
+  const moved = updateCurrentAddProjectPage(state, (current) =>
+    isFolderBrowsePage(current)
+      ? { ...current, folder: path, query: "", activeIndex: 0, error: null }
+      : current,
+  );
+  if (page.kind !== "github-location") return moved;
+  const draftKey = githubLocationDraftKey(page.hostId, page.repository.id);
+  return {
+    ...moved,
+    githubLocationDrafts: {
+      ...moved.githubLocationDrafts,
+      [draftKey]: { query: "", activeIndex: 0 },
+    },
+  };
+}
+
+/** Groupon Desk: fold or unfold the hidden folders on a folder page. */
+export function toggleAddProjectHiddenFolders(state: AddProjectFlowState): AddProjectFlowState {
+  return updateCurrentAddProjectPage(state, (current) =>
+    isFolderBrowsePage(current) ? { ...current, showHidden: !current.showHidden } : current,
+  );
 }
 
 export function openNewDirectoryNamePage(

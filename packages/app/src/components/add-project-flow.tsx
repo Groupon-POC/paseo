@@ -1,13 +1,11 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu; with no connected host it points at Your Macs, not Add host; the first page lists the person's Macs from the hub, this Mac first even while its hand is not running (greyed with the reason and the command), and the flow opens on this Mac, never on another merely because it is the only one serving; it is also From GitHub's host step (`add-to-mac-model.ts`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu; with no connected host it points at Your Macs, not Add host; the first page lists the person's Macs from the hub, this Mac first even while its hand is not running (greyed with the reason and the command), and the flow opens on this Mac, never on another merely because it is the only one serving; it is also From GitHub's host step (`add-to-mac-model.ts`); Search for directory, Choose parent directory and Choose destination browse the Mac's folders a click at a time (groupon/folder-browser.tsx).
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { router } from "expo-router";
 import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
 import {
   ArrowLeft,
-  Folder,
   FolderOpen,
   FolderPlus,
-  HardDrive,
   Laptop,
   Plus,
   Search,
@@ -55,6 +53,8 @@ import {
 import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import {
   backAddProjectPage,
+  browseAddProjectFolder,
+  isFolderBrowsePage,
   chooseAddProjectHost,
   currentAddProjectPage,
   moveAddProjectSelection,
@@ -66,6 +66,7 @@ import {
   setAddProjectActiveIndex,
   setAddProjectPageInput,
   setNewDirectoryName,
+  toggleAddProjectHiddenFolders,
   updateCurrentAddProjectPage,
   type AddProjectFlowState,
   type AddProjectHost,
@@ -75,17 +76,22 @@ import {
 import {
   buildAddProjectMethods,
   addProjectMethodEmptyText,
-  buildCloneLocationOptions,
   buildManualGithubRepositoryChoices,
-  buildSuggestedParentDirectories,
   joinDirectoryPath,
   pathBaseName,
   type AddProjectMethodId,
 } from "@/add-project-flow/options";
 import {
-  buildProjectPickerOptions,
-  type ProjectPickerOption,
-} from "@/components/project-picker-options";
+  FOLDER_BROWSER,
+  FolderBreadcrumb,
+  FolderBrowserActions,
+  browserRowIcon,
+  browserRowKey,
+  browserRowSubtitle,
+  browserRowTitle,
+  useFolderBrowser,
+} from "@/groupon/folder-browser";
+import { displayPath, isTypedPath } from "@/groupon/folder-browser-model";
 import { Shortcut } from "@/components/ui/shortcut";
 import { useRevealActiveItem } from "@/components/ui/scroll-reveal";
 import { useKeyboardShortcutsAvailable } from "@/keyboard/availability";
@@ -108,7 +114,6 @@ import {
 } from "@/runtime/host-runtime";
 import { useHostFeatureMap } from "@/runtime/host-features";
 import { useSessionStore } from "@/stores/session-store";
-import { useRecommendedProjectPaths } from "@/stores/session-store-hooks";
 import type { AddProjectFlowRequest } from "@/stores/add-project-flow-store";
 import type { Theme } from "@/styles/theme";
 import { shortenPath } from "@/utils/shorten-path";
@@ -154,9 +159,10 @@ const ThemedTextInput = withUnistyles(TextInput, (theme) => ({
 const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const foregroundMutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
-const lastCloneParentByHost = new Map<string, string>();
 const EMPTY_PATHS: string[] = [];
 const NAVIGATION_HINT_KEYS = ["Up", "Down"];
+const CHOOSE_FOLDER_HINT_KEYS = ["mod", "Enter"];
+const FOLDER_BROWSER_FOUND = "Found in the home folder";
 const SELECT_HINT_KEYS = ["Enter"];
 const ESCAPE_HINT_KEYS = ["Esc"];
 
@@ -187,12 +193,6 @@ function methodIcon(method: AddProjectMethodId): FlowRowOption["icon"] {
   return Search;
 }
 
-function directoryOptionSubtitle(option: ProjectPickerOption, shortPath: string): string | null {
-  if (option.kind === "path") return "Open this path";
-  if (shortPath === option.path) return null;
-  return option.path;
-}
-
 function progressText(page: AddProjectPage): string {
   if (page.kind === "github-location") return "Cloning project...";
   if (page.kind === "new-directory-name") return "Creating directory...";
@@ -200,6 +200,9 @@ function progressText(page: AddProjectPage): string {
 }
 
 function emptyText(page: AddProjectPage, host: AddProjectHost | null): string {
+  if (isFolderBrowsePage(page)) {
+    return page.query.trim() ? FOLDER_BROWSER.noMatch : FOLDER_BROWSER.empty;
+  }
   if (page.kind === "host") return GROUPON_ADD_TO_MAC.noMac;
   if (page.kind === "github-search") return "Enter a GitHub URL or owner/repo";
   if (page.kind === "method") return addProjectMethodEmptyText(host);
@@ -274,6 +277,11 @@ function pagePlaceholder(page: AddProjectInputPage): string {
 
 function pageInput(page: AddProjectInputPage): string {
   return page.kind === "new-directory-name" ? page.name : page.query;
+}
+
+function clonePreview(parent: string, nameWithOwner: string, homePath: string | null): string {
+  const path = joinDirectoryPath(parent, pathBaseName(nameWithOwner));
+  return homePath ? displayPath(path, homePath) : path;
 }
 
 function pathTestId(path: string): string {
@@ -431,7 +439,6 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const host = hostId ? state.hosts.find((candidate) => candidate.serverId === hostId) : null;
   const client = useHostRuntimeClient(hostId ?? "");
   const isLocalDaemon = useIsLocalDaemon(hostId ?? "");
-  const recommendedPaths = useRecommendedProjectPaths(hostId);
   const openProject = useOpenProject(hostId);
   const cloneGithubProject = useCloneGithubProject(hostId);
   const upsertProject = useCallback(
@@ -470,10 +477,20 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     return () => clearTimeout(timer);
   }, [page.kind]);
 
+  // Groupon Desk: the folder pages browse one folder of the Mac at a time; Search for directory
+  // also searches the whole home folder for a word, listed under the browsed folder's rows.
+  const browsing = isFolderBrowsePage(page);
+  const folderView = useFolderBrowser({
+    serverId: hostId ?? "",
+    folder: browsing ? page.folder : "~",
+    query: browsing ? page.query : "",
+    showHidden: browsing && page.showHidden,
+    enabled: browsing,
+  });
   const searchesDirectories =
-    page.kind === "directory-search" ||
-    page.kind === "github-location" ||
-    page.kind === "new-directory-parent";
+    page.kind === "directory-search" &&
+    debouncedQuery.trim().length > 0 &&
+    !isTypedPath(debouncedQuery);
   const directoryQuery = useFetchQuery({
     queryKey: ["add-project-flow-directories", hostId, debouncedQuery],
     queryFn: async () => {
@@ -597,18 +614,17 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     [browse, hostId],
   );
 
+  // Going into a folder empties the field, which is uncontrolled, so it is emptied by hand.
+  const browseInto = useCallback((path: string) => {
+    inputRef.current?.replaceText("");
+    setState((current) => browseAddProjectFolder(current, path));
+  }, []);
   const directoryPaths = useMemo(
-    () => (directoryQuery.data?.query === query ? directoryQuery.data.paths : EMPTY_PATHS),
-    [directoryQuery.data, query],
-  );
-  const pathOptions = useMemo(
     () =>
-      buildProjectPickerOptions({
-        recommendedPaths,
-        serverPaths: directoryPaths,
-        query,
-      }),
-    [directoryPaths, query, recommendedPaths],
+      searchesDirectories && directoryQuery.data?.query === query
+        ? directoryQuery.data.paths
+        : EMPTY_PATHS,
+    [directoryQuery.data, query, searchesDirectories],
   );
   const cloneRepository = useCallback(
     async (locationPage: GithubLocationPage, parentPath: string) => {
@@ -624,7 +640,6 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
           locationPage.repository.cloneProtocol,
         );
         if (result.ok) {
-          lastCloneParentByHost.set(locationPage.hostId, parentPath);
           openNewWorkspaceForProject(locationPage.hostId, result.project);
           return;
         }
@@ -724,18 +739,38 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
         }));
       return [...grouponGithub, ...methods];
     }
-    if (page.kind === "directory-search") {
-      return pathOptions.map((option) => {
-        const shortPath = shortenPath(option.path);
-        return {
-          id: option.path,
-          title: shortPath,
-          subtitle: directoryOptionSubtitle(option, shortPath),
-          icon: Folder,
-          testID: pathTestId(option.path),
-          select: () => void openAddedProject(option.path, "directory-search"),
-        };
-      });
+    if (isFolderBrowsePage(page)) {
+      const folderRows = folderView.rows.map<FlowRowOption>((row) => ({
+        id: browserRowKey(row),
+        title: browserRowTitle(row),
+        subtitle: browserRowSubtitle(row),
+        icon: browserRowIcon(row),
+        testID:
+          row.kind === "hidden"
+            ? "add-project-flow-hidden-folders"
+            : pathTestId(row.kind === "place" ? row.path : row.entry.path),
+        select: () =>
+          row.kind === "hidden"
+            ? setState(toggleAddProjectHiddenFolders)
+            : browseInto(row.kind === "place" ? row.path : row.entry.path),
+      }));
+      const homePath = folderView.listing?.homePath ?? null;
+      const shown = new Set(folderRows.map((row) => row.id));
+      const elsewhere = directoryPaths.flatMap<FlowRowOption>((path) =>
+        shown.has(`folder:${path}`)
+          ? []
+          : [
+              {
+                id: `elsewhere:${path}`,
+                title: homePath ? displayPath(path, homePath) : shortenPath(path),
+                subtitle: FOLDER_BROWSER_FOUND,
+                icon: Search,
+                testID: pathTestId(path),
+                select: () => browseInto(path),
+              },
+            ],
+      );
+      return [...folderRows, ...elsewhere];
     }
     if (page.kind === "github-search") {
       const search = githubQuery.data?.query === page.query ? githubQuery.data.payload : null;
@@ -762,59 +797,44 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
           setState((current) => openGithubLocationPage(current, page.hostId, repository)),
       }));
     }
-    if (page.kind === "github-location") {
-      const repositoryName = pathBaseName(page.repository.nameWithOwner);
-      const lastParent = lastCloneParentByHost.get(page.hostId);
-      const parents = buildSuggestedParentDirectories(recommendedPaths);
-      const orderedParents = lastParent
-        ? [lastParent, ...parents.filter((parent) => parent !== lastParent)]
-        : parents;
-      const filteredParents = buildProjectPickerOptions({
-        recommendedPaths: orderedParents,
-        serverPaths: directoryPaths,
-        query: page.query,
-      }).map((option) => option.path);
-      return buildCloneLocationOptions({
-        parents: filteredParents,
-        repositoryName,
-        existingPaths: [...recommendedPaths, ...directoryPaths],
-      }).map((option) => ({
-        id: option.id,
-        title: shortenPath(option.displayPath),
-        subtitle: option.secondaryText,
-        icon: HardDrive,
-        disabled: option.disabled,
-        testID: pathTestId(option.displayPath),
-        select: () => void cloneRepository(page, option.path),
-      }));
-    }
-    if (page.kind === "new-directory-parent") {
-      return pathOptions.map((option) => ({
-        id: option.path,
-        title: shortenPath(option.path),
-        subtitle: option.kind === "path" ? "Use this parent" : option.path,
-        icon: Folder,
-        testID: pathTestId(option.path),
-        select: () =>
-          setState((current) => openNewDirectoryNamePage(current, page.hostId, option.path)),
-      }));
-    }
     return [];
   }, [
-    cloneRepository,
+    browseInto,
     directoryPaths,
+    folderView.listing,
+    folderView.rows,
     githubQuery.data,
     host,
     intent,
     macRows,
     onClose,
-    openAddedProject,
     openGrouponGithub,
     page,
-    pathOptions,
-    recommendedPaths,
     selectMethod,
   ]);
+
+  // Groupon Desk: Choose this folder on a folder page does what picking a row did before.
+  const chooseFolder = useCallback(
+    (path: string) => {
+      if (page.kind === "directory-search") {
+        void openAddedProject(path, "directory-search");
+      } else if (page.kind === "new-directory-parent") {
+        setState((current) => openNewDirectoryNamePage(current, page.hostId, path));
+      } else if (page.kind === "github-location") {
+        void cloneRepository(page, path);
+      }
+    },
+    [cloneRepository, openAddedProject, page],
+  );
+  const setFolderError = useCallback(
+    (message: string) =>
+      setState((current) =>
+        updateCurrentAddProjectPage(current, (currentPage) =>
+          isFolderBrowsePage(currentPage) ? { ...currentPage, error: message } : currentPage,
+        ),
+      ),
+    [],
+  );
 
   const clampedIndex = rows.length === 0 ? 0 : Math.min(page.activeIndex, rows.length - 1);
   // Groupon Desk: a greyed Mac is never the active row; Enter picks the first Mac that can be chosen.
@@ -883,12 +903,30 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     }
     const option = rows[activeIndex];
     if (option && !option.disabled) option.select();
-  }, [activeIndex, createDirectory, page.kind, rows]);
+    else if (browsing && rows.length === 0) chooseFolder(folderView.chosenPath);
+  }, [
+    activeIndex,
+    browsing,
+    chooseFolder,
+    createDirectory,
+    folderView.chosenPath,
+    page.kind,
+    rows,
+  ]);
 
   const handleKey = useCallback(
-    (key: string): boolean => {
+    (key: string, withModifier = false): boolean => {
       if (key === "Escape") {
         handleBack();
+        return true;
+      }
+      // Groupon Desk: Cmd/Ctrl+Enter chooses the folder looked at; Backspace in an empty field goes up.
+      if (key === "Enter" && withModifier && browsing) {
+        chooseFolder(folderView.chosenPath);
+        return true;
+      }
+      if (key === "Backspace" && browsing && query === "" && folderView.parentPath) {
+        browseInto(folderView.parentPath);
         return true;
       }
       if (key === "Enter") {
@@ -904,13 +942,24 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       setState((current) => setAddProjectActiveIndex(current, next));
       return true;
     },
-    [activeIndex, handleBack, rows, submitActive],
+    [
+      activeIndex,
+      browseInto,
+      browsing,
+      chooseFolder,
+      folderView.chosenPath,
+      folderView.parentPath,
+      handleBack,
+      query,
+      rows,
+      submitActive,
+    ],
   );
 
   const modalLayer = useGlobalWebOverlayLayer("modal", isWeb);
   const handleWebOverlayKeyDown = useCallback(
     (event: KeyboardEvent) => {
-      if (!handleKey(event.key)) return false;
+      if (!handleKey(event.key, event.metaKey || event.ctrlKey)) return false;
       event.preventDefault();
       return true;
     },
@@ -944,23 +993,28 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       ? githubQuery.data.payload
       : null;
   const loading =
-    (searchesDirectories && (query !== debouncedQuery || directoryQuery.isFetching)) ||
+    (browsing && folderView.loading) ||
     (page.kind === "github-search" &&
       host?.canSearchGithubRepositories === true &&
       (query !== debouncedQuery || githubQuery.isFetching));
-  const queryError = queryErrorText({
-    searchesDirectories,
-    directoryFailed: directoryQuery.isError,
-    githubFailed: page.kind === "github-search" && githubQuery.isError,
-    githubAvailable: currentGithubSearch?.available ?? null,
-    githubError: currentGithubSearch?.error ?? null,
-  });
+  const queryError =
+    (browsing ? folderView.error : null) ??
+    queryErrorText({
+      searchesDirectories,
+      directoryFailed: directoryQuery.isError,
+      githubFailed: page.kind === "github-search" && githubQuery.isError,
+      githubAvailable: currentGithubSearch?.available ?? null,
+      githubError: currentGithubSearch?.error ?? null,
+    });
   // Groupon Desk: the Mac named as the hub names it, "This Mac" beside this Mac's name.
   const hostContextLabel = macContextLabel(macRows, host ?? null);
-  const preview =
-    page.kind === "new-directory-name" && page.name.trim()
-      ? joinDirectoryPath(page.parentPath, page.name.trim())
-      : null;
+  let preview: string | null = null;
+  if (page.kind === "new-directory-name" && page.name.trim()) {
+    preview = joinDirectoryPath(page.parentPath, page.name.trim());
+  } else if (page.kind === "github-location") {
+    const homePath = folderView.listing?.homePath ?? null;
+    preview = `Clones to ${clonePreview(folderView.chosenPath, page.repository.nameWithOwner, homePath)}`;
+  }
 
   const modal = (
     <Modal visible transparent animationType="fade" onRequestClose={isWeb ? undefined : handleBack}>
@@ -1019,6 +1073,20 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
                 testID="add-project-flow-input"
               />
             ) : null}
+            {browsing && hostId ? (
+              <>
+                <FolderBreadcrumb crumbs={folderView.crumbs} onGo={browseInto} />
+                <FolderBrowserActions
+                  serverId={hostId}
+                  chosenPath={folderView.chosenPath}
+                  homePath={folderView.listing?.homePath ?? null}
+                  disabled={isSubmitting}
+                  onChoose={chooseFolder}
+                  onFinderPath={browseInto}
+                  onError={setFolderError}
+                />
+              </>
+            ) : null}
           </View>
           <ScrollView
             ref={resultsRef}
@@ -1051,6 +1119,9 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
                   {queryError}
                 </Text>
               ) : null}
+              {!isSubmitting && browsing && folderView.listing?.truncated ? (
+                <Text style={styles.stateText}>{FOLDER_BROWSER.truncated}</Text>
+              ) : null}
               {!isSubmitting && loading ? (
                 <Text style={styles.stateText} testID="add-project-flow-loading">
                   Loading...
@@ -1058,7 +1129,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
               ) : null}
               {!isSubmitting &&
               (!loading || page.kind === "github-search") &&
-              (!queryError || page.kind === "github-search")
+              (!queryError || page.kind === "github-search" || browsing)
                 ? rows.map((option, index) => (
                     <FlowRow
                       key={option.id}
@@ -1085,7 +1156,10 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
           </ScrollView>
           <View style={styles.footer} testID="add-project-flow-footer">
             <FlowHint keys={NAVIGATION_HINT_KEYS} action="Navigate" />
-            <FlowHint keys={SELECT_HINT_KEYS} action="Select" />
+            <FlowHint keys={SELECT_HINT_KEYS} action={browsing ? "Open" : "Select"} />
+            {browsing ? (
+              <FlowHint keys={CHOOSE_FOLDER_HINT_KEYS} action={FOLDER_BROWSER.choose} />
+            ) : null}
             <FlowHint keys={ESCAPE_HINT_KEYS} action={state.pages.length > 1 ? "Back" : "Close"} />
           </View>
         </View>

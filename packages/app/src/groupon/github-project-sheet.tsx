@@ -13,14 +13,14 @@
  * `gh auth refresh -h <host> -s read:org`, with Copy. The sheet opens on the repositories of the organisation and team picked last
  * time on that host, or the first organisation the person is in (`firstStep`), with Back to change
  * them. Then a repository, then the folder (the Mac's checkout folder, `~/Documents/GitHub` unless
- * the person's setup says otherwise): the plugin clones it from its host the way the CLI does
+ * the person's setup says otherwise, browsed on that Mac with `FolderBrowserPanel`): the plugin clones it from its host the way the CLI does
  * (`gh repo clone`, git over https without gh), and from there it is what Paseo's clone does after
  * its pick: the checkout is registered as a project with Paseo's own `project.add` and New
  * workspace opens on it. Opened from New workspace on one repository (`prefill`: a Mac that lacks
  * the repository the person chose), it starts at the folder step on that repository's host and,
  * once the clone is a project, closes back to New workspace instead of navigating. The folder step
- * names every Mac that already has the repository, with its path (the hub's checkouts), so a
- * repository on one Mac is cloned onto another knowingly (`add-to-mac-model.ts`).
+ * names every Mac that already has the repository, with its path (the hub's checkouts), above the
+ * folder browser, so a repository on one Mac is cloned onto another knowingly (`add-to-mac-model.ts`).
  */
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -35,7 +35,6 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { EditingTextInput } from "@/components/ui/text-input";
 import { useFetchQuery } from "@/data/query";
 import { useOpenProject } from "@/hooks/use-open-project";
 import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
@@ -44,6 +43,7 @@ import { buildNewWorkspaceRoute } from "@/utils/host-routes";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { MacsHoldingRepository, useMacsHoldingRepository } from "./add-to-mac";
 import { CopyLine } from "./copy-line";
+import { FolderBrowserPanel } from "./folder-browser";
 import {
   followJob,
   pluginProblemText,
@@ -717,22 +717,21 @@ function FolderStep({
   const running = download.status === "running";
   const start = useCallback(() => onDownload(repository), [onDownload, repository]);
   const holdings = useMacsHoldingRepository(host, repository.fullName, serverId);
+  // The folder is browsed on that Mac, one click at a time; the field still takes a typed path.
+  const [initialFolder] = useState(folder);
   return (
     <View style={styles.list}>
+      <MacsHoldingRepository holdings={holdings} />
       <Text style={styles.label}>{GROUPON_GITHUB.folderLabel}</Text>
-      <EditingTextInput
-        initialValue={folder}
-        onChangeText={onFolder}
-        autoCapitalize="none"
-        autoCorrect={false}
-        editable={!running}
-        style={styles.input}
-        testID="groupon-github-folder"
+      <FolderBrowserPanel
+        serverId={serverId}
+        initialFolder={initialFolder}
+        disabled={running}
+        onChange={onFolder}
       />
       <Text style={styles.muted}>
         {GROUPON_GITHUB.landsAt} {checkoutPathPreview(folder, repository)}
       </Text>
-      <MacsHoldingRepository holdings={holdings} />
       {download.status === "failed" ? (
         <Problem text={download.error} host={host} onRefresh={onRefresh} />
       ) : null}
@@ -789,15 +788,6 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
     marginTop: theme.spacing[2],
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.md,
-    paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[2],
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
   },
   muted: {
     color: theme.colors.foregroundMuted,

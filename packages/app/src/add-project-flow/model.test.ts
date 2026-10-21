@@ -1,6 +1,9 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the folder pages browse one folder at a time.
 import { describe, expect, it } from "vitest";
 import {
+  FOLDER_BROWSE_START,
   backAddProjectPage,
+  browseAddProjectFolder,
   chooseAddProjectHost,
   currentAddProjectPage,
   moveAddProjectActiveIndex,
@@ -13,6 +16,7 @@ import {
   setAddProjectActiveIndex,
   setAddProjectPageInput,
   setNewDirectoryName,
+  toggleAddProjectHiddenFolders,
   type AddProjectHost,
 } from "./model";
 import {
@@ -204,5 +208,48 @@ describe("Add Project options", () => {
         disabled: false,
       },
     ]);
+  });
+});
+
+describe("Groupon Desk: folder pages browse", () => {
+  it("open at the home folder with hidden folders folded", () => {
+    for (const open of [openDirectorySearchPage, openNewDirectoryParentPage]) {
+      const state = open(openAddProjectFlow({ hosts: [HOST] }), HOST.serverId);
+      expect(currentAddProjectPage(state)).toMatchObject({
+        folder: FOLDER_BROWSE_START,
+        showHidden: false,
+        query: "",
+      });
+    }
+    expect(FOLDER_BROWSE_START).toBe("~");
+  });
+
+  it("go into a folder with the field emptied and the first row active, and Back leaves the page", () => {
+    let state = openNewDirectoryParentPage(openAddProjectFlow({ hosts: [HOST] }), HOST.serverId);
+    state = setAddProjectPageInput(state, "doc");
+    state = setAddProjectActiveIndex(state, 3);
+    state = browseAddProjectFolder(state, "/Users/ann/Documents");
+
+    expect(currentAddProjectPage(state)).toMatchObject({
+      kind: "new-directory-parent",
+      folder: "/Users/ann/Documents",
+      query: "",
+      activeIndex: 0,
+    });
+    expect(currentAddProjectPage(backAddProjectPage(state) ?? state).kind).toBe("method");
+  });
+
+  it("fold and unfold hidden folders, and leave other pages alone", () => {
+    const flow = openAddProjectFlow({ hosts: [HOST] });
+    let state = openDirectorySearchPage(flow, HOST.serverId);
+    state = toggleAddProjectHiddenFolders(state);
+    expect(currentAddProjectPage(state)).toMatchObject({ showHidden: true });
+    state = toggleAddProjectHiddenFolders(state);
+    expect(currentAddProjectPage(state)).toMatchObject({ showHidden: false });
+
+    expect(browseAddProjectFolder(flow, "/x")).toBe(flow);
+    expect(currentAddProjectPage(toggleAddProjectHiddenFolders(flow))).toEqual(
+      currentAddProjectPage(flow),
+    );
   });
 });

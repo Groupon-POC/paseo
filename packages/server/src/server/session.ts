@@ -209,6 +209,7 @@ import {
   GROUPON_DESK_RPC_PLUGIN_ID,
   listTrainArchivedWorkspaces,
 } from "../groupon/train-archived.js";
+import { LIST_DIRECTORY_METHOD, listDirectory } from "../groupon/list-directory.js";
 import {
   createGitMutationService,
   type GitMutationService,
@@ -2517,7 +2518,7 @@ export class Session {
     if (msg.type !== "plugin.rpc.invoke.request" || msg.pluginId !== GROUPON_DESK_RPC_PLUGIN_ID) {
       return undefined;
     }
-    return this.invokeGrouponDeskRpc(msg.method).then((output) => {
+    return this.invokeGrouponDeskRpc(msg.method, msg.input).then((output) => {
       this.emit({
         type: "plugin.rpc.invoke.response",
         payload: { requestId: msg.requestId, output },
@@ -2526,7 +2527,11 @@ export class Session {
     });
   }
 
-  private async invokeGrouponDeskRpc(method: string): Promise<unknown> {
+  private async invokeGrouponDeskRpc(method: string, input: unknown): Promise<unknown> {
+    if (method === LIST_DIRECTORY_METHOD) {
+      const path = typeof input === "object" && input !== null ? Reflect.get(input, "path") : null;
+      return listDirectory({ path });
+    }
     if (method === GROUPON_DESK_RPC.trainArchivedWorkspaces) {
       const workspaces = await listTrainArchivedWorkspaces({
         listWorkspaces: () => this.workspaceRegistry.list(),

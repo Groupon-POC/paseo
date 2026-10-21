@@ -1,10 +1,18 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; the groupon-desk list-directory RPC.
 import {
   createMessageReceiptsStub,
   createTestCreationService,
 } from "./test-utils/session-stubs.js";
 import { execSync } from "child_process";
-import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "fs";
 import { tmpdir } from "os";
 import { join, resolve as resolvePath } from "path";
 import pino from "pino";
@@ -483,6 +491,64 @@ test("routes host-scoped agent skills requests through the daemon owner", async 
     type: "agent.skills.save_selection.response",
     payload: { requestId: "save-skills", ...status, confirmationRequired: null },
   });
+});
+
+test("answers Groupon Desk's list-directory itself, under the home folder only", async () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "session-list-directory-")));
+  mkdirSync(join(home, "Documents", "GitHub"), { recursive: true });
+  vi.stubEnv("HOME", home);
+  try {
+    const messages: SessionOutboundMessage[] = [];
+    const session = createSessionForTest({ messages });
+
+    await session.handleMessage({
+      type: "plugin.rpc.invoke.request",
+      requestId: "list-home",
+      pluginId: "groupon-desk",
+      method: "groupon-desk.list-directory",
+      input: { path: "~/Documents" },
+    });
+    await session.handleMessage({
+      type: "plugin.rpc.invoke.request",
+      requestId: "list-outside",
+      pluginId: "groupon-desk",
+      method: "groupon-desk.list-directory",
+      input: { path: "/" },
+    });
+
+    expect(messages).toContainEqual({
+      type: "plugin.rpc.invoke.response",
+      payload: {
+        requestId: "list-home",
+        output: expect.objectContaining({
+          path: join(home, "Documents"),
+          homePath: home,
+          entries: [
+            {
+              name: "GitHub",
+              path: join(home, "Documents", "GitHub"),
+              hidden: false,
+              gitCheckout: false,
+            },
+          ],
+          error: null,
+        }),
+      },
+    });
+    expect(messages).toContainEqual({
+      type: "plugin.rpc.invoke.response",
+      payload: {
+        requestId: "list-outside",
+        output: expect.objectContaining({
+          entries: [],
+          error: "Only folders inside the home folder can be browsed.",
+        }),
+      },
+    });
+  } finally {
+    vi.unstubAllEnvs();
+    rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test("routes plugin requests and releases its owned catalog subscription on cleanup", async () => {

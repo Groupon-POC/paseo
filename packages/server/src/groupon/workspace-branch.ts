@@ -150,17 +150,21 @@ export async function nameWorkspaceBranch(
 
 /**
  * The name a workspace's placeholder branch takes after its first message, when the workspace
- * started empty: a placeholder this module named (`<owner>/<worktree name>`) becomes
- * `<owner>/<slug of that first message>`; null keeps the placeholder (the message gave no slug).
- * A placeholder without an owner segment is Paseo's own (an agent's worktree): undefined, so
- * Paseo's generated name applies as before.
+ * started empty: a placeholder this module named (`<owner>/<worktree name>`, `owner` being the
+ * branch owner `resolveBranchOwner` gives) becomes `<owner>/<slug of that first message>`; null
+ * keeps the placeholder (the message gave no slug). Any other placeholder is Paseo's own (an
+ * agent's worktree from `create_agent`, which may name a branch `feat/x` or `feature/x`): undefined,
+ * so Paseo's generated name applies as before.
  */
 export function renameTargetForPlaceholder(
   placeholder: string | null | undefined,
   prompt: string | null | undefined,
+  owner: string,
 ): string | null | undefined {
   const slash = placeholder?.indexOf("/") ?? -1;
-  if (!placeholder || slash <= 0) return undefined;
+  if (!placeholder || slash <= 0 || placeholder.slice(0, slash) !== slugify(owner)) {
+    return undefined;
+  }
   const slug = prompt ? promptSlug(prompt) : "";
-  return slug ? workspaceBranchName(placeholder.slice(0, slash), slug) : null;
+  return slug ? workspaceBranchName(owner, slug) : null;
 }

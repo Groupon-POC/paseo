@@ -282,6 +282,12 @@ name>` until its first message renames it to `<login>/<slug of that message>`. S
   branch is named by `groupon ticket name` and never reaches this; an agent's own request
   (`callerAgentId`) and a background workspace keep Paseo's behaviour, and so does every client
   that does not advertise the capability (Paseo's CLI, its tests).
+  The rename after a first message applies only to a placeholder whose first segment is that same
+  owner (`renameTargetForPlaceholder`, handed the owner by `workspace-auto-name.ts`); any other
+  slash in a branch name belongs to Paseo. So an agent's worktree from the `create_agent` MCP tool
+  named `feat/x` or `feature/x` is renamed by Paseo's generated name (`workspace-auto-title-flow`),
+  never to `feat/<slug of the prompt>` (the fork's rule once read any prefix as an owner; measured
+  on 2026-10-21 by three failing `create_agent` tests in `mcp-server.test.ts`).
 
 A pull request from a `<login>/<slug>` branch is renamed through `groupon ticket name` before it
 opens: the company's branch standard is `<tribe>/<INITIATIVE-KEY>/<TICKET-KEY>-<slug>`, and the
@@ -352,6 +358,10 @@ update feed (`packages/desktop/src/features/auto-updater.ts`): Groupon Desk's ow
 both: Settings > About shows no release channel and no Check / Update, only
 "Updates arrive with Groupon Desk", and the sidebar's update callout is not mounted
 (`PASEO_APP_UPDATES`, `packages/app/src/groupon/app-updates.ts`).
+
+## Testing: the server gate
+
+Every fork change runs, in `packages/server`, `npx vitest run --exclude "**/*.real.e2e.test.ts" --exclude "**/*.local.e2e.test.ts"` (everything but the real-provider and local end-to-end files) and `npm run typecheck`, and both are green before it is pushed.
 
 ## The window's scheme: `groupon-desk`
 

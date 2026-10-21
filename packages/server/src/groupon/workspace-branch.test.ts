@@ -80,13 +80,22 @@ describe("the branch name", () => {
       deps(),
     );
     expect(named).toEqual({ branchName: "ctzaruba/brave-otter", fromPrompt: false });
-    expect(renameTargetForPlaceholder(named?.branchName, "Fix the watch")).toBe(
+    expect(renameTargetForPlaceholder(named?.branchName, "Fix the watch", "ctzaruba")).toBe(
       "ctzaruba/fix-the-watch",
     );
   });
 
   test("Paseo's own placeholder (no owner) keeps Paseo's generated name", () => {
-    expect(renameTargetForPlaceholder("brave-otter", "Fix the watch")).toBeUndefined();
-    expect(renameTargetForPlaceholder("ctzaruba/brave-otter", "???")).toBeNull();
+    expect(renameTargetForPlaceholder("brave-otter", "Fix the watch", "ctzaruba")).toBeUndefined();
+    expect(renameTargetForPlaceholder("ctzaruba/brave-otter", "???", "ctzaruba")).toBeNull();
+  });
+
+  test("an agent's own `feat/` or `feature/` branch is Paseo's, not an owner's", () => {
+    expect(
+      renameTargetForPlaceholder("feat/placeholder-auto-title", "Build a flow", "ctzaruba"),
+    ).toBeUndefined();
+    expect(
+      renameTargetForPlaceholder("feature/agent-worktree", "Build a flow", "ctzaruba"),
+    ).toBeUndefined();
   });
 });

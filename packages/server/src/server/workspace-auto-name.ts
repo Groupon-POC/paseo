@@ -13,7 +13,7 @@ import {
 import type { GitMutationService } from "./session/git-mutation/git-mutation-service.js";
 import type { WorkspaceGitService } from "./workspace-git-service.js";
 import type { PersistedWorkspaceRecord, WorkspaceRegistry } from "./workspace-registry.js";
-import { renameTargetForPlaceholder } from "../groupon/workspace-branch.js";
+import { renameTargetForPlaceholder, resolveBranchOwner } from "../groupon/workspace-branch.js";
 import {
   generateBranchNameFromFirstAgentContext,
   type GeneratedWorkspaceName,
@@ -120,11 +120,15 @@ export class WorkspaceAutoName {
           cwd: input.workspace.cwd,
           firstAgentContext,
           currentSelection: input.currentSelection,
-        }).then((nextGenerated) => {
+        }).then(async (nextGenerated) => {
           generated = nextGenerated;
+          const remoteUrl = await this.workspaceGitService
+            .resolveRepoRemoteUrl(input.workspace.cwd)
+            .catch(() => null);
           const deskTarget = renameTargetForPlaceholder(
             input.workspace.branch,
             firstAgentContext.prompt,
+            await resolveBranchOwner(remoteUrl),
           );
           return deskTarget !== undefined ? deskTarget : (nextGenerated?.branch ?? null);
         });

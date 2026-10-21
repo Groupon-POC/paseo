@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): with no usable saved agent the form preselects Claude, else the first ready agent, with its default model.
 import type { AgentProviderDefinition } from "@getpaseo/protocol/provider-manifest";
 import type {
   AgentModelDefinition,
@@ -9,6 +10,7 @@ import {
   type FormPreferences,
   type ProviderPreferences,
 } from "@/hooks/use-form-preferences";
+import { pickProvider } from "@/groupon/default-agent-selection";
 import { findModelByReference } from "./model-catalog";
 
 export interface FormInitialValues {
@@ -375,6 +377,21 @@ export function resolveFormState(
     preferences,
   });
 
+  // Groupon Desk: never an empty form. No saved agent, or one this Mac cannot start: Claude, else
+  // the first agent it can start.
+  let startedFromFallback = false;
+  if (
+    !userModified.provider &&
+    allowedProviderMap.size > 0 &&
+    (!result.provider || !allowedProviderMap.has(result.provider))
+  ) {
+    const fallback = pickProvider([...allowedProviderMap.keys()], null);
+    if (fallback) {
+      result.provider = fallback;
+      startedFromFallback = true;
+    }
+  }
+
   const providerDef = result.provider ? allowedProviderMap.get(result.provider) : undefined;
   const providerPrefs = result.provider
     ? preferences?.providerPreferences?.[result.provider]
@@ -397,6 +414,9 @@ export function resolveFormState(
     providerPrefs,
     availableModels,
   });
+  if (startedFromFallback && !result.model && availableModels) {
+    result.model = resolveDefaultModelId(availableModels);
+  }
 
   result.thinkingOptionId = resolveThinkingOption({
     provider: result.provider,

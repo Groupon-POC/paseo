@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the fixed-height popover shrinks to its room.
 import type { ViewStyle } from "react-native";
 import { describe, expect, it } from "vitest";
 
@@ -69,5 +70,35 @@ describe("buildDesktopFrameStyle", () => {
     }) as ViewStyle[];
 
     expect(frameStyle).toMatchObject({ width: 360, minWidth: 360, maxWidth: 360 });
+  });
+
+  it("shrinks a fixed-height frame to the room it has, so its list scrolls", () => {
+    const style = buildDesktopFrameStyle({
+      desktopMinWidth: undefined,
+      desktopLockWidth: false,
+      referenceWidth: 120,
+      desktopFixedHeight: 420,
+      desktopPositionStyle: { left: 0, top: 0 },
+      shouldHideDesktopContent: false,
+      availableHeight: 250,
+    }) as ViewStyle[];
+    const merged = Object.assign({}, ...style.filter(Boolean));
+
+    expect(merged).toMatchObject({ minHeight: 250, maxHeight: 250 });
+  });
+
+  it("keeps a fixed-height frame at its height when there is room", () => {
+    const style = buildDesktopFrameStyle({
+      desktopMinWidth: undefined,
+      desktopLockWidth: false,
+      referenceWidth: 120,
+      desktopFixedHeight: 300,
+      desktopPositionStyle: { left: 0, top: 0 },
+      shouldHideDesktopContent: false,
+      availableHeight: 500,
+    }) as ViewStyle[];
+    const merged = Object.assign({}, ...style.filter(Boolean));
+
+    expect(merged).toMatchObject({ minHeight: 300, maxHeight: 300 });
   });
 });

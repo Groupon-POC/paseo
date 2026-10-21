@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a fixed-height popover shrinks to the room it has, so its list scrolls instead of leaving the window.
 import type { StyleProp, ViewStyle } from "react-native";
 
 export interface DesktopFrameStyleInput {
@@ -27,7 +28,12 @@ export function buildDesktopFrameStyle(input: DesktopFrameStyleInput): StyleProp
   const hiddenStyle = shouldHideDesktopContent ? { opacity: 0 } : null;
   const availableHeightStyle =
     typeof availableHeight === "number"
-      ? { maxHeight: Math.min(availableHeight, desktopFixedHeight ?? 400) }
+      ? {
+          maxHeight: Math.min(availableHeight, desktopFixedHeight ?? 400),
+          ...(desktopFixedHeight != null
+            ? { minHeight: Math.min(availableHeight, desktopFixedHeight) }
+            : {}),
+        }
       : null;
   const floor = Math.max(desktopMinWidth ?? 0, referenceWidth ?? 200);
   const widthStyle = desktopLockWidth

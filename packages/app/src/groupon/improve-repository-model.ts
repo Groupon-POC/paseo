@@ -33,6 +33,7 @@ import {
   type RepositoryCheckout,
   type RepositoryEntry,
 } from "./repository-picker-model";
+import { pickProvider } from "./default-agent-selection";
 import {
   agentChoices,
   defaultEffortId,
@@ -201,11 +202,11 @@ export function improveAgent(
   preferences: ImproveAgentPreferences | null | undefined,
 ): ImproveAgent | null {
   const agents = agentChoices(entries);
-  const last = preferences?.provider;
-  const choice =
-    agents.find((agent) => agent.id === last) ??
-    agents.find((agent) => agent.id.startsWith("claude")) ??
-    agents[0];
+  const picked = pickProvider(
+    agents.map((agent) => agent.id),
+    preferences?.provider,
+  );
+  const choice = agents.find((agent) => agent.id === picked);
   if (!choice) return null;
   const entry = entries?.find((row) => row.provider === choice.id);
   const remembered = preferences?.providerPreferences?.[choice.id];

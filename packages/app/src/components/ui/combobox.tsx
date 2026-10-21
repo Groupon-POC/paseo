@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): desktopPlacement "auto" opens on the side of the trigger with room and caps the height to it.
 import {
   useCallback,
   useEffect,
@@ -67,6 +68,7 @@ import {
   useOverlayLayer,
   useWebOverlayRegistration,
 } from "@/lib/overlay-root";
+import { resolvePopoverPlacement } from "@/groupon/popover-placement";
 import { buildDesktopFrameStyle } from "./combobox-frame-style";
 
 export { buildDesktopFrameStyle } from "./combobox-frame-style";
@@ -74,7 +76,11 @@ export { buildDesktopFrameStyle } from "./combobox-frame-style";
 const IS_WEB = isWeb;
 
 export type ComboboxOption = ComboboxOptionModel;
-export type ComboboxDesktopPlacement = "top-start" | "bottom-start";
+/** The gap between the trigger and the popover, and the height a popover without a fixed one may take. */
+const DESKTOP_ANCHOR_OFFSET = 5;
+const DESKTOP_DEFAULT_MAX_HEIGHT = 400;
+
+export type ComboboxDesktopPlacement = "top-start" | "bottom-start" | "auto";
 
 export interface ComboboxProps {
   options: ComboboxOption[];
@@ -407,6 +413,8 @@ interface DesktopPositionInput {
   floatingStyles: ReturnType<typeof useFloating>["floatingStyles"];
   desktopPreventInitialFlash: boolean;
   referenceWidth: number | null;
+  /** "auto" placement: the trigger is not measured yet, so the side is not known. */
+  awaitingAutoPlacement: boolean;
 }
 
 interface DesktopPositionResult {
@@ -489,7 +497,10 @@ function computeDesktopPosition(input: DesktopPositionInput): DesktopPositionRes
     desktopAboveSearchBottom,
   );
   const hasResolvedDesktopPosition =
-    referenceWidth !== null && referenceWidth > 0 && resolvedPositionReady;
+    referenceWidth !== null &&
+    referenceWidth > 0 &&
+    resolvedPositionReady &&
+    !input.awaitingAutoPlacement;
   const shouldHideDesktopContent = desktopPreventInitialFlash && !hasResolvedDesktopPosition;
   const shouldUseDesktopFade = !desktopPreventInitialFlash;
 
@@ -578,11 +589,19 @@ function updateReferenceWidth(
 interface MeasuredAnchorSetters {
   setReferenceLeft: React.Dispatch<React.SetStateAction<number | null>>;
   setReferenceTop: React.Dispatch<React.SetStateAction<number | null>>;
+  setReferenceHeight: React.Dispatch<React.SetStateAction<number | null>>;
   setReferenceWidth: React.Dispatch<React.SetStateAction<number | null>>;
   setReferenceAtOrigin: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-function applyMeasuredAnchor(setters: MeasuredAnchorSetters, x: number, y: number, width: number) {
+function applyMeasuredAnchor(
+  setters: MeasuredAnchorSetters,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  setters.setReferenceHeight((prev) => (prev === height ? prev : height));
   setters.setReferenceLeft((prev) => (prev === x ? prev : x));
   setters.setReferenceAtOrigin(Math.abs(x) <= 1 && Math.abs(y) <= 1);
   setters.setReferenceTop((prev) => (prev === y ? prev : y));
@@ -704,12 +723,19 @@ function useAnchorMeasure(
   windowHeight: number,
   setters: MeasuredAnchorSetters,
 ) {
-  const { setReferenceLeft, setReferenceTop, setReferenceWidth, setReferenceAtOrigin } = setters;
+  const {
+    setReferenceLeft,
+    setReferenceTop,
+    setReferenceHeight,
+    setReferenceWidth,
+    setReferenceAtOrigin,
+  } = setters;
   useEffect(() => {
     if (!isOpen || isMobile) {
       setReferenceLeft(null);
       setReferenceAtOrigin(false);
       setReferenceTop(null);
+      setReferenceHeight(null);
       return;
     }
 
@@ -721,12 +747,19 @@ function useAnchorMeasure(
     }
 
     const measure = () => {
-      referenceEl.measureInWindow((x, y, width) => {
+      referenceEl.measureInWindow((x, y, width, height) => {
         applyMeasuredAnchor(
-          { setReferenceLeft, setReferenceTop, setReferenceWidth, setReferenceAtOrigin },
+          {
+            setReferenceLeft,
+            setReferenceTop,
+            setReferenceHeight,
+            setReferenceWidth,
+            setReferenceAtOrigin,
+          },
           x,
           y,
           width,
+          height,
         );
       });
     };
@@ -742,6 +775,7 @@ function useAnchorMeasure(
     windowHeight,
     setReferenceLeft,
     setReferenceTop,
+    setReferenceHeight,
     setReferenceWidth,
     setReferenceAtOrigin,
   ]);
@@ -1269,6 +1303,62 @@ function DesktopComboboxBody(props: DesktopBodyProps): ReactElement {
   );
 }
 
+interface ResolvedDesktopPlacementInput {
+  desktopPlacement: ComboboxDesktopPlacement;
+  referenceTop: number | null;
+  referenceHeight: number | null;
+  windowHeight: number;
+  desktopFixedHeight: number | undefined;
+  measuredAvailableHeight: number | undefined;
+  padding: number;
+}
+
+/**
+ * Groupon Desk: "auto" opens on the side of the trigger with room, capped to that room. Returns
+ * the placement to give the floating layer, the height the frame may take, and whether the side is
+ * still unknown (the trigger is not measured yet).
+ */
+function useResolvedDesktopPlacement(input: ResolvedDesktopPlacementInput) {
+  const {
+    desktopPlacement,
+    referenceTop,
+    referenceHeight,
+    windowHeight,
+    desktopFixedHeight,
+    measuredAvailableHeight,
+    padding,
+  } = input;
+  const contentHeight = desktopFixedHeight ?? DESKTOP_DEFAULT_MAX_HEIGHT;
+  const auto = useMemo(
+    () =>
+      desktopPlacement === "auto" && referenceTop !== null && referenceHeight !== null
+        ? resolvePopoverPlacement({
+            anchorTop: referenceTop,
+            anchorHeight: referenceHeight,
+            windowHeight,
+            contentHeight,
+            padding,
+            offset: DESKTOP_ANCHOR_OFFSET,
+          })
+        : null,
+    [contentHeight, desktopPlacement, padding, referenceHeight, referenceTop, windowHeight],
+  );
+  if (desktopPlacement !== "auto") {
+    return {
+      resolvedPlacement: desktopPlacement,
+      frameAvailableHeight: measuredAvailableHeight,
+      awaitingAutoPlacement: false,
+    };
+  }
+  return {
+    resolvedPlacement: (auto?.side === "top" ? "top-start" : "bottom-start") as
+      | "top-start"
+      | "bottom-start",
+    frameAvailableHeight: auto?.maxHeight ?? measuredAvailableHeight,
+    awaitingAutoPlacement: auto === null,
+  };
+}
+
 export function Combobox({
   options,
   value,
@@ -1322,6 +1412,7 @@ export function Combobox({
   const [referenceWidth, setReferenceWidth] = useState<number | null>(null);
   const [referenceLeft, setReferenceLeft] = useState<number | null>(null);
   const [referenceTop, setReferenceTop] = useState<number | null>(null);
+  const [referenceHeight, setReferenceHeight] = useState<number | null>(null);
   const [referenceAtOrigin, setReferenceAtOrigin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResetKey, bumpSearchResetKey] = useReducer((key: number) => key + 1, 0);
@@ -1363,8 +1454,19 @@ export function Combobox({
     [collisionPadding, isDesktopAboveSearch],
   );
 
+  const { resolvedPlacement, frameAvailableHeight, awaitingAutoPlacement } =
+    useResolvedDesktopPlacement({
+      desktopPlacement,
+      referenceTop,
+      referenceHeight,
+      windowHeight,
+      desktopFixedHeight,
+      measuredAvailableHeight: availableSize?.height,
+      padding: collisionPadding,
+    });
+
   const { refs, floatingStyles, update } = useFloating({
-    placement: isWeb ? desktopPlacement : "bottom-start",
+    placement: isWeb ? resolvedPlacement : "bottom-start",
     middleware,
     sameScrollView: false,
     elements: {
@@ -1372,7 +1474,7 @@ export function Combobox({
     },
   });
 
-  useDesktopPositionReset(isOpen, isMobile, desktopPlacement, update, {
+  useDesktopPositionReset(isOpen, isMobile, resolvedPlacement, update, {
     setAvailableSize,
     setDesktopContentWidth,
     setReferenceLeft,
@@ -1382,6 +1484,7 @@ export function Combobox({
   useAnchorMeasure(isOpen, isMobile, anchorRef, searchQuery, windowHeight, {
     setReferenceLeft,
     setReferenceTop,
+    setReferenceHeight,
     setReferenceWidth,
     setReferenceAtOrigin,
   });
@@ -1398,7 +1501,7 @@ export function Combobox({
   } = computeDesktopPosition({
     isDesktopAboveSearch,
     isMobile,
-    desktopPlacement,
+    desktopPlacement: resolvedPlacement,
     referenceTop,
     referenceLeft,
     referenceAtOrigin,
@@ -1411,6 +1514,7 @@ export function Combobox({
     floatingStyles,
     desktopPreventInitialFlash,
     referenceWidth,
+    awaitingAutoPlacement,
   });
 
   const {
@@ -1548,7 +1652,7 @@ export function Combobox({
         desktopFixedHeight,
         desktopPositionStyle,
         shouldHideDesktopContent,
-        availableHeight: availableSize?.height,
+        availableHeight: frameAvailableHeight,
       }),
     [
       desktopMinWidth,
@@ -1557,7 +1661,7 @@ export function Combobox({
       desktopFixedHeight,
       desktopPositionStyle,
       shouldHideDesktopContent,
-      availableSize?.height,
+      frameAvailableHeight,
     ],
   );
 

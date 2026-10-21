@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): an Add a project "+" in the Workspaces header; "Shared with me" above the footer; the environment badge in the footer (wide) and the header (phone).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the section is titled "Git projects" (owner, 2026-10-21) with an Add a project "+" in its header; "Shared with me" above the footer; the environment badge in the footer (wide) and the header (phone).
 import { router } from "expo-router";
 import {
   CircleGauge,
@@ -845,7 +845,7 @@ function DesktopSidebar({
 
 function WorkspacesSectionHeader() {
   return (
-    <SidebarSectionHeader title="Workspaces">
+    <SidebarSectionHeader title="Git projects">
       <SidebarAddProjectButton />
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>

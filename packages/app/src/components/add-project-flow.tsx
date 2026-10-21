@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu; with no connected host it points at Your Macs, not Add host.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu; with no connected host it points at Your Macs, not Add host; the first page lists the person's Macs from the hub, this Mac first even while its hand is not running (greyed with the reason and the command), and the flow opens on this Mac, never on another merely because it is the only one serving; it is also From GitHub's host step (`add-to-mac-model.ts`).
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { router } from "expo-router";
 import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
@@ -8,6 +8,7 @@ import {
   FolderOpen,
   FolderPlus,
   HardDrive,
+  Laptop,
   Plus,
   Search,
   Server,
@@ -37,15 +38,26 @@ import {
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import { useGithubProjectStore } from "@/groupon/github-project-store";
-import { GROUPON_GITHUB, GROUPON_YOUR_MACS } from "@/groupon/strings";
+import { GROUPON_ADD_TO_MAC, GROUPON_GITHUB, GROUPON_YOUR_MACS } from "@/groupon/strings";
+import {
+  addToMacStart,
+  firstSelectableRow,
+  openAddToMacFlow,
+  type AddToMacIntent,
+  type AddToMacRow,
+} from "@/groupon/add-to-mac-model";
+import {
+  AddToMacGithubHint,
+  ThisMacHandReason,
+  useAddToMacRows,
+  useThisMacHandWatch,
+} from "@/groupon/add-to-mac";
 import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import {
-  applyAvailableAddProjectHosts,
   backAddProjectPage,
   chooseAddProjectHost,
   currentAddProjectPage,
   moveAddProjectSelection,
-  openAddProjectFlow,
   openDirectorySearchPage,
   openGithubLocationPage,
   openGithubSearchPage,
@@ -66,7 +78,6 @@ import {
   buildCloneLocationOptions,
   buildManualGithubRepositoryChoices,
   buildSuggestedParentDirectories,
-  filterAddProjectHosts,
   joinDirectoryPath,
   pathBaseName,
   type AddProjectMethodId,
@@ -114,6 +125,8 @@ interface FlowRowOption {
   subtitle: string | null;
   icon: ComponentType<{ size?: number; color?: string }>;
   disabled?: boolean;
+  /** Groupon Desk: under this Mac's greyed row, why and the command that starts its hand. */
+  reason?: { text: string; command: string };
   testID: string;
   select: () => void;
 }
@@ -187,7 +200,7 @@ function progressText(page: AddProjectPage): string {
 }
 
 function emptyText(page: AddProjectPage, host: AddProjectHost | null): string {
-  if (page.kind === "host") return "No connected hosts";
+  if (page.kind === "host") return GROUPON_ADD_TO_MAC.noMac;
   if (page.kind === "github-search") return "Enter a GitHub URL or owner/repo";
   if (page.kind === "method") return addProjectMethodEmptyText(host);
   return "No matching options";
@@ -209,14 +222,23 @@ function queryErrorText(input: QueryErrorInput): string | null {
   return null;
 }
 
+/** Groupon Desk: the chosen Mac as the hub names it, "This Mac" beside this Mac's name. */
+function macContextLabel(macRows: readonly AddToMacRow[], host: AddProjectHost | null): string {
+  if (!host) return "";
+  const mac = macRows.find((row) => row.serverId === host.serverId);
+  if (!mac) return host.label;
+  return mac.isThisMac ? `${mac.label} · ${GROUPON_ADD_TO_MAC.thisMac}` : mac.label;
+}
+
 function pageHostId(page: AddProjectPage): string | null {
   return page.kind === "host" ? null : page.hostId;
 }
 
-function pageTitle(page: AddProjectPage): string {
+function pageTitle(page: AddProjectPage, intent: AddToMacIntent): string {
   switch (page.kind) {
     case "host":
-      return "Choose host";
+      // Groupon Desk: the list of the person's Macs, for Add project or as From GitHub's host step.
+      return intent === "github" ? GROUPON_ADD_TO_MAC.githubTitle : GROUPON_ADD_TO_MAC.title;
     case "method":
       return "Add project";
     case "directory-search":
@@ -237,7 +259,7 @@ type AddProjectInputPage = Exclude<AddProjectPage, { kind: "method" }>;
 function pagePlaceholder(page: AddProjectInputPage): string {
   switch (page.kind) {
     case "host":
-      return "Search hosts...";
+      return GROUPON_ADD_TO_MAC.searchPlaceholder;
     case "directory-search":
       return "Search directories or enter a path...";
     case "github-search":
@@ -281,7 +303,7 @@ function FlowRow({
     ],
     [active, option.disabled],
   );
-  return (
+  const row = (
     <Pressable
       accessibilityRole="button"
       accessibilityState={accessibilityState}
@@ -306,6 +328,18 @@ function FlowRow({
         ) : null}
       </View>
     </Pressable>
+  );
+  if (!option.reason) return row;
+  // Groupon Desk: the reason stays readable under the greyed row, and its Copy button pressable.
+  return (
+    <View>
+      {row}
+      <ThisMacHandReason
+        reason={option.reason.text}
+        command={option.reason.command}
+        testID={`${option.testID}-reason`}
+      />
+    </View>
   );
 }
 
@@ -377,11 +411,20 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       stableProjectIdentityByHost,
     ],
   );
+  // Groupon Desk: the person's Macs from the hub, this Mac first; the flow opens on this Mac (or
+  // the Mac the caller named), with the list one Back away, and never on another Mac merely
+  // because it is the only one serving.
+  const intent: AddToMacIntent = request.intent ?? "project";
+  const macRows = useAddToMacRows({ hosts, connectionStatuses, availableHosts });
   const [state, setState] = useState(() =>
-    openAddProjectFlow({
-      hosts: availableHosts,
-      ...(request.preferredHostId ? { preferredHostId: request.preferredHostId } : {}),
-    }),
+    openAddToMacFlow(
+      availableHosts,
+      addToMacStart({
+        rows: macRows,
+        intent,
+        ...(request.preferredHostId ? { preferredHostId: request.preferredHostId } : {}),
+      }),
+    ),
   );
   const page = currentAddProjectPage(state);
   const hostId = pageHostId(page);
@@ -410,11 +453,11 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   pageInputValueRef.current = page.kind === "method" ? "" : pageInput(page);
   const [debouncedQuery, setDebouncedQuery] = useState(query);
 
+  // Groupon Desk: a Mac that comes online enables its row in place; the flow does not jump to it.
   useEffect(() => {
-    setState((current) =>
-      applyAvailableAddProjectHosts(current, availableHosts, request.preferredHostId),
-    );
-  }, [availableHosts, request.preferredHostId]);
+    setState((current) => ({ ...current, hosts: availableHosts }));
+  }, [availableHosts]);
+  useThisMacHandWatch(macRows, page.kind === "host");
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 250);
@@ -607,17 +650,34 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const openGrouponGithub = useGithubProjectStore((store) => store.open);
   const rows = useMemo<FlowRowOption[]>(() => {
     if (page.kind === "host") {
-      const choices = filterAddProjectHosts(state.hosts, page.query).map<FlowRowOption>(
-        (choice) => ({
-          id: choice.serverId,
-          title: choice.label,
-          subtitle: choice.serverId,
-          icon: Server,
-          testID: `add-project-flow-host-${choice.serverId}`,
-          select: () => setState((current) => chooseAddProjectHost(current, choice.serverId)),
-        }),
-      );
-      if (state.hosts.length === 0) {
+      const needle = page.query.trim().toLowerCase();
+      const choices = macRows
+        .filter((mac) => !needle || mac.label.toLowerCase().includes(needle))
+        .map<FlowRowOption>((mac) => {
+          const option: FlowRowOption = {
+            id: mac.id,
+            title: mac.label,
+            subtitle: mac.note,
+            icon: mac.isThisMac ? Laptop : Server,
+            disabled: !mac.selectable,
+            testID: `add-project-flow-host-${mac.id}`,
+            select: () => {
+              const serverId = mac.serverId;
+              if (!serverId) return;
+              if (intent === "github") {
+                onClose();
+                openGrouponGithub(serverId);
+                return;
+              }
+              setState((current) => chooseAddProjectHost(current, serverId));
+            },
+          };
+          if (mac.reason && mac.command) {
+            option.reason = { text: mac.reason, command: mac.command };
+          }
+          return option;
+        });
+      if (macRows.length === 0) {
         choices.push({
           id: "add-host",
           // Groupon Desk: Your Macs, where a Mac's hand is started; no host is added by hand.
@@ -745,6 +805,8 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     directoryPaths,
     githubQuery.data,
     host,
+    intent,
+    macRows,
     onClose,
     openAddedProject,
     openGrouponGithub,
@@ -752,10 +814,14 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     pathOptions,
     recommendedPaths,
     selectMethod,
-    state.hosts,
   ]);
 
-  const activeIndex = rows.length === 0 ? 0 : Math.min(page.activeIndex, rows.length - 1);
+  const clampedIndex = rows.length === 0 ? 0 : Math.min(page.activeIndex, rows.length - 1);
+  // Groupon Desk: a greyed Mac is never the active row; Enter picks the first Mac that can be chosen.
+  const activeIndex =
+    page.kind === "host" && rows[clampedIndex]?.disabled === true
+      ? firstSelectableRow(rows)
+      : clampedIndex;
   const rowListKey = useMemo(() => rows.map((row) => row.id).join("\u0000"), [rows]);
   const { activeItemRef, contentRef, onItemLayout, onViewportLayout, onScroll } =
     useRevealActiveItem({
@@ -889,6 +955,8 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
     githubAvailable: currentGithubSearch?.available ?? null,
     githubError: currentGithubSearch?.error ?? null,
   });
+  // Groupon Desk: the Mac named as the hub names it, "This Mac" beside this Mac's name.
+  const hostContextLabel = macContextLabel(macRows, host ?? null);
   const preview =
     page.kind === "new-directory-name" && page.name.trim()
       ? joinDirectoryPath(page.parentPath, page.name.trim())
@@ -909,11 +977,11 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
               {state.pages.length > 1 ? <FlowBackButton onPress={handleBack} /> : null}
               <View style={styles.titleGroup} testID="add-project-flow-title">
                 <Text style={styles.title} numberOfLines={1}>
-                  {pageTitle(page)}
+                  {pageTitle(page, intent)}
                 </Text>
                 {host ? (
                   <Text style={styles.hostContext} numberOfLines={1}>
-                    {host.label}
+                    {hostContextLabel}
                   </Text>
                 ) : null}
               </View>
@@ -1001,6 +1069,9 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
                     />
                   ))
                 : null}
+              {page.kind === "host" && intent === "github" && macRows.length > 0 ? (
+                <AddToMacGithubHint />
+              ) : null}
               {!isSubmitting &&
               !loading &&
               !queryError &&

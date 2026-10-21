@@ -24,6 +24,9 @@ import type { HubMachineView } from "./hub-sync";
 import { GROUPON_MAC_PICKER } from "./strings";
 import { yourMacRows, type YourMacState } from "./your-macs-model";
 
+/** Your Macs' state of the Mac, or `stored` for a registry host no hub Mac stands behind. */
+export type MacPickerState = YourMacState | "stored";
+
 export interface MacPickerOption {
   /** The hub's machine id (unique even for a Mac whose host was never added); `stored:<server id>` for a stored host. */
   id: string;
@@ -35,6 +38,7 @@ export interface MacPickerOption {
   /** Every hub record that stands for this Mac: what ties the hub's checkouts to it. */
   machineIds: string[];
   isThisMac: boolean;
+  state: MacPickerState;
   selectable: boolean;
   /** The greyed reason under a Mac that cannot be chosen, or "This Mac"; null otherwise. */
   note: string | null;
@@ -77,6 +81,7 @@ export function macPickerOptions(
       hostServerId,
       machineIds: machinesOf(row.id, hostServerId),
       isThisMac: row.isThisMac,
+      state: row.state,
       selectable,
       note: reason ?? (row.isThisMac ? GROUPON_MAC_PICKER.thisMac : null),
     };
@@ -94,6 +99,7 @@ export function macPickerOptions(
         hostServerId: host.serverId,
         machineIds: [],
         isThisMac: false,
+        state: "stored",
         selectable: isOnline(host.serverId),
         note: GROUPON_MAC_PICKER.storedHost,
       }),

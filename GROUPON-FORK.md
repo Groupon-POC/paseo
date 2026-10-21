@@ -81,6 +81,26 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (`screens/new-workspace-screen.tsx`, `screens/new-workspace/form/index.tsx`), so the
   repository list, Local / Worktree and the started task belong to that Mac. Paseo's Host picker
   is not shown on New workspace.
+- **Host on Add project and From GitHub: this Mac first, always.** Paseo's Add project went
+  straight to the only connected host, so on a Mac whose hand was not running it offered another
+  Mac and no way to add the project where the person sat (owner, 2026-10-21). Its first page is
+  now the person's Macs from the hub (`groupon/add-to-mac-model.ts`, `groupon/add-to-mac.tsx`,
+  `components/add-project-flow.tsx`): this Mac first, named by the hub, even while its hand is not
+  running; then it is greyed with one sentence, "The hand on this Mac is not running. Press Work
+  window in Groupon Desk, or run groupon desk serve install.", and a Copy button for the command;
+  the other Macs follow, serving ones enabled, the rest greyed with "hand not running". The flow
+  opens on the methods of the Mac the caller named, else of this Mac when it serves, with the list
+  one Back away; never on another Mac only because it is the only one serving (the web build,
+  which is on no Mac, opens on the one serving Mac). Search for directory and New directory follow
+  the Mac chosen there. From GitHub's host step is the same list (`useOpenGithubProject`), always
+  shown, with one line under it: "A repository clones on the Mac you choose; a Mac that already
+  has it shows the path."; its folder step names every Mac that already has the repository, with
+  its path, from the hub's checkouts. A row enables itself when the Mac's hand starts: the hub is
+  read every 30 s, and while this Mac's row is greyed on screen its loopback is asked every 5 s
+  for a daemon, the hub read again once one answers. The window knows which hub Mac it runs on
+  without a daemon: the desktop app reads Groupon Desk's own id for this Mac
+  (`groupon_this_machine`, `defaults read com.groupon.desk deskMachineId`, never written by the
+  window), so New workspace's "On <Mac>" and Your Macs also name this Mac when its hand is off.
 - **Project on New workspace: "Repository" instead, one repository on every Mac.** A project is a
   repository, the same one on every Mac (owner, 2026-10-20: "I am starting it inside a workspace,
   which is in effect always a GitHub repository, so I would expect the same thing to open on the

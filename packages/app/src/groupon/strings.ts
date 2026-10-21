@@ -126,6 +126,23 @@ export const GROUPON_MAC_PICKER = {
   unknownMac: "a Mac",
 } as const;
 
+/** Every chooser of the Mac a project is added to: Add project, From GitHub, their host step. */
+export const GROUPON_ADD_TO_MAC = {
+  title: "Add project on which Mac?",
+  githubTitle: "Clone on which Mac?",
+  searchPlaceholder: "Search your Macs...",
+  thisMac: "This Mac",
+  thisMacWith: (note: string) => `This Mac · ${note}`,
+  noHandHere:
+    "The hand on this Mac is not running. Press Work window in Groupon Desk, or run groupon desk serve install.",
+  noHandCommand: "groupon desk serve install",
+  noHandCommandLabel: "The command that starts the hand on this Mac",
+  githubHint:
+    "A repository clones on the Mac you choose; a Mac that already has it shows the path.",
+  noMac: "No Mac of yours is on the hub yet",
+  hasItAt: (mac: string, path: string) => `${mac} already has it at ${path}`,
+} as const;
+
 /** New workspace's Repository field: a project is a repository, the same one on every Mac. */
 export const GROUPON_REPOSITORY_PICKER = {
   label: "Repository",

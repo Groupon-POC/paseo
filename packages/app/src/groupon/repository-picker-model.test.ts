@@ -48,6 +48,8 @@ function added(id: string, name: string, extra: Partial<HubMachineView> = {}): H
     relay: "wss://core/relay",
     error: null,
     ...extra,
+    // As the hub sync marks it: a daemon reached directly is this Mac's.
+    thisMac: extra.thisMac ?? (extra.direct ?? null) !== null,
   };
 }
 

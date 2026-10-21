@@ -42,6 +42,8 @@ function view(overrides: Partial<HubMachineView> & { machine?: HubMachine } = {}
     relay: null,
     error: null,
     ...overrides,
+    // As the hub sync marks it: a daemon reached directly is this Mac's.
+    thisMac: overrides.thisMac ?? (overrides.direct ?? null) !== null,
   };
 }
 

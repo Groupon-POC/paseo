@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { create } from "zustand";
-import { useHostChooser } from "@/hosts/host-chooser";
+import { useAddProjectFlowStore } from "@/stores/add-project-flow-store";
 
 /**
  * A repository already chosen: New workspace's "Clone it on <Mac>" opens the sheet at the folder
@@ -36,18 +36,22 @@ export const useGithubProjectStore = create<GithubProjectState>((set) => ({
   close: () => set({ request: null }),
 }));
 
-/** Opens From GitHub on the given Mac, or asks which Mac first when there are several. */
+/**
+ * Opens From GitHub on the given Mac, or first on its host step: Add project's list of the
+ * person's Macs (`add-to-mac-model.ts`), this Mac first even while its hand is not running, so a
+ * repository can be cloned onto any of them.
+ */
 export function useOpenGithubProject(): (serverId?: string) => void {
-  const chooseHost = useHostChooser();
   const open = useGithubProjectStore((state) => state.open);
+  const openAddProject = useAddProjectFlowStore((state) => state.open);
   return useCallback(
     (serverId?: string) => {
       if (serverId) {
         open(serverId);
         return;
       }
-      chooseHost({ title: "Download to which Mac?", onChooseHost: (id) => open(id) });
+      openAddProject(undefined, "github");
     },
-    [chooseHost, open],
+    [open, openAddProject],
   );
 }

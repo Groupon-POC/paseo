@@ -168,6 +168,20 @@ describe("addMachine", () => {
     expect(upsertTrustedOffer).not.toHaveBeenCalled();
   });
 
+  it("marks this Mac by Groupon Desk's id even without an offer or a daemon, and by a direct daemon", async () => {
+    const withoutHand = await addMachine(
+      machine({ relayOfferSealed: null }),
+      sealKey,
+      [],
+      null,
+      "mac-1",
+    );
+    expect(withoutHand).toMatchObject({ state: "noOffer", thisMac: true, direct: null });
+    expect((await addMachine(machine(), sealKey, [], null, "mac-2")).thisMac).toBe(false);
+    const local = [{ serverId: "srv_test", listen: "127.0.0.1:6870" }];
+    expect((await addMachine(machine(), sealKey, local)).thisMac).toBe(true);
+  });
+
   it("says why when the host runtime refuses the offer", async () => {
     upsertTrustedOffer.mockRejectedValueOnce(new Error("bad offer"));
     const view = await addMachine(machine({ alias: null }), sealKey);

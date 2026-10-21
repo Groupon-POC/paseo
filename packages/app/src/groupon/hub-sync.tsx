@@ -27,8 +27,13 @@
  *   socket when the daemon leaves, and the client reconnects when it is back): the cheap signal
  *   the app already has, for a Mac it already knows; a Mac it does not know yet waits for the
  *   interval
+ * - while a chooser of Macs shows this Mac greyed and this Mac's daemon has started meanwhile
+ *   (`add-to-mac-model.ts`' `shouldResyncForThisMac`), so the row enables without waiting
  * An event-driven read follows the previous one by at least 5 s, and two reads never overlap. A
  * read that fails keeps the last list and its error line until a read succeeds.
+ *
+ * Every read also asks the desktop app which hub Mac it runs on (`readThisMachineId`), so this Mac
+ * is named and listed first even while its hand, and so its daemon, is not running.
  */
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
@@ -42,7 +47,12 @@ import {
 import { coreRelayEndpoint } from "./core-relay";
 import { openSealedText } from "./crypto";
 import { fetchMachines, machineLabel, PAIRING_OFFER_KIND, type HubMachine } from "./hub";
-import { localListenFor, readLocalDaemons, type LocalDaemon } from "./local-daemon";
+import {
+  localListenFor,
+  readLocalDaemons,
+  readThisMachineId,
+  type LocalDaemon,
+} from "./local-daemon";
 import { useGrouponStore } from "./session";
 
 export type HubMachineState = "added" | "noOffer" | "sealedElsewhere" | "failed";
@@ -54,6 +64,8 @@ export interface HubMachineView {
   serverId: string | null;
   /** The daemon's own address when it runs on this Mac and is reached directly; null otherwise. */
   direct: string | null;
+  /** The Mac the window runs on: Groupon Desk's id for it, or its daemon answering directly. */
+  thisMac: boolean;
   /** The relay the host was added through: the hand's door, or Core's address; null when not added. */
   relay: string | null;
   error: string | null;
@@ -61,6 +73,8 @@ export interface HubMachineView {
 
 interface HubMachinesState {
   machines: HubMachineView[];
+  /** This Mac's hub id (Groupon Desk's own), known even while its hand is not running; null off the desktop app. */
+  thisMachineId: string | null;
   syncing: boolean;
   lastSyncAt: string | null;
   error: string | null;
@@ -101,9 +115,11 @@ export async function addMachine(
   sealKey: Uint8Array,
   localDaemons: readonly LocalDaemon[] = [],
   viaCore: { endpoint: string; useTls: boolean } | null = null,
+  thisMachineId: string | null = null,
 ): Promise<HubMachineView> {
   const label = machineLabel(machine);
-  const base = { machine, label, serverId: null, direct: null, relay: null, error: null };
+  const thisMac = thisMachineId !== null && machine.machine === thisMachineId;
+  const base = { machine, label, serverId: null, direct: null, thisMac, relay: null, error: null };
   if (!machine.relayOfferSealed) return { ...base, state: "noOffer" };
   const offerUrl = openSealedText(
     machine.relayOfferSealed,
@@ -131,6 +147,7 @@ export async function addMachine(
       state: "added",
       serverId: profile.serverId,
       direct,
+      thisMac: thisMac || direct !== null,
       relay: viaCore?.endpoint ?? (relay?.type === "relay" ? relay.relayEndpoint : null),
     };
   } catch (error) {
@@ -145,6 +162,7 @@ export async function addMachine(
 
 export const useHubMachinesStore = create<HubMachinesState>((set, get) => ({
   machines: [],
+  thisMachineId: null,
   syncing: false,
   lastSyncAt: null,
   error: null,
@@ -154,13 +172,22 @@ export const useHubMachinesStore = create<HubMachinesState>((set, get) => ({
     // The error line stays until a read succeeds, so a failing retry does not blink it away.
     set({ syncing: true });
     try {
-      const [{ machines }, localDaemons] = await Promise.all([fetchMachines(), readLocalDaemons()]);
+      const [{ machines }, localDaemons, thisMachineId] = await Promise.all([
+        fetchMachines(),
+        readLocalDaemons(),
+        readThisMachineId(),
+      ]);
       const viaCore = relayForDevice(localDaemons, coreUrl);
       const views: HubMachineView[] = [];
       for (const machine of machines) {
-        views.push(await addMachine(machine, sealKey, localDaemons, viaCore));
+        views.push(await addMachine(machine, sealKey, localDaemons, viaCore, thisMachineId));
       }
-      set({ machines: views, lastSyncAt: new Date().toISOString(), error: null });
+      set({
+        machines: views,
+        thisMachineId,
+        lastSyncAt: new Date().toISOString(),
+        error: null,
+      });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error) });
     } finally {

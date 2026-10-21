@@ -33,6 +33,7 @@ function mac(id: string, label: string, extra: Partial<MacPickerOption> = {}): M
     hostServerId: `srv_${id}`,
     machineIds: [id],
     isThisMac: false,
+    state: "connected",
     selectable: true,
     note: null,
     ...extra,

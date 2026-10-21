@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): history replay renders only user and assistant entries, never Claude Code's api-request-blob or another bookkeeping entry that carries a `message`.
 import { validateProviderOptions } from "../../provider-options.js";
 import type { ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -6400,6 +6401,12 @@ function convertClaudeHistoryEntryPreamble(
     return { shortCircuit: [] };
   }
   if (entry.type === "user" && isSyntheticHistoryUserEntry(entry)) {
+    return { shortCircuit: [] };
+  }
+  // Groupon Desk: only user and assistant entries are conversation. Claude Code's
+  // `api-request-blob` records the request it sent (the system prompt, with `tool_addition`
+  // blocks) under `message`; without this its text replayed as one huge assistant message.
+  if (entry.type !== "user" && entry.type !== "assistant") {
     return { shortCircuit: [] };
   }
 

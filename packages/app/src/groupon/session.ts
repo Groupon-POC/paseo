@@ -4,7 +4,8 @@
  * The Groupon side of the app's state, one zustand store:
  *
  * - the Core the person chose (production, staging, or a local Core whose address they typed);
- * - the session the device sign-in issued (access JWT, refresh JWT, expiry), refreshed before it
+ * - the session the sign-in issued (the web build's redirect to Groupon's SSO gateway,
+ *   `sso-redirect.ts`, or the device code; access JWT, refresh JWT, expiry), refreshed before it
  *   lapses and once more on a 401; in the desktop window, when it has none of its own (or its own
  *   can no longer be renewed), this Mac's sign-in, the one Groupon Desk and the `groupon` CLI share
  *   (`mac-session.ts`), held in memory only and asked for again instead of renewed here;
@@ -24,6 +25,7 @@
  * (`core-relay.ts`): this module names it there, with a token getter that refreshes first.
  */
 
+import { Platform } from "react-native";
 import { create } from "zustand";
 import {
   CoreError,
@@ -56,6 +58,12 @@ import {
 } from "./environments";
 import { readMacSession, readMacVaultKey } from "./mac-session";
 import { deleteSecret, readSecret, writeSecret } from "./secure-storage";
+import {
+  completeSsoCallback,
+  isSsoCallback,
+  setSsoReturnPath,
+  SSO_CALLBACK_PATH,
+} from "./sso-redirect";
 
 const ENVIRONMENT_KEY = "groupon-desk.environment";
 const SESSION_KEY = "groupon-desk.session";
@@ -93,6 +101,8 @@ interface GrouponState {
   /** The person's identity, from the vault key; null while the vault is not open here. */
   deskIdentity: DeskIdentity | null;
   lastUnlock: VaultUnlockMeasure | null;
+  /** Why the last redirect sign-in did not finish, shown beside the sign-in button. */
+  signInError: string | null;
   hydrate: () => Promise<void>;
   chooseEnvironment: (id: GrouponEnvironmentId, coreUrl?: string) => Promise<void>;
   acceptApprovedPoll: (poll: DeviceAuthPoll) => Promise<void>;
@@ -124,6 +134,7 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
   sealKey: null,
   deskIdentity: null,
   lastUnlock: null,
+  signInError: null,
 
   hydrate: async () => {
     await adoptDevelopmentSession();
@@ -176,7 +187,7 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
     };
     await writeSecret(SESSION_KEY, JSON.stringify(session));
     const identity = identityOf(session.accessToken);
-    set({ session, identity });
+    set({ session, identity, signInError: null });
     const vaultKey = await keptVaultKey(session.coreUrl, identity);
     set({
       sealKey: vaultKey ? sealKeyFromVaultKey(vaultKey) : null,
@@ -240,9 +251,35 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
       sealKey: null,
       deskIdentity: null,
       lastUnlock: null,
+      signInError: null,
     });
   },
 }));
+
+/**
+ * The gateway's return to the web build, before the gate hydrates: the code is exchanged and the
+ * session kept where the device sign-in keeps it, so `hydrate` opens it and the vault step follows
+ * as before. A failure stays on the sign-in step with its reason. Either way the code leaves the
+ * address bar and the history entry, and the callback route later sends the router to the page the
+ * person pressed Sign in on. Does nothing off the web or on any other path.
+ */
+export async function finishSsoRedirect(): Promise<void> {
+  if (Platform.OS !== "web" || typeof window === "undefined" || !window.location) return;
+  const href = window.location.href;
+  if (!isSsoCallback(href)) return;
+  const result = await completeSsoCallback(href, {
+    storage: window.sessionStorage,
+    fetch: (input, init) => fetch(input, init),
+  });
+  window.history.replaceState(window.history.state, "", SSO_CALLBACK_PATH);
+  setSsoReturnPath(result.returnTo);
+  if (result.kind === "signedIn") {
+    await writeSecret(SESSION_KEY, JSON.stringify(result.session satisfies GrouponSession));
+    useGrouponStore.setState({ signInError: null });
+  } else if (result.kind === "failed") {
+    useGrouponStore.setState({ signInError: result.message });
+  }
+}
 
 /**
  * A development build's test seam, and nothing more: Core approves a device sign-in only from a

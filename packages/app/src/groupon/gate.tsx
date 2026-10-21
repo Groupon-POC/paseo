@@ -1,14 +1,20 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in in front of everything else.
 
 /**
- * The first screens of Groupon Desk, before any Mac is paired: the Core to sign in to, the device
- * sign-in Groupon's CLI uses (a code approved on Groupon's SSO page), then the vault passphrase,
- * typed once and turned into the vault key on this device. Only when both are done does Paseo's
- * app start behind it.
+ * The first screens of Groupon Desk, before any Mac is paired: the Core to sign in to, the sign-in,
+ * then the vault passphrase, typed once and turned into the vault key on this device. Only when
+ * both are done does Paseo's app start behind it.
+ *
+ * The sign-in: in a browser on the window's own hosts, the tab goes to Groupon's SSO gateway and
+ * comes back signed in (`sso-redirect.ts`), as every Groupon frontend does; anywhere else (the
+ * Electron window, which also takes this Mac's sign-in; a phone app; a host the gateway would
+ * refuse) and on the person's choice, the device sign-in Groupon's CLI uses (a code approved on
+ * Groupon's SSO page).
  *
  * Constraints:
- * - Never open the sign-in page from script: only the person's tap on the card's link opens it
- *   (Safari blocks a page opened after the code arrives as a pop-up).
+ * - Never open the device code's sign-in page from script: only the person's tap on the card's
+ *   link opens it (Safari blocks a page opened after the code arrives as a pop-up). The redirect
+ *   moves this same tab, which no browser blocks.
  * - A release build names no Core address (production only); a build with a choice does.
  */
 
@@ -16,7 +22,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import * as Clipboard from "expo-clipboard";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { isWeb } from "@/constants/platform";
+import { getIsElectron, isWeb } from "@/constants/platform";
 import { StyleSheet } from "react-native-unistyles";
 import { ThemedGrouponMark } from "./groupon-mark";
 import { Button } from "@/components/ui/button";
@@ -40,9 +46,10 @@ import { useHideShellEnvironmentBadge } from "./environment-badge";
 import { GrouponHubSync } from "./hub-sync";
 import { signedInMessageAuthor } from "./message-author";
 import { setMessageAuthorSource } from "./message-author-source";
-import { useGrouponStore } from "./session";
+import { finishSsoRedirect, useGrouponStore } from "./session";
 import { SecretInput } from "./secret-input";
 import { SignInPageButton } from "./sign-in-page-button";
+import { buildSsoLoginUrl, redirectSignInOffered, ssoGatewayUrlFor } from "./sso-redirect";
 import { GROUPON_GATE } from "./strings";
 
 const ENVIRONMENT_OPTIONS = GROUPON_ENVIRONMENTS.map((env) => ({
@@ -61,6 +68,12 @@ const SHOW_CORE_LINE = coreLineShown(ENVIRONMENT_CHOICE);
 // Every prompt the composer sends names the signed-in person (`message-author-source.ts`).
 setMessageAuthorSource(signedInMessageAuthor);
 
+/** The browser page's origin, or null in the Electron window and a phone app (no redirect there). */
+function browserPageOrigin(): string | null {
+  if (!isWeb || getIsElectron() || typeof window === "undefined" || !window.location) return null;
+  return window.location.origin;
+}
+
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -71,7 +84,10 @@ export function GrouponGate({ children }: { children: ReactNode }) {
   useHideShellEnvironmentBadge();
 
   useEffect(() => {
-    void hydrate();
+    // The gateway's return is exchanged first, so hydrate finds the session it kept.
+    void finishSsoRedirect()
+      .catch((caught: unknown) => useGrouponStore.setState({ signInError: messageOf(caught) }))
+      .finally(() => void hydrate());
   }, [hydrate]);
 
   if (status === "ready") {
@@ -104,7 +120,11 @@ function SignInStep() {
   const coreUrl = useGrouponStore((state) => state.coreUrl);
   const chooseEnvironment = useGrouponStore((state) => state.chooseEnvironment);
   const acceptApprovedPoll = useGrouponStore((state) => state.acceptApprovedPoll);
+  const redirectError = useGrouponStore((state) => state.signInError);
   const compact = useIsCompactFormFactor();
+  const pageOrigin = browserPageOrigin();
+  const [codeChosen, setCodeChosen] = useState(false);
+  const redirect = !codeChosen && redirectSignInOffered(pageOrigin, environmentId);
   const [localUrl, setLocalUrl] = useState(
     environmentId === "local" ? coreUrl : "http://localhost:4000",
   );
@@ -136,20 +156,59 @@ function SignInStep() {
     [chooseEnvironment, localUrl],
   );
 
+  /** The Core to sign in to, a typed local one kept first; null (with the reason shown) when unusable. */
+  const signInTarget = useCallback(async (): Promise<string | null> => {
+    if (environmentId !== "local") return coreUrl;
+    const typed = normaliseCoreUrl(localUrl);
+    if (!typed) {
+      setError(GROUPON_GATE.badLocalUrl);
+      return null;
+    }
+    await chooseEnvironment("local", typed);
+    return typed;
+  }, [chooseEnvironment, coreUrl, environmentId, localUrl]);
+
+  // This tab goes to Groupon's SSO gateway and comes back to /sso/callback (`sso-redirect.ts`).
+  const handleRedirect = useCallback(async () => {
+    setError(null);
+    const target = await signInTarget();
+    if (!target || !pageOrigin) return;
+    setBusy(true);
+    try {
+      const url = await buildSsoLoginUrl(
+        {
+          gatewayUrl: ssoGatewayUrlFor(environmentId, target),
+          coreUrl: target,
+          pageOrigin,
+          returnTo: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+        },
+        { storage: window.sessionStorage },
+      );
+      window.location.assign(url);
+    } catch (caught) {
+      setError(messageOf(caught));
+      setBusy(false);
+    }
+  }, [environmentId, pageOrigin, signInTarget]);
+  const handleRedirectPress = useCallback(() => void handleRedirect(), [handleRedirect]);
+
+  // Back from the gateway without signing in: a page restored from the browser's cache would
+  // still show the button busy.
+  useEffect(() => {
+    if (!pageOrigin) return;
+    const reset = (event: PageTransitionEvent) => {
+      if (event.persisted) setBusy(false);
+    };
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, [pageOrigin]);
+
   // The sign-in page is not opened from here: only the person's tap on the card's link opens it
   // (`device-sign-in-model.ts`; a page opened by script is a pop-up Safari blocks).
   const handleSignIn = useCallback(async () => {
     setError(null);
-    let target = coreUrl;
-    if (environmentId === "local") {
-      const typed = normaliseCoreUrl(localUrl);
-      if (!typed) {
-        setError(GROUPON_GATE.badLocalUrl);
-        return;
-      }
-      target = typed;
-      await chooseEnvironment("local", typed);
-    }
+    const target = await signInTarget();
+    if (!target) return;
     setBusy(true);
     try {
       const approved = await runDeviceSignIn(target, `Groupon Desk app (${Platform.OS})`, {
@@ -169,8 +228,13 @@ function SignInStep() {
         setFlow(null);
       }
     }
-  }, [acceptApprovedPoll, chooseEnvironment, coreUrl, environmentId, localUrl]);
+  }, [acceptApprovedPoll, signInTarget]);
   const handleSignInPress = useCallback(() => void handleSignIn(), [handleSignIn]);
+  const handleCodeInstead = useCallback(() => {
+    setCodeChosen(true);
+    void handleSignIn();
+  }, [handleSignIn]);
+  const shownError = error ?? redirectError;
 
   return (
     <View style={[styles.card, compact ? styles.cardCompact : null]}>
@@ -200,6 +264,69 @@ function SignInStep() {
       {SHOW_CORE_LINE && environmentId !== "local" ? (
         <Text style={styles.hint}>{coreUrl}</Text>
       ) : null}
+      {redirect ? (
+        <RedirectSignIn
+          busy={busy}
+          onSignIn={handleRedirectPress}
+          onCodeInstead={handleCodeInstead}
+        />
+      ) : (
+        <DeviceSignIn flow={flow} compact={compact} busy={busy} onSignIn={handleSignInPress} />
+      )}
+      {shownError ? <Text style={styles.error}>{shownError}</Text> : null}
+    </View>
+  );
+}
+
+/**
+ * The web build's sign-in on its own hosts: the button moves this tab to Groupon's SSO gateway and
+ * back (`sso-redirect.ts`); the line under it says so, and the link below reaches the device code
+ * for when Groupon's page refuses this address.
+ */
+function RedirectSignIn({
+  busy,
+  onSignIn,
+  onCodeInstead,
+}: {
+  busy: boolean;
+  onSignIn: () => void;
+  onCodeInstead: () => void;
+}) {
+  return (
+    <>
+      <Button variant="default" onPress={onSignIn} loading={busy} testID="groupon-sign-in">
+        {GROUPON_GATE.signIn}
+      </Button>
+      <Text style={[styles.hint, styles.centered]}>{GROUPON_GATE.redirectLine}</Text>
+      <Text
+        style={[styles.hint, styles.centered, styles.link]}
+        onPress={onCodeInstead}
+        accessibilityRole="button"
+        testID="groupon-sign-in-code-instead"
+      >
+        {GROUPON_GATE.codeInstead}
+      </Text>
+    </>
+  );
+}
+
+/**
+ * The device sign-in's controls: the code once it is here, and the button, which on a phone gives
+ * way to a spinner while the code waits for approval.
+ */
+function DeviceSignIn({
+  flow,
+  compact,
+  busy,
+  onSignIn,
+}: {
+  flow: DeviceAuthStart | null;
+  compact: boolean;
+  busy: boolean;
+  onSignIn: () => void;
+}) {
+  return (
+    <>
       {flow ? <DeviceCode flow={flow} compact={compact} /> : null}
       {flow && compact ? (
         <View style={styles.waiting} testID="groupon-sign-in-waiting">
@@ -207,17 +334,11 @@ function SignInStep() {
           <Text style={styles.hint}>{GROUPON_GATE.waiting}</Text>
         </View>
       ) : (
-        <Button
-          variant="default"
-          onPress={handleSignInPress}
-          loading={busy}
-          testID="groupon-sign-in"
-        >
+        <Button variant="default" onPress={onSignIn} loading={busy} testID="groupon-sign-in">
           {busy ? GROUPON_GATE.waiting : GROUPON_GATE.signIn}
         </Button>
       )}
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-    </View>
+    </>
   );
 }
 

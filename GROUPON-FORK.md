@@ -261,6 +261,25 @@ built before the rename starts with empty settings once. Upstream's native mobil
 app (`sh.paseo.debug`), which this fork does not build; the fork's Expo scheme is `groupondesk`
 (`packages/app/app.config.js`).
 
+## The web build signs in by redirect, there and back
+
+On `desk.livingsocial.com` and `desk.grpn.site` the gate's Sign in moves the tab to Groupon's SSO
+gateway and back, the way every Groupon frontend signs in (owner, 2026-10-21: the device code's
+second tab had to be closed by hand on a phone). `packages/app/src/groupon/sso-redirect.ts` copies
+the monorepo's `@groupon2/frontend-sso-client` contract, which the Expo build cannot import: a PKCE
+verifier and state kept in the tab's sessionStorage, the gateway's `/auth-gateway?return_url=
+<origin>/sso/callback&state=...&code_challenge=...&code_challenge_method=S256`, then
+`POST /auth/authentication/sso/exchange` with `{ code, codeVerifier }` at the Core the flow began on.
+The gateway follows the Core (production `sso.livingsocial.com`, staging `sso.grpn.site`, a local
+Core's slot), never the host the window is served from. `session.ts`' `finishSsoRedirect` runs
+before the gate hydrates, keeps the session where the device sign-in keeps it, takes the code out of
+the address bar, and the route `src/app/sso/callback.tsx` sends the router to the page Sign in was
+pressed on; the vault step follows as before. Core admits a return origin only from its
+`SSO_ALLOWED_ORIGINS` (the estate table's frontends, both environments, `desk` included), and the
+gateway shows its own error page on a refused one without coming back, so the redirect is offered
+only on those two origins (and loopback against a local Core); the Electron window, a phone app and
+any other host keep the device code, and the card's "Sign in with a code instead" reaches it too.
+
 ## The window signs in with this Mac's sign-in
 
 Groupon Desk and the `groupon` CLI keep one sign-in per Mac, in the CLI's credentials file

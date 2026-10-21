@@ -22,6 +22,10 @@ export const GROUPON_GATE = {
   copyCode: "Tap the code to copy it",
   codeCopied: "Code copied",
   signIn: "Sign in with Groupon",
+  /** Under the button when this tab goes to the SSO gateway and back (`sso-redirect.ts`). */
+  redirectLine: "Sign in opens Groupon's page and brings you back.",
+  /** The device code, for when Groupon's page refuses this address. */
+  codeInstead: "Sign in with a code instead",
   waiting: "Waiting for approval",
   denied: "The sign-in was denied.",
   expired: "The code expired before it was approved. Try again.",

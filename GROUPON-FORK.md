@@ -279,7 +279,7 @@ the hand sends the colleague the hub's command names for a shared prompt. The da
 the user_message it records (`AgentManager.notePromptAuthor`), in memory only: a daemon restart
 rebuilds the timeline from the provider's history, and those messages come back with no author.
 The chat draws three looks (`groupon/message-author-model.ts`, `message-author.tsx`): your own
-prompts in Paseo's bubble, a colleague's on the left in the accent's tint with a name chip
+prompts in Paseo's bubble, a colleague's on the left in the theme's `colleagueMessage` tint (the accent at 16 percent, `styles/theme.ts`) with a name chip
 ("Carl Colleague · Mac app"), the agent's answers as before; a message with no author is the
 workspace owner's. The History reader takes the author from the hub's `senderUserId` and the device
 the colleague's window seals into the prompt; the Share screen carries the legend.

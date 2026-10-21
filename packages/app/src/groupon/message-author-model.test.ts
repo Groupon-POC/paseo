@@ -130,10 +130,10 @@ describe("the hub transcript's authors", () => {
 });
 
 describe("withAlpha", () => {
-  it("appends the opacity to a #rrggbb colour and leaves any other colour alone", () => {
-    expect(withAlpha("#20744A", 0.16)).toBe("#20744A29");
-    expect(withAlpha("#ffffff", 1)).toBe("#ffffffff");
-    expect(withAlpha("#000000", -1)).toBe("#00000000");
+  it("turns a #rrggbb colour into rgba() at the opacity and leaves any other colour alone", () => {
+    expect(withAlpha("#20744A", 0.16)).toBe("rgba(32, 116, 74, 0.16)");
+    expect(withAlpha("#ffffff", 2)).toBe("rgba(255, 255, 255, 1)");
+    expect(withAlpha("#000000", -1)).toBe("rgba(0, 0, 0, 0)");
     expect(withAlpha("rgba(0,0,0,0.5)", 0.2)).toBe("rgba(0,0,0,0.5)");
   });
 });

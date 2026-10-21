@@ -85,11 +85,12 @@ export function authorOfHubMessage(
 }
 
 /**
- * A theme colour at an opacity, for a tint drawn over the chat's surface; a colour that is not
- * `#rrggbb` (a custom theme's named colour, an rgba) comes back as it was.
+ * A theme colour at an opacity (as `rgba()`, which every renderer takes), for a tint drawn over
+ * the chat's surface; a colour that is not `#rrggbb` (a custom theme's named colour, an rgba) comes back as it was.
  */
 export function withAlpha(color: string, alpha: number): string {
   if (!/^#[0-9a-f]{6}$/i.test(color)) return color;
-  const byte = Math.round(Math.min(1, Math.max(0, alpha)) * 255);
-  return `${color}${byte.toString(16).padStart(2, "0")}`;
+  const channel = (at: number) => Number.parseInt(color.slice(at, at + 2), 16);
+  const opacity = Math.round(Math.min(1, Math.max(0, alpha)) * 100) / 100;
+  return `rgba(${channel(1)}, ${channel(3)}, ${channel(5)}, ${opacity})`;
 }

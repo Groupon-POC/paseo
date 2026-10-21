@@ -1,4 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme (Paseo's dark surfaces, the Groupon green as the accent), first in the picker.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme (Paseo's dark surfaces, the Groupon green as the accent), first in the picker; the colleague's message tint (colleagueMessage, colleagueMessageBorder).
+import { withAlpha } from "@/groupon/message-author-model";
 import { Platform } from "react-native";
 import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
 
@@ -171,6 +172,16 @@ function statusTints(colors: typeof lightStatusColors, alphaHex: string) {
   };
 }
 
+// Groupon Desk: a colleague's message in a shared chat, the accent thin enough that the foreground
+// stays readable on it (groupon/message-author.tsx). Resolved here, from the accent's hex, because on
+// the web a style reads a theme colour as a CSS variable it cannot thin out itself.
+function colleagueMessageColors(accent: string) {
+  return {
+    colleagueMessage: withAlpha(accent, 0.16),
+    colleagueMessageBorder: withAlpha(accent, 0.45),
+  };
+}
+
 const lightStatusTints = statusTints(lightStatusColors, "1f"); // 12%
 const darkStatusTints = statusTints(darkStatusColors, "29"); // 16%
 
@@ -306,6 +317,7 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
     ...lightStatusColors,
     ...lightStatusTints,
     ...lightStatusDotColors,
+    ...colleagueMessageColors(tint.accent),
 
     terminal: {
       background: tint.surface0,
@@ -438,6 +450,7 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
     ...darkStatusColors,
     ...darkStatusTints,
     ...darkStatusDotColors,
+    ...colleagueMessageColors(tint.accent),
 
     terminal: {
       background: tint.surface0,

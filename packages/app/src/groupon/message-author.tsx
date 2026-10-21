@@ -4,14 +4,10 @@ import { memo } from "react";
 import { Platform, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { getIsElectronRuntime } from "@/constants/layout";
-import { authorOfViewer, messageLook, withAlpha, type MessageLook } from "./message-author-model";
+import { authorOfViewer, messageLook, type MessageLook } from "./message-author-model";
 import { deviceName } from "./presence-model";
 import { useGrouponStore } from "./session";
 import { GROUPON_AUTHOR } from "./strings";
-
-/** The colleague's bubble: the theme's accent, thin enough that the foreground stays readable on it. */
-const COLLEAGUE_FILL_ALPHA = 0.16;
-const COLLEAGUE_BORDER_ALPHA = 0.45;
 
 /** The device this window runs on, as a message's author names it. */
 export function thisDevice(): string {
@@ -74,15 +70,16 @@ export function AuthorLegend() {
 
 /**
  * The colleague's look, laid over a user message's own styles: on the left like another person
- * in a chat app, in the accent's tint. The person's own bubble keeps Paseo's `surface3`.
+ * in a chat app, in the theme's `colleagueMessage` tint (the accent, thinned in `styles/theme.ts`).
+ * The person's own bubble keeps Paseo's `surface3`.
  */
 export const authorStyles = StyleSheet.create((theme) => ({
   colleagueContainer: { justifyContent: "flex-start" },
   colleagueContent: { alignItems: "flex-start" },
   colleagueBubble: {
-    backgroundColor: withAlpha(theme.colors.accent, COLLEAGUE_FILL_ALPHA),
+    backgroundColor: theme.colors.colleagueMessage,
     borderWidth: 1,
-    borderColor: withAlpha(theme.colors.accent, COLLEAGUE_BORDER_ALPHA),
+    borderColor: theme.colors.colleagueMessageBorder,
   },
   colleagueBubbleCorner: {
     borderTopRightRadius: theme.borderRadius["2xl"],

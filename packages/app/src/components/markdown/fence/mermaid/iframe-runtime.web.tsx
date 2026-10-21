@@ -1,8 +1,11 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): on a page served over http(s) the frame loads the runtime as a file from the page's origin, because the page's policy forbids inline script.
 import { useCallback, useEffect, useRef } from "react";
 import type { DiagramColorScheme, MermaidRenderRequest } from "./render-model";
 import { mermaidRuntimeHtml } from "./runtime/html.gen";
+import { mermaidRuntimeScriptFile } from "./runtime/script-file.gen";
 import { parseMermaidRuntimeMessage, type MermaidRuntimeRenderMessage } from "./runtime/messages";
 import { MermaidRuntimeRequestDriver } from "./runtime/request-driver";
+import { mermaidRuntimeFileHtml, shouldLoadMermaidRuntimeFromFile } from "./runtime/web-document";
 
 export interface MermaidRenderedMessage {
   revision: number;
@@ -16,6 +19,15 @@ interface MermaidIframeRuntimeProps {
   request: MermaidRenderRequest | null;
   onRendered: (message: MermaidRenderedMessage) => void;
   onRenderFailed: (revision: number) => void;
+}
+
+let runtimeDocument: string | undefined;
+
+function frameDocument(): string {
+  runtimeDocument ??= shouldLoadMermaidRuntimeFromFile(window.location.protocol)
+    ? mermaidRuntimeFileHtml(new URL(`/${mermaidRuntimeScriptFile}`, window.location.origin).href)
+    : mermaidRuntimeHtml;
+  return runtimeDocument;
 }
 
 /** Sandboxed Mermaid renderer. Sizing and gestures belong to the surrounding viewport. */
@@ -75,7 +87,7 @@ export function MermaidIframeRuntime({
       aria-hidden
       inert
       sandbox="allow-scripts"
-      srcDoc={mermaidRuntimeHtml}
+      srcDoc={frameDocument()}
       tabIndex={-1}
       style={iframeStyle}
     />

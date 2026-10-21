@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the policy is exported, so the work window's preview frame (html-preview-frame.ts) is served with the same one.
 // A preview renders a self-contained document and nothing else. Inline styles and
 // scripts run so a plan page keeps its layout and its diagrams; fetch, XHR,
 // WebSocket, beacon, remote script, remote font, remote image, and form posts are
@@ -12,7 +13,7 @@
 // no parent access, and no way to read any file but itself. Native narrows it
 // further in html-preview.tsx, because a WebView can refuse navigation outside CSP — see the
 // caveat there on why that is a mitigation rather than a guarantee.
-const POLICY = [
+export const HTML_PREVIEW_POLICY = [
   "default-src 'none'",
   "script-src 'unsafe-inline' 'unsafe-eval' blob:",
   "style-src 'unsafe-inline'",
@@ -26,7 +27,7 @@ const POLICY = [
   "object-src 'none'",
 ].join("; ");
 
-const META = `<meta http-equiv="Content-Security-Policy" content="${POLICY}">`;
+const META = `<meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_POLICY}">`;
 
 // The policy must reach the parser before any markup the document declares, and it
 // only counts if it lands in `<head>` — once the parser has moved on to `<body>`, a

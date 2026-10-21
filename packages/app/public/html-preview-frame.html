@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- Added for Groupon Desk (fork of Paseo, Apache-2.0): the HTML preview's frame document. Waits for the page's document from the app by postMessage and writes it here, so the server's response policy for this one path (src/file-pane/html-preview-frame.ts) governs it instead of the app's. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title></title>
+    <script>
+      (function () {
+        function receive(event) {
+          var message = event.data;
+          if (event.source !== window.parent) return;
+          if (!message || message.type !== "paseo-html-preview-document") return;
+          if (typeof message.html !== "string") return;
+          window.removeEventListener("message", receive);
+          // Answered before the page is written: a page that works for a while as it loads must not look like a frame that never answered.
+          window.parent.postMessage({ type: "paseo-html-preview-received" }, "*");
+          document.open();
+          document.write(message.html);
+          document.close();
+        }
+        window.addEventListener("message", receive);
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): upsertTrustedOffer, a host from the hub's sealed pairing offer, over the hand's door or over Groupon's Core; the window asks for Groupon's workspace placement (a ticketless workspace gets its own branch).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): upsertTrustedOffer, a host from the hub's sealed pairing offer, over the hand's door or over Groupon's Core; the window asks for Groupon's workspace placement (a ticketless workspace gets its own branch); no default localhost probe while manual hosts are off (it is a connection the policy does not allow, and no host is added by address).
 import { useSyncExternalStore, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import equal from "fast-deep-equal/es6";
@@ -86,6 +86,7 @@ import {
 import { projectIconCache } from "@/projects/icon-cache";
 import { nativePerformanceTrace } from "@/performance/native-trace";
 import { revokePushNotifications } from "@/push-notifications";
+import { PASEO_MANUAL_HOSTS } from "@/groupon/pairing-policy";
 import { createAppWebSocketFactory } from "./websocket-factory";
 
 export type HostRuntimeConnectionStatus = "idle" | "connecting" | "online" | "offline" | "error";
@@ -205,6 +206,8 @@ export interface HostRuntimeControllerDeps {
   }>;
   getClientId: () => Promise<string>;
   readInitialConnectionHint?: () => InitialDaemonConnectionHint | null;
+  /** Whether boot probes `localhost:6767` for a daemon when nothing else names one. Default: yes. */
+  bootstrapDefaultLocalhost?: boolean;
   mountClientHandlers?: (input: {
     client: DaemonClient;
     host: HostProfile;
@@ -536,6 +539,7 @@ function createDefaultDeps(): HostRuntimeControllerDeps {
   };
 
   return {
+    bootstrapDefaultLocalhost: PASEO_MANUAL_HOSTS,
     createClient: ({ host, connection, clientId, runtimeGeneration }) => {
       const desktopTransportFactory = createDesktopDaemonTransportFactory();
       const webSocketConfig = { webSocketFactory: createAppWebSocketFactory() };
@@ -1588,7 +1592,7 @@ export class HostRuntimeStore {
 
     if (override) {
       this.bootstrapConfiguredOverride(override);
-    } else {
+    } else if (this.deps.bootstrapDefaultLocalhost !== false) {
       await this.bootstrapDefaultLocalhost();
     }
   }

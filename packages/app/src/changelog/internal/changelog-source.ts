@@ -1,7 +1,9 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no fetch of Paseo's CHANGELOG.md while Paseo's web links are off; the work window's policy has no raw.githubusercontent.com.
 import { useCallback, useEffect, useState } from "react";
+import { showsWebLink } from "@/groupon/paseo-web-links";
 import { parseChangelog, type ChangelogRelease } from "./parse-changelog";
 
-const CHANGELOG_URL = "https://raw.githubusercontent.com/getpaseo/paseo/main/CHANGELOG.md";
+export const CHANGELOG_URL = "https://raw.githubusercontent.com/getpaseo/paseo/main/CHANGELOG.md";
 
 export type ChangelogState =
   | { status: "loading" }
@@ -34,7 +36,7 @@ export function useChangelog(enabled: boolean): Changelog {
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !showsWebLink(CHANGELOG_URL)) return;
 
     const controller = new AbortController();
     setState(readCache());

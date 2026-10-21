@@ -24,6 +24,8 @@ import {
   type GrouponEnvironmentId,
 } from "./environments";
 import { GrouponHubSync } from "./hub-sync";
+import { signedInMessageAuthor } from "./message-author";
+import { setMessageAuthorSource } from "./message-author-source";
 import { useGrouponStore } from "./session";
 import { GROUPON_GATE } from "./strings";
 
@@ -37,6 +39,9 @@ const ENVIRONMENT_CHOICE = environmentChoiceOffered(
   process.env.EXPO_PUBLIC_GROUPON_ENVIRONMENTS,
 );
 const POLL_FLOOR_SECONDS = 2;
+
+// Every prompt the composer sends names the signed-in person (`message-author-source.ts`).
+setMessageAuthorSource(signedInMessageAuthor);
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

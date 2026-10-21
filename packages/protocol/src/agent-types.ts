@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message names its author (who wrote it, on which device) when a shared workspace has more than one writer.
 import type { AgentMessage } from "./agent-message.js";
 import type { AgentAttachment } from "./messages.js";
 
@@ -372,8 +373,28 @@ export interface AgentTaskItem {
   activeForm?: string;
 }
 
+/**
+ * Groupon Desk: who wrote a user message. Set by the window from its signed-in person, and by the
+ * hand for a prompt that came through the hub (a colleague's: the id the hub's command names).
+ */
+export interface UserMessageAuthor {
+  /** The person's user id on Core. */
+  userId: string;
+  /** Their display name. */
+  name: string;
+  /** Where they wrote it: "Mac app", "web", "iPhone", "Android", or a hand's own label. */
+  device?: string;
+}
+
 export type AgentTimelineItem =
-  | { type: "user_message"; text: string; messageId?: string; clientMessageId?: string }
+  | {
+      type: "user_message";
+      text: string;
+      messageId?: string;
+      clientMessageId?: string;
+      /** Groupon Desk: the person who wrote it; absent on a message from before authors, or a client that sends none. */
+      author?: UserMessageAuthor;
+    }
   | { type: "assistant_message"; text: string; messageId?: string }
   | { type: "reasoning"; text: string }
   | ToolCallTimelineItem

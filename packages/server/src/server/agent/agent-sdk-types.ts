@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user_message timeline item may name its author.
 import type {
   AgentFeature,
   AgentFeatureSelect,
@@ -7,6 +8,7 @@ import type {
   JsonValue,
   ProviderOptions,
   ToolPolicy,
+  UserMessageAuthor,
 } from "@getpaseo/protocol/agent-types";
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import type { AgentAttachment } from "@getpaseo/protocol/messages";
@@ -391,7 +393,14 @@ export interface PluginTimelineItem {
 }
 
 export type AgentTimelineItem =
-  | { type: "user_message"; text: string; messageId?: string; clientMessageId?: string }
+  | {
+      type: "user_message";
+      text: string;
+      messageId?: string;
+      clientMessageId?: string;
+      /** Groupon Desk: the person who wrote it, when the sender named one. */
+      author?: UserMessageAuthor;
+    }
   | { type: "assistant_message"; text: string; messageId?: string }
   | { type: "reasoning"; text: string }
   | ToolCallTimelineItem

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a prompt's author reaches the agent manager before the run starts.
 import { prepareAgentMessage, type AgentPromptSource } from "./agent-messages/index.js";
 import type { Logger } from "pino";
 
@@ -11,6 +12,7 @@ import type { AgentStorage } from "./agent-storage.js";
 import { ensureAgentLoaded } from "./agent-loading.js";
 import { isStaleProviderSessionError } from "./stale-provider-session-error.js";
 import { getParentAgentIdFromLabels } from "@getpaseo/protocol/agent-labels";
+import type { UserMessageAuthor } from "@getpaseo/protocol/agent-types";
 import type { ActiveTurnBehavior } from "@getpaseo/protocol/messages";
 
 export type AgentUnarchiveController = Pick<AgentManager, "notifyAgentState" | "unarchiveSnapshot">;
@@ -221,6 +223,8 @@ export interface SendPromptToAgentParams {
   prompt: AgentPromptInput;
   source?: AgentPromptSource;
   messageId?: string;
+  /** Groupon Desk: the person who wrote the prompt, recorded on its user_message (needs a message id). */
+  author?: UserMessageAuthor;
   activeTurnBehavior?: ActiveTurnBehavior;
   runOptions?: AgentRunOptions;
   /** Optional mode to set on the agent before the run starts. */
@@ -347,6 +351,9 @@ export async function sendPromptToAgent(
 
   const source = await resolvePromptSource(params.source, params.agentManager, params.agentStorage);
   const delivery = prepareAgentMessage(params.prompt, source, params.messageId);
+  if (params.author && delivery.messageId) {
+    params.agentManager.notePromptAuthor(params.agentId, delivery.messageId, params.author);
+  }
   const runOptions = delivery.messageId
     ? { ...params.runOptions, clientMessageId: delivery.messageId }
     : params.runOptions;

@@ -1,9 +1,11 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message keeps its author from the timeline, through every merge.
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import type {
   AgentProvider,
   AgentTimelineItem,
   JsonValue,
   ToolCallDetail,
+  UserMessageAuthor,
 } from "@getpaseo/protocol/agent-types";
 import { timelineItemIdentity } from "@getpaseo/protocol/timeline-identity";
 import type { AgentAttachment, AgentStreamEventPayload } from "@getpaseo/protocol/messages";
@@ -101,6 +103,8 @@ export interface UserMessageItem {
   timestamp: Date;
   images?: UserMessageImageAttachment[];
   attachments?: AgentAttachment[];
+  /** Groupon Desk: who wrote it, when the daemon was told. */
+  author?: UserMessageAuthor;
 }
 
 export interface UserMessageInput {
@@ -113,6 +117,7 @@ export interface UserMessageInput {
   timestamp: Date;
   images?: UserMessageImageAttachment[];
   attachments?: AgentAttachment[];
+  author?: UserMessageAuthor;
 }
 
 export function createUserMessage(input: UserMessageInput): UserMessageItem {
@@ -133,6 +138,7 @@ export function createUserMessage(input: UserMessageInput): UserMessageItem {
     ...(input.attachments && input.attachments.length > 0
       ? { attachments: input.attachments }
       : {}),
+    ...(input.author ? { author: input.author } : {}),
   };
 }
 
@@ -261,6 +267,7 @@ function produceUserMessage(
     clientMessageId: incoming.clientMessageId ?? existing.clientMessageId,
     messageId: incoming.messageId ?? existing.messageId,
     timelineCursor: incoming.timelineCursor ?? existing.timelineCursor,
+    author: incoming.author ?? existing.author,
   });
   if (
     existing.id === merged.id &&
@@ -270,7 +277,8 @@ function produceUserMessage(
     existing.text === merged.text &&
     existing.timestamp === merged.timestamp &&
     existing.images === merged.images &&
-    existing.attachments === merged.attachments
+    existing.attachments === merged.attachments &&
+    existing.author === merged.author
   ) {
     return { items, index, message: existing, matched: true };
   }
@@ -892,6 +900,7 @@ function appendUserMessage(
   clientMessageId?: string,
   timelineCursor?: TimelinePosition,
   turnId?: string,
+  author?: UserMessageAuthor,
 ): StreamItem[] {
   const { chunk, hasContent } = normalizeChunk(text);
   if (!hasContent) {
@@ -907,6 +916,7 @@ function appendUserMessage(
     turnId,
     text: chunk,
     timestamp,
+    author,
   });
   return upsertUserMessage(state, nextItem);
 }
@@ -1515,6 +1525,7 @@ function reduceTimelineEvent(
           item.clientMessageId,
           timelineCursor,
           event.turnId,
+          item.author,
         ),
       );
     case "assistant_message":
@@ -1888,6 +1899,7 @@ function applyCanonicalUserMessageEvent(params: {
     timelineCursor,
     text: normalized.chunk,
     timestamp,
+    author: event.item.author,
   });
   if (unmatchedInsert === "head") {
     const reconciled = upsertUserMessageAcrossStream({

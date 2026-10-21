@@ -271,6 +271,19 @@ the History screen's workspace card opens `groupon/share-screen.tsx` (who has ac
 reader with the share key out of the owner's box, with a composer and Allow / Deny when the role is
 write (`groupon/history-chat-screen.tsx`, `groupon/share-model.ts`).
 
+Who wrote what (the owner's word of 2026-10-21). A user message carries an optional author,
+`{ userId, name, device? }` (`UserMessageAuthor` in `packages/protocol/src/agent-types.ts`, on
+`send_agent_message_request` and on the timeline's `user_message`; a peer without it ignores it).
+The window sends the signed-in person (`groupon/message-author-source.ts`, registered by the gate);
+the hand sends the colleague the hub's command names for a shared prompt. The daemon keeps it on
+the user_message it records (`AgentManager.notePromptAuthor`), in memory only: a daemon restart
+rebuilds the timeline from the provider's history, and those messages come back with no author.
+The chat draws three looks (`groupon/message-author-model.ts`, `message-author.tsx`): your own
+prompts in Paseo's bubble, a colleague's on the left in the accent's tint with a name chip
+("Carl Colleague · Mac app"), the agent's answers as before; a message with no author is the
+workspace owner's. The History reader takes the author from the hub's `senderUserId` and the device
+the colleague's window seals into the prompt; the Share screen carries the legend.
+
 ## My tasks on the New workspace page
 
 Under the composer of the New workspace page (`screens/new-workspace-screen.tsx`, one marked line

@@ -130,10 +130,18 @@ export function sharedKeyOf(entry: HubSharedWorkspace, identity: DeskIdentity | 
   return { ok: true, sealKey: sealKeyFromShareKey(key), version: entry.shareKeyVersion };
 }
 
-/** A prompt as the owner's hand opens it: the hand's message body, sealed for the chat. */
-export function sealPrompt(text: string, chatId: string, sealKey: Uint8Array): string {
+/**
+ * A prompt as the owner's hand opens it: the hand's message body, sealed for the chat, with the
+ * device it was written on (the hand names it as the author's device; who wrote it is the hub's word).
+ */
+export function sealPrompt(
+  text: string,
+  chatId: string,
+  sealKey: Uint8Array,
+  device?: string,
+): string {
   return sealText(
-    JSON.stringify({ v: 1, kind: "message", role: "user", text }),
+    JSON.stringify({ v: 1, kind: "message", role: "user", text, ...(device ? { device } : {}) }),
     chatId,
     "message",
     sealKey,

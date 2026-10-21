@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): Share, who may read or write one of your workspaces.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): Share, who may read or write one of your workspaces; the legend of the chat's three looks.
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
@@ -12,6 +12,7 @@ import {
   type HubOverview,
   type HubShareRole,
 } from "./hub";
+import { AuthorLegend } from "./message-author";
 import { presenceLines } from "./presence-model";
 import { useHubPresence } from "./presence-row";
 import { hubWorkspaceForPath, normaliseEmail, sharesOfWorkspace } from "./share-model";
@@ -101,6 +102,7 @@ export function HubShareScreen({ workspaceId, path }: { workspaceId?: string; pa
           <>
             <Text style={styles.name}>{workspace.name}</Text>
             <Text style={styles.muted}>{GROUPON_SHARE.intro}</Text>
+            <AuthorLegend />
             <View style={styles.card}>
               <Text style={styles.label}>{GROUPON_SHARE.emailLabel}</Text>
               <EditingTextInput

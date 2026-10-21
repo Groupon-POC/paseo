@@ -24,7 +24,13 @@ export type MessageBlock =
   | { type: "tool_use"; id: string; name: string; input: unknown };
 
 export type MessageBody =
-  | { v: 1; kind: "message"; role: "user"; text: string }
+  | {
+      v: 1;
+      kind: "message";
+      role: "user";
+      text: string;
+      /** The writer's device, as their window named it. */ device?: string;
+    }
   | { v: 1; kind: "message"; role: "assistant"; blocks: MessageBlock[]; model: string | null }
   | { v: 1; kind: "tool_result"; toolUseId: string; content: string; isError: boolean }
   | {

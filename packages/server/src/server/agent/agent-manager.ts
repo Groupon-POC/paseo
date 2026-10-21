@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a submitted prompt's user_message names its author when the sender gave one (`notePromptAuthor`).
 import { projectTimelineRows } from "./timeline-projection.js";
 import type { PluginLifecycle } from "../plugins/lifecycle/index.js";
 import { describeHookAgent, publishAgentStream } from "../plugins/lifecycle/index.js";
@@ -17,7 +18,7 @@ import {
   PARENT_AGENT_ID_LABEL,
 } from "@getpaseo/protocol/agent-labels";
 import type { Logger } from "pino";
-import type { ToolPolicy } from "@getpaseo/protocol/agent-types";
+import type { ToolPolicy, UserMessageAuthor } from "@getpaseo/protocol/agent-types";
 import type { ProviderPaseoToolsPolicy } from "@getpaseo/protocol/provider-config";
 import { z } from "zod";
 import type { TerminalManager } from "../../terminal/terminal-manager.js";
@@ -109,6 +110,13 @@ const STORED_AGENT_CAPABILITIES: AgentCapabilityFlags = {
 };
 
 type TimeoutResult = "completed" | "timed_out";
+
+/** Groupon Desk: how many prompt authors wait for their user_message at most; the oldest goes first. */
+const PROMPT_AUTHORS_MAX = 500;
+
+function promptAuthorKey(agentId: string, clientMessageId: string): string {
+  return `${agentId}\n${clientMessageId}`;
+}
 
 function submittedPromptText(prompt: AgentPromptInput): string {
   if (typeof prompt === "string") {
@@ -742,6 +750,8 @@ export class AgentManager {
   private readonly providerDefinitions = new Map<AgentProvider, ProviderEnabledFlag>();
   private readonly agents = new Map<string, LiveManagedAgent>();
   private readonly timelineStore = new InMemoryAgentTimelineStore();
+  /** Groupon Desk: who wrote a prompt not yet on the timeline, by agent and client message id. */
+  private readonly promptAuthors = new Map<string, UserMessageAuthor>();
   private readonly providerSubagents = new ProviderSubagentStore();
   private readonly agentsAwaitingInitialSnapshotPersist = new Set<string>();
   private readonly sessionEventTails = new Map<string, Promise<void>>();
@@ -4809,6 +4819,19 @@ export class AgentManager {
     return event;
   }
 
+  /**
+   * Groupon Desk: remember who wrote the prompt `clientMessageId`, so the user_message recorded
+   * for it names them. Kept in memory only, bounded; a daemon restart rebuilds the timeline from
+   * the provider's history, which carries no author.
+   */
+  notePromptAuthor(agentId: string, clientMessageId: string, author: UserMessageAuthor): void {
+    if (this.promptAuthors.size >= PROMPT_AUTHORS_MAX) {
+      const oldest = this.promptAuthors.keys().next();
+      if (!oldest.done) this.promptAuthors.delete(oldest.value);
+    }
+    this.promptAuthors.set(promptAuthorKey(agentId, clientMessageId), author);
+  }
+
   private recordSubmittedPrompt(
     agent: ActiveManagedAgent,
     prompt: AgentPromptInput,
@@ -4816,11 +4839,15 @@ export class AgentManager {
     outcome: "accepted" | "rejected",
     options?: { messageId?: string; providerMessageId?: string; turnId?: string },
   ): void {
+    const authorKey = promptAuthorKey(agent.id, clientMessageId);
+    const author = this.promptAuthors.get(authorKey);
+    this.promptAuthors.delete(authorKey);
     const item = projectAgentMessage({
       type: "user_message",
       text: submittedPromptText(prompt),
       clientMessageId,
       ...(options?.messageId ? { messageId: options.messageId } : {}),
+      ...(author ? { author } : {}),
     });
     if (!item) return;
     // Human attempts stay in history on rejection; delivery notifications require acceptance.

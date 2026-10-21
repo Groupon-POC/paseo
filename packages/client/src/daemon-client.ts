@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): sendAgentMessage may name the prompt's author.
 import { messageTooLargeError } from "./daemon-client-transport-utils.js";
 import { legacyUsageIcon } from "./legacy-usage-icons.js";
 import { subscribeTimeline, type TimelineMessage } from "./timeline-subscription/index.js";
@@ -137,6 +138,7 @@ import type {
   AgentProviderNotice,
   AgentProvider,
   AgentSessionConfig,
+  UserMessageAuthor,
 } from "@getpaseo/protocol/agent-types";
 import type {
   AgentConfigApply,
@@ -432,6 +434,8 @@ export interface SendMessageOptions {
   activeTurnBehavior?: ActiveTurnBehavior;
   images?: Array<{ data: string; mimeType: string }>;
   attachments?: SendAgentMessageRequest["attachments"];
+  /** Groupon Desk: the person who wrote it; a daemon without authors ignores it. */
+  author?: UserMessageAuthor;
 }
 
 export interface AgentAttentionRequiredNotification {
@@ -3515,6 +3519,7 @@ export class DaemonClient {
       ...(options?.activeTurnBehavior ? { activeTurnBehavior: options.activeTurnBehavior } : {}),
       ...(options?.images ? { images: options.images } : {}),
       ...(options?.attachments ? { attachments: options.attachments } : {}),
+      ...(options?.author ? { author: options.author } : {}),
     });
     const payload = await this.sendRequest({
       requestId,

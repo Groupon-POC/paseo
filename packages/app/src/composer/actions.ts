@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a prompt typed here names the signed-in person as its author.
 import type { SelectedFile } from "@/attachments/selected-file";
 import type { ForgeSearchItem } from "@getpaseo/protocol/messages";
 import type { ActiveTurnBehavior } from "@getpaseo/protocol/messages";
@@ -17,6 +18,8 @@ import {
 import { createUserMessage, generateMessageId, type UserMessageItem } from "@/types/stream";
 import type { MessageSubmissionRejectionOutcome } from "@/composer/submission/model";
 import type { PickedImageAttachmentInput } from "@/hooks/image-attachment-picker";
+import { currentMessageAuthor } from "@/groupon/message-author-source";
+import type { UserMessageAuthor } from "@getpaseo/protocol/agent-types";
 import { i18n } from "@/i18n/i18next";
 
 export interface QueuedComposerMessage {
@@ -53,6 +56,8 @@ export interface ComposerSendClient {
       activeTurnBehavior?: ActiveTurnBehavior;
       images: Array<{ data: string; mimeType: string }>;
       attachments: ReturnType<typeof splitComposerAttachmentsForSubmit>["attachments"];
+      /** Groupon Desk: the signed-in person, when there is one. */
+      author?: UserMessageAuthor;
     },
   ) => Promise<void>;
   uploadFile: (input: { fileName: string; mimeType: string; bytes: Uint8Array }) => Promise<{
@@ -205,8 +210,10 @@ export async function dispatchComposerAgentMessage(
     format: input.attachmentSubmitFormat,
   });
   const clientMessageId = generateMessageId();
+  const author = currentMessageAuthor();
   const userMessage = createUserMessage({
     clientMessageId,
+    author,
     text: input.text,
     timestamp: new Date(),
     images: wirePayload.images,
@@ -223,6 +230,7 @@ export async function dispatchComposerAgentMessage(
       ...(input.activeTurnBehavior ? { activeTurnBehavior: input.activeTurnBehavior } : {}),
       images: imagesData ?? [],
       attachments: wirePayload.attachments,
+      ...(author ? { author } : {}),
     });
     input.submission.accept(input.agentId, clientMessageId);
   } catch (error) {

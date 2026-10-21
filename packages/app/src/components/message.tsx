@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague draws in its own tint with a name chip (groupon/message-author.tsx).
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
 import { AssistantForkMenu, type AssistantForkTarget } from "@/components/assistant-fork-menu";
@@ -28,6 +29,8 @@ import { formatDuration, formatMessageTimestamp } from "@/utils/time";
 import { resolveToolCallIcon } from "@/utils/tool-call-icon";
 import { useTargetAgentTitle } from "@/tool-calls/use-target-agent-title";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
+import type { UserMessageAuthor } from "@getpaseo/protocol/agent-types";
+import { AuthorChip, authorStyles, useMessageLook } from "@/groupon/message-author";
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import type { AgentCapabilityFlags, ToolCallDetail } from "@getpaseo/protocol/agent-types";
 import type { AgentAttachment } from "@getpaseo/protocol/messages";
@@ -102,6 +105,8 @@ interface UserMessageProps {
   isLastInGroup?: boolean;
   isPending?: boolean;
   disableOuterSpacing?: boolean;
+  /** Groupon Desk: who wrote it; a colleague's message is drawn in its own tint with a name chip. */
+  author?: UserMessageAuthor;
 }
 
 const MessageOuterSpacingContext = createContext(false);
@@ -400,7 +405,10 @@ export const UserMessage = memo(function UserMessage({
   isLastInGroup = true,
   isPending = false,
   disableOuterSpacing,
+  author,
 }: UserMessageProps) {
+  const look = useMessageLook(author);
+  const isColleague = look.kind === "colleague";
   const isCompact = useIsCompactFormFactor();
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
@@ -434,13 +442,26 @@ export const UserMessage = memo(function UserMessage({
   const containerStyle = useMemo(
     () => [
       userMessageStylesheet.container,
+      isColleague ? authorStyles.colleagueContainer : null,
       !resolvedDisableOuterSpacing && [
         isFirstInGroup ? userMessageStylesheet.containerFirstInGroup : null,
         isLastInGroup ? userMessageStylesheet.containerLastInGroup : null,
         !isFirstInGroup || !isLastInGroup ? userMessageStylesheet.containerSpacing : null,
       ],
     ],
-    [resolvedDisableOuterSpacing, isFirstInGroup, isLastInGroup],
+    [resolvedDisableOuterSpacing, isFirstInGroup, isLastInGroup, isColleague],
+  );
+  const contentStyle = useMemo(
+    () => [userMessageStylesheet.content, isColleague ? authorStyles.colleagueContent : null],
+    [isColleague],
+  );
+  const bubbleStyle = useMemo(
+    () => [
+      userMessageStylesheet.bubble,
+      isColleague ? authorStyles.colleagueBubble : null,
+      isColleague ? authorStyles.colleagueBubbleCorner : null,
+    ],
+    [isColleague],
   );
   const imagePreviewContainerStyle = useMemo(
     () => [
@@ -459,21 +480,23 @@ export const UserMessage = memo(function UserMessage({
   const trailingRowStyle = useMemo(
     () => [
       userMessageStylesheet.trailingRow,
+      isColleague ? authorStyles.colleagueTrailing : null,
       showTrailingRow
         ? userMessageStylesheet.trailingRowVisible
         : userMessageStylesheet.trailingRowHidden,
     ],
-    [showTrailingRow],
+    [showTrailingRow, isColleague],
   );
 
   return (
     <View style={containerStyle} testID="user-message" aria-busy={isPending}>
       <View
-        style={userMessageStylesheet.content}
+        style={contentStyle}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
-        <View style={userMessageStylesheet.bubble}>
+        {look.kind === "colleague" ? <AuthorChip look={look} /> : null}
+        <View style={bubbleStyle}>
           {hasImages ? (
             <View style={imagePreviewContainerStyle}>
               {images.map((image) => (

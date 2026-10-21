@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the shared-workspace model against the CLI's box.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the shared-workspace model against the CLI's box; the sealed prompt names its device.
 import { describe, expect, it } from "vitest";
 import { bytesToBase64, identityFromVaultKey, openSealedJson, sealKeyFromShareKey } from "./crypto";
 import type { OpenedMessage } from "./history";
@@ -157,6 +157,26 @@ describe("the share key", () => {
       kind: "message",
       role: "user",
       text: "check the rounding",
+    });
+  });
+
+  it("seals the device the prompt was written on, for the hand to name as its author's", () => {
+    const key = sharedKeyOf(shared(), colleague);
+    if (!key.ok) throw new Error(key.why);
+
+    expect(
+      openSealedJson(
+        sealPrompt("check the rounding", "ch-new", key.sealKey, "Mac app"),
+        "ch-new",
+        "message",
+        key.sealKey,
+      ),
+    ).toEqual({
+      v: 1,
+      kind: "message",
+      role: "user",
+      text: "check the rounding",
+      device: "Mac app",
     });
   });
 });

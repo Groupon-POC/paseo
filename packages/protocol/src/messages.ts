@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message carries an optional author (send_agent_message, send_agent_message_request, the timeline's user_message).
 import { AgentMessageSchema } from "./agent-message.js";
 import { PluginRegistryIdentitySchema } from "./plugin-registry.js";
 import { AgentProfileSchema, AgentSkillSelectionSchema } from "./agent-profile.js";
@@ -662,6 +663,13 @@ const ToolCallTimelineItemPayloadSchema: z.ZodType<ToolCallTimelineItem, unknown
     ToolCallCanceledPayloadSchema,
   ]);
 
+/** Groupon Desk: who wrote a user message (`UserMessageAuthor`); optional everywhere, so older peers ignore it. */
+export const UserMessageAuthorSchema = z.object({
+  userId: z.string().min(1),
+  name: z.string(),
+  device: z.string().optional(),
+});
+
 // zod-aot 0.20.4 miscompiles this as a nested discriminated union by omitting
 // the inner tool_call branch from the generated outer dispatch.
 export const AgentTimelineItemPayloadSchema: z.ZodType<AgentTimelineItem, unknown> = z.union([
@@ -670,6 +678,7 @@ export const AgentTimelineItemPayloadSchema: z.ZodType<AgentTimelineItem, unknow
     text: z.string(),
     messageId: z.string().optional(),
     clientMessageId: z.string().optional(),
+    author: UserMessageAuthorSchema.optional(),
   }),
   z.object({
     type: z.literal("assistant_message"),
@@ -1212,6 +1221,7 @@ export const SendAgentMessageSchema = z.object({
   activeTurnBehavior: ActiveTurnBehaviorSchema.optional(),
   images: z.array(ImageAttachmentSchema).optional(),
   attachments: AgentAttachmentsSchema,
+  author: UserMessageAuthorSchema.optional(),
 });
 
 // ============================================================================
@@ -1372,6 +1382,8 @@ export const SendAgentMessageRequestSchema = z.object({
   activeTurnBehavior: ActiveTurnBehaviorSchema.optional(),
   images: z.array(ImageAttachmentSchema).optional(),
   attachments: AgentAttachmentsSchema,
+  /** Groupon Desk: the person who wrote the prompt; recorded on the timeline's user_message. */
+  author: UserMessageAuthorSchema.optional(),
 });
 
 export const WaitForFinishRequestSchema = z.object({

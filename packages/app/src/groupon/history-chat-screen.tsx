@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): one chat's saved transcript, opened on the device; a chat a colleague shared opens with its share key, with a composer when they may write.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): one chat's saved transcript, opened on the device; a chat a colleague shared opens with its share key, with a composer when they may write; each prompt drawn as the reader's own, or a colleague's with a name chip.
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { PressHighlight } from "@/components/ui/press-highlight";
@@ -22,6 +22,13 @@ import {
   type MessageBody,
   type OpenedMessage,
 } from "./history";
+import { AuthorChip, authorStyles, thisDevice } from "./message-author";
+import {
+  authorOfHubMessage,
+  knownNames,
+  messageLook,
+  type MessageLook,
+} from "./message-author-model";
 import { presenceView } from "./presence-model";
 import { PresenceRow, useHubPresence } from "./presence-row";
 import { useGrouponStore } from "./session";
@@ -110,10 +117,24 @@ function Block({ block }: { block: MessageBlock }) {
   }
 }
 
-function Body({ body }: { body: MessageBody }) {
+function Body({ body, look }: { body: MessageBody; look: MessageLook }) {
   switch (body.kind) {
     case "message":
       if (body.role === "user") {
+        if (look.kind === "colleague") {
+          return (
+            <View style={styles.colleagueMessage}>
+              <AuthorChip look={look} />
+              <View
+                style={[styles.userBubble, authorStyles.colleagueBubble, styles.colleagueBubble]}
+              >
+                <Text style={styles.userText} selectable>
+                  {body.text}
+                </Text>
+              </View>
+            </View>
+          );
+        }
         return (
           <View style={styles.userBubble}>
             <Text style={styles.userText} selectable>
@@ -181,11 +202,37 @@ function Body({ body }: { body: MessageBody }) {
   }
 }
 
-function Message({ message }: { message: OpenedMessage }) {
+/** Who the transcript's prompts belong to: the workspace's owner (null when that is the reader) and the names known. */
+interface AuthorContext {
+  owner: { userId: string; name: string } | null;
+  names: ReadonlyMap<string, string>;
+}
+
+const OWN_TRANSCRIPT: AuthorContext = { owner: null, names: new Map() };
+
+function Message({
+  message,
+  authors,
+  viewerUserId,
+}: {
+  message: OpenedMessage;
+  authors: AuthorContext;
+  viewerUserId: string | null;
+}) {
   if (message.body === null) {
     return <Text style={styles.notice}>{GROUPON_HISTORY.sealedElsewhere}</Text>;
   }
-  return <Body body={message.body} />;
+  const device =
+    message.body.kind === "message" && message.body.role === "user"
+      ? message.body.device
+      : undefined;
+  const look = messageLook({
+    author: authorOfHubMessage(message.row, device, authors.owner, authors.names),
+    viewerUserId,
+    viewerOwnsWorkspace: authors.owner === null,
+    ownerName: authors.owner?.name,
+  });
+  return <Body body={message.body} look={look} />;
 }
 
 export function HubHistoryChatScreen({
@@ -199,6 +246,8 @@ export function HubHistoryChatScreen({
 }) {
   const sealKey = useGrouponStore((state) => state.sealKey);
   const deskIdentity = useGrouponStore((state) => state.deskIdentity);
+  const viewerUserId = useGrouponStore((state) => state.identity?.userId ?? null);
+  const [authors, setAuthors] = useState<AuthorContext>(OWN_TRANSCRIPT);
   const [messages, setMessages] = useState<OpenedMessage[] | null>(null);
   const [shared, setShared] = useState<SharedAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -209,11 +258,14 @@ export function HubHistoryChatScreen({
     try {
       const [rows, overview] = await Promise.all([fetchAllMessages(chatId), fetchOverview()]);
       const entry = sharedWorkspaceOfChat(overview, chatId);
+      const names = knownNames(overview);
       if (entry === null) {
         setShared(null);
+        setAuthors({ owner: null, names });
         setMessages(openMessages(rows, sealKey));
         return;
       }
+      setAuthors({ owner: { userId: entry.owner.userId, name: entry.owner.name }, names });
       const key = sharedKeyOf(entry, deskIdentity);
       if (!key.ok) {
         setError(key.why);
@@ -263,7 +315,12 @@ export function HubHistoryChatScreen({
           </View>
         ) : null}
         {messages?.map((message) => (
-          <Message key={message.row.id} message={message} />
+          <Message
+            key={message.row.id}
+            message={message}
+            authors={authors}
+            viewerUserId={viewerUserId}
+          />
         ))}
         {shared && shared.entry.role === "write" && messages ? (
           <SharedWriter chatId={chatId} access={shared} messages={messages} onSent={load} />
@@ -312,7 +369,11 @@ function SharedWriter({
     const prompt = text.trim();
     if (prompt.length === 0) return;
     void run(async () => {
-      await sendSharedPrompt(chatId, sealPrompt(prompt, chatId, access.sealKey), access.version);
+      await sendSharedPrompt(
+        chatId,
+        sealPrompt(prompt, chatId, access.sealKey, thisDevice()),
+        access.version,
+      );
       setText("");
       setGeneration((value) => value + 1);
     }, GROUPON_SHARE.sent);
@@ -406,6 +467,8 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.surface3,
   },
   userText: { color: theme.colors.foreground, fontSize: theme.fontSize.content },
+  colleagueMessage: { alignSelf: "flex-start", maxWidth: "85%" },
+  colleagueBubble: { alignSelf: "flex-start", maxWidth: "100%" },
   assistant: { gap: theme.spacing[2] },
   fold: {
     paddingVertical: theme.spacing[1],

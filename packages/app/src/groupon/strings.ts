@@ -525,3 +525,16 @@ export const GROUPON_IMPROVE = {
     "A step that does not fit this repository is skipped and named in the pull request, never forced.",
   ].join("\n"),
 } as const;
+
+export const GROUPON_AUTHOR = {
+  /** A message whose writer the window cannot name. */
+  someone: "Someone",
+  /** A colleague's message whose writer's name the window does not have. */
+  colleague: "A colleague",
+  chip: (name: string, device: string | null) => (device ? `${name} · ${device}` : name),
+  chipLabel: (chip: string) => `Written by ${chip}`,
+  legendTitle: "In the chat",
+  you: "you",
+  colleagueLegend: "colleague",
+  agent: "agent",
+} as const;

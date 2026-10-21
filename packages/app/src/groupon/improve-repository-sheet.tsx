@@ -131,6 +131,7 @@ function useImproveChoice(context: ImproveRequestContext) {
     context,
     lastActiveProject,
     lastRepositoryId,
+    macs: macOptions,
   });
   const entry = entries.find((row) => row.id === (pickedRepositoryId ?? preselected)) ?? null;
   const holding = useMemo(() => improveMacs(entry, macOptions), [entry, macOptions]);

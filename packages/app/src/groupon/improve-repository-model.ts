@@ -7,7 +7,8 @@
  *
  * Responsibilities:
  * - `requestedRepositoryId`: the repository the sheet opens on (the row or page it was opened
- *   from, else where the person is, else the repository chosen last)
+ *   from, else where the person is, else the repository chosen last, else the first repository a
+ *   serving Mac holds), so the home tile never opens on an empty field with Start greyed
  * - `improveMacs`, `improveMacServerId`, `improveChosenMac`, `improveMacProblem`: only Macs holding the repository;
  *   only a serving one (its hand running) can be chosen; why none can
  * - `improvePrompt`: the repository's `[prompts] improve_repository`, else the window's default
@@ -56,7 +57,8 @@ export interface ImproveRequestContext {
 /**
  * The repository the sheet opens on: the project it was opened from (by its view key, else by the
  * checkout's Mac and path), else New workspace's own preselection (where the person is, else the
- * repository chosen last); null when nothing says.
+ * repository chosen last), else the first repository a serving Mac holds (this Mac first, then
+ * the Mac picker's order); null only when no serving Mac holds any.
  */
 export function requestedRepositoryId(input: {
   entries: readonly RepositoryEntry[];
@@ -64,6 +66,7 @@ export function requestedRepositoryId(input: {
   context: ImproveRequestContext;
   lastActiveProject: HostProjectListItem | null;
   lastRepositoryId: string | null;
+  macs: readonly MacPickerOption[];
 }): string | null {
   const { entries, context } = input;
   const viewKey = context.projectViewKey ?? null;
@@ -78,12 +81,30 @@ export function requestedRepositoryId(input: {
     const byPath = entries.find((entry) => entry.checkouts.some(matches));
     if (byPath) return byPath.id;
   }
-  return preselectedRepositoryId({
+  const preselected = preselectedRepositoryId({
     entries,
     routeProject: null,
     lastActiveProject: input.lastActiveProject,
     lastRepositoryId: input.lastRepositoryId,
   });
+  return preselected ?? firstServedRepositoryId(entries, input.macs);
+}
+
+/** The first repository a serving Mac holds, this Mac first (the Mac picker's order otherwise). */
+function firstServedRepositoryId(
+  entries: readonly RepositoryEntry[],
+  macs: readonly MacPickerOption[],
+): string | null {
+  const serving = macs.filter((mac) => mac.selectable && mac.serverId !== null);
+  const ordered = [
+    ...serving.filter((mac) => mac.isThisMac),
+    ...serving.filter((mac) => !mac.isThisMac),
+  ];
+  for (const mac of ordered) {
+    const held = entries.find((entry) => checkoutOnMac(entry, mac) !== null);
+    if (held) return held.id;
+  }
+  return null;
 }
 
 /** A Mac that holds the repository, as the sheet lists it. */

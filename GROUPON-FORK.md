@@ -318,4 +318,7 @@ from `.groupon/desk.toml` (read through the plugin's `groupon.project-settings`,
 `[prompts]` key through), else the window's default, `GROUPON_IMPROVE.defaultPrompt` in
 `groupon/strings.ts`: `groupon standards adopt` and `groupon standards pull`, `.groupon/desk.toml`,
 one command each to set up, run and validate with a short Start here, file headers, and one pull
-request by the repository's own convention, never merged. The workspace then shows as any other.
+request by the repository's own convention, never merged. The workspace then shows as any other. The home tile, opened from nowhere in
+particular, preselects like the rest: the last workspace's repository, else the repository chosen
+last, else the first repository a serving Mac holds (this Mac first), and its Mac by the sheet's own
+rule, so Start is never greyed for want of a choice the window could make.

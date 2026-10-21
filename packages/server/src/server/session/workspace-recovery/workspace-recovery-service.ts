@@ -1,6 +1,8 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace archived on a shared trunk is restored from the trunk's current head.
 import { randomUUID } from "node:crypto";
 import { basename } from "node:path";
 
+import { trunkRestoreSource } from "../../../groupon/train-archived.js";
 import { resolveRepositoryDefaultBranch } from "../../../utils/checkout-git.js";
 import { createRealpathAwarePathMatcher } from "../../../utils/path.js";
 import { runGitCommand } from "../../../utils/run-git-command.js";
@@ -151,13 +153,18 @@ export function createWorkspaceRecoveryService(deps: {
     workspace: PersistedWorkspaceRecord,
     sourceRepoRoot: string,
   ): Promise<void> {
-    const source: WorktreeSource = workspace.branch
-      ? { kind: "restore", branchName: workspace.branch, baseRef: workspace.baseBranch }
-      : {
-          kind: "restore-from-base",
-          branchName: `restored/${randomUUID().slice(0, 8)}`,
-          baseRef: await resolveRecoveryBase(sourceRepoRoot, workspace.baseBranch),
-        };
+    // Groupon Desk: a workspace on a shared trunk comes back on a fresh branch cut from the
+    // trunk's current head (`groupon/train-archived.ts`).
+    const trunkSource = await trunkRestoreSource(workspace, sourceRepoRoot);
+    const source: WorktreeSource =
+      trunkSource ??
+      (workspace.branch
+        ? { kind: "restore", branchName: workspace.branch, baseRef: workspace.baseBranch }
+        : {
+            kind: "restore-from-base",
+            branchName: `restored/${randomUUID().slice(0, 8)}`,
+            baseRef: await resolveRecoveryBase(sourceRepoRoot, workspace.baseBranch),
+          });
 
     try {
       await runGitCommand(["worktree", "prune"], { cwd: sourceRepoRoot, timeout: 30_000 });

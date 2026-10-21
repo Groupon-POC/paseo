@@ -153,7 +153,7 @@ export const GROUPON_REPOSITORY_PICKER = {
 export const GROUPON_TRAIN_ARCHIVED = {
   title: "Archived by a release train",
   intro:
-    "Before 2026-10-20 a workspace could be matched to the release train's pull request (head staging) and was archived when the train merged. These are the ones each Mac archived that way; Restore brings one back, its worktree recreated from its branch.",
+    "Before 2026-10-20 a workspace could be matched to the release train's pull request (head staging) and was archived when the train merged. Listed here per Mac: every archived workspace on a shared trunk (staging, production, main, the default branch), and every one whose pull request's head was a trunk. Restore brings one back; a removed worktree on a trunk is recreated from the trunk's current head, any other from its branch.",
   restore: "Restore",
   reading: "Reading the archived workspaces",
   none: "None archived by a release train.",

@@ -190,12 +190,21 @@ opens: the company's branch standard is `<tribe>/<INITIATIVE-KEY>/<TICKET-KEY>-<
 pull-request prompt in the repository's `.groupon/desk.toml` already says so.
 
 The workspaces the release trains archived before this are listed per Mac in Settings > Groupon,
-"Archived by a release train" (`groupon/train-archived-section.tsx`): every archive record keeps
-the merged pull request's address, and the daemon answers which of them had a trunk as head
-(`groupon-desk.train-archived-workspaces`, a built-in RPC under the plugin id `groupon-desk`,
-answered by `session.ts` itself, `packages/server/src/groupon/train-archived.ts`). Restore is
-Paseo's own workspace recovery: it unarchives the record and recreates a removed worktree from its
-branch; a branch that is gone too cannot be restored, and Restore says so.
+"Archived by a release train" (`groupon/train-archived-section.tsx`), newest first with the archive
+date, answered by the daemon (`groupon-desk.train-archived-workspaces`, a built-in RPC under the
+plugin id `groupon-desk`, answered by `session.ts` itself, `packages/server/src/groupon/train-archived.ts`).
+Two shapes of record are listed: every archived workspace whose own branch is a shared trunk
+(`staging`, `production`, `main`, the repository's default branch, its base, desk.toml's target),
+whatever the record says of a pull request, because the daemons of 2026-10-20 archived those
+without keeping the address (measured 2026-10-21: three `staging` workspaces, none listed); and
+every workspace on its own branch whose record keeps the merged pull request's address and whose
+pull request had a trunk as head, asked of the forge once per pull request. Restore is Paseo's own
+workspace recovery: it unarchives the record and recreates a removed worktree from its branch; a
+branch that is gone too cannot be restored, and Restore says so. A removed worktree whose branch
+was the trunk itself is recreated on a fresh branch `restored/<trunk>-<id>` cut from the trunk's
+current head (origin's, fetched first; `trunkRestoreSource`, called from
+`server/session/workspace-recovery/workspace-recovery-service.ts`), since the trunk is usually
+checked out in the main checkout already.
 
 ## How Groupon Desk ships it
 

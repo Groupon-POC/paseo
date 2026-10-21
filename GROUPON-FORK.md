@@ -335,11 +335,14 @@ The window sends the signed-in person (`groupon/message-author-source.ts`, regis
 the hand sends the colleague the hub's command names for a shared prompt. The daemon keeps it on
 the user_message it records (`AgentManager.notePromptAuthor`), in memory only: a daemon restart
 rebuilds the timeline from the provider's history, and those messages come back with no author.
-The chat draws three looks (`groupon/message-author-model.ts`, `message-author.tsx`): your own
+The chat draws four looks (`groupon/message-author-model.ts`, `message-author.tsx`): your own
 prompts in Paseo's bubble, a colleague's on the left in the theme's `colleagueMessage` tint (the accent at 16 percent, `styles/theme.ts`) with a name chip
-("Carl Colleague · Mac app"), the agent's answers as before; a message with no author is the
-workspace owner's. The History reader takes the author from the hub's `senderUserId` and the device
-the colleague's window seals into the prompt; the Share screen carries the legend.
+("Carl Colleague · Mac app"), a message another agent sent through the hub (monorepo design section 19: the author's
+`device` is `"agent"`, its name "<workspace title> (agent)") on the left in the theme's `agentMessage`
+tint (violet at 16 percent with a 45 percent border, a shade per scheme, `styles/theme.ts`) with a bot
+icon on the name chip, whoever's user id it carries; the agent's answers as before; a message with
+no author is the workspace owner's. The History reader takes the author from the hub's `senderUserId` and the device
+the colleague's window seals into the prompt; the Share screen carries the legend (you / colleague / another agent / this agent).
 
 ## My tasks on the New workspace page
 

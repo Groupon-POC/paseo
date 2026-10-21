@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme (Paseo's dark surfaces, the Groupon green as the accent), first in the picker; the colleague's message tint (colleagueMessage, colleagueMessageBorder).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme (Paseo's dark surfaces, the Groupon green as the accent), first in the picker; the colleague's message tint (colleagueMessage, colleagueMessageBorder) and the other-agent tint (agentMessage, agentMessageBorder).
 import { withAlpha } from "@/groupon/message-author-model";
 import { Platform } from "react-native";
 import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
@@ -182,6 +182,17 @@ function colleagueMessageColors(accent: string) {
   };
 }
 
+// Groupon Desk: a message another agent sent through the hub (groupon/message-author.tsx), the same
+// 16 percent tint and 45 percent border as the colleague's but in violet, so it is told apart from
+// the accent's green (and from a theme whose accent is blue) in every theme. The violet is a shade
+// per scheme, picked to stay readable under the foreground in light and in dark.
+function agentMessageColors(violet: string) {
+  return {
+    agentMessage: withAlpha(violet, 0.16),
+    agentMessageBorder: withAlpha(violet, 0.45),
+  };
+}
+
 const lightStatusTints = statusTints(lightStatusColors, "1f"); // 12%
 const darkStatusTints = statusTints(darkStatusColors, "29"); // 16%
 
@@ -318,6 +329,7 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
     ...lightStatusTints,
     ...lightStatusDotColors,
     ...colleagueMessageColors(tint.accent),
+    ...agentMessageColors("#6d4fd6"),
 
     terminal: {
       background: tint.surface0,
@@ -451,6 +463,7 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
     ...darkStatusTints,
     ...darkStatusDotColors,
     ...colleagueMessageColors(tint.accent),
+    ...agentMessageColors("#9b8afb"),
 
     terminal: {
       background: tint.surface0,

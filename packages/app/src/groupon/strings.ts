@@ -574,10 +574,14 @@ export const GROUPON_AUTHOR = {
   someone: "Someone",
   /** A colleague's message whose writer's name the window does not have. */
   colleague: "A colleague",
+  /** A message from another agent whose workspace title the window does not have. */
+  anotherAgent: "Another agent",
   chip: (name: string, device: string | null) => (device ? `${name} · ${device}` : name),
   chipLabel: (chip: string) => `Written by ${chip}`,
+  agentChipLabel: (chip: string) => `Sent by another agent: ${chip}`,
   legendTitle: "In the chat",
   you: "you",
   colleagueLegend: "colleague",
-  agent: "agent",
+  anotherAgentLegend: "another agent",
+  agent: "this agent",
 } as const;

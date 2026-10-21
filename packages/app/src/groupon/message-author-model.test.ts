@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): who wrote a user message, how the chat draws it, and the author through the stream.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): who wrote a user message, how the chat draws it (four looks), and the author through the stream.
 import { describe, expect, it } from "vitest";
 import { applyStreamEvent, createUserMessage, reduceStreamUpdate } from "@/types/stream";
 import type { HubOverview } from "./hub";
@@ -71,6 +71,45 @@ describe("messageLook", () => {
     ).toMatchObject({
       kind: "colleague",
     });
+  });
+});
+
+describe("messageLook, another agent", () => {
+  const agent = { userId: "u-olga", name: "Billing fix (agent)", device: "agent" };
+
+  it("draws a message whose device is agent as the fourth look, the chip being the name alone", () => {
+    expect(
+      messageLook({ author: agent, viewerUserId: "u-carl", viewerOwnsWorkspace: false }),
+    ).toEqual({
+      kind: "agent",
+      chip: "Billing fix (agent)",
+      accessibilityLabel: "Sent by another agent: Billing fix (agent)",
+    });
+  });
+
+  it("draws it as another agent's even when it carries the viewer's own user id", () => {
+    expect(
+      messageLook({ author: agent, viewerUserId: "u-olga", viewerOwnsWorkspace: true }),
+    ).toMatchObject({ kind: "agent", chip: "Billing fix (agent)" });
+  });
+
+  it("names an agent whose name it lacks", () => {
+    expect(
+      messageLook({
+        author: { userId: "u-x", name: " ", device: "agent" },
+        viewerUserId: "u-olga",
+        viewerOwnsWorkspace: true,
+      }),
+    ).toMatchObject({ kind: "agent", chip: "Another agent" });
+  });
+
+  it("leaves a colleague green and the viewer's own message as it was", () => {
+    expect(
+      messageLook({ author: carl, viewerUserId: "u-olga", viewerOwnsWorkspace: true }),
+    ).toMatchObject({ kind: "colleague" });
+    expect(
+      messageLook({ author: olga, viewerUserId: "u-olga", viewerOwnsWorkspace: true }),
+    ).toEqual({ kind: "mine" });
   });
 });
 

@@ -121,12 +121,16 @@ function Body({ body, look }: { body: MessageBody; look: MessageLook }) {
   switch (body.kind) {
     case "message":
       if (body.role === "user") {
-        if (look.kind === "colleague") {
+        if (look.kind !== "mine") {
           return (
             <View style={styles.colleagueMessage}>
               <AuthorChip look={look} />
               <View
-                style={[styles.userBubble, authorStyles.colleagueBubble, styles.colleagueBubble]}
+                style={[
+                  styles.userBubble,
+                  look.kind === "agent" ? authorStyles.agentBubble : authorStyles.colleagueBubble,
+                  styles.colleagueBubble,
+                ]}
               >
                 <Text style={styles.userText} selectable>
                   {body.text}

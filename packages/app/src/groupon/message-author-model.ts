@@ -1,9 +1,10 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): who wrote a user message, and how the chat draws it, pure.
 
 /**
- * The three looks of a chat (the owner's word of 2026-10-21: "which user wrote what, like in a
+ * The four looks of a chat (the owner's word of 2026-10-21: "which user wrote what, like in a
  * chat app"): the signed-in person's own prompts in today's bubble, a colleague's in a second tint
- * with a name chip, the agent's answers as today. A prompt's author rides on Paseo's user_message
+ * with a name chip, a message another agent sent through the hub in a third tint with a bot icon
+ * on its chip, the agent's own answers as today. A prompt's author rides on Paseo's user_message
  * (`author`, set by the window from its signed-in person and by the hand for a hub prompt); in the
  * History reader it is the hub's `senderUserId`.
  *
@@ -16,7 +17,11 @@ import { GROUPON_AUTHOR } from "./strings";
 
 export type MessageLook =
   | { kind: "mine" }
-  | { kind: "colleague"; chip: string; accessibilityLabel: string };
+  | { kind: "colleague"; chip: string; accessibilityLabel: string }
+  | { kind: "agent"; chip: string; accessibilityLabel: string };
+
+/** The device a message another agent sent through the hub names (monorepo design section 19). */
+export const AGENT_DEVICE = "agent";
 
 export interface MessageLookInput {
   author: UserMessageAuthor | null | undefined;
@@ -33,8 +38,14 @@ function colleagueLook(name: string, device: string | null): MessageLook {
   return { kind: "colleague", chip, accessibilityLabel: GROUPON_AUTHOR.chipLabel(chip) };
 }
 
+function agentLook(name: string): MessageLook {
+  return { kind: "agent", chip: name, accessibilityLabel: GROUPON_AUTHOR.agentChipLabel(name) };
+}
+
 /**
- * Mine when the author is the person looking, or when there is no author and the person owns the
+ * Another agent's when the author's device is "agent" (the name already reads "<workspace title>
+ * (agent)", so the chip is the name alone), whoever's user id it carries; else
+ * mine when the author is the person looking, or when there is no author and the person owns the
  * workspace (every message from before authors was the owner's); anyone else's carries a chip.
  */
 export function messageLook(input: MessageLookInput): MessageLook {
@@ -42,6 +53,9 @@ export function messageLook(input: MessageLookInput): MessageLook {
   if (!author) {
     if (input.viewerOwnsWorkspace) return { kind: "mine" };
     return colleagueLook(input.ownerName?.trim() || GROUPON_AUTHOR.someone, null);
+  }
+  if (author.device?.trim() === AGENT_DEVICE) {
+    return agentLook(author.name.trim() || GROUPON_AUTHOR.anotherAgent);
   }
   if (viewerUserId !== null && author.userId === viewerUserId) return { kind: "mine" };
   return colleagueLook(

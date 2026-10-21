@@ -1,9 +1,11 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the author of a user message in the chat: whose it is, the colleague's tint and name chip, the legend.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the author of a user message in the chat: whose it is, the colleague's and another agent's tint and name chip, the legend.
 import type { UserMessageAuthor } from "@getpaseo/protocol/agent-types";
+import { Bot } from "lucide-react-native";
 import { memo } from "react";
 import { Platform, Text, View } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { getIsElectronRuntime } from "@/constants/layout";
+import type { Theme } from "@/styles/theme";
 import { authorOfViewer, messageLook, type MessageLook } from "./message-author-model";
 import { deviceName } from "./presence-model";
 import { useGrouponStore } from "./session";
@@ -28,11 +30,16 @@ export function useMessageLook(author: UserMessageAuthor | undefined): MessageLo
   return messageLook({ author, viewerUserId, viewerOwnsWorkspace: true });
 }
 
-/** The small name chip above a colleague's bubble: "Tomas Zaruba · Mac app". */
+const ThemedBot = withUnistyles(Bot, (theme: Theme) => ({ color: theme.colors.foregroundMuted }));
+
+/**
+ * The small name chip above a bubble that is not the person's own: "Tomas Zaruba · Mac app", or
+ * for another agent a bot icon and "<workspace title> (agent)".
+ */
 export const AuthorChip = memo(function AuthorChip({
   look,
 }: {
-  look: Extract<MessageLook, { kind: "colleague" }>;
+  look: Exclude<MessageLook, { kind: "mine" }>;
 }) {
   return (
     <View
@@ -40,6 +47,7 @@ export const AuthorChip = memo(function AuthorChip({
       accessibilityLabel={look.accessibilityLabel}
       testID="message-author-chip"
     >
+      {look.kind === "agent" ? <ThemedBot size={12} /> : null}
       <Text style={authorStyles.chipText} numberOfLines={1}>
         {look.chip}
       </Text>
@@ -47,7 +55,7 @@ export const AuthorChip = memo(function AuthorChip({
   );
 });
 
-/** One line on the Share screen: what the three looks mean. */
+/** One line on the Share screen: what the four looks mean. */
 export function AuthorLegend() {
   return (
     <View style={authorStyles.legend} testID="message-author-legend">
@@ -61,6 +69,10 @@ export function AuthorLegend() {
         <Text style={authorStyles.legendText}>{GROUPON_AUTHOR.colleagueLegend}</Text>
       </View>
       <View style={authorStyles.legendItem}>
+        <View style={[authorStyles.swatch, authorStyles.agentBubble]} />
+        <Text style={authorStyles.legendText}>{GROUPON_AUTHOR.anotherAgentLegend}</Text>
+      </View>
+      <View style={authorStyles.legendItem}>
         <View style={[authorStyles.swatch, authorStyles.swatchAgent]} />
         <Text style={authorStyles.legendText}>{GROUPON_AUTHOR.agent}</Text>
       </View>
@@ -69,9 +81,10 @@ export function AuthorLegend() {
 }
 
 /**
- * The colleague's look, laid over a user message's own styles: on the left like another person
- * in a chat app, in the theme's `colleagueMessage` tint (the accent, thinned in `styles/theme.ts`).
- * The person's own bubble keeps Paseo's `surface3`.
+ * The colleague's and another agent's looks, laid over a user message's own styles: on the left
+ * like another person in a chat app, in the theme's `colleagueMessage` tint (the accent, thinned in
+ * `styles/theme.ts`) or, for another agent, its `agentMessage` tint (violet). The person's own
+ * bubble keeps Paseo's `surface3`.
  */
 export const authorStyles = StyleSheet.create((theme) => ({
   colleagueContainer: { justifyContent: "flex-start" },
@@ -81,12 +94,20 @@ export const authorStyles = StyleSheet.create((theme) => ({
     borderWidth: 1,
     borderColor: theme.colors.colleagueMessageBorder,
   },
+  agentBubble: {
+    backgroundColor: theme.colors.agentMessage,
+    borderWidth: 1,
+    borderColor: theme.colors.agentMessageBorder,
+  },
   colleagueBubbleCorner: {
     borderTopRightRadius: theme.borderRadius["2xl"],
     borderTopLeftRadius: theme.borderRadius.sm,
   },
   colleagueTrailing: { alignSelf: "flex-start" },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
     alignSelf: "flex-start",
     maxWidth: "100%",
     marginBottom: theme.spacing[1],

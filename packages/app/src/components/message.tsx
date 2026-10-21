@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague draws in its own tint with a name chip (groupon/message-author.tsx).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague or another agent draws in its own tint with a name chip (groupon/message-author.tsx).
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
 import { AssistantForkMenu, type AssistantForkTarget } from "@/components/assistant-fork-menu";
@@ -408,7 +408,7 @@ export const UserMessage = memo(function UserMessage({
   author,
 }: UserMessageProps) {
   const look = useMessageLook(author);
-  const isColleague = look.kind === "colleague";
+  const isColleague = look.kind !== "mine";
   const isCompact = useIsCompactFormFactor();
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
@@ -458,10 +458,11 @@ export const UserMessage = memo(function UserMessage({
   const bubbleStyle = useMemo(
     () => [
       userMessageStylesheet.bubble,
-      isColleague ? authorStyles.colleagueBubble : null,
+      look.kind === "colleague" ? authorStyles.colleagueBubble : null,
+      look.kind === "agent" ? authorStyles.agentBubble : null,
       isColleague ? authorStyles.colleagueBubbleCorner : null,
     ],
-    [isColleague],
+    [isColleague, look.kind],
   );
   const imagePreviewContainerStyle = useMemo(
     () => [
@@ -495,7 +496,7 @@ export const UserMessage = memo(function UserMessage({
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
-        {look.kind === "colleague" ? <AuthorChip look={look} /> : null}
+        {look.kind !== "mine" ? <AuthorChip look={look} /> : null}
         <View style={bubbleStyle}>
           {hasImages ? (
             <View style={imagePreviewContainerStyle}>

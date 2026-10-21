@@ -108,7 +108,6 @@ export const GROUPON_YOUR_MACS = {
   connected: "Connected",
   connecting: "Connecting",
   notRunning: "Work hand not running",
-  thisMac: "This Mac",
   primary: "Primary",
   lastSeen: (ago: string) => `seen ${ago}`,
   refresh: "Refresh",
@@ -123,12 +122,18 @@ export const GROUPON_HELP = {
   reportProblem: "Report a problem",
 } as const;
 
+/**
+ * The green label after the name of the computer the window runs on, in every list of Macs (New
+ * workspace's picker and its "On <Mac>" button, Add project, Your Macs, Start a ticket): set apart
+ * from the grey caption under the name (owner, 2026-10-21).
+ */
+export const GROUPON_THIS_COMPUTER = "This computer";
+
 export const GROUPON_MAC_PICKER = {
   title: "Run on",
   label: "Mac",
   tooltip: "The Mac this workspace and its agent run on",
   on: (mac: string) => `On ${mac}`,
-  thisMac: "This Mac",
   connecting: "connecting",
   noHand: "hand not running",
   otherVault: "different vault",
@@ -143,7 +148,6 @@ export const GROUPON_ADD_TO_MAC = {
   githubTitle: "Clone on which Mac?",
   searchPlaceholder: "Search your Macs...",
   thisMac: "This Mac",
-  thisMacWith: (note: string) => `This Mac · ${note}`,
   noHandHere:
     "The hand on this Mac is not running. Press Work window in Groupon Desk, or run groupon desk serve install.",
   noHandCommand: "groupon desk serve install",
@@ -164,7 +168,6 @@ export const GROUPON_REPOSITORY_PICKER = {
   empty: "No repository on your Macs yet: add one with Add project, or clone one From GitHub.",
   noMatch: "No repository matches.",
   onNoMac: "on none of your Macs",
-  thisMac: "This Mac",
   holds: (path: string) => `has it at ${path}`,
   missing: "not on this Mac",
   missingCloneable: "not here yet: choose it to clone it",

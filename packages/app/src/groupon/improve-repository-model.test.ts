@@ -36,12 +36,13 @@ function mac(id: string, label: string, extra: Partial<MacPickerOption> = {}): M
     state: "connected",
     selectable: true,
     note: null,
+    badge: null,
     ...extra,
   };
 }
 
 /** This Mac (the Air, serving), the Mini in the office (serving), the Studio (no hand). */
-const AIR = mac("air", "MacBook Air", { isThisMac: true, note: "This Mac" });
+const AIR = mac("air", "MacBook Air", { isThisMac: true, badge: "This computer" });
 const MINI = mac("mini", "Mac Mini");
 const STUDIO = mac("studio", "Mac Studio", {
   serverId: null,

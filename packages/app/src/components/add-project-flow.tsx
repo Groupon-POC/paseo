@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu; with no connected host it points at Your Macs, not Add host; the first page lists the person's Macs from the hub, this Mac first even while its hand is not running (greyed with the reason and the command), and the flow opens on this Mac, never on another merely because it is the only one serving; it is also From GitHub's host step (`add-to-mac-model.ts`); Search for directory, Choose parent directory and Choose destination browse the Mac's folders a click at a time (groupon/folder-browser.tsx).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu; with no connected host it points at Your Macs, not Add host; the first page lists the person's Macs from the hub, this Mac first even while its hand is not running (greyed with the reason and the command), and the flow opens on this Mac, never on another merely because it is the only one serving; it is also From GitHub's host step (`add-to-mac-model.ts`); Search for directory, Choose parent directory and Choose destination browse the Mac's folders a click at a time (groupon/folder-browser.tsx); this Mac's row and the title carry the green "This computer" label.
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { router } from "expo-router";
 import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
@@ -36,6 +36,7 @@ import {
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { GitHubIcon } from "@/components/icons/github-icon";
 import { useGithubProjectStore } from "@/groupon/github-project-store";
+import { ThisComputerBadge } from "@/groupon/this-computer-badge";
 import { GROUPON_ADD_TO_MAC, GROUPON_GITHUB, GROUPON_YOUR_MACS } from "@/groupon/strings";
 import {
   addToMacStart,
@@ -128,6 +129,8 @@ interface FlowRowOption {
   id: string;
   title: string;
   subtitle: string | null;
+  /** Groupon Desk: the green "This computer" label after the title, on this Mac's row. */
+  badge?: string | null;
   icon: ComponentType<{ size?: number; color?: string }>;
   disabled?: boolean;
   /** Groupon Desk: under this Mac's greyed row, why and the command that starts its hand. */
@@ -225,12 +228,29 @@ function queryErrorText(input: QueryErrorInput): string | null {
   return null;
 }
 
-/** Groupon Desk: the chosen Mac as the hub names it, "This Mac" beside this Mac's name. */
-function macContextLabel(macRows: readonly AddToMacRow[], host: AddProjectHost | null): string {
-  if (!host) return "";
+/** Groupon Desk: the chosen Mac as the hub names it, the green "This computer" after this Mac's name. */
+function macContext(
+  macRows: readonly AddToMacRow[],
+  host: AddProjectHost | null,
+): { label: string; badge: string | null } {
+  if (!host) return { label: "", badge: null };
   const mac = macRows.find((row) => row.serverId === host.serverId);
-  if (!mac) return host.label;
-  return mac.isThisMac ? `${mac.label} · ${GROUPON_ADD_TO_MAC.thisMac}` : mac.label;
+  if (!mac) return { label: host.label, badge: null };
+  return { label: mac.label, badge: mac.badge };
+}
+
+function HostContextText({ context }: { context: { label: string; badge: string | null } }) {
+  return (
+    <Text style={styles.hostContext} numberOfLines={1}>
+      {context.label}
+      {context.badge ? (
+        <>
+          {" "}
+          <ThisComputerBadge badge={context.badge} />
+        </>
+      ) : null}
+    </Text>
+  );
 }
 
 function pageHostId(page: AddProjectPage): string | null {
@@ -326,9 +346,18 @@ function FlowRow({
         <MutedFlowIcon icon={option.icon} size={16} />
       </View>
       <View style={styles.rowText}>
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {option.title}
-        </Text>
+        {option.badge ? (
+          <View style={styles.rowTitleLine}>
+            <Text style={styles.rowTitle} numberOfLines={1}>
+              {option.title}
+            </Text>
+            <ThisComputerBadge badge={option.badge} testID={`${option.testID}-this-computer`} />
+          </View>
+        ) : (
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {option.title}
+          </Text>
+        )}
         {option.subtitle ? (
           <Text style={styles.rowSubtitle} numberOfLines={1}>
             {option.subtitle}
@@ -673,6 +702,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
             id: mac.id,
             title: mac.label,
             subtitle: mac.note,
+            badge: mac.badge,
             icon: mac.isThisMac ? Laptop : Server,
             disabled: !mac.selectable,
             testID: `add-project-flow-host-${mac.id}`,
@@ -1007,7 +1037,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
       githubError: currentGithubSearch?.error ?? null,
     });
   // Groupon Desk: the Mac named as the hub names it, "This Mac" beside this Mac's name.
-  const hostContextLabel = macContextLabel(macRows, host ?? null);
+  const hostContext = macContext(macRows, host ?? null);
   let preview: string | null = null;
   if (page.kind === "new-directory-name" && page.name.trim()) {
     preview = joinDirectoryPath(page.parentPath, page.name.trim());
@@ -1033,11 +1063,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
                 <Text style={styles.title} numberOfLines={1}>
                   {pageTitle(page, intent)}
                 </Text>
-                {host ? (
-                  <Text style={styles.hostContext} numberOfLines={1}>
-                    {hostContextLabel}
-                  </Text>
-                ) : null}
+                {host ? <HostContextText context={hostContext} /> : null}
               </View>
             </View>
             {page.kind === "method" && isNative ? (
@@ -1261,6 +1287,7 @@ const styles = StyleSheet.create((theme) => ({
   iconSlot: { width: 18, alignItems: "center" },
   rowText: { flex: 1, minWidth: 0 },
   rowTitle: { color: theme.colors.foreground, fontSize: theme.fontSize.base },
+  rowTitleLine: { flexDirection: "row", alignItems: "baseline", gap: theme.spacing[2] },
   rowSubtitle: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm, marginTop: 2 },
   preview: {
     color: theme.colors.foregroundMuted,

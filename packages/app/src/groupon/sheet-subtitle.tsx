@@ -9,11 +9,27 @@
 
 import { Text } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { ThisComputerBadge } from "./this-computer-badge";
 
-export function SheetSubtitle({ text, testID }: { text: string; testID?: string }) {
+export function SheetSubtitle({
+  text,
+  badge,
+  testID,
+}: {
+  text: string;
+  /** The green "This computer" after the text, when the sheet names this Mac. */
+  badge?: string | null;
+  testID?: string;
+}) {
   return (
     <Text style={styles.subtitle} numberOfLines={1} testID={testID}>
       {text}
+      {badge ? (
+        <>
+          {" "}
+          <ThisComputerBadge badge={badge} />
+        </>
+      ) : null}
     </Text>
   );
 }

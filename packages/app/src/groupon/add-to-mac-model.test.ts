@@ -19,7 +19,7 @@ import {
 import type { HubMachine, HubRepository } from "./hub";
 import type { HubMachineView } from "./hub-sync";
 import { macPickerOptions } from "./mac-picker-model";
-import { GROUPON_ADD_TO_MAC, GROUPON_MAC_PICKER } from "./strings";
+import { GROUPON_ADD_TO_MAC, GROUPON_MAC_PICKER, GROUPON_THIS_COMPUTER } from "./strings";
 
 function machine(id: string, name: string, overrides: Partial<HubMachine> = {}): HubMachine {
   return {
@@ -109,10 +109,11 @@ describe("addToMacRows", () => {
   it("lists this Mac first even while only another Mac serves, greyed with the reason and the command", () => {
     const rows = rowsOf(MEASURED, ["srv_mini"], "pro");
     expect(rows.map((row) => [row.label, row.selectable, row.note])).toEqual([
-      [PRO, false, GROUPON_ADD_TO_MAC.thisMacWith(GROUPON_MAC_PICKER.noHand)],
+      [PRO, false, GROUPON_MAC_PICKER.noHand],
       [MINI, true, null],
       [AIR, false, GROUPON_MAC_PICKER.noHand],
     ]);
+    expect(rows.map((row) => row.badge)).toEqual([GROUPON_THIS_COMPUTER, null, null]);
     expect(rows[0]).toMatchObject({
       isThisMac: true,
       serverId: null,
@@ -140,7 +141,8 @@ describe("addToMacRows", () => {
       id: "pro",
       selectable: true,
       serverId: "srv_pro",
-      note: GROUPON_ADD_TO_MAC.thisMac,
+      note: null,
+      badge: GROUPON_THIS_COMPUTER,
       reason: null,
       command: null,
     });
@@ -155,7 +157,8 @@ describe("addToMacRows", () => {
     expect(rows[0]).toMatchObject({
       id: "pro",
       selectable: false,
-      note: GROUPON_ADD_TO_MAC.thisMacWith(GROUPON_MAC_PICKER.connecting),
+      note: GROUPON_MAC_PICKER.connecting,
+      badge: GROUPON_THIS_COMPUTER,
       reason: null,
     });
   });
@@ -167,6 +170,8 @@ describe("addToMacRows", () => {
       ["mini", MINI, true],
     ]);
     expect(rows[0]?.command).toBe(GROUPON_ADD_TO_MAC.noHandCommand);
+    // The generic name already says it: no green label beside "This Mac".
+    expect(rows.map((row) => row.badge)).toEqual([null, null]);
   });
 
   it("adds no This Mac row outside the desktop app (the web build knows no Mac of its own)", () => {

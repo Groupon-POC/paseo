@@ -1,4 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): desktopPlacement "auto" opens on the side of the trigger with room and caps the height to it.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): ComboboxItem's labelBadge (the green "This computer" label after a Mac's name); desktopPlacement "auto" opens on the side of the trigger with room and caps the height to it.
+import { ThisComputerBadge } from "@/groupon/this-computer-badge";
 import {
   useCallback,
   useEffect,
@@ -231,6 +232,8 @@ export function SearchInput({
 
 export interface ComboboxItemProps {
   label: string;
+  /** Groupon Desk: the green label right after the label, before the description ("This computer"). */
+  labelBadge?: string | null;
   description?: string;
   kind?: "directory" | "file";
   leadingSlot?: ReactNode;
@@ -247,6 +250,7 @@ export interface ComboboxItemProps {
 
 export function ComboboxItem({
   label,
+  labelBadge,
   description,
   kind,
   leadingSlot,
@@ -305,9 +309,18 @@ export function ComboboxItem({
     >
       {leadingContent}
       <View style={itemContentStyle}>
-        <Text numberOfLines={1} style={styles.comboboxItemLabel}>
-          {label}
-        </Text>
+        {labelBadge ? (
+          <View style={styles.comboboxItemLabelRow}>
+            <Text numberOfLines={1} style={styles.comboboxItemLabel}>
+              {label}
+            </Text>
+            <ThisComputerBadge badge={labelBadge} />
+          </View>
+        ) : (
+          <Text numberOfLines={1} style={styles.comboboxItemLabel}>
+            {label}
+          </Text>
+        )}
         {description ? (
           <Text numberOfLines={1} style={styles.comboboxItemDescription}>
             {description}
@@ -1834,6 +1847,12 @@ const styles = StyleSheet.create((theme) => ({
   comboboxItemLabel: {
     fontSize: theme.fontSize.base,
     color: theme.colors.foreground,
+    flexShrink: 0,
+  },
+  comboboxItemLabelRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: theme.spacing[2],
     flexShrink: 0,
   },
   comboboxItemDescription: {

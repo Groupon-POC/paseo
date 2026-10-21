@@ -327,7 +327,7 @@ export function macRepositoryNote(
   let where: string = GROUPON_REPOSITORY_PICKER.missing;
   if (checkout) where = GROUPON_REPOSITORY_PICKER.holds(shortPath(checkout.path));
   else if (cloneTargetOf(entry)) where = GROUPON_REPOSITORY_PICKER.missingCloneable;
-  return mac.isThisMac ? `${GROUPON_REPOSITORY_PICKER.thisMac} · ${where}` : where;
+  return where;
 }
 
 /** The repository row's second line: the Macs that hold it (a host other than github.com first). */

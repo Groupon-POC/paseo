@@ -109,6 +109,7 @@ function MacOption({
   return (
     <ComboboxItem
       label={label}
+      labelBadge={mac?.badge}
       description={mac?.note ?? undefined}
       leadingSlot={leadingSlot}
       selected={selected}

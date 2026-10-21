@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the section is titled "Git projects" (owner, 2026-10-21) with an Add a project "+" in its header; "Shared with me" above the footer; the environment badge in the footer (wide) and the header (phone).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the section is titled "Git projects" (owner, 2026-10-21) with an Add a project "+" in its header; "Shared with me" above the footer; "Connected computers" above the limits; the environment badge in the footer (wide) and the header (phone).
 import { router } from "expo-router";
 import {
   CircleGauge,
@@ -41,6 +41,7 @@ import { SidebarAddProjectButton } from "@/components/sidebar/sidebar-add-projec
 import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
 import { GrouponEnvironmentBadge } from "@/groupon/environment-badge";
+import { ConnectedComputersSidebarSection } from "@/groupon/connected-computers";
 import { SharedWithMeSidebarSection } from "@/groupon/shared-sidebar";
 import { SidebarFooterIconHighlight } from "@/components/sidebar/sidebar-footer-icon-highlight";
 import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
@@ -448,6 +449,7 @@ function SidebarFooter({
     <UsageSidebarRoot>
       <View style={styles.footerContainer} testID="sidebar-footer">
         <SharedWithMeSidebarSection onBeforeNavigate={onBeforeNavigate} />
+        <ConnectedComputersSidebarSection />
         <SidebarFooterRows onBeforeNavigate={onBeforeNavigate} />
         <View style={styles.sidebarFooter} testID="sidebar-footer-bottom-line">
           <FooterIconButton

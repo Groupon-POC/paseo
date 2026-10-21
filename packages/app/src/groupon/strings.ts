@@ -612,3 +612,23 @@ export const GROUPON_AUTHOR = {
   anotherAgentLegend: "another agent",
   agent: "this agent",
 } as const;
+
+/**
+ * The sidebar's Connected computers, above the subscriptions' limits (owner, 2026-10-21): each
+ * of the person's Macs, a green dot while its hand reports, and on expanding one its CPU and RAM.
+ */
+export const GROUPON_COMPUTERS = {
+  heading: "Connected computers",
+  /** The green label after this computer's name; WW-85's `GROUPON_THIS_COMPUTER` says the same. */
+  thisComputer: "This computer",
+  online: "online",
+  offline: "offline",
+  cpu: "CPU",
+  memory: "RAM",
+  percent: (value: number) => `${value}%`,
+  seen: (ago: string) => `Offline, last seen ${ago}`,
+  /** Online through the window's connection, but no fresh reading: just started, or a hand older than the readings. */
+  noLoad: "Online; no CPU and RAM reading yet (an older hand sends none: groupon update).",
+  expand: (name: string) => `Show CPU and RAM of ${name}`,
+  collapse: (name: string) => `Hide CPU and RAM of ${name}`,
+} as const;

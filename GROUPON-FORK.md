@@ -465,6 +465,18 @@ signs in to production alone, the staging host included); a build that offers th
 (`environmentChoiceOffered`) shows STAGING or LOCAL while that Core is chosen, with Open PROD on the
 web, which opens the same page on `desk.livingsocial.com`.
 
+## Connected computers, in the sidebar
+
+Above the subscriptions' limits at the bottom of the sidebar (owner, 2026-10-21; WW-87), the
+person's Macs from the same hub list as Your Macs and New workspace's Mac picker
+(`groupon/connected-computers.tsx`, `groupon/connected-computers-model.ts`, mounted in
+`components/left-sidebar.tsx`'s footer): this computer first with the green "This computer", a
+green dot on a Mac online (its hand sent a load sample within 60 s, or the window holds a live
+connection to its daemon), and on pressing a Mac its CPU and RAM in use as quiet bars in the limits
+panel's style. The hand sends the sample every 10 s (monorepo design section 4b); while a Mac is
+open the section reads `/user/groupon_desk/machines` again every 10 s, otherwise the shared list's
+30 s cadence holds.
+
 ## Improve this repository
 
 The owner's word of 2026-10-20: "a solution for 'How to improve my repository', where a prompt

@@ -104,11 +104,16 @@ export type TicketOutcome =
       link: string;
     };
 
+/** Start a ticket's steps, in the order they run (the plugin's `shared/ticket.ts`, `TICKET_STEPS`). */
+export type TicketStep = "naming" | "grading" | "starting";
+
 export interface JobAnswer {
   jobId: string;
   kind: "github-clone" | "ticket-start";
   status: "running" | "done" | "failed";
   phase: string;
+  /** The step a ticket start is on; null for a download, absent from a plugin older than the steps. */
+  step?: TicketStep | null;
   error: string | null;
   clone: { checkoutPath: string; alreadyThere: boolean } | null;
   ticket: TicketOutcome | null;

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the model picker opens on the side of its trigger with room (desktopPlacement "auto").
 import {
   memo,
   useCallback,
@@ -1003,7 +1004,7 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
                 onRetryProvider={onRetryModelProvider}
                 isRetryingProvider={isRetryingModelProvider}
                 serverId={modelSelectorServerId}
-                desktopPlacement="top-start"
+                desktopPlacement="auto"
                 desktopMinWidth={360}
                 toolbar={modelToolbar}
               />

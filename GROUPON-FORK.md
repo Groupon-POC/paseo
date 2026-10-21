@@ -135,6 +135,16 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (`~/.groupon/paseo`) alone, never in `~/.paseo`.
 - **The Core a fresh install starts on.** Production in every release build, the web build
   included; the local Core only in a development bundle (`defaultEnvironmentId`).
+- **The model picker opens where there is room, and is never empty.** Visual pass 2026-10-21: on
+  New workspace the picker opened upward and the window's top edge clipped it. The composer's
+  model picker (`desktopPlacement="auto"` in `components/ui/combobox.tsx`) opens below its trigger
+  when the trigger sits in the window's upper half, above it otherwise, and its height is capped
+  to the room on that side so the list scrolls inside it (`groupon/popover-placement.ts`,
+  `components/ui/combobox-frame-style.ts`). The form preselects the agent last used on this device
+  (Paseo's form preferences, the source Improve this repository reads), else Claude, else the first
+  agent this Mac can start, with the model used last for it, else the agent's default model; an
+  agent this Mac cannot start is replaced the same way (`groupon/default-agent-selection.ts`,
+  `provider-selection/resolve-agent-form.ts`).
 
 ## The web build under a strict Content Security Policy
 

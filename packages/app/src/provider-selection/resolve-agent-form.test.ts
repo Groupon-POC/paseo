@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the form is never empty, so the first-open cases and the fallback chain are tested here.
 import { describe, expect, it } from "vitest";
 import {
   resolveAgentForm,
@@ -386,7 +387,7 @@ describe("buildProviderDefinitions", () => {
 });
 
 describe("resolveFormState", () => {
-  it("keeps provider, mode, and model unset on first open without preferences or explicit values", () => {
+  it("preselects Claude on first open without preferences or explicit values", () => {
     const resolved = resolveFormState(
       undefined,
       {},
@@ -397,10 +398,94 @@ describe("resolveFormState", () => {
       bothProviderMap,
     );
 
-    expect(resolved.provider).toBeNull();
-    expect(resolved.modeId).toBe("");
+    expect(resolved.provider).toBe("claude");
+    expect(resolved.modeId).toBe("default");
     expect(resolved.model).toBe("");
     expect(resolved.thinkingOptionId).toBe("");
+  });
+
+  it("preselects Claude with its default model once the models are known", () => {
+    const claudeModels: AgentModelDefinition[] = [
+      { provider: "claude", id: "opus", label: "Opus" },
+      { provider: "claude", id: "sonnet", label: "Sonnet", isDefault: true },
+    ];
+    const resolved = resolveFormState(
+      undefined,
+      {},
+      claudeModels,
+      INITIAL_USER_MODIFIED,
+      makeState().form,
+      bothProviderMap,
+    );
+
+    expect(resolved.provider).toBe("claude");
+    expect(resolved.model).toBe("sonnet");
+  });
+
+  it("preselects the first startable agent when Claude is not among them", () => {
+    const resolved = resolveFormState(
+      undefined,
+      {},
+      CODEX_MODELS,
+      INITIAL_USER_MODIFIED,
+      makeState().form,
+      makeProviderMap(TEST_PI_DEFINITION, TEST_CODEX_DEFINITION),
+    );
+
+    expect(resolved.provider).toBe("pi");
+  });
+
+  it("keeps the agent used last when this Mac can start it", () => {
+    const resolved = resolveFormState(
+      undefined,
+      { provider: "codex", providerPreferences: { codex: { model: "gpt-5.3-codex" } } },
+      CODEX_MODELS,
+      INITIAL_USER_MODIFIED,
+      makeState().form,
+      bothProviderMap,
+    );
+
+    expect(resolved.provider).toBe("codex");
+    expect(resolved.model).toBe("gpt-5.3-codex");
+  });
+
+  it("falls back to Claude when the agent used last cannot be started here", () => {
+    const resolved = resolveFormState(
+      undefined,
+      { provider: "codex", providerPreferences: { codex: { model: "gpt-5.3-codex" } } },
+      null,
+      INITIAL_USER_MODIFIED,
+      makeState({ provider: "codex" }).form,
+      claudeProviderMap,
+    );
+
+    expect(resolved.provider).toBe("claude");
+  });
+
+  it("never replaces a provider the person cleared or picked", () => {
+    const cleared = resolveFormState(
+      undefined,
+      {},
+      null,
+      { ...INITIAL_USER_MODIFIED, provider: true },
+      makeState().form,
+      bothProviderMap,
+    );
+
+    expect(cleared.provider).toBeNull();
+  });
+
+  it("leaves the form unset when no agent can be started at all", () => {
+    const resolved = resolveFormState(
+      undefined,
+      {},
+      null,
+      INITIAL_USER_MODIFIED,
+      makeState().form,
+      new Map(),
+    );
+
+    expect(resolved.provider).toBeNull();
   });
 
   it("does not auto-select a model on fresh drafts without preferences", () => {
@@ -504,7 +589,7 @@ describe("resolveFormState", () => {
     expect(resolved.thinkingOptionId).toBe("low");
   });
 
-  it("preserves the remembered provider when it is absent from the available catalogue", () => {
+  it("replaces a remembered provider that is absent from the available catalogue", () => {
     const resolved = resolveFormState(
       undefined,
       { provider: "codex" },
@@ -515,7 +600,7 @@ describe("resolveFormState", () => {
       claudeProviderMap,
     );
 
-    expect(resolved.provider).toBe("codex");
+    expect(resolved.provider).toBe("claude");
   });
 
   it("preserves a user-selected provider and model while that provider is loading during refresh", () => {
@@ -645,7 +730,7 @@ describe("resolveFormState", () => {
     expect(resolved.modeId).toBe("auto");
   });
 
-  it("preserves saved intent even when a provider is disabled", () => {
+  it("replaces a saved provider that is disabled with one this Mac can start", () => {
     const entries: ProviderSnapshotEntry[] = [
       {
         provider: "codex",
@@ -683,8 +768,8 @@ describe("resolveFormState", () => {
       selectableProviderMap,
     );
 
-    expect(resolved.provider).toBe("claude");
-    expect(resolved.modeId).toBe("");
+    expect(resolved.provider).toBe("codex");
+    expect(resolved.modeId).toBe("auto");
   });
 
   it("excludes disabled providers from the selectable provider map without removing them from snapshot definitions", () => {

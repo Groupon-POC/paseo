@@ -193,7 +193,12 @@ describe("Improve this repository: the Mac", () => {
 });
 
 describe("Improve this repository: the repository it opens on", () => {
-  const base = { entries: ENTRIES, projects: [PROJECT_ON_MINI], lastActiveProject: null };
+  const base = {
+    entries: ENTRIES,
+    projects: [PROJECT_ON_MINI],
+    lastActiveProject: null,
+    macs: MACS,
+  };
 
   it("opens on the sidebar row's repository, by the project's view key", () => {
     expect(
@@ -227,7 +232,62 @@ describe("Improve this repository: the repository it opens on", () => {
     expect(requestedRepositoryId({ ...base, context: {}, lastRepositoryId: MONOREPO.id })).toBe(
       MONOREPO.id,
     );
-    expect(requestedRepositoryId({ ...base, context: {}, lastRepositoryId: null })).toBeNull();
+  });
+
+  it("opens from the home tile with no last workspace and no last choice on the first repository a serving Mac holds, this Mac first", () => {
+    // The 2026-10-21 pass: a fresh window, no workspace opened yet, nothing chosen before.
+    const studioFirst = [ON_STUDIO, NOWHERE, INFRA, MONOREPO];
+    expect(
+      requestedRepositoryId({
+        ...base,
+        entries: studioFirst,
+        context: {},
+        lastRepositoryId: null,
+      }),
+    ).toBe(MONOREPO.id);
+    expect(
+      requestedRepositoryId({
+        ...base,
+        entries: studioFirst,
+        macs: [STUDIO, MINI, mac("air", "MacBook Air", { isThisMac: true, selectable: false })],
+        context: {},
+        lastRepositoryId: null,
+      }),
+    ).toBe(INFRA.id);
+    expect(
+      requestedRepositoryId({
+        ...base,
+        context: {},
+        lastRepositoryId: "repo:gone",
+      }),
+    ).toBe(MONOREPO.id);
+  });
+
+  it("opens on no repository only when no serving Mac holds one", () => {
+    expect(
+      requestedRepositoryId({
+        ...base,
+        entries: [ON_STUDIO, NOWHERE],
+        context: {},
+        lastRepositoryId: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("starts the home tile's repository on a serving Mac, so Start is not greyed for want of one", () => {
+    const id = requestedRepositoryId({
+      ...base,
+      context: {},
+      lastRepositoryId: null,
+    });
+    const chosen = ENTRIES.find((row) => row.id === id) ?? null;
+    const holding = improveMacs(chosen, MACS);
+    const serverId = improveMacServerId(holding, null);
+    expect(serverId).toBe("srv_air");
+    expect(improveMacProblem(chosen, holding)).toBeNull();
+    expect(improveChosenMac(holding, serverId)?.checkout.path).toBe(
+      "/Users/t/GitHub/engineering-development",
+    );
   });
 });
 

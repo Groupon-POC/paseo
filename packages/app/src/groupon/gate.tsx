@@ -23,6 +23,7 @@ import {
   normaliseCoreUrl,
   type GrouponEnvironmentId,
 } from "./environments";
+import { useHideShellEnvironmentBadge } from "./environment-badge";
 import { GrouponHubSync } from "./hub-sync";
 import { signedInMessageAuthor } from "./message-author";
 import { setMessageAuthorSource } from "./message-author-source";
@@ -50,6 +51,7 @@ function messageOf(error: unknown): string {
 export function GrouponGate({ children }: { children: ReactNode }) {
   const status = useGrouponStore((state) => state.status);
   const hydrate = useGrouponStore((state) => state.hydrate);
+  useHideShellEnvironmentBadge();
 
   useEffect(() => {
     void hydrate();

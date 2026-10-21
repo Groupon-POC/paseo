@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/setup-notice-courier.ts`).
 import { AgentDirectory } from "./agent/directory.js";
 import { searchTimeline } from "./agent/chat-search/index.js";
 import type { BrowserToolsBroker } from "./browser-tools/broker.js";
@@ -290,6 +290,14 @@ import {
 import { runGitCommand } from "../utils/run-git-command.js";
 import { CreateAgentLifecycleDispatch } from "./agent/create-agent-lifecycle-dispatch.js";
 import { resolveWorktreeSourceCwd } from "./workspace-source.js";
+import { formatSystemNotificationPrompt } from "./agent/agent-messages/index.js";
+import { setupNoticeCourierFor } from "../groupon/setup-notice-courier.js";
+import {
+  handLog,
+  readSetupState,
+  setupNoticeFor,
+  sleepFor,
+} from "../groupon/worktree-setup-state.js";
 
 type ProviderSubagentManagerEvent = Extract<
   AgentManagerEvent,
@@ -4379,6 +4387,11 @@ export class Session {
         throw new Error(`Working directory does not exist or is not a directory: ${resolvedCwd}`);
       }
 
+      const setupNotice = await this.setupNoticeForFirstPrompt(
+        trimmedPrompt,
+        resolvedCwd,
+        resolvedIntent.intent.workspaceId,
+      );
       const { snapshot, liveSnapshot, initialPromptStarted } = await createAgentCommand(
         {
           agentManager: this.agentManager,
@@ -4411,6 +4424,7 @@ export class Session {
           env,
           provisionalTitle,
           firstAgentContext,
+          promptPreamble: setupNotice?.line,
           buildSessionConfig: async (sessionConfig, gitOptions, legacyWorktreeName, ctx) =>
             createdWorktree
               ? {
@@ -4422,6 +4436,10 @@ export class Session {
         },
       );
       createdAgentId = snapshot.id;
+      this.followSetupNotice(setupNotice, initialPromptStarted, {
+        agentId: snapshot.id,
+        workspaceId: resolvedIntent.intent.workspaceId,
+      });
       await this.agentUpdates.forwardLiveAgent(snapshot);
       if (resolvedIntent.createdDirectoryWorkspace && trimmedPrompt) {
         this.workspaceAutoName.scheduleForDirectory(
@@ -4450,6 +4468,59 @@ export class Session {
       });
       throw error;
     }
+  }
+
+  /**
+   * Groupon Desk: the line a new agent's first prompt starts with while the worktree's setup still
+   * runs beside it (ledger WW-93), with the worktree to follow; null when there is no first prompt
+   * or nothing runs.
+   */
+  private async setupNoticeForFirstPrompt(
+    prompt: string | undefined,
+    cwd: string,
+    workspaceId: string,
+  ): Promise<{ line: string; root: string } | null> {
+    if (!prompt) return null;
+    const daemonSetupRunning = this.workspaceSetupSnapshots.get(workspaceId)?.status === "running";
+    return setupNoticeFor(cwd, daemonSetupRunning, Date.now()).catch(() => null);
+  }
+
+  /** Groupon Desk: an agent told the setup runs is told when it ends, once its first prompt went out. */
+  private followSetupNotice(
+    notice: { root: string } | null,
+    promptStarted: boolean,
+    agent: { agentId: string; workspaceId: string },
+  ): void {
+    if (!notice || !promptStarted) return;
+    void this.setupNoticeCourier().watch({ ...agent, root: notice.root });
+  }
+
+  /**
+   * Groupon Desk: the daemon's one courier of "Worktree ready" lines (ledger WW-93). Built from the
+   * daemon-wide agent manager and setup snapshots only, never from this session, which may close first.
+   */
+  private setupNoticeCourier() {
+    const agentManager = this.agentManager;
+    const snapshots = this.workspaceSetupSnapshots;
+    return setupNoticeCourierFor(agentManager, () => ({
+      read: (root) => readSetupState(root),
+      daemonSetupStatus: (workspaceId) => snapshots.get(workspaceId)?.status ?? null,
+      steer: async (agentId, line) =>
+        (await agentManager.steerAgentRun(agentId, formatSystemNotificationPrompt(line))).status ===
+        "accepted",
+      onTurnStarted: (listener) =>
+        agentManager.subscribe(
+          (event) => {
+            // After the dispatch that announced the turn, never inside it.
+            if (event.type === "agent_stream" && event.event.type === "turn_started")
+              setTimeout(() => listener(event.agentId), 0);
+          },
+          { replayState: false },
+        ),
+      now: Date.now,
+      sleep: (ms) => sleepFor(ms),
+      log: handLog,
+    }));
   }
 
   private async resolveSessionCreateAgentIntent(input: {

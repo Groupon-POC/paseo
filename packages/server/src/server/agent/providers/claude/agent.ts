@@ -1,5 +1,9 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): history replay renders only user and assistant entries, never Claude Code's api-request-blob or another bookkeeping entry that carries a `message`.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): history replay renders only user and assistant entries, never Claude Code's api-request-blob or another bookkeeping entry that carries a `message`; a Bash call that installs, builds or tests waits while the worktree's setup runs (`groupon/worktree-setup-state.ts`, ledger WW-93).
 import { validateProviderOptions } from "../../provider-options.js";
+import {
+  realSetupWaitHook,
+  SETUP_WAIT_HOOK_TIMEOUT_S,
+} from "../../../../groupon/worktree-setup-state.js";
 import type { ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
@@ -3564,7 +3568,7 @@ class ClaudeAgentSession implements AgentSession {
       // subagents keep running. Without this declaration an interrupt kills every one of them.
       // Claude stops a helper itself with its TaskStop tool.
       perTaskStopAffordance: true,
-      hooks: this.buildSubagentEffortHooks(),
+      hooks: this.buildHooks(),
       ...(this.persistSession === undefined ? {} : { persistSession: this.persistSession }),
       env: sdkEnv,
     };
@@ -5125,6 +5129,24 @@ class ClaudeAgentSession implements AgentSession {
    * These are observation-only: they record what they see and always return an empty result, so
    * they can never alter tool execution or turn control.
    */
+  /**
+   * Groupon Desk: the effort observers, and for a person's agent the setup wait: a Bash call that
+   * installs, builds or tests waits while the worktree's setup (`groupon desk repo setup`) still
+   * runs, at most five minutes, then runs (ledger WW-93). An internal agent does daemon work and
+   * never waits.
+   */
+  private buildHooks(): NonNullable<ClaudeOptions["hooks"]> {
+    const hooks = this.buildSubagentEffortHooks();
+    if (this.config.internal === true) return hooks;
+    return {
+      ...hooks,
+      PreToolUse: [
+        ...(hooks.PreToolUse ?? []),
+        { matcher: "Bash", hooks: [realSetupWaitHook()], timeout: SETUP_WAIT_HOOK_TIMEOUT_S },
+      ],
+    };
+  }
+
   private buildSubagentEffortHooks(): NonNullable<ClaudeOptions["hooks"]> {
     const observe = async (input: unknown): Promise<Record<string, never>> => {
       try {

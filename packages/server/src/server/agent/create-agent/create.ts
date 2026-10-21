@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a session-created agent's first prompt can carry a line before the person's words (`promptPreamble`), which the agent reads and the transcript does not show as theirs.
 import type { AgentPromptSource } from "../agent-messages/index.js";
 import type { Logger } from "pino";
 
@@ -27,6 +28,7 @@ import {
   emitLiveTimelineItemIfAgentKnown,
 } from "../timeline-append.js";
 import { resolveCreateAgentIntent } from "./intent.js";
+import { withPromptPreamble } from "../../../groupon/worktree-setup-state.js";
 
 export interface CreateAgentSessionWorktreeResult {
   sessionConfig: AgentSessionConfig;
@@ -73,6 +75,8 @@ export interface CreateAgentFromSessionInput {
   env?: Record<string, string>;
   provisionalTitle: string | null;
   firstAgentContext: FirstAgentContext;
+  /** Groupon Desk: a line put before the first prompt for the agent (the worktree's setup still runs), never shown as the person's words. */
+  promptPreamble?: string;
   buildSessionConfig: (
     config: AgentSessionConfig,
     gitOptions?: GitSetupOptions,
@@ -274,8 +278,13 @@ async function resolveSessionCreateAgent(
     modeId: resolvedCreateConfig.modeId,
     featureValues: resolvedCreateConfig.featureValues,
   };
-  const prompt = buildAgentPrompt(trimmedPrompt ?? "", input.images, input.attachments);
-  const hasPromptContent = Array.isArray(prompt) ? prompt.length > 0 : prompt.length > 0;
+  const typedPrompt = buildAgentPrompt(trimmedPrompt ?? "", input.images, input.attachments);
+  const hasPromptContent = Array.isArray(typedPrompt)
+    ? typedPrompt.length > 0
+    : typedPrompt.length > 0;
+  const prompt = input.promptPreamble
+    ? withPromptPreamble(input.promptPreamble, typedPrompt)
+    : typedPrompt;
   const clientMessageId = normalizeClientMessageId(input.clientMessageId);
   const runOptions: AgentRunOptions | undefined =
     input.outputSchema || clientMessageId

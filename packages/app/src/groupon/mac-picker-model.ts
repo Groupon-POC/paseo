@@ -13,6 +13,7 @@
  * - which can be chosen: a connected Mac only (Your Macs' `connected`); every other Mac is listed
  *   greyed with a short reason ("hand not running", "connecting", "different vault")
  * - the Mac chosen by default: this Mac when it is connected, else Paseo's own choice
+ * - the green "This computer" label on this Mac only, apart from the grey caption (`badge`)
  * - the trigger's text, "On <Mac>"
  *
  * Constraints:
@@ -21,7 +22,7 @@
  */
 
 import type { HubMachineView } from "./hub-sync";
-import { GROUPON_MAC_PICKER } from "./strings";
+import { GROUPON_MAC_PICKER, GROUPON_THIS_COMPUTER } from "./strings";
 import { yourMacRows, type YourMacState } from "./your-macs-model";
 
 /** Your Macs' state of the Mac, or `stored` for a registry host no hub Mac stands behind. */
@@ -40,8 +41,10 @@ export interface MacPickerOption {
   isThisMac: boolean;
   state: MacPickerState;
   selectable: boolean;
-  /** The greyed reason under a Mac that cannot be chosen, or "This Mac"; null otherwise. */
+  /** The grey caption under the name: why the Mac cannot be chosen; null otherwise. */
   note: string | null;
+  /** The green label after the name, "This computer", on this Mac only; null on every other. */
+  badge: string | null;
 }
 
 const NOTE_BY_STATE: Record<Exclude<YourMacState, "connected">, string> = {
@@ -50,6 +53,19 @@ const NOTE_BY_STATE: Record<Exclude<YourMacState, "connected">, string> = {
   otherVault: GROUPON_MAC_PICKER.otherVault,
   failed: GROUPON_MAC_PICKER.failed,
 };
+
+/** The green label of the computer the window runs on; null for any other Mac. */
+export function thisComputerBadge(isThisMac: boolean): string | null {
+  return isThisMac ? GROUPON_THIS_COMPUTER : null;
+}
+
+/** The green label for a host (Start a ticket names one by server id) when it is this Mac's daemon. */
+export function thisComputerBadgeForHost(
+  views: readonly HubMachineView[],
+  serverId: string,
+): string | null {
+  return thisComputerBadge(views.some((view) => view.thisMac && view.serverId === serverId));
+}
 
 /** A host in Paseo's registry: its server id and the label the registry keeps for it. */
 export interface RegistryHost {
@@ -83,7 +99,8 @@ export function macPickerOptions(
       isThisMac: row.isThisMac,
       state: row.state,
       selectable,
-      note: reason ?? (row.isThisMac ? GROUPON_MAC_PICKER.thisMac : null),
+      note: reason,
+      badge: thisComputerBadge(row.isThisMac),
     };
   });
   if (!includeStoredHosts) return macs;
@@ -102,6 +119,7 @@ export function macPickerOptions(
         state: "stored",
         selectable: isOnline(host.serverId),
         note: GROUPON_MAC_PICKER.storedHost,
+        badge: null,
       }),
     );
   return [...macs, ...stored];
@@ -123,4 +141,12 @@ export function macPickerTriggerLabel(
 ): string {
   const chosen = options.find((option) => option.serverId === selectedServerId);
   return GROUPON_MAC_PICKER.on(chosen?.label ?? GROUPON_MAC_PICKER.unknownMac);
+}
+
+/** The green "This computer" after the "On <Mac>" text when the chosen host is this Mac; else null. */
+export function macPickerTriggerBadge(
+  options: readonly MacPickerOption[],
+  selectedServerId: string,
+): string | null {
+  return options.find((option) => option.serverId === selectedServerId)?.badge ?? null;
 }

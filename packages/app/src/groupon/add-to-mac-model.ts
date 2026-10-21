@@ -13,7 +13,7 @@
  * - `addToMacRows`: one row per Mac from the hub, this Mac first, always, named by the hub; a Mac
  *   that cannot take the project now is greyed with the reason; this Mac without its hand says so
  *   in one sentence with the way out and the command to copy; a desktop window whose Mac the hub
- *   does not list yet still shows a "This Mac" row, greyed
+ *   does not list yet still shows a "This Mac" row, greyed; this Mac, by its own name, carries the green "This computer" label
  * - `addToMacStart` / `openAddToMacFlow`: where the chooser opens: the method page of the Mac the
  *   caller named, else of this Mac when it is serving, with the list of Macs one Back away; From
  *   GitHub always on the list; never on another Mac merely because it is the only one serving
@@ -36,7 +36,7 @@ import {
 import type { HubCheckout, HubRepository } from "./hub";
 import type { MacPickerOption, MacPickerState } from "./mac-picker-model";
 import { normaliseRemote } from "./repository-picker-model";
-import { GROUPON_ADD_TO_MAC, GROUPON_MAC_PICKER } from "./strings";
+import { GROUPON_ADD_TO_MAC, GROUPON_MAC_PICKER, GROUPON_THIS_COMPUTER } from "./strings";
 
 /** Add project's own chooser, or From GitHub's host step. */
 export type AddToMacIntent = "project" | "github";
@@ -50,8 +50,10 @@ export interface AddToMacRow {
   serverId: string | null;
   isThisMac: boolean;
   selectable: boolean;
-  /** The short line under the name: "This Mac", "hand not running", "This Mac · connecting". */
+  /** The grey line under the name: "hand not running", "connecting"; null for a Mac that can be chosen. */
   note: string | null;
+  /** The green label after the name, "This computer", on this Mac only. */
+  badge: string | null;
   /** This Mac without its hand: the sentence with the way out; null otherwise. */
   reason: string | null;
   /** The command the reason names, for its Copy button; null otherwise. */
@@ -76,9 +78,7 @@ function reasonOf(mac: MacPickerOption, selectable: boolean): string | null {
 }
 
 function noteOf(mac: MacPickerOption, selectable: boolean): string | null {
-  const reason = reasonOf(mac, selectable);
-  if (!mac.isThisMac) return reason;
-  return reason ? GROUPON_ADD_TO_MAC.thisMacWith(reason) : GROUPON_ADD_TO_MAC.thisMac;
+  return reasonOf(mac, selectable);
 }
 
 function thisMacWithoutHand(id: string, label: string): AddToMacRow {
@@ -88,7 +88,9 @@ function thisMacWithoutHand(id: string, label: string): AddToMacRow {
     serverId: null,
     isThisMac: true,
     selectable: false,
-    note: GROUPON_ADD_TO_MAC.thisMacWith(GROUPON_MAC_PICKER.noHand),
+    note: GROUPON_MAC_PICKER.noHand,
+    // The generic name already says it; a Mac with its own name gets the green label.
+    badge: label === GROUPON_ADD_TO_MAC.thisMac ? null : GROUPON_THIS_COMPUTER,
     reason: GROUPON_ADD_TO_MAC.noHandHere,
     command: GROUPON_ADD_TO_MAC.noHandCommand,
   };
@@ -114,6 +116,7 @@ export function addToMacRows(input: AddToMacRowsInput): AddToMacRow[] {
       isThisMac: mac.isThisMac,
       selectable,
       note: noteOf(mac, selectable),
+      badge: mac.badge,
       reason: null,
       command: null,
     };

@@ -40,6 +40,8 @@ import {
   startProblem,
   type Choice,
 } from "./start-ticket-model";
+import { useHubMachinesStore } from "./hub-sync";
+import { thisComputerBadgeForHost } from "./mac-picker-model";
 import { SheetSubtitle } from "./sheet-subtitle";
 import { GROUPON_TICKET } from "./strings";
 
@@ -185,6 +187,8 @@ function StartTicketSheet({
   const { serverId } = initial;
   const client = useHostRuntimeClient(serverId);
   const hostLabel = useHosts().find((host) => host.serverId === serverId)?.label ?? serverId;
+  const hubViews = useHubMachinesStore((state) => state.machines);
+  const hostBadge = thisComputerBadgeForHost(hubViews, serverId);
   const serverIds = useMemo(() => [serverId], [serverId]);
   const projects = useHostProjects(serverIds);
   const repositories = useMemo(() => repositoryChoices(projects, serverId), [projects, serverId]);
@@ -292,9 +296,9 @@ function StartTicketSheet({
   const header = useMemo<SheetHeader>(
     () => ({
       title: GROUPON_TICKET.title,
-      subtitle: <SheetSubtitle text={`${GROUPON_TICKET.on} ${hostLabel}`} />,
+      subtitle: <SheetSubtitle text={`${GROUPON_TICKET.on} ${hostLabel}`} badge={hostBadge} />,
     }),
-    [hostLabel],
+    [hostBadge, hostLabel],
   );
 
   return (

@@ -287,9 +287,7 @@ describe("macRepositoryNote", () => {
     expect(macRepositoryNote(mini!, infra)).toBe(
       GROUPON_REPOSITORY_PICKER.holds("~/Documents/GitHub/infra-development"),
     );
-    expect(macRepositoryNote(air!, infra)).toBe(
-      `${GROUPON_REPOSITORY_PICKER.thisMac} · ${GROUPON_REPOSITORY_PICKER.missingCloneable}`,
-    );
+    expect(macRepositoryNote(air!, infra)).toBe(GROUPON_REPOSITORY_PICKER.missingCloneable);
   });
 
   it("keeps the hand's reason on a Mac that cannot be chosen", () => {
@@ -298,7 +296,7 @@ describe("macRepositoryNote", () => {
 
   it("does not offer a clone of a folder with no remote", () => {
     expect(macRepositoryNote(air!, byId(`folder:${SCRATCH.viewKey}`))).toBe(
-      `${GROUPON_REPOSITORY_PICKER.thisMac} · ${GROUPON_REPOSITORY_PICKER.missing}`,
+      GROUPON_REPOSITORY_PICKER.missing,
     );
   });
 });

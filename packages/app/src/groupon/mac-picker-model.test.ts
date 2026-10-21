@@ -7,8 +7,14 @@
 import { describe, expect, it } from "vitest";
 import type { HubMachine } from "./hub";
 import type { HubMachineView } from "./hub-sync";
-import { defaultMacServerId, macPickerOptions, macPickerTriggerLabel } from "./mac-picker-model";
-import { GROUPON_MAC_PICKER } from "./strings";
+import {
+  defaultMacServerId,
+  macPickerOptions,
+  macPickerTriggerBadge,
+  macPickerTriggerLabel,
+  thisComputerBadgeForHost,
+} from "./mac-picker-model";
+import { GROUPON_MAC_PICKER, GROUPON_THIS_COMPUTER } from "./strings";
 
 function machine(id: string, overrides: Partial<HubMachine> = {}): HubMachine {
   return {
@@ -74,8 +80,47 @@ describe("macPickerOptions", () => {
       ["studio", "srv_studio", true],
     ]);
     expect(options[0]?.isThisMac).toBe(true);
-    expect(options[0]?.note).toBe(GROUPON_MAC_PICKER.thisMac);
+    expect(options[0]?.note).toBeNull();
     expect(options[1]?.note).toBeNull();
+  });
+
+  it("puts the green This computer label on this Mac only, apart from the grey caption", () => {
+    const options = macPickerOptions(
+      [
+        added("studio", { machine: machine("studio", { isPrimary: true }) }),
+        added("laptop", { direct: "127.0.0.1:6770" }),
+        view("old-mini"),
+      ],
+      online("srv_studio", "srv_laptop"),
+    );
+    expect(options.map((option) => [option.id, option.badge, option.note])).toEqual([
+      ["laptop", GROUPON_THIS_COMPUTER, null],
+      ["studio", null, null],
+      ["old-mini", null, GROUPON_MAC_PICKER.noHand],
+    ]);
+    expect(GROUPON_THIS_COMPUTER).toBe("This computer");
+  });
+
+  it("keeps the label on this Mac while its hand is not running, beside the reason", () => {
+    const [mac] = macPickerOptions([view("laptop", { thisMac: true })], online());
+    expect(mac).toMatchObject({
+      badge: GROUPON_THIS_COMPUTER,
+      note: GROUPON_MAC_PICKER.noHand,
+      selectable: false,
+    });
+  });
+
+  it("names the label on the trigger and for a host by server id, this Mac only", () => {
+    const options = macPickerOptions(
+      [added("studio"), added("laptop", { direct: "127.0.0.1:6770" })],
+      online("srv_studio", "srv_laptop"),
+    );
+    expect(macPickerTriggerBadge(options, "srv_laptop")).toBe(GROUPON_THIS_COMPUTER);
+    expect(macPickerTriggerBadge(options, "srv_studio")).toBeNull();
+    expect(macPickerTriggerBadge(options, "srv_missing")).toBeNull();
+    const views = [added("studio"), added("laptop", { direct: "127.0.0.1:6770" })];
+    expect(thisComputerBadgeForHost(views, "srv_laptop")).toBe(GROUPON_THIS_COMPUTER);
+    expect(thisComputerBadgeForHost(views, "srv_studio")).toBeNull();
   });
 
   it("greys a Mac without a running hand: listed, with the reason, and not choosable", () => {
@@ -168,7 +213,7 @@ describe("one row per Mac", () => {
     expect(
       options.map((option) => [option.id, option.label, option.selectable, option.note]),
     ).toEqual([
-      ["mini", "Tomas - Mac Mini in Office Prague", true, GROUPON_MAC_PICKER.thisMac],
+      ["mini", "Tomas - Mac Mini in Office Prague", true, null],
       ["stored:srv_old_desktop", "CY2T43V547", false, GROUPON_MAC_PICKER.storedHost],
     ]);
   });

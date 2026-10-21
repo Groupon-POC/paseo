@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a project row's "+" (new workspace) always shows, as in Conductor; its menu offers Improve this repository.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a project row's "+" (new workspace) always shows, as in Conductor; its menu offers Improve this repository; a project's "+ New workspace" row is always under its last workspace, not only for a project with none.
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
   View,
@@ -137,6 +137,7 @@ import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useWorkspaceReadState } from "@/hooks/use-workspace-read-state";
 import type { PrHint } from "@/git/use-pr-status-query";
 import {
+  buildSidebarProjectChildrenModel,
   buildSidebarProjectRowModel,
   resolveSidebarProjectLocalPath,
   type SidebarProjectHostTarget,
@@ -1785,44 +1786,49 @@ function ProjectBlock({
     onToggleCollapsed(project.viewKey);
   }, [onToggleCollapsed, project.viewKey]);
 
+  const childrenModel = buildSidebarProjectChildrenModel({
+    collapsed,
+    workspaceCount: project.workspaces.length,
+    trailingAction: rowModel.trailingAction,
+  });
+  const newWorkspaceRow = childrenModel.newWorkspaceTarget ? (
+    <NewWorkspaceGhostRow
+      project={project}
+      displayName={displayName}
+      worktreeTarget={childrenModel.newWorkspaceTarget}
+      onWorkspacePress={onWorkspacePress}
+    />
+  ) : null;
   let projectChildren = null;
-  if (!collapsed) {
-    if (project.workspaces.length > 0) {
-      projectChildren = (
-        <>
-          <DraggableList
-            testID={`sidebar-workspace-list-${project.viewKey}`}
-            data={visibleWorkspaces}
-            keyExtractor={workspaceKeyExtractor}
-            renderItem={renderWorkspace}
-            onDragEnd={handleWorkspaceDragEnd}
-            extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
-            scrollEnabled={false}
-            useDragHandle
-            nestable={useNestable}
-            simultaneousGestureRef={parentGestureRef}
-            gestureHostPresented={dragGestureHostActive}
-            containerStyle={styles.workspaceListContainer}
-          />
-          {canToggleWorkspaces ? (
-            <SidebarGroupToggleRow
-              expanded={workspacesExpanded}
-              onPress={toggleWorkspacesExpanded}
-              testID={`sidebar-project-show-more-${project.viewKey}`}
-            />
-          ) : null}
-        </>
-      );
-    } else if (rowModel.trailingAction.kind === "new_workspace") {
-      projectChildren = (
-        <NewWorkspaceGhostRow
-          project={project}
-          displayName={displayName}
-          worktreeTarget={rowModel.trailingAction.target}
-          onWorkspacePress={onWorkspacePress}
+  if (childrenModel.showWorkspaces) {
+    projectChildren = (
+      <>
+        <DraggableList
+          testID={`sidebar-workspace-list-${project.viewKey}`}
+          data={visibleWorkspaces}
+          keyExtractor={workspaceKeyExtractor}
+          renderItem={renderWorkspace}
+          onDragEnd={handleWorkspaceDragEnd}
+          extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
+          scrollEnabled={false}
+          useDragHandle
+          nestable={useNestable}
+          simultaneousGestureRef={parentGestureRef}
+          gestureHostPresented={dragGestureHostActive}
+          containerStyle={styles.workspaceListContainer}
         />
-      );
-    }
+        {canToggleWorkspaces ? (
+          <SidebarGroupToggleRow
+            expanded={workspacesExpanded}
+            onPress={toggleWorkspacesExpanded}
+            testID={`sidebar-project-show-more-${project.viewKey}`}
+          />
+        ) : null}
+        {newWorkspaceRow}
+      </>
+    );
+  } else {
+    projectChildren = newWorkspaceRow;
   }
 
   return (

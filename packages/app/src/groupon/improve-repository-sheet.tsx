@@ -69,6 +69,7 @@ import { useRepositoryEntries } from "./repository-picker";
 import { repositoryDescription, shortPath, type RepositoryEntry } from "./repository-picker-model";
 import { useRepositoryStandard } from "./repository-settings";
 import { GROUPON_IMPROVE } from "./strings";
+import { ThisComputerBadge } from "./this-computer-badge";
 
 const SNAP_POINTS = ["80%", "94%"];
 const SELECTED = { selected: true };
@@ -288,6 +289,7 @@ function chipTextStyle(selected: boolean, disabled: boolean) {
 function Chip({
   id,
   label,
+  badge,
   note,
   selected,
   disabled,
@@ -296,6 +298,7 @@ function Chip({
 }: {
   id: string;
   label: string;
+  badge?: string | null;
   note: string | null;
   selected: boolean;
   disabled: boolean;
@@ -312,9 +315,12 @@ function Chip({
       accessibilityState={selected ? SELECTED : UNSELECTED}
       testID={testID}
     >
-      <Text style={chipTextStyle(selected, disabled)} numberOfLines={1}>
-        {label}
-      </Text>
+      <View style={styles.chipName}>
+        <Text style={chipTextStyle(selected, disabled)} numberOfLines={1}>
+          {label}
+        </Text>
+        <ThisComputerBadge badge={badge ?? null} />
+      </View>
       {note ? (
         <Text style={styles.chipNote} numberOfLines={1}>
           {note}
@@ -376,6 +382,7 @@ function MacChoices({
             key={mac.id}
             id={mac.serverId ?? mac.id}
             label={mac.label}
+            badge={mac.badge}
             note={mac.selectable ? shortPath(checkout.path) : mac.note}
             selected={mac.serverId !== null && mac.serverId === chosen}
             disabled={!mac.selectable || mac.serverId === null}
@@ -522,6 +529,11 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
     opacity: 0.6,
+  },
+  chipName: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: theme.spacing[2],
   },
   chipNote: {
     color: theme.colors.foregroundMuted,

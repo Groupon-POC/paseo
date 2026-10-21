@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): buildSidebarProjectChildrenModel, the project's workspace rows and its always-visible "+ New workspace" row.
 import type { SidebarProjectEntry } from "@/hooks/use-sidebar-workspaces-list";
 import { createProjectIconTarget, type ProjectIconTarget } from "@/projects/icon-target";
 
@@ -114,6 +115,28 @@ function projectTrailingAction(
     preferredServerId,
   );
   return target ? { kind: "new_workspace", target } : { kind: "none" };
+}
+
+export interface SidebarProjectChildrenModel {
+  /** The project's workspace rows (and the show-more toggle) are drawn. */
+  showWorkspaces: boolean;
+  /** The "+ New workspace" row is drawn: under the last workspace, or alone for a project with none. */
+  newWorkspaceTarget: SidebarProjectHostTarget | null;
+}
+
+// Changed for Groupon Desk: the "+ New workspace" row is always under a project's last workspace
+// (owner, 2026-10-21), not only for a project with no workspace; the same row and the same action.
+export function buildSidebarProjectChildrenModel(input: {
+  collapsed: boolean;
+  workspaceCount: number;
+  trailingAction: SidebarProjectTrailingAction;
+}): SidebarProjectChildrenModel {
+  if (input.collapsed) return { showWorkspaces: false, newWorkspaceTarget: null };
+  return {
+    showWorkspaces: input.workspaceCount > 0,
+    newWorkspaceTarget:
+      input.trailingAction.kind === "new_workspace" ? input.trailingAction.target : null,
+  };
 }
 
 export function buildSidebarProjectRowModel(input: {

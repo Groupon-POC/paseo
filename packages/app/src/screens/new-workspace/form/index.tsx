@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "On <Mac>", the hub Macs' picker, in place of Host, never Paseo's Host picker; Repository, each repository of all the person's Macs once, in place of Project, with the line under the fields when the chosen Mac lacks it.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "On <Mac>", the hub Macs' picker, in place of Host, never Paseo's Host picker; Repository, each repository of all the person's Macs once, in place of Project, with the line under the fields when the chosen Mac lacks it; the "On <Mac>" field carries the green "This computer" label on this Mac.
 import { useCallback, useMemo, type ReactElement, type ReactNode, type RefObject } from "react";
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -7,7 +7,11 @@ import type { TerminalProfile } from "@getpaseo/protocol/messages";
 import { Combobox, type ComboboxOption, type ComboboxProps } from "@/components/ui/combobox";
 import { HostStatusDot } from "@/components/host-status-dot";
 import { MacPicker } from "@/groupon/mac-picker";
-import { macPickerTriggerLabel, type MacPickerOption } from "@/groupon/mac-picker-model";
+import {
+  macPickerTriggerBadge,
+  macPickerTriggerLabel,
+  type MacPickerOption,
+} from "@/groupon/mac-picker-model";
 import { RepositoryOption } from "@/groupon/repository-picker";
 import type { RepositoryEntry } from "@/groupon/repository-picker-model";
 import { GROUPON_MAC_PICKER, GROUPON_REPOSITORY_PICKER } from "@/groupon/strings";
@@ -224,6 +228,7 @@ function HostField({
         tooltip={GROUPON_MAC_PICKER.tooltip}
         icon={hostIcon}
         value={macPickerTriggerLabel(host.macOptions, host.selectedServerId)}
+        badge={macPickerTriggerBadge(host.macOptions, host.selectedServerId)}
         onPress={host.open}
         disabled={isPending}
         testID="new-workspace-mac-picker-trigger"

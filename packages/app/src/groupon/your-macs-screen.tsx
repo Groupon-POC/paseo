@@ -28,7 +28,9 @@ import { GROUPON_DESK_DOWNLOAD_URL } from "./environments";
 import { ThemedGrouponMark } from "./groupon-mark";
 import { HUB_HISTORY_ROUTE } from "./history-screen";
 import { useHubMachinesStore, useOnlineServerIds } from "./hub-sync";
+import { thisComputerBadge } from "./mac-picker-model";
 import { GROUPON_HISTORY, GROUPON_YOUR_MACS } from "./strings";
+import { ThisComputerBadge } from "./this-computer-badge";
 import {
   firstConnected,
   seenAgo,
@@ -209,7 +211,6 @@ function MacRow({
     if (openServerId) onOpen(openServerId);
   }, [onOpen, openServerId]);
   const details = [
-    row.isThisMac ? GROUPON_YOUR_MACS.thisMac : null,
     row.isPrimary ? GROUPON_YOUR_MACS.primary : null,
     GROUPON_YOUR_MACS.lastSeen(seenAgo(row.lastSeenAt, now)),
   ]
@@ -228,9 +229,15 @@ function MacRow({
     >
       <View style={styles.rowHead}>
         <View style={dotStyle} />
-        <Text style={styles.rowTitle} numberOfLines={1}>
-          {row.label}
-        </Text>
+        <View style={styles.rowName}>
+          <Text style={styles.rowTitle} numberOfLines={1}>
+            {row.label}
+          </Text>
+          <ThisComputerBadge
+            badge={thisComputerBadge(row.isThisMac)}
+            testID={`your-macs-this-computer-${row.id}`}
+          />
+        </View>
         <Text style={styles.small}>{STATE_LABEL[row.state]}</Text>
       </View>
       <Text style={styles.small}>{details}</Text>
@@ -303,8 +310,15 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[2],
   },
-  rowTitle: {
+  rowName: {
     flex: 1,
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: theme.spacing[2],
+    minWidth: 0,
+  },
+  rowTitle: {
+    flexShrink: 1,
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.medium,

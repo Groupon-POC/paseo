@@ -83,6 +83,16 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (`screens/new-workspace-screen.tsx`, `screens/new-workspace/form/index.tsx`), so the
   repository list, Local / Worktree and the started task belong to that Mac. Paseo's Host picker
   is not shown on New workspace.
+- **"This computer", green, in every list of Macs** (owner, 2026-10-21: "I want to see better that
+  it is this computer, as a green label"). The computer the window runs on carries a green label
+  "This computer" right after its name (`groupon/this-computer-badge.tsx`, the model's `badge`),
+  apart from the grey caption under the name (which no longer starts with "This Mac"): in New
+  workspace's picker and its "On <Mac>" button, Add project and From GitHub, Your Macs, Improve
+  this repository, and Start a ticket's subtitle. The other Macs carry none.
+- **"+ New workspace" under every project's last workspace** (owner, 2026-10-21): the row Paseo
+  draws only for a project with no workspace is drawn under the last workspace of a project that
+  has some, the same look and action (`buildSidebarProjectChildrenModel`,
+  `components/sidebar-workspace-list.tsx`).
 - **Host on Add project and From GitHub: this Mac first, always.** Paseo's Add project went
   straight to the only connected host, so on a Mac whose hand was not running it offered another
   Mac and no way to add the project where the person sat (owner, 2026-10-21). Its first page is

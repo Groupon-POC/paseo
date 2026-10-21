@@ -4,6 +4,7 @@ import type {
   SidebarWorkspaceEntry,
 } from "@/hooks/use-sidebar-workspaces-list";
 import {
+  buildSidebarProjectChildrenModel,
   buildSidebarProjectRowModel,
   resolveSidebarProjectIconTarget,
   resolveSidebarProjectIconTargets,
@@ -321,5 +322,38 @@ describe("buildSidebarProjectRowModel", () => {
         target: { serverId: "srv", projectId: "project-srv", iconWorkingDir: "/repo" },
       },
     });
+  });
+});
+
+describe("buildSidebarProjectChildrenModel", () => {
+  const target = { serverId: "srv", projectId: "project-srv", iconWorkingDir: "/repo" };
+  const trailingAction = { kind: "new_workspace" as const, target };
+
+  it("shows the New workspace row under the last workspace of a project that has workspaces", () => {
+    expect(
+      buildSidebarProjectChildrenModel({ collapsed: false, workspaceCount: 2, trailingAction }),
+    ).toEqual({ showWorkspaces: true, newWorkspaceTarget: target });
+  });
+
+  it("shows the same row alone for a project with no workspace", () => {
+    expect(
+      buildSidebarProjectChildrenModel({ collapsed: false, workspaceCount: 0, trailingAction }),
+    ).toEqual({ showWorkspaces: false, newWorkspaceTarget: target });
+  });
+
+  it("shows no row where the project cannot host a new workspace", () => {
+    expect(
+      buildSidebarProjectChildrenModel({
+        collapsed: false,
+        workspaceCount: 2,
+        trailingAction: { kind: "none" },
+      }),
+    ).toEqual({ showWorkspaces: true, newWorkspaceTarget: null });
+  });
+
+  it("shows nothing for a collapsed project", () => {
+    expect(
+      buildSidebarProjectChildrenModel({ collapsed: true, workspaceCount: 2, trailingAction }),
+    ).toEqual({ showWorkspaces: false, newWorkspaceTarget: null });
   });
 });

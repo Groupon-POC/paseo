@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `badge`, the green "This computer" label after the value of the "On <Mac>" field.
 import { forwardRef, useCallback, type ReactElement, type ReactNode } from "react";
 import { Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -5,6 +6,7 @@ import { ChevronDown } from "lucide-react-native";
 import { ComboboxTrigger } from "@/components/ui/combobox-trigger";
 import { CONTROL_HEIGHTS } from "@/components/ui/control-geometry";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ThisComputerBadge } from "@/groupon/this-computer-badge";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 
 /**
@@ -36,6 +38,8 @@ export interface FieldTriggerContentProps {
   value: string;
   /** Secondary text after the value, such as a terminal profile's name. */
   detail?: string;
+  /** Groupon Desk: the green label after the value, "This computer" on this Mac's field. */
+  badge?: string | null;
 }
 
 export function FieldTriggerContent({
@@ -44,6 +48,7 @@ export function FieldTriggerContent({
   icon,
   value,
   detail,
+  badge,
 }: FieldTriggerContentProps): ReactElement {
   const valueLine = (
     <>
@@ -51,6 +56,12 @@ export function FieldTriggerContent({
       <Text style={variant === "field" ? styles.fieldValue : styles.value} numberOfLines={1}>
         {value}
         {detail ? <Text style={styles.detail}> {detail}</Text> : null}
+        {badge ? (
+          <>
+            {" "}
+            <ThisComputerBadge badge={badge} testID="field-trigger-this-computer" />
+          </>
+        ) : null}
       </Text>
     </>
   );

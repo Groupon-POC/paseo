@@ -1,5 +1,7 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the local credential of the hand's daemon too; this Mac's daemons for a direct connection; the hand alone starts a daemon.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the local credential of the hand's daemon too; this Mac's daemons for a direct connection; which hub Mac this is; the hand alone starts a daemon.
+import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { promisify } from "node:util";
 import path from "node:path";
 import { app, ipcMain, powerMonitor } from "electron";
 import log from "electron-log/main";
@@ -36,6 +38,7 @@ import {
   GROUPON_DESK_HAND_OWNS_DAEMON,
   HAND_OWNS_DAEMON_MESSAGE,
   localDaemonHomes,
+  readDeskMachineId,
   readLocalCredentialForRunningDaemon,
   readLocalDaemons,
 } from "./groupon-local-daemon.js";
@@ -63,6 +66,7 @@ import {
 import { tailFile } from "../diagnostics/tail-file.js";
 
 const DAEMON_LOG_FILENAME = "daemon.log";
+const execFileAsync = promisify(execFile);
 let ownedLaunch: { home: string; instance: DaemonInstance } | null = null;
 
 type DesktopDaemonState = "starting" | "running" | "stopped" | "errored";
@@ -436,6 +440,12 @@ export function createDaemonCommandHandlers(): Record<string, DesktopCommandHand
       (await readLocalDaemons(localDaemonHomes(getPaseoHome()), readDaemonInstance)).map(
         ({ serverId, listen }) => ({ serverId, listen }),
       ),
+    // Which hub Mac this is, read even while no daemon runs here (the window's "this Mac").
+    groupon_this_machine: () =>
+      readDeskMachineId(async (args) => {
+        const { stdout } = await execFileAsync("defaults", args, { timeout: 3000 });
+        return stdout;
+      }),
     start_desktop_daemon: () => startDaemon(),
     stop_desktop_daemon: (args) =>
       stopDesktopDaemon(

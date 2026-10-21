@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): Add a project, From GitHub, with Groupon's organisations and teams.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): Add a project, From GitHub, with Groupon's organisations and teams; the folder step names the Macs that already have the repository.
 
 /**
  * The one GitHub way to add a project (Paseo's own "Clone from GitHub" is taken off the menu),
@@ -18,7 +18,9 @@
  * its pick: the checkout is registered as a project with Paseo's own `project.add` and New
  * workspace opens on it. Opened from New workspace on one repository (`prefill`: a Mac that lacks
  * the repository the person chose), it starts at the folder step on that repository's host and,
- * once the clone is a project, closes back to New workspace instead of navigating.
+ * once the clone is a project, closes back to New workspace instead of navigating. The folder step
+ * names every Mac that already has the repository, with its path (the hub's checkouts), so a
+ * repository on one Mac is cloned onto another knowingly (`add-to-mac-model.ts`).
  */
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,6 +42,7 @@ import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
 import { buildNewWorkspaceRoute } from "@/utils/host-routes";
 import { openExternalUrl } from "@/utils/open-external-url";
+import { MacsHoldingRepository, useMacsHoldingRepository } from "./add-to-mac";
 import { CopyLine } from "./copy-line";
 import {
   followJob,
@@ -704,6 +707,7 @@ function RepositoryRows({
 function FolderStep({
   folder,
   host,
+  serverId,
   download,
   onFolder,
   onDownload,
@@ -712,6 +716,7 @@ function FolderStep({
 }: StepBodyProps & { repository: GithubRepository }) {
   const running = download.status === "running";
   const start = useCallback(() => onDownload(repository), [onDownload, repository]);
+  const holdings = useMacsHoldingRepository(host, repository.fullName, serverId);
   return (
     <View style={styles.list}>
       <Text style={styles.label}>{GROUPON_GITHUB.folderLabel}</Text>
@@ -727,6 +732,7 @@ function FolderStep({
       <Text style={styles.muted}>
         {GROUPON_GITHUB.landsAt} {checkoutPathPreview(folder, repository)}
       </Text>
+      <MacsHoldingRepository holdings={holdings} />
       {download.status === "failed" ? (
         <Problem text={download.error} host={host} onRefresh={onRefresh} />
       ) : null}

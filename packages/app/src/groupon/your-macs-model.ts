@@ -31,7 +31,7 @@ export interface YourMacRow {
   label: string;
   model: string | null;
   isPrimary: boolean;
-  /** This Mac: its daemon runs here and is reached directly. */
+  /** This Mac: the window runs on it (Groupon Desk's id for it), whether or not its hand runs. */
   isThisMac: boolean;
   lastSeenAt: string;
   state: YourMacState;
@@ -79,7 +79,7 @@ function rowOf(view: HubMachineView, isOnline: (serverId: string) => boolean): Y
     label: view.label,
     model: machine.model,
     isPrimary: machine.isPrimary,
-    isThisMac: view.direct !== null,
+    isThisMac: view.thisMac,
     lastSeenAt: machine.lastSeenAt,
     openServerId: null,
     message: null,

@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): this Mac's own daemons, for a direct connection; the hand alone runs one.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): this Mac's own daemons, for a direct connection; the hand alone runs one; which hub Mac this is, with or without a daemon.
 
 /**
  * Groupon Desk's hand (`groupon desk serve`) runs Paseo's daemon in its own home
@@ -14,10 +14,14 @@
  * - `localDaemonHomes`: the hand's home; with the switch off, also the configured home
  * - `readLocalDaemons`: the daemons running in those homes (`paseo.pid`: server id and listen address)
  * - `readLocalCredentialForRunningDaemon`: the credential of the running daemon listening on a target
+ * - `readDeskMachineId`: which of the hub's Macs this is (Groupon Desk's `deskMachineId`), so the
+ *   window names this Mac even while its hand, and so its daemon, is not running
  *
  * Constraints:
  * - A credential leaves only for a daemon whose `paseo.pid` names a running process in one of those
  *   homes and whose listen address is the target asked for (`readLocalCredentialForTarget`)
+ * - The machine id is only read, never made: Groupon Desk and the hand make it (the monorepo's
+ *   `packages/groupon-cli/src/hand/machine.ts`); a window that made one would split this Mac in two
  */
 
 import { homedir } from "node:os";
@@ -86,4 +90,26 @@ export async function readLocalCredentialForRunningDaemon(
     if (credential) return credential;
   }
   return null;
+}
+
+/** Groupon Desk's defaults domain and key for this Mac's hub id (the hand's `machine.ts`). */
+const DESK_DEFAULTS_DOMAIN = "com.groupon.desk";
+const DESK_MACHINE_ID_KEY = "deskMachineId";
+
+/**
+ * This Mac's id on the hub, as Groupon Desk keeps it (`defaults read com.groupon.desk
+ * deskMachineId`); null off macOS, before Groupon Desk or the hand ever ran here, or when the read
+ * fails. `readDefaults` throws when the key is absent, as `defaults` does.
+ */
+export async function readDeskMachineId(
+  readDefaults: (args: string[]) => Promise<string>,
+  platform: NodeJS.Platform = process.platform,
+): Promise<string | null> {
+  if (platform !== "darwin") return null;
+  try {
+    const id = (await readDefaults(["read", DESK_DEFAULTS_DOMAIN, DESK_MACHINE_ID_KEY])).trim();
+    return id.length > 0 ? id : null;
+  } catch {
+    return null;
+  }
 }

@@ -5,6 +5,7 @@ import {
   GROUPON_DESK_HAND_OWNS_DAEMON,
   grouponHandHome,
   localDaemonHomes,
+  readDeskMachineId,
   readLocalCredentialForRunningDaemon,
   readLocalDaemons,
 } from "./groupon-local-daemon.js";
@@ -70,5 +71,26 @@ describe("this Mac's daemons", () => {
     expect(
       await readLocalCredentialForRunningDaemon(["/gone"], "localhost:6870", read, forTarget),
     ).toBeNull();
+  });
+});
+
+describe("readDeskMachineId", () => {
+  it("reads Groupon Desk's id for this Mac from its defaults", async () => {
+    const asked: string[][] = [];
+    const id = await readDeskMachineId(async (args) => {
+      asked.push(args);
+      return "4F1C2D3E-AAAA-BBBB-CCCC-000000000001\n";
+    }, "darwin");
+    expect(id).toBe("4F1C2D3E-AAAA-BBBB-CCCC-000000000001");
+    expect(asked).toEqual([["read", "com.groupon.desk", "deskMachineId"]]);
+  });
+
+  it("is null before Groupon Desk ever ran here, on an empty value, and off macOS", async () => {
+    const absent = async (): Promise<string> => {
+      throw new Error("The domain/default pair does not exist");
+    };
+    expect(await readDeskMachineId(absent, "darwin")).toBeNull();
+    expect(await readDeskMachineId(async () => "  \n", "darwin")).toBeNull();
+    expect(await readDeskMachineId(async () => "ID", "linux")).toBeNull();
   });
 });

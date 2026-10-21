@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message carries an optional author (send_agent_message, send_agent_message_request, the timeline's user_message).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message carries an optional author (send_agent_message, send_agent_message_request, the timeline's user_message); a creation snapshot names the step it is on (`step`).
 import { AgentMessageSchema } from "./agent-message.js";
 import { PluginRegistryIdentitySchema } from "./plugin-registry.js";
 import { AgentProfileSchema, AgentSkillSelectionSchema } from "./agent-profile.js";
@@ -4897,6 +4897,12 @@ export const CreationSnapshotSchema = z.object({
   errorCode: z.string().optional(),
   failedStage: z.enum(["workspace", "agent", "prompt"]).optional(),
   outcomeUnknown: z.boolean().optional(),
+  /**
+   * Groupon Desk: the step the creation is on now (`naming_branch`, `fetching_base`,
+   * `creating_worktree`, `registering_workspace`) and when it started (ISO), for
+   * the window's caption. A string, not an enum: a window shows a step it does not know generically.
+   */
+  step: z.object({ id: z.string(), startedAt: z.string() }).optional(),
 });
 export type CreationSnapshot = z.infer<typeof CreationSnapshotSchema>;
 export type AgentCreateRequest = z.infer<typeof AgentCreateRequestSchema>;

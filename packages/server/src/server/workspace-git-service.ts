@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace on a shared trunk (staging, production, main, the default branch, desk.toml's target_branch) is matched to no pull request.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace on a shared trunk (staging, production, main, the default branch, desk.toml's target_branch) is matched to no pull request; `getCheckout` reads the checkout's identity without `git status` (a creation's critical path, MEASURED timing out at 30 s on a loaded MacBook Air, 2026-10-21).
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -559,6 +559,41 @@ interface WorkspaceForgePrStatusPollTarget {
   headRepositoryOwner?: string;
 }
 
+type CheckoutIdentity =
+  | { isGit: false }
+  | {
+      isGit: true;
+      currentBranch: string | null;
+      remoteUrl: string | null;
+      repoRoot: string;
+      isPaseoOwnedWorktree: boolean;
+      mainRepoRoot: string | null;
+    };
+
+/**
+ * Groupon Desk: what `getCheckoutStatus` answers about a checkout's identity, from its facts alone
+ * (the same rules: a Paseo worktree counts as one only with a base ref, and its main root falls
+ * back to its own root; any other checkout names a main root only when it differs).
+ */
+export function checkoutIdentityFromFacts(facts: CheckoutSnapshotFacts): CheckoutIdentity {
+  if (!facts.isGit) return { isGit: false };
+  const worktreeRoot = facts.worktreeRoot;
+  const isPaseoOwnedWorktree =
+    facts.paseoWorktree.isPaseoOwnedWorktree && Boolean(facts.resolvedBaseRef);
+  let mainRepoRoot: string | null = null;
+  if (isPaseoOwnedWorktree) mainRepoRoot = facts.mainRepoRoot ?? worktreeRoot;
+  else if (facts.mainRepoRoot && resolve(facts.mainRepoRoot) !== resolve(worktreeRoot))
+    mainRepoRoot = facts.mainRepoRoot;
+  return {
+    isGit: true,
+    currentBranch: facts.currentBranch,
+    remoteUrl: facts.remoteUrl,
+    repoRoot: worktreeRoot,
+    isPaseoOwnedWorktree,
+    mainRepoRoot,
+  };
+}
+
 function buildDefaultWorkspaceGitServiceDeps(
   subscribe: SubscribeToFileChanges,
 ): WorkspaceGitServiceDependencies {
@@ -769,11 +804,16 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
   async getCheckout(cwd: string): Promise<ProjectCheckoutLitePayload> {
     this.assertNotDisposed();
     const normalizedCwd = resolve(cwd);
-    const status = await this.deps.getCheckoutStatus(normalizedCwd, {
-      paseoHome: this.paseoHome,
-      worktreesRoot: this.worktreesRoot,
-      logger: this.logger,
-    });
+    // Groupon Desk: the facts, not the full status. The lite payload carries no dirty flag and no
+    // ahead/behind, so `git status` over every file of the checkout bought nothing here, and on a
+    // busy Mac it ran past git's 30 s timeout and failed the creation.
+    const status = checkoutIdentityFromFacts(
+      await this.deps.getCheckoutSnapshotFacts(normalizedCwd, {
+        paseoHome: this.paseoHome,
+        worktreesRoot: this.worktreesRoot,
+        logger: this.logger,
+      }),
+    );
     const cached = this.peekSnapshot(normalizedCwd);
     if (cached && cached.git.isGit !== status.isGit) {
       // A fresh checkout read discovered a repository transition. Keep the

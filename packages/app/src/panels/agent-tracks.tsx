@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the row of who is in this workspace now (`groupon/presence-row.tsx`), beside the subagents and the diff.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the row of who is in this workspace now (`groupon/presence-row.tsx`), beside the subagents and the diff; the worktree's setup step (`groupon/worktree-setup-line.tsx`).
 import { memo, useCallback, type ReactElement } from "react";
 import { WorkspaceDiffStatPill } from "@/composer/diff-stat-pill";
 import { useWorkspaceHasDiffStat } from "@/composer/workspace-diff-stat";
@@ -8,6 +8,7 @@ import { useIsCompactFormFactor } from "@/constants/layout";
 import { usePaneContext } from "@/panels/pane-context";
 import { useSettings } from "@/hooks/use-settings";
 import { PresenceRow, presenceVisible, usePaseoWorkspacePresence } from "@/groupon/presence-row";
+import { useWorktreeSetupLine, WorktreeSetupRow } from "@/groupon/worktree-setup-line";
 import { PluginComposerPills } from "@/plugins";
 import { useSessionStore } from "@/stores/session-store";
 import {
@@ -95,6 +96,7 @@ export const AgentTracks = memo(function AgentTracks({
   );
   const opensInSheet = useSubagentOpensInSheet(workspaceKey);
   const presence = usePaseoWorkspacePresence(serverId, workspaceId);
+  const setupLine = useWorktreeSetupLine(serverId, workspaceId);
   const handleOpenChanges = useCallback(() => {
     if (!workspaceKey) {
       return;
@@ -115,6 +117,7 @@ export const AgentTracks = memo(function AgentTracks({
       archiveFinishedStatus,
       hasPluginComposerPills,
       hasGrouponPresence: presenceVisible(presence.view),
+      hasGrouponWorktreeSetup: setupLine !== null,
     })
   ) {
     return null;
@@ -123,6 +126,7 @@ export const AgentTracks = memo(function AgentTracks({
   return (
     <ComposerTrackBar>
       <AgentTaskList tasks={tasks} />
+      <WorktreeSetupRow line={setupLine} />
       <PresenceRow view={presence.view} hubWorkspaceId={presence.hubWorkspaceId} />
       <SubagentsTrack
         serverId={serverId}
@@ -156,6 +160,7 @@ export function hasAgentTracks({
   archiveFinishedStatus,
   hasPluginComposerPills = false,
   hasGrouponPresence = false,
+  hasGrouponWorktreeSetup = false,
 }: {
   subagentRows: readonly SubagentRow[];
   tasks: readonly TodoEntry[] | undefined;
@@ -163,12 +168,15 @@ export function hasAgentTracks({
   hasPluginComposerPills?: boolean;
   /** Groupon Desk: the presence row has something to show. */
   hasGrouponPresence?: boolean;
+  /** Groupon Desk: the worktree's setup line has something to show. */
+  hasGrouponWorktreeSetup?: boolean;
 }): boolean {
   return (
     subagentRows.length > 0 ||
     Boolean(tasks?.length) ||
     archiveFinishedStatus.kind !== "idle" ||
     hasPluginComposerPills ||
-    hasGrouponPresence
+    hasGrouponPresence ||
+    hasGrouponWorktreeSetup
   );
 }

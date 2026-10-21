@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step.
 import { AgentDirectory } from "./agent/directory.js";
 import { searchTimeline } from "./agent/chat-search/index.js";
 import type { BrowserToolsBroker } from "./browser-tools/broker.js";
@@ -72,6 +72,7 @@ import { respondToAgentPermission } from "./agent/permission-response.js";
 import type { VoiceCallerContext, VoiceSpeakHandler } from "./voice-types.js";
 import type { ScriptHealthState } from "./script-health-monitor.js";
 import { spawnWorkspaceScript } from "./worktree-bootstrap.js";
+import { reportCreationStep } from "../groupon/creation-steps.js";
 import type { WorkspaceScriptRuntimeStore } from "./workspace-script-runtime-store.js";
 import {
   createWorkspaceScriptsService,
@@ -6794,6 +6795,7 @@ export class Session {
     // Groupon Desk: a ticketless workspace from the work window gets its own branch, never the trunk.
     let keepBranchName = false;
     if (grouponPlacement) {
+      reportCreationStep("naming_branch");
       const placement = await placeTicketlessWorkspace(creationRequest, {
         readFacts: (cwd) => getCheckoutSnapshotFacts(cwd, { paseoHome: this.paseoHome }),
         resolveWorktreeSourceCwd: (source) =>

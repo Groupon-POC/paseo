@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): getCheckout reads the checkout's facts, never its full status (no `git status`).
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -424,12 +425,36 @@ describe("WorkspaceGitServiceImpl primitive refresh entrypoint", () => {
 
   test("getCheckout surfaces an unexpected Git read failure", async () => {
     const service = createService({
-      getCheckoutStatus: vi.fn(async () => {
+      getCheckoutSnapshotFacts: vi.fn(async () => {
         throw new Error("Git read failed");
       }),
     });
 
     await expect(service.getCheckout(REPO_CWD)).rejects.toThrow("Git read failed");
+
+    service.dispose();
+  });
+
+  // Groupon Desk: a creation calls getCheckout on the source checkout; `git status` over all of
+  // its files timed out at 30 s on a loaded MacBook Air (2026-10-21) and failed the creation.
+  test("getCheckout answers from the facts and never asks for the full status", async () => {
+    const getCheckoutStatus = vi.fn(async (cwd: string) => createCheckoutStatus(cwd));
+    const service = createService({
+      getCheckoutStatus,
+      getCheckoutSnapshotFacts: vi.fn(async (cwd: string) =>
+        createCheckoutFacts(cwd, { mainRepoRoot: "/tmp/main-checkout" }),
+      ),
+    });
+
+    await expect(service.getCheckout(REPO_CWD)).resolves.toMatchObject({
+      cwd: REPO_CWD,
+      isGit: true,
+      currentBranch: "main",
+      remoteUrl: "https://github.com/acme/repo.git",
+      isPaseoOwnedWorktree: false,
+      mainRepoRoot: "/tmp/main-checkout",
+    });
+    expect(getCheckoutStatus).not.toHaveBeenCalled();
 
     service.dispose();
   });

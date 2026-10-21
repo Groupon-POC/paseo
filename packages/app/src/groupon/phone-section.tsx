@@ -3,7 +3,8 @@
 /**
  * What a person does to use Groupon Desk on their phone: open the work window's web address,
  * sign in with the same Google account, and their Macs appear among the hosts, reached through
- * Core. One paragraph, the address as a copyable line, and a QR code of that address.
+ * Core. One paragraph, the address as a copyable line, a QR code of that address, and under it a
+ * short guide to keeping the web app on the phone's home screen (until a native app exists).
  *
  * Constraints:
  * - Never shows or exports a pairing offer, a relay link or a daemon key: the phone reaches a Mac
@@ -43,8 +44,28 @@ export function GrouponPhonePage() {
         <View style={styles.qrTile}>
           <AddressQr address={address} />
         </View>
+        <HomeScreenGuide />
       </View>
     </SettingsSection>
+  );
+}
+
+/** Until a native app exists: how to keep the web app on the home screen. */
+function HomeScreenGuide() {
+  return (
+    <View style={styles.guide} testID="groupon-phone-guide">
+      <Text style={styles.guideTitle}>{GROUPON_PHONE.guideTitle}</Text>
+      <Text style={styles.guideHeading}>{GROUPON_PHONE.guideIosTitle}</Text>
+      {GROUPON_PHONE.guideIosSteps.map((step, index) => (
+        <View key={step} style={styles.step} testID={`groupon-phone-guide-step-${index + 1}`}>
+          <Text style={styles.number}>{index + 1}</Text>
+          <Text style={styles.stepText}>{step}</Text>
+        </View>
+      ))}
+      <Text style={styles.stepText} testID="groupon-phone-guide-android">
+        {GROUPON_PHONE.guideAndroid}
+      </Text>
+    </View>
   );
 }
 
@@ -98,6 +119,35 @@ const styles = StyleSheet.create((theme) => ({
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.palette.white,
+  },
+  guide: {
+    gap: theme.spacing[2],
+  },
+  guideTitle: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.medium,
+  },
+  guideHeading: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+  },
+  step: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: theme.spacing[2],
+  },
+  number: {
+    width: theme.spacing[6],
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.base,
+    lineHeight: theme.fontSize.base * 1.5,
+  },
+  stepText: {
+    flex: 1,
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    lineHeight: theme.fontSize.base * 1.5,
   },
   muted: {
     color: theme.colors.foregroundMuted,

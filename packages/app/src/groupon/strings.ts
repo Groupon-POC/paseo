@@ -277,6 +277,16 @@ export const GROUPON_PHONE = {
   addressLabel: "Groupon Desk on the web",
   qrLabel: "QR code of Groupon Desk's web address",
   qrUnavailable: "The code could not be drawn; type the address instead.",
+  /** Under the QR code: keep the web app on the home screen until a native app exists. */
+  guideTitle: "Keep it on your home screen",
+  guideIosTitle: "iPhone",
+  guideIosSteps: [
+    "Open the address above in Safari.",
+    "Tap the Share button.",
+    "Tap Add to Home Screen, then Add.",
+    "From then on, open Groupon Desk from its icon.",
+  ],
+  guideAndroid: "Android: open the address in Chrome, tap the menu, then tap Install app.",
 } as const;
 
 export const GROUPON_INSTALL = {

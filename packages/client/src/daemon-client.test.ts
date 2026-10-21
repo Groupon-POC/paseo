@@ -920,6 +920,62 @@ test("stops reconnecting after a password rejection on an established connection
   expect(attempts).toBe(1);
 });
 
+test("a relay rollover reconnects at once and never shows a disconnected state", async () => {
+  const socket = createMockTransport();
+  let attempts = 0;
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_rollover_test",
+    reconnect: { enabled: true, baseDelayMs: 60_000, maxDelayMs: 60_000 },
+    transportFactory: () => {
+      attempts += 1;
+      return socket.transport;
+    },
+  });
+  clients.push(client);
+  const states: string[] = [];
+  client.subscribeConnectionStatus((state) => states.push(state.status));
+  const connected = client.connect();
+  socket.triggerOpen();
+  await connected;
+  states.length = 0;
+
+  socket.triggerClose({ code: 1006, reason: "Relay rolled over after 301 s" });
+  await vi.waitFor(() => expect(attempts).toBe(2));
+  socket.triggerOpen();
+
+  expect(states).toEqual(["connecting", "connected"]);
+  expect(client.lastError).toBeNull();
+});
+
+test("any other close of a relay connection is still a disconnect with its reason", async () => {
+  const socket = createMockTransport();
+  let attempts = 0;
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_no_rollover_test",
+    reconnect: { enabled: true, baseDelayMs: 60_000, maxDelayMs: 60_000 },
+    transportFactory: () => {
+      attempts += 1;
+      return socket.transport;
+    },
+  });
+  clients.push(client);
+  const states: string[] = [];
+  client.subscribeConnectionStatus((state) => states.push(state.status));
+  const connected = client.connect();
+  socket.triggerOpen();
+  await connected;
+  states.length = 0;
+
+  socket.triggerClose({ code: 1006, reason: "Relay stream ended" });
+  await new Promise((resolve) => setTimeout(resolve, 30));
+
+  expect(states).toEqual(["disconnected"]);
+  expect(attempts).toBe(1);
+  expect(client.lastError).toBe("Relay stream ended");
+});
+
 test("sends a password containing spaces in hello without an invalid WebSocket subprotocol", async () => {
   const mock = createMockTransport();
   const transportFactory = vi.fn(() => mock.transport);

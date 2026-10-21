@@ -1,5 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): sendAgentMessage may name the prompt's author.
-import { messageTooLargeError } from "./daemon-client-transport-utils.js";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): sendAgentMessage may name the prompt's author; a relay rollover reconnects at once, unannounced.
+import { isRelayRolloverClose, messageTooLargeError } from "./daemon-client-transport-utils.js";
 import { legacyUsageIcon } from "./legacy-usage-icons.js";
 import { subscribeTimeline, type TimelineMessage } from "./timeline-subscription/index.js";
 import { ProviderSnapshotUpdates } from "./provider-snapshots/index.js";
@@ -1478,6 +1478,17 @@ export class DaemonClient {
           const reason = this.authFailureReasonValue
             ? new DaemonAuthenticationError(this.authFailureReasonValue).message
             : describeTransportClose(event);
+          // Cloud Run's request timeout ends a healthy relay connection: no error, no wait.
+          if (
+            !this.authFailureReasonValue &&
+            this.connectionState.status === "connected" &&
+            this.shouldReconnect &&
+            this.config.reconnect?.enabled !== false &&
+            isRelayRolloverClose(event)
+          ) {
+            this.rollOverConnection(reason);
+            return;
+          }
           if (reason) {
             this.lastErrorValue = reason;
           }
@@ -6652,16 +6663,7 @@ export class DaemonClient {
       this.lastErrorValue = reason.trim();
     }
 
-    this.owned.disconnected();
-    this.providerSnapshotUpdates.clear();
-
-    // Clear all pending waiters and queued sends since the connection was lost
-    // and responses from the previous connection will never arrive.
-    this.clearWaiters(new DaemonConnectionError(reason ?? "Connection lost"));
-    this.rejectPendingSendQueue(new DaemonConnectionError(reason ?? "Connection lost"));
-    this.rejectPingProbe(new DaemonConnectionError(reason ?? "Connection lost"));
-    this.terminalStreams.clearSlots();
-    this.lastServerInfoMessage = null;
+    this.discardLostConnection(reason);
 
     if (this.authFailureReasonValue) this.setReconnectEnabled(false);
 
@@ -6680,6 +6682,29 @@ export class DaemonClient {
     }
 
     this.armReconnectTimer();
+  }
+
+  private discardLostConnection(reason: string | undefined): void {
+    this.owned.disconnected();
+    this.providerSnapshotUpdates.clear();
+
+    // Clear all pending waiters and queued sends since the connection was lost
+    // and responses from the previous connection will never arrive.
+    this.clearWaiters(new DaemonConnectionError(reason ?? "Connection lost"));
+    this.rejectPendingSendQueue(new DaemonConnectionError(reason ?? "Connection lost"));
+    this.rejectPingProbe(new DaemonConnectionError(reason ?? "Connection lost"));
+    this.terminalStreams.clearSlots();
+    this.lastServerInfoMessage = null;
+  }
+
+  /** Cloud Run's request timeout ended a healthy relay connection: open the next at once, say nothing. */
+  private rollOverConnection(reason: string): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    this.discardLostConnection(reason);
+    void this.attemptConnect();
   }
 
   private emitDisconnectedStateForReconnect(

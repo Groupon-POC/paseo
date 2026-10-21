@@ -20,6 +20,12 @@
  *   `encore-ws` subprotocol plus the headers as a second one), the one way a browser can send it
  * - `wrapForCore` / `unwrapFromCore`: a frame each way, byte for byte
  * - `CoreRelaySocket` and `withCoreRelay`: the socket, and the factory that picks it
+ * - A rollover is no drop: Cloud Run ends every request, a websocket included, at the service's
+ *   request timeout (300 s by default), and the socket sees an abnormal close (1006), MEASURED
+ *   2026-10-21 on the hand's streams and relay control sockets. A 1006 after
+ *   `CORE_RELAY_ROLLOVER_MIN_MS` ends the socket with a reason that starts `Relay rolled over`
+ *   (`RELAY_ROLLOVER_REASON_PREFIX` in the fork's client), which the client answers with an
+ *   immediate reconnect and no disconnected state; a 1006 sooner is a failure as before
  *
  * Constraints:
  * - Never reads a frame: they are Paseo's end-to-end boxes between this client and the daemon;
@@ -37,6 +43,14 @@ import type {
 export const CORE_RELAY_STREAM_PATH = "/user/groupon_desk/paseo_relay/stream";
 /** How often the socket tells Core's stream it is alive; Core ends a silent stream after 60 s. */
 export const CORE_RELAY_KEEPALIVE_MS = 20_000;
+/**
+ * How long a stream must have been open for an abnormal close to count as Cloud Run's request
+ * timeout (300 s by default, the service's own setting) rather than a failure.
+ */
+export const CORE_RELAY_ROLLOVER_MIN_MS = 290_000;
+/** The start of the close reason the fork's client reads as a rollover (`RELAY_ROLLOVER_REASON_PREFIX`). */
+export const CORE_RELAY_ROLLOVER_REASON = "Relay rolled over";
+const ABNORMAL_CLOSE = 1006;
 const KEEPALIVE_FRAME = JSON.stringify({ kind: "keepalive" });
 
 const CONNECTING = 0;
@@ -207,6 +221,7 @@ export class CoreRelaySocket implements WebSocketLike {
   #upstream: CoreUpstreamSocket | null = null;
   #keepalive: ReturnType<typeof setInterval> | null = null;
   #ended = false;
+  #openedAt: number | null = null;
 
   constructor(
     streamUrl: string,
@@ -266,6 +281,7 @@ export class CoreRelaySocket implements WebSocketLike {
         return;
       }
       this.readyState = OPEN;
+      this.#openedAt = Date.now();
       this.#keepalive = setInterval(() => {
         if (upstream.readyState === OPEN) upstream.send(KEEPALIVE_FRAME);
       }, keepaliveMs);
@@ -288,10 +304,13 @@ export class CoreRelaySocket implements WebSocketLike {
     upstream.addEventListener("close", (event) => {
       const code = eventField(event, "code");
       const reason = eventField(event, "reason");
-      this.#end(
-        typeof code === "number" ? code : 1006,
-        typeof reason === "string" ? reason : "Relay stream ended",
-      );
+      const closeCode = typeof code === "number" ? code : ABNORMAL_CLOSE;
+      const lived = this.#openedAt === null ? 0 : Date.now() - this.#openedAt;
+      if (closeCode === ABNORMAL_CLOSE && lived >= CORE_RELAY_ROLLOVER_MIN_MS) {
+        this.#end(closeCode, `${CORE_RELAY_ROLLOVER_REASON} after ${Math.round(lived / 1000)} s`);
+        return;
+      }
+      this.#end(closeCode, typeof reason === "string" ? reason : "Relay stream ended");
     });
   }
 

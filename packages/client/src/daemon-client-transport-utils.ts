@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a relay rollover is told apart from a drop.
 export function copyArrayBufferViewToBuffer(data: ArrayBufferView): ArrayBuffer {
   const view = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
   const out = new Uint8Array(view.byteLength);
@@ -33,6 +34,19 @@ export function extractRelayMessage(event: unknown, nodeIsBinary?: boolean): Rel
     return { data: copyArrayBufferViewToBuffer(raw), isBinary: true };
   }
   return { data: String(raw ?? ""), isBinary: true };
+}
+
+/**
+ * What the app's Core relay socket (`packages/app/src/groupon/core-relay.ts`) puts at the start of a
+ * close reason when Cloud Run's request timeout ended a healthy relay connection: the client opens
+ * the next one at once and shows no disconnected state. Both ends carry this text.
+ */
+export const RELAY_ROLLOVER_REASON_PREFIX = "Relay rolled over";
+
+export function isRelayRolloverClose(event?: unknown): boolean {
+  if (!event || typeof event !== "object") return false;
+  const { reason } = event as { reason?: unknown };
+  return typeof reason === "string" && reason.startsWith(RELAY_ROLLOVER_REASON_PREFIX);
 }
 
 export function describeTransportClose(event?: unknown): string {

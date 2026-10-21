@@ -1,6 +1,8 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): Paseo's relay client socket over Core's relay stream.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  CORE_RELAY_ROLLOVER_MIN_MS,
+  CORE_RELAY_ROLLOVER_REASON,
   CoreRelaySocket,
   coreRelayEndpoint,
   coreRelayStreamUrl,
@@ -199,6 +201,44 @@ describe("CoreRelaySocket", () => {
     upstream.fire("close", { code: 1006 });
 
     expect(events).toEqual(["error", "close 1006"]);
+  });
+
+  it("ends a stream that lived to Cloud Run's request timeout as a rollover the client reconnects at once", async () => {
+    vi.useFakeTimers();
+    const { socket, upstream } = await openSocket();
+    const closes: unknown[] = [];
+    socket.addEventListener("close", (event) => closes.push(event));
+    upstream.fire("open");
+
+    vi.advanceTimersByTime(301_000);
+    upstream.fire("close", { code: 1006, reason: "" });
+
+    expect(closes).toEqual([
+      { type: "close", code: 1006, reason: "Relay rolled over after 301 s", wasClean: false },
+    ]);
+    expect(CORE_RELAY_ROLLOVER_REASON).toBe("Relay rolled over");
+  });
+
+  it("keeps a 1006 before the rollover threshold, or any other code after it, a failure", async () => {
+    vi.useFakeTimers();
+    const early = await openSocket();
+    const earlyCloses: unknown[] = [];
+    early.socket.addEventListener("close", (event) => earlyCloses.push(event));
+    early.upstream.fire("open");
+    vi.advanceTimersByTime(CORE_RELAY_ROLLOVER_MIN_MS - 5_000);
+    early.upstream.fire("close", { code: 1006, reason: "" });
+
+    const other = await openSocket();
+    const otherCloses: unknown[] = [];
+    other.socket.addEventListener("close", (event) => otherCloses.push(event));
+    other.upstream.fire("open");
+    vi.advanceTimersByTime(301_000);
+    other.upstream.fire("close", { code: 1011, reason: "Core failed" });
+
+    expect(earlyCloses).toEqual([{ type: "close", code: 1006, reason: "", wasClean: false }]);
+    expect(otherCloses).toEqual([
+      { type: "close", code: 1011, reason: "Core failed", wasClean: false },
+    ]);
   });
 
   it("keeps Core's stream alive while it is open", async () => {

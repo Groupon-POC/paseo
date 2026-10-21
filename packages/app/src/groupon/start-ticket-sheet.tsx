@@ -7,9 +7,13 @@
  * the ticket and its desk record are the CLI's), then Paseo's worktree on that branch and the
  * agent with the CLI's flow order. A ticket the readiness check hands back shows its questions and
  * the link, and nothing is created. My tasks' "Take to development" opens it with the key filled in.
+ * While it runs, each step is marked as the hand reports it, with the time it has taken; a failure
+ * shows the hand's sentence, and after five minutes of nothing the sheet stops waiting and says on
+ * which step; both offer Retry (WW-83).
  */
 
 import { router } from "expo-router";
+import { Check, Circle, X } from "lucide-react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -21,24 +25,28 @@ import { EditingTextInput } from "@/components/ui/text-input";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { useHostProjects } from "@/projects/host-projects";
 import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
+import type { Theme } from "@/styles/theme";
 import { buildHostWorkspaceRoute } from "@/utils/host-routes";
 import { openExternalUrl } from "@/utils/open-external-url";
-import {
-  followJob,
-  pluginProblemText,
-  startTicketJob,
-  type TicketOutcome,
-} from "./desk-plugin-rpc";
+import { followJob, pluginProblemText, startTicketJob } from "./desk-plugin-rpc";
 import {
   agentChoices,
   defaultEffortId,
   defaultModelId,
   effortOptions,
+  elapsedText,
   normalizeTicketKey,
   repositoryChoices,
+  runAfterClock,
+  runAfterError,
+  runAfterJob,
+  runStarted,
   selectableModels,
   startProblem,
+  stepRows,
   type Choice,
+  type StepState,
+  type TicketRun,
 } from "./start-ticket-model";
 import { SheetSubtitle } from "./sheet-subtitle";
 import { GROUPON_TICKET } from "./strings";
@@ -48,6 +56,15 @@ const SNAP_POINTS = ["80%", "94%"];
 const ThemedSpinner = withUnistyles(LoadingSpinner, (theme) => ({
   color: theme.colors.foregroundMuted,
 }));
+const ThemedCheck = withUnistyles(Check);
+const ThemedCircle = withUnistyles(Circle);
+const ThemedX = withUnistyles(X);
+const accentMapping = (theme: Theme) => ({ color: theme.colors.accent });
+const mutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+const destructiveMapping = (theme: Theme) => ({ color: theme.colors.destructive });
+
+/** How often the elapsed time and the five-minute limit are looked at while the hand works. */
+const CLOCK_MS = 1000;
 
 /** What the New workspace page has chosen already; Start a ticket begins from it. */
 export interface StartTicketInitial {
@@ -60,12 +77,6 @@ export interface StartTicketInitial {
   /** The key to start with: My tasks' row the person took; empty when opened from the button. */
   ticket?: string;
 }
-
-type Run =
-  | { status: "idle" }
-  | { status: "running"; phase: string }
-  | { status: "failed"; error: string }
-  | { status: "handed-back"; outcome: Extract<TicketOutcome, { kind: "handed-back" }> };
 
 /** What the New workspace page's composer has chosen, read loosely: its state type is the page's own. */
 export interface PageComposerChoice {
@@ -196,14 +207,29 @@ function StartTicketSheet({
   const [provider, setProvider] = useState<string | null>(initial.provider);
   const [model, setModel] = useState<string | null>(initial.model);
   const [effort, setEffort] = useState<string | null>(initial.effort);
-  const [run, setRun] = useState<Run>({ status: "idle" });
+  const [run, setRun] = useState<TicketRun>({ status: "idle" });
+  const [now, setNow] = useState(() => Date.now());
   const live = useRef(true);
+  // The attempt whose answers still count: a new Start, a Retry or the give-up moves it on.
+  const attempt = useRef(0);
   useEffect(
     () => () => {
       live.current = false;
     },
     [],
   );
+  const running = run.status === "running";
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), CLOCK_MS);
+    return () => clearInterval(timer);
+  }, [running]);
+  useEffect(() => {
+    const next = runAfterClock(run, now, hostLabel);
+    if (next === run) return;
+    attempt.current += 1;
+    setRun(next);
+  }, [hostLabel, now, run]);
 
   const repository = repositories.find((row) => row.key === repositoryKey) ?? null;
   const shownProvider = agents.some((agent) => agent.id === provider)
@@ -227,12 +253,16 @@ function StartTicketSheet({
   );
 
   const problem = startProblem({ ticket, repository, provider: shownProvider, model: shownModel });
-  const running = run.status === "running";
 
   const start = useCallback(async () => {
     if (!client || running || problem || !repository || !shownProvider || !shownModel) return;
     const key = normalizeTicketKey(ticket) ?? ticket;
-    setRun({ status: "running", phase: `${GROUPON_TICKET.starting} ${key}` });
+    attempt.current += 1;
+    const mine = attempt.current;
+    const startedAt = Date.now();
+    setNow(startedAt);
+    setRun(runStarted(key, mine, startedAt));
+    const counts = () => live.current && attempt.current === mine;
     try {
       const jobId = await startTicketJob(client, {
         ticket: key,
@@ -246,22 +276,16 @@ function StartTicketSheet({
       const job = await followJob(
         client,
         jobId,
-        (next) => setRun({ status: "running", phase: next.phase }),
-        () => live.current,
+        (next) => setRun((current) => runAfterJob(current, mine, next)),
+        counts,
       );
-      if (!job) return;
-      if (job.status === "failed" || !job.ticket) {
-        setRun({ status: "failed", error: job.error ?? GROUPON_TICKET.didNotFinish });
-        return;
+      if (!job || !counts()) return;
+      if (job.status === "done" && job.ticket?.kind === "started") {
+        onClose();
+        router.push(buildHostWorkspaceRoute(serverId, job.ticket.workspaceId));
       }
-      if (job.ticket.kind === "handed-back") {
-        setRun({ status: "handed-back", outcome: job.ticket });
-        return;
-      }
-      onClose();
-      router.push(buildHostWorkspaceRoute(serverId, job.ticket.workspaceId));
     } catch (error) {
-      if (live.current) setRun({ status: "failed", error: pluginProblemText(error) });
+      if (counts()) setRun((current) => runAfterError(current, mine, pluginProblemText(error)));
     }
   }, [
     client,
@@ -355,7 +379,7 @@ function StartTicketSheet({
             testIDPrefix="groupon-start-ticket-effort"
           />
         ) : null}
-        <RunState run={run} />
+        <RunState run={run} now={now} onRetry={handleStart} />
         <View style={styles.actions}>
           {problem && ticket.trim() ? <Text style={styles.hint}>{problem}</Text> : null}
           <Button
@@ -373,20 +397,61 @@ function StartTicketSheet({
   );
 }
 
-function RunState({ run }: { run: Run }) {
+function StepMark({ state }: { state: StepState }) {
+  if (state === "current") return <ThemedSpinner size={14} />;
+  if (state === "done") return <ThemedCheck size={14} uniProps={accentMapping} />;
+  if (state === "stopped") return <ThemedX size={14} uniProps={destructiveMapping} />;
+  return <ThemedCircle size={14} uniProps={mutedMapping} />;
+}
+
+function Steps({ run }: { run: TicketRun }) {
+  return (
+    <View style={styles.steps} testID="groupon-start-ticket-steps">
+      {stepRows(run).map((row) => (
+        <View
+          key={row.step}
+          style={styles.stepRow}
+          testID={`groupon-start-ticket-step-${row.step}`}
+        >
+          <StepMark state={row.state} />
+          <Text style={row.state === "pending" ? styles.muted : styles.stepLabel}>{row.label}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function RunState({ run, now, onRetry }: { run: TicketRun; now: number; onRetry: () => void }) {
   const link = run.status === "handed-back" ? run.outcome.link : null;
   const openLink = useCallback(() => {
     if (link) void openExternalUrl(link);
   }, [link]);
   if (run.status === "running") {
     return (
-      <View style={styles.status}>
-        <ThemedSpinner size={16} />
-        <Text style={styles.muted}>{run.phase}</Text>
+      <View style={styles.handBack}>
+        <Steps run={run} />
+        <Text style={styles.muted} testID="groupon-start-ticket-phase">
+          {run.phase} · {elapsedText(now - run.startedAt)}
+        </Text>
+        <Text style={styles.muted}>{GROUPON_TICKET.keepsRunning}</Text>
       </View>
     );
   }
-  if (run.status === "failed") return <Text style={styles.error}>{run.error}</Text>;
+  if (run.status === "failed" || run.status === "gave-up") {
+    return (
+      <View style={styles.handBack}>
+        <Steps run={run} />
+        <Text style={styles.error} testID="groupon-start-ticket-error">
+          {run.error}
+        </Text>
+        <View style={styles.linkRow}>
+          <Button variant="outline" size="sm" onPress={onRetry} testID="groupon-start-ticket-retry">
+            {GROUPON_TICKET.retry}
+          </Button>
+        </View>
+      </View>
+    );
+  }
   if (run.status !== "handed-back") return null;
   return (
     <View style={styles.handBack} testID="groupon-start-ticket-handed-back">
@@ -476,10 +541,17 @@ const styles = StyleSheet.create((theme) => ({
   linkRow: {
     flexDirection: "row",
   },
-  status: {
+  steps: {
+    gap: theme.spacing[1],
+  },
+  stepRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
+  },
+  stepLabel: {
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.sm,
   },
   actions: {
     flexDirection: "row",

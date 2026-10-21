@@ -36,6 +36,7 @@ const SAMPLE_JOB_STARTED = {
   kind: "ticket-start",
   status: "done",
   phase: "Cutting the worktree on b2b/QR-1742/ENC-1234-fix and starting the agent",
+  step: "starting",
   error: null,
   clone: null,
   ticket: {

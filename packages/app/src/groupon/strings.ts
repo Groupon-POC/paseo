@@ -309,9 +309,15 @@ export const GROUPON_TICKET = {
   noModel: "This agent offers no model.",
   effortLabel: "Effort",
   start: "Start",
-  starting: "Starting",
   didNotFinish: "The start did not finish.",
   openComment: "Open the readiness comment",
+  stepNaming: "Naming the branch",
+  stepGrading: "Grading the assignment",
+  stepStarting: "Starting the agent",
+  retry: "Retry",
+  keepsRunning:
+    "Closing this does not stop it: the hand finishes on that Mac and the readiness verdict lands on the ticket.",
+  handLog: "~/.local/state/groupon/hand/serve.log",
 } as const;
 
 export const GROUPON_REPOSITORY = {

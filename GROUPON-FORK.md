@@ -310,6 +310,19 @@ the engineering standards of the repository picked, read from the repository its
 with the file pane's markdown preview, and Pull the standards, which runs `groupon standards pull`
 in that checkout. A repository without standards says so and points at `groupon standards adopt`.
 
+## The environment badge, in the sidebar
+
+The web build's shell (`apps/frontend-desk-ts` in the Groupon monorepo) mounts the monorepo's
+floating environment badge (`@groupon2/frontend-environment-badge`, bottom-right); on
+`desk.grpn.site` it covered the composer's right-hand controls at desktop and phone width (visual
+pass 2026-10-21). The window hides it on the web (`groupon/environment-badge-model.ts`,
+`hideShellEnvironmentBadge`, from the gate) and draws its own as a row of the sidebar
+(`groupon/environment-badge.tsx`): in the footer on a wide window, beside the close button in the
+header on a phone, never over the page. A release build that offers no choice of Core draws none (it
+signs in to production alone, the staging host included); a build that offers the choice
+(`environmentChoiceOffered`) shows STAGING or LOCAL while that Core is chosen, with Open PROD on the
+web, which opens the same page on `desk.livingsocial.com`.
+
 ## Improve this repository
 
 The owner's word of 2026-10-20: "a solution for 'How to improve my repository', where a prompt

@@ -150,6 +150,15 @@ export const GROUPON_REPOSITORY_PICKER = {
     `${path} on ${mac} did not open as a project: ${reason}`,
 } as const;
 
+export const GROUPON_ENVIRONMENT_BADGE = {
+  hint: (label: string) =>
+    label === "LOCAL"
+      ? "This window is signed in to a local Core."
+      : "This window is signed in to staging's Core.",
+  openProd: "Open PROD",
+  openProdLabel: "Open this page on production, in a new tab",
+} as const;
+
 export const GROUPON_TRAIN_ARCHIVED = {
   title: "Archived by a release train",
   intro:

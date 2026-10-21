@@ -17,6 +17,10 @@ export const GROUPON_GATE = {
     "Type a Core address such as http://localhost:4100 (plain http only on this machine).",
   codeIntro: "Approve this code on Groupon's sign-in page:",
   openPage: "Open the sign-in page",
+  /** Under the button, the sign-in page's host and path only (`device-sign-in-model.ts`). */
+  typeCodeAt: (address: string) => `or type the code at ${address}`,
+  copyCode: "Tap the code to copy it",
+  codeCopied: "Code copied",
   signIn: "Sign in with Groupon",
   waiting: "Waiting for approval",
   denied: "The sign-in was denied.",
@@ -26,6 +30,9 @@ export const GROUPON_GATE = {
     "Type your vault passphrase once. The key is made on this device and kept in its keychain; it opens what your Macs sealed on the hub. The passphrase never leaves this device.",
   vaultIntroWeb:
     "Type your vault passphrase once. The key is made in this browser and kept here, encrypted under a key that never leaves the browser and no script can read; it opens what your Macs sealed on the hub. The passphrase never leaves this device.",
+  /** The vault step on a phone: one sentence, the rest behind "Why?". */
+  vaultIntroShort: "Type your vault passphrase once; it never leaves this device.",
+  why: "Why?",
   passphrasePlaceholder: "Vault passphrase",
   openVault: "Open the vault",
   deriving: "Making the key (600,000 rounds)",
@@ -246,6 +253,12 @@ export const GROUPON_GITHUB = {
   folderLabel: "Clone into",
   landsAt: "It lands at",
   download: "Clone and add",
+} as const;
+
+/** The eye at the right edge of a passphrase field (`secret-input.tsx`). */
+export const GROUPON_SECRET_INPUT = {
+  show: "Show passphrase",
+  hide: "Hide passphrase",
 } as const;
 
 export const GROUPON_COPY = {

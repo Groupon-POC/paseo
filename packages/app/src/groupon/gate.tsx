@@ -5,18 +5,31 @@
  * sign-in Groupon's CLI uses (a code approved on Groupon's SSO page), then the vault passphrase,
  * typed once and turned into the vault key on this device. Only when both are done does Paseo's
  * app start behind it.
+ *
+ * Constraints:
+ * - Never open the sign-in page from script: only the person's tap on the card's link opens it
+ *   (Safari blocks a page opened after the code arrives as a pop-up).
+ * - A release build names no Core address (production only); a build with a choice does.
  */
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import * as Clipboard from "expo-clipboard";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { isWeb } from "@/constants/platform";
 import { StyleSheet } from "react-native-unistyles";
 import { ThemedGrouponMark } from "./groupon-mark";
 import { Button } from "@/components/ui/button";
+import { PressHighlight } from "@/components/ui/press-highlight";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { EditingTextInput } from "@/components/ui/text-input";
-import { openExternalUrl } from "@/utils/open-external-url";
-import { CoreError, deviceAuthPoll, deviceAuthStart, type DeviceAuthStart } from "./core-client";
+import { deviceAuthPoll, deviceAuthStart, type DeviceAuthStart } from "./core-client";
+import {
+  coreLineShown,
+  runDeviceSignIn,
+  signInPageLink,
+  typeCodeLine,
+} from "./device-sign-in-model";
 import {
   environmentChoiceOffered,
   GROUPON_ENVIRONMENTS,
@@ -28,6 +41,8 @@ import { GrouponHubSync } from "./hub-sync";
 import { signedInMessageAuthor } from "./message-author";
 import { setMessageAuthorSource } from "./message-author-source";
 import { useGrouponStore } from "./session";
+import { SecretInput } from "./secret-input";
+import { SignInPageButton } from "./sign-in-page-button";
 import { GROUPON_GATE } from "./strings";
 
 const ENVIRONMENT_OPTIONS = GROUPON_ENVIRONMENTS.map((env) => ({
@@ -39,7 +54,9 @@ const ENVIRONMENT_CHOICE = environmentChoiceOffered(
   __DEV__,
   process.env.EXPO_PUBLIC_GROUPON_ENVIRONMENTS,
 );
-const POLL_FLOOR_SECONDS = 2;
+
+/** A release build names no Core address: it signs in to production alone. */
+const SHOW_CORE_LINE = coreLineShown(ENVIRONMENT_CHOICE);
 
 // Every prompt the composer sends names the signed-in person (`message-author-source.ts`).
 setMessageAuthorSource(signedInMessageAuthor);
@@ -87,6 +104,7 @@ function SignInStep() {
   const coreUrl = useGrouponStore((state) => state.coreUrl);
   const chooseEnvironment = useGrouponStore((state) => state.chooseEnvironment);
   const acceptApprovedPoll = useGrouponStore((state) => state.acceptApprovedPoll);
+  const compact = useIsCompactFormFactor();
   const [localUrl, setLocalUrl] = useState(
     environmentId === "local" ? coreUrl : "http://localhost:4000",
   );
@@ -118,6 +136,8 @@ function SignInStep() {
     [chooseEnvironment, localUrl],
   );
 
+  // The sign-in page is not opened from here: only the person's tap on the card's link opens it
+  // (`device-sign-in-model.ts`; a page opened by script is a pop-up Safari blocks).
   const handleSignIn = useCallback(async () => {
     setError(null);
     let target = coreUrl;
@@ -132,22 +152,15 @@ function SignInStep() {
     }
     setBusy(true);
     try {
-      const started = await deviceAuthStart(target, `Groupon Desk app (${Platform.OS})`);
-      setFlow(started);
-      void openExternalUrl(started.verificationUri);
-      const deadline = Date.now() + started.expiresIn * 1000;
-      const intervalMs = Math.max(started.pollIntervalSeconds, POLL_FLOOR_SECONDS) * 1000;
-      while (!cancelled.current && Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
-        const answer = await deviceAuthPoll(target, started.deviceCode);
-        if (answer.status === "approved") {
-          await acceptApprovedPoll(answer);
-          return;
-        }
-        if (answer.status === "denied") throw new CoreError(GROUPON_GATE.denied, null);
-        if (answer.status === "expired") break;
-      }
-      if (!cancelled.current) throw new CoreError(GROUPON_GATE.expired, null);
+      const approved = await runDeviceSignIn(target, `Groupon Desk app (${Platform.OS})`, {
+        start: deviceAuthStart,
+        poll: deviceAuthPoll,
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        now: Date.now,
+        isCancelled: () => cancelled.current,
+        onStarted: setFlow,
+      });
+      if (approved) await acceptApprovedPoll(approved);
     } catch (caught) {
       if (!cancelled.current) setError(messageOf(caught));
     } finally {
@@ -158,12 +171,9 @@ function SignInStep() {
     }
   }, [acceptApprovedPoll, chooseEnvironment, coreUrl, environmentId, localUrl]);
   const handleSignInPress = useCallback(() => void handleSignIn(), [handleSignIn]);
-  const handleOpenPage = useCallback(() => {
-    if (flow) void openExternalUrl(flow.verificationUri);
-  }, [flow]);
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, compact ? styles.cardCompact : null]}>
       <Text style={styles.body}>
         {ENVIRONMENT_CHOICE ? GROUPON_GATE.signInIntroChoice : GROUPON_GATE.signInIntro}
       </Text>
@@ -186,27 +196,82 @@ function SignInStep() {
           style={styles.input}
           testID="groupon-local-core-url"
         />
-      ) : (
-        <Text style={styles.hint}>{coreUrl}</Text>
-      )}
-      {flow ? (
-        <View style={styles.codeBox} testID="groupon-device-code">
-          <Text style={styles.hint}>{GROUPON_GATE.codeIntro}</Text>
-          <Text style={styles.code} selectable>
-            {flow.userCode}
-          </Text>
-          <Button variant="outline" onPress={handleOpenPage}>
-            {GROUPON_GATE.openPage}
-          </Button>
-          <Text style={styles.hint} selectable>
-            {flow.verificationUri}
-          </Text>
-        </View>
       ) : null}
-      <Button variant="default" onPress={handleSignInPress} loading={busy} testID="groupon-sign-in">
-        {busy ? GROUPON_GATE.waiting : GROUPON_GATE.signIn}
-      </Button>
+      {SHOW_CORE_LINE && environmentId !== "local" ? (
+        <Text style={styles.hint}>{coreUrl}</Text>
+      ) : null}
+      {flow ? <DeviceCode flow={flow} compact={compact} /> : null}
+      {flow && compact ? (
+        <View style={styles.waiting} testID="groupon-sign-in-waiting">
+          <ActivityIndicator size="small" />
+          <Text style={styles.hint}>{GROUPON_GATE.waiting}</Text>
+        </View>
+      ) : (
+        <Button
+          variant="default"
+          onPress={handleSignInPress}
+          loading={busy}
+          testID="groupon-sign-in"
+        >
+          {busy ? GROUPON_GATE.waiting : GROUPON_GATE.signIn}
+        </Button>
+      )}
       {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
+const CODE_COPIED_FOR_MS = 2000;
+
+/**
+ * The code to approve, which a tap copies, the link to the sign-in page, and where to type the
+ * code by hand. On a phone it sits flat in the card, the code large and monospaced, the link a
+ * full-width button; the desktop keeps the inner box.
+ */
+function DeviceCode({ flow, compact }: { flow: DeviceAuthStart; compact: boolean }) {
+  const link = signInPageLink(flow.verificationUri);
+  const typeLine = typeCodeLine(flow.verificationUri);
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const copy = useCallback(async () => {
+    await Clipboard.setStringAsync(flow.userCode);
+    setCopied(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), CODE_COPIED_FOR_MS);
+  }, [flow.userCode]);
+  const handleCopy = useCallback(() => void copy(), [copy]);
+
+  return (
+    <View style={compact ? styles.codeFlat : styles.codeBox} testID="groupon-device-code">
+      <Text style={[styles.hint, styles.centered]}>{GROUPON_GATE.codeIntro}</Text>
+      <PressHighlight
+        onPress={handleCopy}
+        accessibilityRole="button"
+        accessibilityLabel={GROUPON_GATE.copyCode}
+        testID="groupon-device-code-copy"
+      >
+        <Text style={compact ? styles.codeCompact : styles.code} selectable>
+          {flow.userCode}
+        </Text>
+      </PressHighlight>
+      <Text style={[styles.hint, styles.centered]}>
+        {copied ? GROUPON_GATE.codeCopied : GROUPON_GATE.copyCode}
+      </Text>
+      {link ? (
+        <SignInPageButton
+          link={link}
+          label={GROUPON_GATE.openPage}
+          primary={compact}
+          testID="groupon-open-sign-in-page"
+        />
+      ) : null}
+      {typeLine ? <Text style={[styles.hint, styles.centered]}>{typeLine}</Text> : null}
     </View>
   );
 }
@@ -215,9 +280,11 @@ function VaultStep() {
   const identity = useGrouponStore((state) => state.identity);
   const unlockVault = useGrouponStore((state) => state.unlockVault);
   const signOut = useGrouponStore((state) => state.signOut);
+  const compact = useIsCompactFormFactor();
   const [passphrase, setPassphrase] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [whyOpen, setWhyOpen] = useState(false);
 
   const handleUnlock = useCallback(async () => {
     setError(null);
@@ -231,26 +298,36 @@ function VaultStep() {
   }, [passphrase, unlockVault]);
   const handleUnlockPress = useCallback(() => void handleUnlock(), [handleUnlock]);
   const handleSignOut = useCallback(() => void signOut(), [signOut]);
+  const handleWhy = useCallback(() => setWhyOpen(true), []);
+  const fullIntro = isWeb ? GROUPON_GATE.vaultIntroWeb : GROUPON_GATE.vaultIntro;
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, compact ? styles.cardCompact : null]}>
       <Text style={styles.body}>
         {GROUPON_GATE.signedInAs} {identity?.email ?? identity?.name ?? "?"}
       </Text>
-      <Text style={styles.hint}>
-        {isWeb ? GROUPON_GATE.vaultIntroWeb : GROUPON_GATE.vaultIntro}
-      </Text>
-      <EditingTextInput
-        initialValue=""
+      {compact && !whyOpen ? (
+        <Text style={styles.hint}>
+          {GROUPON_GATE.vaultIntroShort}{" "}
+          <Text
+            style={styles.link}
+            onPress={handleWhy}
+            accessibilityRole="button"
+            testID="groupon-vault-why"
+          >
+            {GROUPON_GATE.why}
+          </Text>
+        </Text>
+      ) : (
+        <Text style={styles.hint}>{fullIntro}</Text>
+      )}
+      <SecretInput
         onChangeText={setPassphrase}
-        secureTextEntry
-        autoCapitalize="none"
-        autoCorrect={false}
         placeholder={GROUPON_GATE.passphrasePlaceholder}
         onSubmitEditing={handleUnlockPress}
-        style={styles.input}
         testID="groupon-vault-passphrase"
       />
+      {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button
         variant="default"
         onPress={handleUnlockPress}
@@ -260,7 +337,6 @@ function VaultStep() {
       >
         {busy ? GROUPON_GATE.deriving : GROUPON_GATE.openVault}
       </Button>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
       <Button variant="ghost" size="sm" onPress={handleSignOut}>
         {GROUPON_GATE.signOut}
       </Button>
@@ -276,7 +352,7 @@ const styles = StyleSheet.create((theme) => ({
   scroll: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: theme.spacing[6],
+    padding: { xs: theme.spacing[4], md: theme.spacing[6] },
   },
   column: {
     width: "100%",
@@ -298,6 +374,10 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.surface1,
     borderWidth: 1,
     borderColor: theme.colors.border,
+  },
+  cardCompact: {
+    padding: theme.spacing[4],
+    gap: theme.spacing[4],
   },
   body: {
     color: theme.colors.foreground,
@@ -324,11 +404,36 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.lg,
     backgroundColor: theme.colors.surface2,
   },
+  codeFlat: {
+    gap: theme.spacing[3],
+    alignItems: "stretch",
+  },
   code: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize["4xl"],
     fontWeight: theme.fontWeight.bold,
     letterSpacing: 4,
+  },
+  codeCompact: {
+    color: theme.colors.foreground,
+    fontFamily: theme.fontFamily.mono,
+    fontSize: 34,
+    fontWeight: theme.fontWeight.semibold,
+    letterSpacing: 3,
+    textAlign: "center",
+  },
+  centered: {
+    textAlign: "center",
+  },
+  waiting: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing[2],
+  },
+  link: {
+    color: theme.colors.foreground,
+    textDecorationLine: "underline",
   },
   error: {
     color: theme.colors.destructive,

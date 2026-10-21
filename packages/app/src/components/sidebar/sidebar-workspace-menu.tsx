@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "Share…" with a colleague, for a workspace on the hub.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "Share…" with a colleague, for a workspace on the hub (found by its daemon ids, else its folder).
 import { useMemo, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { type PressableStateCallbackType } from "react-native";
@@ -236,6 +236,8 @@ function SidebarWorkspaceMenuItems({
       />
       <ShareWorkspaceMenuItem
         surface={surface}
+        serverId={serverId}
+        workspaceId={workspaceId}
         path={openInFileManagerPath}
         testID={`sidebar-workspace-menu-share-${workspaceKey}`}
       />

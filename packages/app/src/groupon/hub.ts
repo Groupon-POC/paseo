@@ -59,6 +59,19 @@ export interface HubWorkspace {
   diffRemoved: number | null;
   archivedAt: string | null;
   updatedAt: string;
+  /**
+   * `hub` (started through the hub) or `daemon` (made in the window, mirrored by the Mac's hand;
+   * monorepo design section 5.1). Absent from an older hub, like the four fields below.
+   */
+  origin?: "hub" | "daemon";
+  /** The Paseo daemon that holds the workspace (its `serverId`); null until the hand mirrored it. */
+  daemonServerId?: string | null;
+  /** The workspace's id in that daemon: with `daemonServerId`, how the window finds this row. */
+  daemonWorkspaceId?: string | null;
+  /** The daemon's word for its agents at the last mirror; null for a row never mirrored. */
+  daemonState?: "idle" | "working" | "needs_input" | null;
+  /** When the daemon last saw activity in it, as mirrored. */
+  lastActivityAt?: string | null;
 }
 
 export interface HubChat {

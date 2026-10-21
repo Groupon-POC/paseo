@@ -93,6 +93,12 @@ describe("the share path", () => {
   it("opens Share for the hub workspace the row belongs to", () => {
     expect(hubShareRoute({ workspaceId: "w1" })).toBe("/hub-share?workspaceId=w1");
   });
+
+  it("opens Share for a sidebar workspace by its daemon ids and folder", () => {
+    expect(
+      hubShareRoute({ serverId: "srv-a", daemonWorkspaceId: "pw-1", path: "/Users/olga/ed-1" }),
+    ).toBe("/hub-share?serverId=srv-a&daemonWorkspaceId=pw-1&path=%2FUsers%2Folga%2Fed-1");
+  });
 });
 
 describe("the Share screen's people", () => {

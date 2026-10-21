@@ -1,9 +1,10 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the shared-workspace model against the CLI's box; the sealed prompt names its device.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the shared-workspace model against the CLI's box; the sealed prompt names its device; the hub row of a window-made workspace by its daemon ids.
 import { describe, expect, it } from "vitest";
 import { bytesToBase64, identityFromVaultKey, openSealedJson, sealKeyFromShareKey } from "./crypto";
 import type { OpenedMessage } from "./history";
-import type { HubOverview, HubSharedWorkspace } from "./hub";
+import type { HubOverview, HubSharedWorkspace, HubWorkspace } from "./hub";
 import {
+  hubWorkspaceForDaemon,
   hubWorkspaceForPath,
   normaliseEmail,
   openPermissionRequests,
@@ -234,6 +235,108 @@ describe("the owner's side", () => {
 
     expect(hubWorkspaceForPath(hub, "/Users/olga/ed-1/")?.id).toBe("w1");
     expect(hubWorkspaceForPath(hub, "/Users/olga/ed-2")).toBeNull();
+  });
+});
+
+describe("the hub workspace behind a workspace made in the window", () => {
+  const base: HubWorkspace = {
+    id: "w-hub",
+    machine: "mac-a",
+    repositoryId: "r1",
+    branch: "olga/cart",
+    targetBranch: "staging",
+    ticketKey: null,
+    name: "Cart",
+    path: "/Users/olga/ed-1",
+    state: "ready",
+    status: "idle",
+    pinnedAt: null,
+    prUrl: null,
+    diffAdded: null,
+    diffRemoved: null,
+    archivedAt: null,
+    updatedAt: "2026-10-21T08:00:00Z",
+  };
+  const mirrored = (overrides: Partial<HubWorkspace>): HubWorkspace => ({
+    ...base,
+    origin: "daemon",
+    daemonServerId: "srv-a",
+    daemonWorkspaceId: "pw-1",
+    daemonState: "idle",
+    lastActivityAt: "2026-10-21T08:00:00Z",
+    ...overrides,
+  });
+
+  it("matches on the daemon's serverId and workspace id first, whatever the folder", () => {
+    const hub = overview({
+      workspaces: [
+        { ...base, id: "w-folder", path: "/Users/olga/ed-1" },
+        mirrored({ id: "w-mirror", path: "/Users/olga/elsewhere" }),
+      ],
+    });
+    expect(hubWorkspaceForDaemon(hub, "srv-a", "pw-1", "/Users/olga/ed-1")?.id).toBe("w-mirror");
+  });
+
+  it("tells two Macs with the same folder apart by the daemon ids", () => {
+    const hub = overview({
+      workspaces: [
+        mirrored({ id: "w-mac-a", machine: "mac-a" }),
+        mirrored({ id: "w-mac-b", machine: "mac-b", daemonServerId: "srv-b" }),
+      ],
+    });
+    expect(hubWorkspaceForDaemon(hub, "srv-b", "pw-1", "/Users/olga/ed-1")?.id).toBe("w-mac-b");
+    expect(hubWorkspaceForDaemon(hub, "srv-a", "pw-1", "/Users/olga/ed-1")?.id).toBe("w-mac-a");
+  });
+
+  it("leaves an archived mirrored row out", () => {
+    const hub = overview({ workspaces: [mirrored({ state: "archived" })] });
+    expect(hubWorkspaceForDaemon(hub, "srv-a", "pw-1", "/Users/olga/ed-1")).toBeNull();
+  });
+
+  it("falls back to the folder, limited to that daemon's Mac", () => {
+    const hub = overview({
+      workspaces: [
+        // A row of the same daemon names its Mac: mac-a.
+        mirrored({ id: "w-other", daemonWorkspaceId: "pw-9", path: "/Users/olga/ed-9" }),
+        { ...base, id: "w-on-b", machine: "mac-b" },
+        { ...base, id: "w-on-a", machine: "mac-a" },
+      ],
+    });
+    expect(hubWorkspaceForDaemon(hub, "srv-a", "pw-1", "/Users/olga/ed-1/")?.id).toBe("w-on-a");
+  });
+
+  it("takes the Mac from the window's own hub Macs when the daemon mirrored nothing yet", () => {
+    const hub = overview({
+      workspaces: [
+        { ...base, id: "w-on-a", machine: "mac-a" },
+        { ...base, id: "w-on-b", machine: "mac-b" },
+      ],
+    });
+    expect(hubWorkspaceForDaemon(hub, "srv-b", "pw-1", "/Users/olga/ed-1", ["mac-b"])?.id).toBe(
+      "w-on-b",
+    );
+  });
+
+  it("never takes a folder row another workspace of the same daemon claims", () => {
+    const hub = overview({
+      workspaces: [mirrored({ id: "w-claimed", daemonWorkspaceId: "pw-2" })],
+    });
+    expect(hubWorkspaceForDaemon(hub, "srv-a", "pw-1", "/Users/olga/ed-1")).toBeNull();
+  });
+
+  it("finds a hub row by its folder alone from an older hub that sends no daemon fields", () => {
+    const hub = overview({ workspaces: [base] });
+    expect(hubWorkspaceForDaemon(hub, "srv-a", "pw-1", "/Users/olga/ed-1")?.id).toBe("w-hub");
+  });
+
+  it("answers null while the Mac has not mirrored a workspace made a moment ago", () => {
+    const hub = overview({
+      workspaces: [
+        mirrored({ id: "w-other", daemonWorkspaceId: "pw-9", path: "/Users/olga/ed-9" }),
+      ],
+    });
+    expect(hubWorkspaceForDaemon(hub, "srv-a", "pw-1", "/Users/olga/ed-1")).toBeNull();
+    expect(hubWorkspaceForDaemon(hub, "srv-a", "pw-1")).toBeNull();
   });
 });
 

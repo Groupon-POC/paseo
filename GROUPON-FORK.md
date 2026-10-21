@@ -280,6 +280,15 @@ the History screen's workspace card opens `groupon/share-screen.tsx` (who has ac
 reader with the share key out of the owner's box, with a composer and Allow / Deny when the role is
 write (`groupon/history-chat-screen.tsx`, `groupon/share-model.ts`).
 
+A workspace made in the window reaches the hub through the Mac's hand, which mirrors every
+workspace of its daemon (design section 5.1); the hub's row carries the daemon's `serverId` and
+workspace id. The window finds the hub row of a Paseo workspace by that pair
+(`hubWorkspaceForDaemon` in `groupon/share-model.ts`), else by its folder on that daemon's Mac, so
+Share, the presence check-in (`groupon/presence-row.tsx`) and who wrote what work for it too. Until
+the Mac has mirrored a workspace made a moment ago, the presence row re-reads the overview every
+15 s and the Share sheet says the Mac adds it within half a minute, re-reading every 15 s while
+open so it flips by itself.
+
 Who wrote what (the owner's word of 2026-10-21). A user message carries an optional author,
 `{ userId, name, device? }` (`UserMessageAuthor` in `packages/protocol/src/agent-types.ts`, on
 `send_agent_message_request` and on the timeline's `user_message`; a peer without it ignores it).

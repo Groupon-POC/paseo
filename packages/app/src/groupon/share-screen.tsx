@@ -14,22 +14,41 @@ import {
 } from "./hub";
 import { AuthorLegend } from "./message-author";
 import { presenceLines } from "./presence-model";
-import { useHubPresence } from "./presence-row";
-import { hubWorkspaceForPath, normaliseEmail, sharesOfWorkspace } from "./share-model";
+import { useHubMachinesOfServer, useHubPresence } from "./presence-row";
+import {
+  hubWorkspaceForDaemon,
+  hubWorkspaceForPath,
+  normaliseEmail,
+  sharesOfWorkspace,
+} from "./share-model";
+import type { HubShareTarget } from "./share-route";
 import { GROUPON_PRESENCE, GROUPON_SHARE } from "./strings";
 
 function errorText(caught: unknown): string {
   return caught instanceof Error ? caught.message : String(caught);
 }
 
-/** The workspace by its hub id, or by its folder when opened from the sidebar. */
-function resolveWorkspace(overview: HubOverview, workspaceId?: string, path?: string) {
+/** How often the open sheet re-reads the overview, so a workspace the Mac mirrors meanwhile appears. */
+const OVERVIEW_POLL_MS = 15_000;
+
+/**
+ * The workspace by its hub id; else by the daemon ids of the Paseo workspace it was opened from
+ * (the folder on that Mac as the fallback); else by the folder alone.
+ */
+function resolveWorkspace(
+  overview: HubOverview,
+  target: HubShareTarget,
+  knownMachines: readonly string[],
+) {
+  const { workspaceId, serverId, daemonWorkspaceId, path } = target;
   if (workspaceId)
     return overview.workspaces.find((workspace) => workspace.id === workspaceId) ?? null;
+  if (serverId && daemonWorkspaceId)
+    return hubWorkspaceForDaemon(overview, serverId, daemonWorkspaceId, path, knownMachines);
   return path ? hubWorkspaceForPath(overview, path) : null;
 }
 
-export function HubShareScreen({ workspaceId, path }: { workspaceId?: string; path?: string }) {
+export function HubShareScreen({ workspaceId, serverId, daemonWorkspaceId, path }: HubShareTarget) {
   const [overview, setOverview] = useState<HubOverview | null>(null);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<HubShareRole>("read");
@@ -46,9 +65,14 @@ export function HubShareScreen({ workspaceId, path }: { workspaceId?: string; pa
   }, []);
   useEffect(() => {
     void load();
+    const timer = setInterval(() => void load(), OVERVIEW_POLL_MS);
+    return () => clearInterval(timer);
   }, [load]);
 
-  const workspace = overview ? resolveWorkspace(overview, workspaceId, path) : null;
+  const knownMachines = useHubMachinesOfServer(serverId);
+  const workspace = overview
+    ? resolveWorkspace(overview, { workspaceId, serverId, daemonWorkspaceId, path }, knownMachines)
+    : null;
   const grants = overview && workspace ? sharesOfWorkspace(overview, workspace.id) : [];
 
   const handleShare = useCallback(async () => {

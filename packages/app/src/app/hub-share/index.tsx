@@ -3,6 +3,18 @@ import { useLocalSearchParams } from "expo-router";
 import { HubShareScreen } from "@/groupon/share-screen";
 
 export default function HubShareRoute() {
-  const params = useLocalSearchParams<{ workspaceId?: string; path?: string }>();
-  return <HubShareScreen workspaceId={params.workspaceId} path={params.path} />;
+  const params = useLocalSearchParams<{
+    workspaceId?: string;
+    serverId?: string;
+    daemonWorkspaceId?: string;
+    path?: string;
+  }>();
+  return (
+    <HubShareScreen
+      workspaceId={params.workspaceId}
+      serverId={params.serverId}
+      daemonWorkspaceId={params.daemonWorkspaceId}
+      path={params.path}
+    />
+  );
 }

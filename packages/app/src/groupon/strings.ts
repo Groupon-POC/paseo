@@ -342,7 +342,7 @@ export const GROUPON_SHARE = {
   intro:
     "A colleague you share this workspace with reads its chats on their own device. With write, they may also send the agent a prompt and allow or deny what it asks. The agent keeps running on your Mac, under your subscription. Every message is sealed: the hub cannot read it.",
   notOnHub:
-    "This workspace is not on the hub, so it cannot be shared. Start it from Groupon Desk (a task with a chat) to share it.",
+    "This workspace is not on the hub yet. Your Mac adds every workspace to the hub within half a minute, and this page updates by itself once it has.",
   emailLabel: "Colleague's email",
   emailPlaceholder: "name@groupon.com",
   badEmail: "Type a whole email address.",

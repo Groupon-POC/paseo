@@ -5,7 +5,8 @@
  * `_documentation/design/groupon-desk-work-window-design.md`, section 13):
  *
  * - the owner's side: who a workspace is shared with, and which hub workspace a Paseo workspace in
- *   the sidebar is (the same folder on the same Mac);
+ *   the sidebar is (by the daemon ids the Mac's hand mirrored, else the same folder on the same Mac;
+ *   design section 5.1);
  * - the colleague's side: the "Shared with me" list, the share key out of the owner's box, a
  *   prompt sealed under it, and which permission requests still wait for an answer.
  *
@@ -75,15 +76,61 @@ export function sharesOfWorkspace(overview: HubOverview, workspaceId: string): H
   return (overview.shares ?? []).filter((share) => share.workspaceId === workspaceId);
 }
 
+const trimSlashes = (path: string) => path.replace(/\/+$/, "");
+
 /** The hub workspace behind a Paseo workspace: the same folder (a worktree's path is unique on a Mac). */
-export function hubWorkspaceForPath(overview: HubOverview, path: string): HubWorkspace | null {
-  const wanted = path.replace(/\/+$/, "");
+export function hubWorkspaceForPath(
+  overview: HubOverview,
+  path: string,
+  machines?: ReadonlySet<string>,
+): HubWorkspace | null {
+  const wanted = trimSlashes(path);
   return (
     overview.workspaces.find(
       (workspace) =>
-        workspace.state !== "archived" && (workspace.path ?? "").replace(/\/+$/, "") === wanted,
+        workspace.state !== "archived" &&
+        (machines === undefined || machines.has(workspace.machine)) &&
+        trimSlashes(workspace.path ?? "") === wanted,
     ) ?? null
   );
+}
+
+/**
+ * The hub workspace behind a workspace of a Mac's Paseo daemon (design section 5.1): the row whose
+ * `daemonServerId` and `daemonWorkspaceId` both match, archived ones left out; else the same folder
+ * on that daemon's Mac. The Mac is the hub machine of the rows that daemon already mirrored, plus
+ * `knownMachines` (the hub's Macs the window has reached at that `serverId`); when neither names
+ * one (an older hub, a Mac that mirrored nothing yet), the folder alone, as before the mirror.
+ * Null while the Mac has not mirrored a workspace made a moment ago.
+ */
+export function hubWorkspaceForDaemon(
+  overview: HubOverview,
+  serverId: string,
+  daemonWorkspaceId: string,
+  path?: string | null,
+  knownMachines: readonly string[] = [],
+): HubWorkspace | null {
+  const live = overview.workspaces.filter((workspace) => workspace.state !== "archived");
+  const exact = live.find(
+    (workspace) =>
+      workspace.daemonServerId === serverId && workspace.daemonWorkspaceId === daemonWorkspaceId,
+  );
+  if (exact) return exact;
+  const folder = path?.trim() ?? "";
+  if (folder.length === 0) return null;
+  const machines = new Set(knownMachines);
+  for (const workspace of overview.workspaces) {
+    if (workspace.daemonServerId === serverId) machines.add(workspace.machine);
+  }
+  const claimedElsewhere = (workspace: HubWorkspace) =>
+    Boolean(workspace.daemonWorkspaceId) &&
+    workspace.daemonServerId === serverId &&
+    workspace.daemonWorkspaceId !== daemonWorkspaceId;
+  const candidates: HubOverview = {
+    ...overview,
+    workspaces: live.filter((workspace) => !claimedElsewhere(workspace)),
+  };
+  return hubWorkspaceForPath(candidates, folder, machines.size > 0 ? machines : undefined);
 }
 
 /** The shared workspace a chat belongs to, when a colleague shared it with the person. */

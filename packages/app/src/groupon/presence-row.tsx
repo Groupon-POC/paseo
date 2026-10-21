@@ -1,5 +1,5 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): who is in this workspace now, above the composer.
-import { memo, useCallback, type ReactElement } from "react";
+import { memo, useCallback, useMemo, type ReactElement } from "react";
 import { Platform, Text, View } from "react-native";
 import { router } from "expo-router";
 import { Laptop, Share2 } from "lucide-react-native";
@@ -10,7 +10,8 @@ import { getIsElectronRuntime } from "@/constants/layout";
 import { useFetchQuery } from "@/data/query";
 import { useWorkspaceDirectory } from "@/stores/session-store-hooks";
 import type { Theme } from "@/styles/theme";
-import { checkInPresence, fetchOverview, type HubWorkspacePresence } from "./hub";
+import { checkInPresence, fetchOverview, type HubOverview, type HubWorkspacePresence } from "./hub";
+import { useHubMachinesStore } from "./hub-sync";
 import {
   deviceName,
   PRESENCE_POLL_MS,
@@ -19,12 +20,14 @@ import {
   type PresenceView,
 } from "./presence-model";
 import { useGrouponStore } from "./session";
-import { hubWorkspaceForPath } from "./share-model";
+import { hubWorkspaceForDaemon } from "./share-model";
 import { hubShareRoute } from "./share-route";
 import { GROUPON_PRESENCE } from "./strings";
 
 /** The overview only maps a Paseo workspace to its hub workspace here; a minute old is fresh enough. */
 const OVERVIEW_STALE_MS = 60_000;
+/** How often the overview is re-read while the open workspace is not on the hub yet. */
+const NOT_YET_MIRRORED_POLL_MS = 15_000;
 
 const ThemedLaptop = withUnistyles(Laptop);
 const ThemedShare = withUnistyles(Share2);
@@ -51,23 +54,51 @@ export function useHubPresence(hubWorkspaceId: string | null) {
   });
 }
 
-/** The presence of a Paseo workspace: the hub workspace in the same folder, as its owner sees it. */
+/** The hub's Macs the window reached at one daemon `serverId` (Your Macs' list): that daemon's Mac. */
+export function useHubMachinesOfServer(serverId: string | null | undefined): readonly string[] {
+  const views = useHubMachinesStore((state) => state.machines);
+  return useMemo(
+    () =>
+      serverId
+        ? views.filter((view) => view.serverId === serverId).map((view) => view.machine.machine)
+        : [],
+    [serverId, views],
+  );
+}
+
+/**
+ * The hub workspace behind a Paseo workspace, by its daemon ids, else its folder on that Mac
+ * (`hubWorkspaceForDaemon`). While the hub has not heard of it yet (a workspace made a moment ago,
+ * which the Mac's hand mirrors within half a minute) the overview is re-read every 15 s.
+ */
+export function useHubWorkspaceForDaemon(serverId: string, workspaceId: string): string | null {
+  const ready = useGrouponStore((state) => state.status === "ready");
+  const directory = useWorkspaceDirectory(serverId, workspaceId);
+  const machines = useHubMachinesOfServer(serverId);
+  const find = useCallback(
+    (overview: HubOverview) =>
+      hubWorkspaceForDaemon(overview, serverId, workspaceId, directory, machines),
+    [directory, machines, serverId, workspaceId],
+  );
+  const overview = useFetchQuery({
+    queryKey: ["groupon-hub-overview"],
+    queryFn: fetchOverview,
+    enabled: ready && workspaceId.length > 0,
+    dataShape: "value",
+    retry: false,
+    staleTimeMs: OVERVIEW_STALE_MS,
+    refetchInterval: (query) =>
+      query.state.data && find(query.state.data) ? false : NOT_YET_MIRRORED_POLL_MS,
+  });
+  return overview.data ? (find(overview.data)?.id ?? null) : null;
+}
+
+/** The presence of a Paseo workspace: its hub workspace (`useHubWorkspaceForDaemon`), as its owner sees it. */
 export function usePaseoWorkspacePresence(
   serverId: string,
   workspaceId: string,
 ): { hubWorkspaceId: string | null; view: PresenceView } {
-  const ready = useGrouponStore((state) => state.status === "ready");
-  const directory = useWorkspaceDirectory(serverId, workspaceId);
-  const overview = useFetchQuery({
-    queryKey: ["groupon-hub-overview"],
-    queryFn: fetchOverview,
-    enabled: ready && Boolean(directory),
-    dataShape: "value",
-    retry: false,
-    staleTimeMs: OVERVIEW_STALE_MS,
-  });
-  const hubWorkspaceId =
-    overview.data && directory ? (hubWorkspaceForPath(overview.data, directory)?.id ?? null) : null;
+  const hubWorkspaceId = useHubWorkspaceForDaemon(serverId, workspaceId);
   const presence = useHubPresence(hubWorkspaceId);
   return { hubWorkspaceId, view: presenceView(presence.data, "owner") };
 }

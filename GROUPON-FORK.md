@@ -366,3 +366,34 @@ request by the repository's own convention, never merged. The workspace then sho
 particular, preselects like the rest: the last workspace's repository, else the repository chosen
 last, else the first repository a serving Mac holds (this Mac first), and its Mac by the sheet's own
 rule, so Start is never greyed for want of a choice the window could make.
+
+## Folders are browsed, not typed
+
+The owner's word of 2026-10-21: "here I cannot even browse folders normally like a person, I have
+to type like a robot". Choose parent directory (New directory), Search for directory, Paseo's
+Choose destination and From GitHub's clone folder browse the chosen Mac's folders a click at a
+time (`groupon/folder-browser.tsx`, its rules in `groupon/folder-browser-model.ts`; the palette is
+`components/add-project-flow.tsx`, its pages keep the folder looked at in
+`add-project-flow/model.ts`). The browser opens at that Mac's home folder with the usual places
+first (`~/Documents/GitHub`, `~/Developer`, `~/Desktop`, `~/Documents`, those that exist, then
+every folder that holds a checkout the window knows of on that Mac: its daemon's projects and the
+hub's checkouts), then the folder's subfolders alphabetically, a git checkout marked, dot folders
+and macOS's `~/Library` folded behind one "Show N hidden folders" row. A breadcrumb (Home ›
+Documents › GitHub) goes up, and so does Backspace in an empty field; Enter or a click goes into a
+folder; Choose this folder (or Cmd/Ctrl+Enter, or Enter in an empty folder) picks the folder
+looked at. The field still takes a path, and filters as it is typed: a word narrows the folder's
+subfolders (Search for directory also lists matches from the whole home folder below them), a path
+lists its parent narrowed to its last part (`~/Doc`), or the folder itself once it ends in `/`. In
+the Electron window and for this Mac only, Browse… (Finder) opens the native folder dialog through
+the preload's existing `dialog.open` (`openDirectory`), and the folder picked becomes the folder
+looked at; on the web, on a phone and for another Mac the button is not drawn.
+
+The daemon answers one folder at a time as the built-in RPC `groupon-desk.list-directory`
+(`packages/server/src/groupon/list-directory.ts`, plugin id `groupon-desk`, answered by
+`session.ts` itself), so a remote Mac answers through the relay like this one: input `{ path }`
+(`~`, `~/…`, absolute, or relative to home), output the folder, its home, its parent (null at
+home), its subfolders with `hidden` and `gitCheckout` flags (at most 2,000, `truncated` beyond),
+the usual places that exist, and `error` as a sentence rather than a throw. It never lists a
+folder whose real path (symlinks resolved) is outside the daemon user's home, and never reads
+under `~/Library` on macOS, where readdir can block forever on a privacy prompt the daemon cannot
+show.

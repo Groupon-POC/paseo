@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a running creation tells its observers which step it is on (`step`, from `groupon/creation-steps.ts`), never persisted on its own.
 import type { Logger } from "pino";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -11,6 +12,7 @@ import {
 } from "@getpaseo/protocol/messages";
 import { writeFileAtomic } from "../atomic-file.js";
 import { generateWorkspaceId } from "../workspace-registry-model.js";
+import { type CreationStepId, runWithCreationSteps } from "../../groupon/creation-steps.js";
 
 type Observer = (snapshot: CreationSnapshot) => void;
 export interface CreatedAgent {
@@ -157,8 +159,9 @@ export class CreationService {
       if (input.provision && !record.snapshot.workspace) {
         record.inFlight = "workspace";
         await this.write(identity, record);
-        const { workspace, setupSkippedReason } = await input.provision(
-          record.snapshot.workspaceId!,
+        const { workspace, setupSkippedReason } = await runWithCreationSteps(
+          (step) => this.step(identity, record, step),
+          () => input.provision!(record.snapshot.workspaceId!),
         );
         record.inFlight = null;
         await this.publish(identity, record, {
@@ -298,6 +301,19 @@ export class CreationService {
         "Creation observer failed",
       );
     }
+  }
+  /**
+   * Groupon Desk: the step the creation is on, to the observers only. The receipt is not written:
+   * a step is no milestone, and the next milestone writes the snapshot with it anyway.
+   */
+  private step(identity: string, record: Record, id: CreationStepId): void {
+    record.snapshot = {
+      ...record.snapshot,
+      step: { id, startedAt: new Date().toISOString() },
+      revision: record.snapshot.revision + 1,
+    };
+    for (const observer of this.observers.get(identity) ?? [])
+      this.notify(observer, record.snapshot);
   }
   private async publish(
     identity: string,

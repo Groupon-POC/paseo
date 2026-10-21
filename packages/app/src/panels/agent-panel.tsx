@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the transcript makes room for the presence row above the composer (`groupon/presence-row.tsx`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the transcript makes room for the presence row and the worktree's setup line above the composer (`groupon/presence-row.tsx`, `groupon/worktree-setup-line.tsx`).
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -82,6 +82,7 @@ import {
 import { WorkspaceDraftAgentTab } from "@/composer/draft/workspace-tab";
 import { AgentTracks, hasAgentTracks } from "@/panels/agent-tracks";
 import { presenceVisible, usePaseoWorkspacePresence } from "@/groupon/presence-row";
+import { useWorktreeSetupLine } from "@/groupon/worktree-setup-line";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
 import { buildDraftStoreKey, generateDraftId } from "@/stores/draft-keys";
 import {
@@ -1179,12 +1180,14 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   const hasPluginComposerPills = useHasPluginComposerPills(serverId, workspaceId, agentId);
   const hasActiveComposer = !agentState.archivedAt && !isArchivingCurrentAgent;
   const grouponPresence = usePaseoWorkspacePresence(serverId, workspaceId);
+  const grouponSetupLine = useWorktreeSetupLine(serverId, workspaceId);
   const hasVisibleAgentTracks = hasAgentTracks({
     subagentRows,
     tasks,
     archiveFinishedStatus: archiveFinishedSubagents.status,
     hasPluginComposerPills,
     hasGrouponPresence: presenceVisible(grouponPresence.view),
+    hasGrouponWorktreeSetup: grouponSetupLine !== null,
   });
   const rawAgentInputDraft = useAgentInputDraft({
     draftKey: buildDraftStoreKey({

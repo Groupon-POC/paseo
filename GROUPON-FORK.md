@@ -304,6 +304,36 @@ current head (origin's, fetched first; `trunkRestoreSource`, called from
 `server/session/workspace-recovery/workspace-recovery-service.ts`), since the trunk is usually
 checked out in the main checkout already.
 
+## A new workspace says what it waits on
+
+Measured on the owner's MacBook Air on 2026-10-21 (ledger WW-86, groupon2/engineering-development):
+New workspace muted its composer for 45.6 s after Enter with a spinning button and no word. The
+daemon's own log has the request at 49.1 s (`ws_slow_request`, `workspace.create.request`);
+the worktree folder was born 4 s after the request and its last files about 40 s later, so
+`git worktree add` of the 22,787 files was most of it; the agent started 1 s after that and
+answered 7 s later, while `pnpm install` (99 s) and `pnpm checkout:prepare` (about 76 s) ran
+beside it. A creation from the agents' door failed outright the same afternoon: "Git command timed
+out after 30000ms: git status --porcelain".
+
+- **The steps are on the screen.** The daemon reports each step of a creation
+  (`naming_branch`, `fetching_base`, `creating_worktree`, `registering_workspace`) on the creation
+  snapshot it already streams (`step`, `packages/server/src/groupon/creation-steps.ts`, reported
+  from `utils/worktree.ts`, `paseo-worktree-service.ts` and `session.ts`), never persisted on its
+  own. New workspace shows it under the composer with the step's time and the whole wait
+  (`groupon/creation-progress.tsx`); the composer is muted only until the workspace exists.
+- **`git worktree add` checks out in parallel** (`-c checkout.workers=0`): 2.9 s instead of 5.3 s
+  for the same tree on the Air, warm cache.
+- **No `git status` on a creation's path.** `getCheckout` answers the checkout's identity from
+  its facts (`checkoutIdentityFromFacts` in `workspace-git-service.ts`); the full status scanned
+  every file of the source checkout and bought nothing the lite payload carries.
+- **The setup is a line above the agent's composer.** The worktree's setup keeps running beside
+  the agent; `groupon desk repo setup` prints `[desk setup 1/2] <command> (started <ISO>)` before
+  each step and `[desk setup] ready in <n> s` at the end, and the agent's track bar reads them
+  from the setup log: "Preparing the worktree (1/2): pnpm install --frozen-lockfile, 45 s. The
+  agent can already work.", then "Worktree ready in 2 min 55 s" for 20 s
+  (`groupon/worktree-setup-line.tsx`). A repository whose setup prints no marker gets the line
+  named by its setup command.
+
 ## How Groupon Desk ships it
 
 Groupon Desk's release build (`scripts/desk-release/build.mjs` in `groupon2/engineering-development`,

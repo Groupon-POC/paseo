@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`).
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -130,6 +130,7 @@ import {
   type RepositoryEntry,
 } from "@/groupon/repository-picker-model";
 import { StartTicketButton } from "@/groupon/start-ticket-button";
+import { CreationProgressCaption, useCreationProgress } from "@/groupon/creation-progress";
 import { JiraTasksCard } from "@/groupon/jira-tasks-card";
 import { useStartTicketFromPage } from "@/groupon/start-ticket-sheet";
 import { useImportSession } from "@/hooks/use-import-session";
@@ -1316,6 +1317,11 @@ export function NewWorkspaceScreen({
     setProjectPickerOpen(nextOpen);
   }, []);
 
+  const {
+    progress: creationProgress,
+    start: startCreation,
+    observe: observeCreation,
+  } = useCreationProgress();
   const ensureWorkspace = useCallback(
     async (input: {
       cwd: string;
@@ -1361,7 +1367,10 @@ export function NewWorkspaceScreen({
         prompt: input.prompt,
         attachments: input.attachments,
         agent: input.agent,
-        onEvent: input.onEvent,
+        onEvent: (snapshot) => {
+          observeCreation(snapshot);
+          input.onEvent?.(snapshot);
+        },
         mergeWorkspaces,
         serverId: selectedServerId,
         createFailedMessage: t("newWorkspace.errors.createWorktreeFailed"),
@@ -1374,6 +1383,7 @@ export function NewWorkspaceScreen({
       creationResult,
       effectiveIsolation,
       mergeWorkspaces,
+      observeCreation,
       queryClient,
       selectedItem,
       selectedProject,
@@ -1393,6 +1403,7 @@ export function NewWorkspaceScreen({
         await updateFormPreferences({ launchTarget });
         if (isEmptyWorkspaceSubmission(payload)) {
           setPendingAction("empty");
+          startCreation();
           let outcome: SubmitOutcome = "background";
           await runCreateEmptyWorkspace({
             payload,
@@ -1416,6 +1427,7 @@ export function NewWorkspaceScreen({
         }
 
         setPendingAction("chat");
+        startCreation();
         const outcome = await runCreateChatAgent({
           payload,
           composerState,
@@ -1456,6 +1468,7 @@ export function NewWorkspaceScreen({
       launchTarget,
       leaveFullscreen,
       selectedServerId,
+      startCreation,
       supportsForgeSearch,
       t,
       toast,
@@ -1469,6 +1482,7 @@ export function NewWorkspaceScreen({
       setErrorMessage(null);
       await updateFormPreferences({ launchTarget });
       setPendingAction("terminal");
+      startCreation();
       let outcome: SubmitOutcome = "background";
       await runCreateTerminalWorkspace({
         cwd: selectedSourceDirectory ?? "",
@@ -1532,6 +1546,7 @@ export function NewWorkspaceScreen({
     selectedServerId,
     selectedSourceDirectory,
     selectedTerminalProfile,
+    startCreation,
     t,
     terminalPromptText,
     toast,
@@ -1704,6 +1719,7 @@ export function NewWorkspaceScreen({
         onStartTicket={startTicket.open}
       >
         {composer}
+        <CreationProgressCaption progress={creationProgress} pending={isPending} />
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </NewWorkspaceLayout>
       <JiraTasksCard serverId={selectedServerId} onTakeTicket={startTicket.openFor} />

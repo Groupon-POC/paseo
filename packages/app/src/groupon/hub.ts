@@ -23,6 +23,8 @@ export interface HubMachine {
   relayOfferSealed: string | null;
   /** The hand's latest load sample (Core's `DeskMachineLoad`); null before the first, absent on an older Core. */
   load?: HubMachineLoad | null;
+  /** The tools the hand did not find on its daemon's PATH (`gh`, `git`, `claude`, `codex`); absent on an older Core, empty when none is missing. */
+  missingTools?: string[];
 }
 
 /** One load sample of a Mac, as its hand measured it every 10 s: whole percents, and when. */

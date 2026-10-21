@@ -37,6 +37,7 @@ function mac(id: string, label: string, extra: Partial<MacPickerOption> = {}): M
     selectable: true,
     note: null,
     badge: null,
+    missingTools: [],
     ...extra,
   };
 }

@@ -81,6 +81,8 @@ describe("connectedComputerRows", () => {
       online: true,
       load: { cpuPercent: 23, memoryPercent: 61, cpuText: "23%", memoryText: "61%" },
       note: null,
+      missingTools: [],
+      fixes: [],
     });
     // Its last sample is five minutes old: offline, and the old figures are not shown.
     expect(offline).toEqual({
@@ -90,6 +92,8 @@ describe("connectedComputerRows", () => {
       online: false,
       load: null,
       note: GROUPON_COMPUTERS.seen("5 min ago"),
+      missingTools: [],
+      fixes: [],
     });
   });
 
@@ -169,5 +173,58 @@ describe("toggleExpanded", () => {
 
     expect([...opened].sort()).toEqual(["mini", "studio"]);
     expect([...toggleExpanded(opened, "mini")]).toEqual(["studio"]);
+  });
+});
+
+describe("connectedComputerRows: the tools a Mac lacks", () => {
+  const FIX_GH = "Install it on that Mac: brew install gh, then gh auth login";
+
+  it("labels a Mac without gh and says how to fix it, and leaves a Mac with every tool unlabelled", () => {
+    const [missing, complete] = rows([
+      view(machine({ machine: "air", name: "Air", missingTools: ["gh"] })),
+      view(machine({ machine: "studio", name: "Studio", missingTools: [] })),
+    ]);
+
+    expect(missing?.missingTools).toEqual(["gh"]);
+    expect(missing?.fixes).toEqual([FIX_GH]);
+    expect(complete?.missingTools).toEqual([]);
+    expect(complete?.fixes).toEqual([]);
+  });
+
+  it("says nothing for a Mac whose hand reports no list (an older hand or an older Core)", () => {
+    const [row] = rows([view(machine({ missingTools: undefined }))]);
+
+    expect(row?.missingTools).toEqual([]);
+    expect(row?.fixes).toEqual([]);
+  });
+
+  it("leaves codex out of the label unless a session on that Mac uses Codex", () => {
+    const reported = machine({ machine: "mini", missingTools: ["gh", "codex"] });
+    const onMini = view(reported, { state: "added", serverId: "srv_mini" });
+
+    const without = rows([onMini])[0];
+    const withCodex = rows([onMini], { codexServerIds: new Set(["srv_mini"]) })[0];
+    const elsewhere = rows([onMini], { codexServerIds: new Set(["srv_other"]) })[0];
+
+    expect(without?.missingTools).toEqual(["gh"]);
+    expect(elsewhere?.missingTools).toEqual(["gh"]);
+    expect(withCodex?.missingTools).toEqual(["gh", "codex"]);
+  });
+
+  it("starts each sentence with its tool when several are missing", () => {
+    const [row] = rows([view(machine({ missingTools: ["claude", "gh", "git"] }))]);
+
+    expect(row?.missingTools).toEqual(["gh", "git", "claude"]);
+    expect(row?.fixes).toEqual([
+      `gh: ${FIX_GH}`,
+      "git: Install it on that Mac: xcode-select --install",
+      "claude: Install it on that Mac: npm install -g @anthropic-ai/claude-code, then claude to sign in",
+    ]);
+  });
+
+  it("ignores a tool name the window does not know", () => {
+    const [row] = rows([view(machine({ missingTools: ["rm -rf", "gh"] }))]);
+
+    expect(row?.missingTools).toEqual(["gh"]);
   });
 });

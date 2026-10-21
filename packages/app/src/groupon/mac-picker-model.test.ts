@@ -161,6 +161,44 @@ describe("macPickerOptions", () => {
   });
 });
 
+describe("macPickerOptions: the tools a Mac lacks", () => {
+  const withTools = (id: string, missingTools: string[] | undefined) =>
+    added(id, {
+      machine: machine(id, {
+        relayConnectedAt: "2026-10-20T08:00:00.000Z",
+        missingTools,
+      }),
+    });
+
+  it("labels a Mac without gh and leaves a Mac with every tool, and one that reports none, unlabelled", () => {
+    const options = macPickerOptions(
+      [withTools("air", ["gh"]), withTools("studio", []), withTools("old", undefined)],
+      online("srv_air", "srv_studio", "srv_old"),
+    );
+
+    expect(Object.fromEntries(options.map((option) => [option.id, option.missingTools]))).toEqual({
+      air: ["gh"],
+      studio: [],
+      old: [],
+    });
+  });
+
+  it("leaves codex out of the label unless a session on that Mac uses Codex", () => {
+    const views = [withTools("air", ["gh", "codex"])];
+
+    expect(macPickerOptions(views, online("srv_air"))[0]?.missingTools).toEqual(["gh"]);
+    expect(
+      macPickerOptions(views, online("srv_air"), [], false, new Set(["srv_air"]))[0]?.missingTools,
+    ).toEqual(["gh", "codex"]);
+  });
+
+  it("labels a Mac that is greyed too: the tool is missing whether or not the hand runs", () => {
+    const options = macPickerOptions([withTools("air", ["gh"])], online());
+
+    expect(options[0]).toMatchObject({ selectable: false, missingTools: ["gh"] });
+  });
+});
+
 describe("defaultMacServerId", () => {
   it("chooses this Mac when it is connected", () => {
     const options = macPickerOptions(

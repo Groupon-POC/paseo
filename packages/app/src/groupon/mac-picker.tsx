@@ -5,6 +5,8 @@
  * first; a Mac that cannot take the task (its hand not running, still connecting) is greyed with
  * the reason and cannot be chosen. The model is `mac-picker-model.ts`.
  *
+ * A Mac whose hand cannot find a tool carries small amber labels ("gh missing") after its name's row.
+ *
  * Constraints:
  * - Only a connected Mac reaches `onSelect`, by its host's server id
  */
@@ -15,6 +17,7 @@ import { StyleSheet } from "react-native-unistyles";
 import { HostStatusDotSlot } from "@/components/hosts/host-picker";
 import { Combobox, ComboboxItem, type ComboboxProps } from "@/components/ui/combobox";
 import type { MacPickerOption } from "./mac-picker-model";
+import { MissingToolLabels } from "./missing-tool-labels";
 import { GROUPON_MAC_PICKER } from "./strings";
 
 type RenderOption = NonNullable<ComboboxProps["renderOption"]>;
@@ -106,12 +109,23 @@ function MacOption({
     () => (serverId ? <HostStatusDotSlot serverId={serverId} /> : <View style={styles.emptyDot} />),
     [serverId],
   );
+  const trailingSlot = useMemo(
+    () =>
+      mac && mac.missingTools.length > 0 ? (
+        <MissingToolLabels
+          tools={mac.missingTools}
+          testID={`new-workspace-mac-missing-${mac.id}`}
+        />
+      ) : undefined,
+    [mac],
+  );
   return (
     <ComboboxItem
       label={label}
       labelBadge={mac?.badge}
       description={mac?.note ?? undefined}
       leadingSlot={leadingSlot}
+      trailingSlot={trailingSlot}
       selected={selected}
       active={active}
       disabled={!mac?.selectable}

@@ -477,6 +477,14 @@ panel's style. The hand sends the sample every 10 s (monorepo design section 4b)
 open the section reads `/user/groupon_desk/machines` again every 10 s, otherwise the shared list's
 30 s cadence holds.
 
+A Mac whose hand cannot find a tool carries small amber labels ("gh missing") on its row, here and
+in New workspace's Mac picker, and on expanding it one sentence: "Install it on that Mac: brew
+install gh, then gh auth login" (WW-92). The hand checks `gh`, `git`, `claude` and `codex` in the
+PATH it gives its daemon, at start and every hour, and sends the list as the hub's `missingTools`
+(`groupon/missing-tools-model.ts`, `missing-tool-labels.tsx`). `codex` is the optional one: it is
+labelled only on a Mac a Codex session runs on (`groupon/codex-servers.ts`, read from the agents
+the app already holds). An older hand or Core sends no list and the Mac shows no label.
+
 ## Improve this repository
 
 The owner's word of 2026-10-20: "a solution for 'How to improve my repository', where a prompt

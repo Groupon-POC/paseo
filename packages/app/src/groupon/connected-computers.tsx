@@ -11,6 +11,10 @@
  * - while a Mac is open, its load read again every 10 s (`fetchMachines`, one GET, nothing
  *   opened or added): the shared list is read only every 30 s
  *
+ * - a Mac whose hand cannot find a tool (`gh`, `git`, `claude`; `codex` only while a session on
+ *   it uses Codex) carries small amber labels ("gh missing") and, on expanding, one sentence on how
+ *   to install it (`missing-tools-model.ts`)
+ *
  * Constraints:
  * - Nothing at all while the person is signed out or the hub knows no Mac of theirs
  */
@@ -28,8 +32,10 @@ import {
   connectedComputerRows,
   toggleExpanded,
 } from "./connected-computers-model";
+import { useCodexServerIds } from "./codex-servers";
 import { fetchMachines, type HubMachineLoad } from "./hub";
 import { useHubMachinesStore, useOnlineServerIds } from "./hub-sync";
+import { MissingToolLabels } from "./missing-tool-labels";
 import { useGrouponStore } from "./session";
 import { GROUPON_COMPUTERS } from "./strings";
 
@@ -57,6 +63,7 @@ export function ConnectedComputersSidebarSection() {
     [views],
   );
   const online = useOnlineServerIds(serverIds);
+  const codexServerIds = useCodexServerIds();
   const rows = useMemo(() => {
     const onlineIds = new Set(online.split(",").filter(Boolean));
     return connectedComputerRows({
@@ -64,8 +71,9 @@ export function ConnectedComputersSidebarSection() {
       isOnline: (serverId) => onlineIds.has(serverId),
       now,
       freshLoads,
+      codexServerIds,
     });
-  }, [views, online, now, freshLoads]);
+  }, [views, online, now, freshLoads, codexServerIds]);
 
   const anyOpen = expanded.size > 0;
   useEffect(() => {
@@ -146,10 +154,26 @@ function ComputerRow({
             {GROUPON_COMPUTERS.thisComputer}
           </Text>
         ) : null}
+        <MissingToolLabels tools={row.missingTools} testID={`sidebar-computer-missing-${row.id}`} />
         <View style={styles.spacer} />
         <Chevron size={12} uniProps={mutedColor} />
       </PressHighlight>
       {open ? <ComputerLoadLines row={row} /> : null}
+      {open ? <ComputerFixLines row={row} /> : null}
+    </View>
+  );
+}
+
+/** On expanding a Mac whose hand cannot find a tool: one sentence per tool on how to install it. */
+function ComputerFixLines({ row }: { row: ConnectedComputerRow }) {
+  if (row.fixes.length === 0) return null;
+  return (
+    <View testID={`sidebar-computer-fix-${row.id}`}>
+      {row.fixes.map((fix) => (
+        <Text key={fix} style={styles.note}>
+          {fix}
+        </Text>
+      ))}
     </View>
   );
 }

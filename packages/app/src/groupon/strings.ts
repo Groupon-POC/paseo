@@ -638,3 +638,20 @@ export const GROUPON_COMPUTERS = {
   expand: (name: string) => `Show CPU and RAM of ${name}`,
   collapse: (name: string) => `Hide CPU and RAM of ${name}`,
 } as const;
+
+/** The tools a Mac's hand looks for (the hub's `missingTools`), and what the window says when one is not found. */
+export type MissingTool = "gh" | "git" | "claude" | "codex";
+
+export const GROUPON_MISSING_TOOLS = {
+  label: (tool: MissingTool) => `${tool} missing`,
+  /** One sentence per tool: what to run on that Mac. */
+  fix: {
+    gh: "Install it on that Mac: brew install gh, then gh auth login",
+    git: "Install it on that Mac: xcode-select --install",
+    claude:
+      "Install it on that Mac: npm install -g @anthropic-ai/claude-code, then claude to sign in",
+    codex: "Install it on that Mac: npm install -g @openai/codex",
+  },
+  /** With several tools missing, each sentence starts with its tool. */
+  fixOf: (tool: MissingTool, sentence: string) => `${tool}: ${sentence}`,
+} as const;

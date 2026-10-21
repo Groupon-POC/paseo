@@ -111,6 +111,7 @@ import { buildNewWorkspaceProjectIconTargets } from "./new-workspace/project-ico
 import { useNewWorkspaceProjectPicker } from "./new-workspace/project-picker";
 import { useNewWorkspaceForm } from "./new-workspace/form";
 import { ImportSessionButton } from "./new-workspace/import-session-button";
+import { useCodexServerIds } from "@/groupon/codex-servers";
 import { useHubMachinesStore } from "@/groupon/hub-sync";
 import {
   defaultMacServerId,
@@ -855,6 +856,7 @@ function useNewWorkspaceInitialContext({
   const hostConnectionStatusByServerId = useHostRuntimeConnectionStatuses(allServerIds);
   const workspaceMultiplicityByServerId = useHostFeatureMap(allServerIds, "workspaceMultiplicity");
   const hubMachines = useHubMachinesStore((state) => state.machines);
+  const codexServerIds = useCodexServerIds();
   // A registry host no hub Mac stands behind is listed only in a development build.
   const macOptions = useMemo(
     () =>
@@ -863,8 +865,9 @@ function useNewWorkspaceInitialContext({
         (id) => hostConnectionStatusByServerId.get(id) === "online",
         allHosts,
         __DEV__,
+        codexServerIds,
       ),
-    [allHosts, hostConnectionStatusByServerId, hubMachines],
+    [allHosts, codexServerIds, hostConnectionStatusByServerId, hubMachines],
   );
   // Groupon Desk: the repositories of all the person's Macs; the page opens on the one of where
   // the person is, on this Mac when it holds it, else on the first Mac that does.

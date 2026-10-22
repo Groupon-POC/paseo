@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `createRealpathAwareContainmentMatcher`, containment in many roots for a hot loop over a watcher batch, each root resolved once and a candidate resolved on disk only when its written form is in no root (ledger WW-96).
 import os from "node:os";
 import { realpathSync } from "node:fs";
 import nodePath from "node:path";
@@ -105,6 +106,47 @@ export function getRealpathAwareRelativePath(root: string, candidate: string): s
 
 export function isRealpathInsideRoot(root: string, candidate: string): boolean {
   return getRealpathAwareRelativePath(root, candidate) !== null;
+}
+
+/**
+ * Groupon Desk: whether a candidate is one of `roots` or inside one, with the same answer as
+ * `isRealpathInsideRoot` asked root by root, for a loop over many candidates. Every root is
+ * resolved once, here; a candidate is compared as written against every form of every root first,
+ * and resolved on disk only when that finds none. A watcher batch of `pnpm install` (thousands of
+ * events under an ignored `node_modules`) then costs string comparisons instead of two
+ * `realpathSync` per root per event on the event loop, which froze the daemon and the hand beside
+ * it for up to 45 s per batch (MEASURED on a Mac mini, 2026-10-22, ledger WW-96).
+ */
+export function createRealpathAwareContainmentMatcher(
+  roots: readonly string[],
+): (candidate: string) => boolean {
+  const rootVariants = roots.flatMap((root) => collectPathVariants(root));
+  // A POSIX root normalized once into a set: a POSIX candidate is inside when it or one of its
+  // ancestors is in it, one lookup per path segment instead of one comparison per root.
+  const posixRoots = new Set<string>();
+  const otherRoots: string[] = [];
+  for (const root of rootVariants) {
+    if (isPosixAbsolute(root)) posixRoots.add(normalizePathPreservingCase(root, false));
+    else otherRoots.push(root);
+  }
+  const insideOneOf = (rootsToCompare: readonly string[], candidate: string): boolean =>
+    rootsToCompare.some((root) => getRelativePathInsideRoot(root, candidate) !== null);
+  const insideAnyRoot = (candidate: string): boolean => {
+    if (!isPosixAbsolute(candidate)) return insideOneOf(rootVariants, candidate);
+    for (let path = normalizePathPreservingCase(candidate, false); ; ) {
+      if (posixRoots.has(path)) return true;
+      if (path === "/") break;
+      const parentEnd = path.lastIndexOf("/");
+      path = parentEnd <= 0 ? "/" : path.slice(0, parentEnd);
+    }
+    return insideOneOf(otherRoots, candidate);
+  };
+  return (candidate) =>
+    insideAnyRoot(candidate) || resolveRealpathVariants(candidate).some(insideAnyRoot);
+}
+
+function isPosixAbsolute(value: string): boolean {
+  return !looksLikeDefiniteWindowsPath(value) && nodePath.posix.isAbsolute(value);
 }
 
 function getRelativePathInsideRoot(root: string, candidate: string): string | null {

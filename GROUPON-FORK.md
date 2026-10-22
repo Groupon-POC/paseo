@@ -339,6 +339,14 @@ out after 30000ms: git status --porcelain".
   agent can already work.", then "Worktree ready in 2 min 55 s" for 20 s
   (`groupon/worktree-setup-line.tsx`). A repository whose setup prints no marker gets the line
   named by its setup command.
+- **A setup does not freeze the daemon.** The working-tree watcher's filter
+  (`hasRelevantWorkingTreeEvent`, `noteWorkingTreeDirectories` in `workspace-git-service.ts`)
+  resolved every event and every root (`.git`, each ignored directory) with `realpathSync` on the
+  event loop; a `pnpm install` batch of thousands of `node_modules` events held the daemon, and the
+  Groupon hand running it, for up to 45 s (ledger WW-96, MEASURED on a Mac mini on 2026-10-22).
+  `createRealpathAwareContainmentMatcher` (`utils/path.ts`) resolves each root once and answers an
+  event written inside a root by string: 37,153 ms before and 44 to 63 ms after on 23,274 real
+  `node_modules` paths.
 
 ## How Groupon Desk ships it
 

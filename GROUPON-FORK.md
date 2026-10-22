@@ -339,6 +339,18 @@ out after 30000ms: git status --porcelain".
   agent can already work.", then "Worktree ready in 2 min 55 s" for 20 s
   (`groupon/worktree-setup-line.tsx`). A repository whose setup prints no marker gets the line
   named by its setup command.
+- **The agent is told the setup still runs, and when it ends.** An agent starting while
+  `.groupon/setup-state.json` says `running` (under 30 minutes old, or the daemon's own setup of the
+  workspace running for a repository whose setup is the hand's) gets one line before its first
+  prompt, as a text attachment the transcript does not show as the person's words
+  (`groupon/worktree-setup-state.ts`, `promptPreamble` in `create-agent/create.ts`). An agent made
+  through the hub or the door is created with no initial prompt and gets its prompt afterwards as a
+  separate `send_agent_message`; the first user prompt that reaches such an agent (no earlier user
+  message, not yet served, ledger WW-103) gets the same line the same way, once, and the second
+  prompt gets nothing (`groupon/first-prompt-notice.ts`, `handleSendAgentMessageRequest` in
+  `session.ts`). Either way the agent is told "Worktree ready in N s" when the setup ends
+  (`groupon/setup-notice-courier.ts`), and a Bash call that installs, builds or tests waits for the
+  setup (`setupWaitHook`, PreToolUse).
 - **A setup does not freeze the daemon.** The working-tree watcher's filter
   (`hasRelevantWorkingTreeEvent`, `noteWorkingTreeDirectories` in `workspace-git-service.ts`)
   resolved every event and every root (`.git`, each ignored directory) with `realpathSync` on the

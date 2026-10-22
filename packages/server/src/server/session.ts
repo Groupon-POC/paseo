@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/setup-notice-courier.ts`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`).
 import { AgentDirectory } from "./agent/directory.js";
 import { searchTimeline } from "./agent/chat-search/index.js";
 import type { BrowserToolsBroker } from "./browser-tools/broker.js";
@@ -291,12 +291,14 @@ import { runGitCommand } from "../utils/run-git-command.js";
 import { CreateAgentLifecycleDispatch } from "./agent/create-agent-lifecycle-dispatch.js";
 import { resolveWorktreeSourceCwd } from "./workspace-source.js";
 import { formatSystemNotificationPrompt } from "./agent/agent-messages/index.js";
+import { firstPromptNoticeFor } from "../groupon/first-prompt-notice.js";
 import { setupNoticeCourierFor } from "../groupon/setup-notice-courier.js";
 import {
   handLog,
   readSetupState,
   setupNoticeFor,
   sleepFor,
+  withPromptPreamble,
 } from "../groupon/worktree-setup-state.js";
 
 type ProviderSubagentManagerEvent = Extract<
@@ -4436,6 +4438,7 @@ export class Session {
         },
       );
       createdAgentId = snapshot.id;
+      this.firstPromptNotice().markPrompted(snapshot.id, trimmedPrompt);
       this.followSetupNotice(setupNotice, initialPromptStarted, {
         agentId: snapshot.id,
         workspaceId: resolvedIntent.intent.workspaceId,
@@ -4483,6 +4486,45 @@ export class Session {
     if (!prompt) return null;
     const daemonSetupRunning = this.workspaceSetupSnapshots.get(workspaceId)?.status === "running";
     return setupNoticeFor(cwd, daemonSetupRunning, Date.now()).catch(() => null);
+  }
+
+  /**
+   * Groupon Desk (ledger WW-103): the notice for the first user prompt of an agent that was made
+   * without an initial prompt (the hub's and the door's agents get theirs as a separate message);
+   * null for every later prompt, and when the setup does not run.
+   */
+  private async setupNoticeForLaterFirstPrompt(
+    agentId: string,
+  ): Promise<{ line: string; root: string } | null> {
+    try {
+      await ensureAgentLoaded(agentId, {
+        agentManager: this.agentManager,
+        agentStorage: this.agentStorage,
+        logger: this.sessionLogger,
+      });
+      const agent = this.agentManager.getAgent(agentId);
+      return await this.firstPromptNotice().preambleFor(
+        agentId,
+        agent
+          ? {
+              cwd: agent.cwd,
+              workspaceId: agent.workspaceId,
+              lastUserMessageAt: agent.lastUserMessageAt,
+            }
+          : null,
+      );
+    } catch {
+      return null;
+    }
+  }
+
+  /** Groupon Desk: the daemon's one ledger of who got the first-prompt notice, keyed by the agent manager. */
+  private firstPromptNotice() {
+    const snapshots = this.workspaceSetupSnapshots;
+    return firstPromptNoticeFor(
+      this.agentManager,
+      (workspaceId) => snapshots.get(workspaceId)?.status === "running",
+    );
   }
 
   /** Groupon Desk: an agent told the setup runs is told when it ends, once its first prompt went out. */
@@ -8340,19 +8382,32 @@ export class Session {
         "agent.session.send_agent_message",
       );
       const send = async () => {
-        const result = await sendPromptToAgent({
-          agentManager: this.agentManager,
-          agentStorage: this.agentStorage,
+        // Groupon Desk (WW-103): the first prompt of an agent made without one carries the setup notice.
+        const setupNotice = await this.setupNoticeForLaterFirstPrompt(agentId);
+        let result: Awaited<ReturnType<typeof sendPromptToAgent>>;
+        try {
+          result = await sendPromptToAgent({
+            agentManager: this.agentManager,
+            agentStorage: this.agentStorage,
+            agentId,
+            prompt: setupNotice ? withPromptPreamble(setupNotice.line, prompt) : prompt,
+            source: msg.sourceAgentId
+              ? { kind: "agent-message", agentId: msg.sourceAgentId }
+              : undefined,
+            messageId: msg.messageId,
+            ...(msg.author ? { author: msg.author } : {}),
+            activeTurnBehavior: msg.activeTurnBehavior ?? "interrupt",
+            clearPendingPermissions: true,
+            logger: this.sessionLogger,
+          });
+        } catch (error) {
+          // The prompt never went out: the retry is still the first one and gets the notice.
+          if (setupNotice) this.firstPromptNotice().release(agentId);
+          throw error;
+        }
+        this.followSetupNotice(setupNotice, true, {
           agentId,
-          prompt,
-          source: msg.sourceAgentId
-            ? { kind: "agent-message", agentId: msg.sourceAgentId }
-            : undefined,
-          messageId: msg.messageId,
-          ...(msg.author ? { author: msg.author } : {}),
-          activeTurnBehavior: msg.activeTurnBehavior ?? "interrupt",
-          clearPendingPermissions: true,
-          logger: this.sessionLogger,
+          workspaceId: this.agentManager.getAgent(agentId)?.workspaceId ?? "",
         });
         if (result.disposition === "turn_started") {
           await waitForAgentRunStartWithTimeout(

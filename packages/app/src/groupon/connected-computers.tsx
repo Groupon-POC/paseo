@@ -2,14 +2,16 @@
 
 /**
  * The sidebar's Connected computers (owner, 2026-10-21): the person's Macs, a green dot on those
- * online, "This computer" on the Mac the window runs on, and on pressing one its CPU and RAM as
- * bars in the limits panel's style. The rows come from the hub list the Mac picker reads
- * (`useHubMachinesStore`); the states are `connected-computers-model.ts`.
+ * online, "This computer" on the Mac the window runs on, under a collapsed online Mac a strip of
+ * its load, and on pressing one the load card (WW-97, `computer-load-card.tsx`: uptime and load
+ * average, CPU, RAM, download, upload with their histories, the disk). The rows come from the hub
+ * list the Mac picker reads (`useHubMachinesStore`); the states are `connected-computers-model.ts`.
  *
  * Responsibilities:
  * - a clock every 10 s while the window is visible, so a Mac whose hand stopped goes grey
  * - while a Mac is open, its load read again every 10 s (`fetchMachines`, one GET, nothing
  *   opened or added): the shared list is read only every 30 s
+ * - the last 60 samples of each Mac, in memory, from both reads (`machine-load-model.ts`)
  *
  * - a Mac whose hand cannot find a tool (`gh`, `git`, `claude`; `codex` only while a session on
  *   it uses Codex) carries small amber labels ("gh missing") and, on expanding, one sentence on how
@@ -26,15 +28,16 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { useAppVisible } from "@/hooks/use-app-visible";
 import type { Theme } from "@/styles/theme";
-import { UsageMeter } from "@/usage/meter";
 import {
   type ConnectedComputerRow,
   connectedComputerRows,
   toggleExpanded,
 } from "./connected-computers-model";
 import { useCodexServerIds } from "./codex-servers";
+import { ComputerLoadCard, ComputerLoadStrip } from "./computer-load-card";
 import { fetchMachines, type HubMachineLoad } from "./hub";
 import { useHubMachinesStore, useOnlineServerIds } from "./hub-sync";
+import { recordSamples } from "./machine-load-model";
 import { MissingToolLabels } from "./missing-tool-labels";
 import { useGrouponStore } from "./session";
 import { GROUPON_COMPUTERS } from "./strings";
@@ -46,6 +49,7 @@ const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedChevronRight = withUnistyles(ChevronRight);
 const mutedColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 const EXPANDED = { expanded: true } as const;
+const NO_HISTORY: readonly HubMachineLoad[] = [];
 const COLLAPSED = { expanded: false } as const;
 
 export function ConnectedComputersSidebarSection() {
@@ -57,6 +61,19 @@ export function ConnectedComputersSidebarSection() {
   const [freshLoads, setFreshLoads] = useState<ReadonlyMap<string, HubMachineLoad>>(
     () => new Map(),
   );
+  const [histories, setHistories] = useState<ReadonlyMap<string, readonly HubMachineLoad[]>>(
+    () => new Map(),
+  );
+
+  // Every sample either read brings, once each: the card's bars.
+  useEffect(() => {
+    const samples: [string, HubMachineLoad][] = [];
+    for (const view of views)
+      if (view.machine.load) samples.push([view.machine.machine, view.machine.load]);
+    for (const entry of freshLoads) samples.push(entry);
+    samples.sort((a, b) => a[1].sampledAt.localeCompare(b[1].sampledAt));
+    setHistories((current) => recordSamples(current, samples));
+  }, [views, freshLoads]);
 
   const serverIds = useMemo(
     () => views.flatMap((view) => (view.serverId ? [view.serverId] : [])),
@@ -112,7 +129,13 @@ export function ConnectedComputersSidebarSection() {
     <View style={styles.section} testID="sidebar-connected-computers">
       <Text style={styles.heading}>{GROUPON_COMPUTERS.heading}</Text>
       {rows.map((row) => (
-        <ComputerRow key={row.id} row={row} open={expanded.has(row.id)} onToggle={toggle} />
+        <ComputerRow
+          key={row.id}
+          row={row}
+          open={expanded.has(row.id)}
+          history={histories.get(row.id) ?? NO_HISTORY}
+          onToggle={toggle}
+        />
       ))}
     </View>
   );
@@ -121,10 +144,12 @@ export function ConnectedComputersSidebarSection() {
 function ComputerRow({
   row,
   open,
+  history,
   onToggle,
 }: {
   row: ConnectedComputerRow;
   open: boolean;
+  history: readonly HubMachineLoad[];
   onToggle: (id: string) => void;
 }) {
   const press = useCallback(() => onToggle(row.id), [onToggle, row.id]);
@@ -158,7 +183,10 @@ function ComputerRow({
         <View style={styles.spacer} />
         <Chevron size={12} uniProps={mutedColor} />
       </PressHighlight>
-      {open ? <ComputerLoadLines row={row} /> : null}
+      {!open && row.load ? (
+        <ComputerLoadStrip load={row.load} testID={`sidebar-computer-strip-${row.id}`} />
+      ) : null}
+      {open ? <ComputerLoadLines row={row} history={history} /> : null}
       {open ? <ComputerFixLines row={row} /> : null}
     </View>
   );
@@ -178,7 +206,13 @@ function ComputerFixLines({ row }: { row: ConnectedComputerRow }) {
   );
 }
 
-function ComputerLoadLines({ row }: { row: ConnectedComputerRow }) {
+function ComputerLoadLines({
+  row,
+  history,
+}: {
+  row: ConnectedComputerRow;
+  history: readonly HubMachineLoad[];
+}) {
   if (row.load === null) {
     return (
       <Text style={styles.note} testID={`sidebar-computer-note-${row.id}`}>
@@ -187,31 +221,11 @@ function ComputerLoadLines({ row }: { row: ConnectedComputerRow }) {
     );
   }
   return (
-    <View style={styles.loadLines} testID={`sidebar-computer-load-${row.id}`}>
-      <LoadLine
-        label={GROUPON_COMPUTERS.cpu}
-        percent={row.load.cpuPercent}
-        text={row.load.cpuText}
-      />
-      <LoadLine
-        label={GROUPON_COMPUTERS.memory}
-        percent={row.load.memoryPercent}
-        text={row.load.memoryText}
-      />
-    </View>
-  );
-}
-
-/** One figure as the limits panel draws one window: a quiet bar sharing the line, then the percent. */
-function LoadLine({ label, percent, text }: { label: string; percent: number; text: string }) {
-  return (
-    <View style={styles.loadLine}>
-      <Text style={styles.loadLabel}>{label}</Text>
-      <View style={styles.meterSlot}>
-        <UsageMeter percent={percent} tone="ok" quiet style={styles.meter} />
-      </View>
-      <Text style={styles.percent}>{text}</Text>
-    </View>
+    <ComputerLoadCard
+      load={row.load}
+      history={history}
+      testID={`sidebar-computer-load-${row.id}`}
+    />
   );
 }
 
@@ -281,36 +295,5 @@ const styles = StyleSheet.create((theme) => ({
     paddingLeft: theme.spacing[2] + 7 + theme.spacing[1.5],
     paddingRight: theme.spacing[2],
     paddingBottom: theme.spacing[1],
-  },
-  loadLines: {
-    gap: 2,
-    paddingLeft: theme.spacing[2] + 7 + theme.spacing[1.5],
-    paddingRight: theme.spacing[2],
-    paddingBottom: theme.spacing[1],
-  },
-  loadLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-  },
-  loadLabel: {
-    width: 32,
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
-  },
-  meterSlot: {
-    flex: 1,
-    minWidth: 0,
-  },
-  meter: {
-    height: 6,
-    borderRadius: 3,
-  },
-  percent: {
-    minWidth: 36,
-    textAlign: "right",
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
-    fontVariant: ["tabular-nums"],
   },
 }));

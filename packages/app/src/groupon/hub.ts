@@ -27,11 +27,26 @@ export interface HubMachine {
   missingTools?: string[];
 }
 
-/** One load sample of a Mac, as its hand measured it every 10 s: whole percents, and when. */
+/**
+ * One load sample of a Mac, as its hand measured it every 10 s: the CPU (one decimal from a hand
+ * that sends the whole sample) and memory shares, and when; and, from a hand and a Core of WW-97,
+ * the card's figures, each null when the hand could not read it and absent on an older Core.
+ */
 export interface HubMachineLoad {
   cpuPercent: number;
   memoryPercent: number;
   sampledAt: string;
+  cores?: number | null;
+  memoryUsedBytes?: number | null;
+  memoryTotalBytes?: number | null;
+  /** The root volume: what a user cannot fill, and its size. */
+  diskUsedBytes?: number | null;
+  diskTotalBytes?: number | null;
+  netRxBytesPerSecond?: number | null;
+  netTxBytesPerSecond?: number | null;
+  uptimeSeconds?: number | null;
+  /** The 1, 5 and 15 minute load averages. */
+  loadAverage?: number[] | null;
 }
 
 export interface HubRepository {

@@ -631,12 +631,21 @@ export const GROUPON_COMPUTERS = {
   offline: "offline",
   cpu: "CPU",
   memory: "RAM",
-  percent: (value: number) => `${value}%`,
+  cpuCores: (cores: number) => `CPU · ${cores} ${cores === 1 ? "core" : "cores"}`,
+  memoryOf: (amount: string) => `RAM · ${amount}`,
+  diskOf: (amount: string) => `Disk · ${amount}`,
+  amountOf: (used: string, total: string) => `${used} / ${total}`,
+  download: "Download",
+  upload: "Upload",
+  disk: "Disk",
+  network: "Network, down and up",
+  up: (uptime: string) => `up ${uptime}`,
+  loadAverage: (averages: string) => `load ${averages}`,
   seen: (ago: string) => `Offline, last seen ${ago}`,
   /** Online through the window's connection, but no fresh reading: just started, or a hand older than the readings. */
   noLoad: "Online; no CPU and RAM reading yet (an older hand sends none: groupon update).",
-  expand: (name: string) => `Show CPU and RAM of ${name}`,
-  collapse: (name: string) => `Hide CPU and RAM of ${name}`,
+  expand: (name: string) => `Show the load of ${name}`,
+  collapse: (name: string) => `Hide the load of ${name}`,
 } as const;
 
 /** The tools a Mac's hand looks for (the hub's `missingTools`), and what the window says when one is not found. */

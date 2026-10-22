@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the registry's page addresses (https://paseo.sh/plugins/<owner>/<slug>, https://plugins.paseo.sh/<owner>/<slug>) read as registry references.
 import { z } from "zod";
 
 export const PluginRegistryIdSchema = z
@@ -69,10 +70,28 @@ export const PluginRegistryIndexSchema = z.object({
 export type PluginRegistryIdentity = z.infer<typeof PluginRegistryIdentitySchema>;
 export type PluginRegistries = z.infer<typeof PluginRegistriesSchema>;
 
+/** Paseo's public registry: the one its page addresses on paseo.sh name. */
+const PASEO_REGISTRY_URL = "https://plugins.paseo.sh";
+
+/**
+ * The registry id a plugin's page address names: `https://paseo.sh/plugins/<owner>/<slug>` (the
+ * page a person copies from the browser) or `https://plugins.paseo.sh/<owner>/<slug>`, with or
+ * without a trailing slash; null for any other address, so a Git URL stays a Git URL.
+ */
+function registryPageId(source: string): string | null {
+  const match = /^https:\/\/(?:paseo\.sh\/plugins|plugins\.paseo\.sh)\/([^/?#]+\/[^/?#]+)\/?$/.exec(
+    source,
+  );
+  const id = match?.[1];
+  return id && PluginRegistryIdSchema.safeParse(id).success ? id : null;
+}
+
 export function parsePluginRegistryReference(
   source: string,
-  defaultUrl = "https://plugins.paseo.sh",
+  defaultUrl = PASEO_REGISTRY_URL,
 ): PluginRegistryIdentity | null {
+  const pageId = registryPageId(source);
+  if (pageId) return { url: PASEO_REGISTRY_URL, id: pageId };
   const segments = source.split("/");
   if (segments.length === 2 && PluginRegistryIdSchema.safeParse(source).success)
     return { url: defaultUrl.replace(/\/+$/, ""), id: source };

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Install form's field carries the hint naming every source form, the registry page address among them.
 import { formatPluginInstallation } from "@getpaseo/protocol/plugin-source-reference";
 import { PluginSettingsMenuItems } from "@/plugins/settings";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -27,7 +28,10 @@ import { useHostFeature } from "@/runtime/host-features";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { resolvePluginPageState } from "@/screens/settings/plugins-page-state";
-import { openPluginInstallForm } from "@/screens/settings/plugin-install-form-model";
+import {
+  openPluginInstallForm,
+  PLUGIN_SOURCE_HINT,
+} from "@/screens/settings/plugin-install-form-model";
 import { pluginRegistry, useInstalledPlugins } from "@/plugins/registry";
 import { settingsStyles } from "@/styles/settings";
 import { confirmDialog } from "@/utils/confirm-dialog";
@@ -493,7 +497,11 @@ export function HostPluginsPage({ serverId }: { serverId: string }) {
         </View>
         {sourceInstallSupported ? (
           <View style={[settingsStyles.card, styles.install]}>
-            <Field label={t("settings.plugins.sourceLabel")} trailing={sourceDocsLink}>
+            <Field
+              label={t("settings.plugins.sourceLabel")}
+              trailing={sourceDocsLink}
+              hint={PLUGIN_SOURCE_HINT}
+            >
               <FormTextInput
                 initialValue=""
                 resetKey={installState.resetKey}

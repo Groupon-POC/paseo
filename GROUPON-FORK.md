@@ -577,3 +577,18 @@ the usual places that exist, and `error` as a sentence rather than a throw. It n
 folder whose real path (symlinks resolved) is outside the daemon user's home, and never reads
 under `~/Library` on macOS, where readdir can block forever on a privacy prompt the daemon cannot
 show.
+
+## Plugins: a registry page address installs
+
+The owner pasted a plugin's registry page, `https://paseo.sh/plugins/linhmh8/agent-lobby`, into
+Settings > Plugins > Install (2026-10-22), and the daemon cloned it as a Git URL ("repository not
+found"). `parsePluginRegistryReference` (`packages/protocol/src/plugin-registry.ts`) now also reads
+the registry's page addresses, `https://paseo.sh/plugins/<owner>/<slug>` and
+`https://plugins.paseo.sh/<owner>/<slug>` (a trailing slash allowed, nothing after it), as the
+registry id `<owner>/<slug>` on Paseo's registry, `https://plugins.paseo.sh`; any other address,
+`https://github.com/x/y.git` among them, stays a Git URL. The daemon parses, so the window, Paseo's
+CLI and `groupon desk plugin add` take the page address with no change of their own. The Install
+field's hint names every form (`PLUGIN_SOURCE_HINT`,
+`packages/app/src/screens/settings/plugin-install-form-model.ts`): a registry page or
+`owner/slug`, `github:owner/repo`, a Git URL, `npm:package`, a folder on the Mac, and that a plugin
+runs unsandboxed with the Mac's rights.

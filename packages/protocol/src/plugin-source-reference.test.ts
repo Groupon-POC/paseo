@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a registry page address is a managed registry source, never a directory or a plugin path.
 import { parsePluginRegistryReference } from "./plugin-registry.js";
 import { describe, expect, it } from "vitest";
 import { parsePluginSourceReference } from "./plugin-source-reference.js";
@@ -88,4 +89,23 @@ it("addresses default and private registries without treating explicit sources a
   });
   expect(parsePluginRegistryReference("github:acme/plugin")).toBeNull();
   expect(parsePluginRegistryReference("npm:@acme/plugin")).toBeNull();
+});
+
+it("reads a registry page address as a managed registry source with no plugin path", () => {
+  for (const source of [
+    "https://paseo.sh/plugins/linhmh8/agent-lobby",
+    "https://plugins.paseo.sh/linhmh8/agent-lobby/",
+  ]) {
+    expect(parsePluginSourceReference(source)).toEqual({
+      kind: "managed",
+      source,
+      pluginPath: undefined,
+    });
+  }
+  expect(parsePluginSourceReference("https://github.com/x/y.git")).toEqual({
+    kind: "managed",
+    source: "https://github.com/x/y.git",
+    pluginPath: undefined,
+  });
+  expect(parsePluginRegistryReference("https://github.com/x/y.git")).toBeNull();
 });

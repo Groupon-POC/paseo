@@ -12,7 +12,11 @@ import {
 } from "@getpaseo/protocol/messages";
 import { writeFileAtomic } from "../atomic-file.js";
 import { generateWorkspaceId } from "../workspace-registry-model.js";
-import { type CreationStepId, runWithCreationSteps } from "../../groupon/creation-steps.js";
+import {
+  type CreationStepId,
+  createStepTimings,
+  runWithCreationSteps,
+} from "../../groupon/creation-steps.js";
 
 type Observer = (snapshot: CreationSnapshot) => void;
 export interface CreatedAgent {
@@ -159,10 +163,26 @@ export class CreationService {
       if (input.provision && !record.snapshot.workspace) {
         record.inFlight = "workspace";
         await this.write(identity, record);
-        const { workspace, setupSkippedReason } = await runWithCreationSteps(
-          (step) => this.step(identity, record, step),
-          () => input.provision!(record.snapshot.workspaceId!),
+        // Groupon Desk (WW-105): the daemon log says which step took the time.
+        const timings = createStepTimings((timing, totalMs) =>
+          this.logger.info(
+            { module: "creation", key: input.key, step: timing.step, ms: timing.ms, totalMs },
+            "workspace creation step",
+          ),
         );
+        let provisioned: Awaited<ReturnType<NonNullable<CreationInput["provision"]>>>;
+        try {
+          provisioned = await runWithCreationSteps(
+            (step) => {
+              timings.enter(step);
+              this.step(identity, record, step);
+            },
+            () => input.provision!(record.snapshot.workspaceId!),
+          );
+        } finally {
+          timings.end();
+        }
+        const { workspace, setupSkippedReason } = provisioned;
         record.inFlight = null;
         await this.publish(identity, record, {
           phase: "workspace_ready",

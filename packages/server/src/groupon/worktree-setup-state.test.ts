@@ -11,6 +11,7 @@ import type { ManagedAgent } from "../server/agent/agent-manager.js";
 import {
   commandNeedsSetup,
   parseSetupState,
+  readSetupStateFor,
   SETUP_POLL_MS,
   SETUP_STALE_MS,
   SETUP_WAIT_MS,
@@ -20,6 +21,7 @@ import {
   setupRunningNotice,
   setupStillRunning,
   setupWaitHook,
+  sleepFor,
   waitForSetup,
   withPromptPreamble,
 } from "./worktree-setup-state.js";
@@ -188,7 +190,7 @@ describe("the first prompt", () => {
 });
 
 describe("a Bash call that needs the setup", () => {
-  test("is an install, build or test through pnpm, nothing else", () => {
+  test("is any pnpm call that installs or runs something", () => {
     for (const command of [
       "pnpm install",
       "pnpm i",
@@ -199,15 +201,40 @@ describe("a Bash call that needs the setup", () => {
       "pnpm -C packages/groupon-cli test",
       "pnpm --filter @groupon2/lib run build",
       "cd packages/x && pnpm test -- tests/a.test.ts",
+      // pnpm 11 installs before any script: the W116 agent's first command (ledger WW-105).
+      "pnpm -s guards; date -u +%T",
+      "pnpm guards",
+      "pnpm run guards",
+      "pnpm exec vitest run src/test",
+      "pnpm --dir apps/x lint",
+      "pnpm --filter=@groupon2/lib type-check",
+      "date -u +%T; pnpm -s guards",
+      "time pnpm check:ci",
+      "CI=1 pnpm test",
+      "git status && pnpm ls && pnpm gen",
+      "if true; then pnpm guards; fi",
+      "(cd apps/x && pnpm dev)",
     ])
       expect(commandNeedsSetup(command), command).toBe(true);
+  });
+
+  test("is never a pnpm call that only reads, nor anything but pnpm", () => {
     for (const command of [
       "git status",
+      "pnpm",
       "pnpm --version",
+      "pnpm -v",
+      "pnpm ls --depth 0",
+      "pnpm why vitest",
+      "pnpm config get verify-deps-before-run",
+      "pnpm -C packages/x list",
       "ls node_modules",
-      "pnpm exec vitest run src/test",
       "npm test",
       "cat pnpm-test.log",
+      "cat pnpm-lock.yaml | head",
+      'grep -rn "pnpm test" docs',
+      "echo pnpm test",
+      "rg pnpm-workspace",
     ])
       expect(commandNeedsSetup(command), command).toBe(false);
   });
@@ -322,5 +349,48 @@ describe("a Bash call that needs the setup", () => {
       }),
     ).toEqual({});
     expect(clock.slept).toEqual([SETUP_POLL_MS]);
+  });
+  test("a hub agent's first `pnpm -s guards` waits on the worktree's own file until it says ready", async () => {
+    // Ledger WW-105: the agent the door made on the Mac mini ran this while the file said running.
+    const startedAt = new Date().toISOString();
+    const root = worktree({
+      [".groupon/setup-state.json"]: JSON.stringify({ ...running, startedAt }),
+    });
+    const log: string[] = [];
+    const hook = setupWaitHook(
+      { readFor: readSetupStateFor, now: Date.now, sleep: sleepFor, log: (line) => log.push(line) },
+      { pollMs: 10 },
+    );
+    const flip = setTimeout(
+      () =>
+        writeFileSync(
+          join(root, ".groupon/setup-state.json"),
+          JSON.stringify({ ...ready, startedAt, finishedAt: new Date().toISOString() }),
+        ),
+      80,
+    );
+    const before = Date.now();
+    const result = await hook(
+      {
+        tool_name: "Bash",
+        tool_input: { command: "pnpm -s guards; date -u +%T" },
+        cwd: join(root, "packages", "app"),
+      },
+      "t",
+      { signal: new AbortController().signal },
+    );
+    clearTimeout(flip);
+    expect(Date.now() - before).toBeGreaterThanOrEqual(70);
+    expect(result).toEqual({
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        additionalContext: expect.stringContaining("the worktree is ready"),
+      },
+    });
+    expect(log).toEqual([
+      expect.stringMatching(
+        /^setup wait: "pnpm -s guards; date -u \+%T" waited \d+ s for the setup/,
+      ),
+    ]);
   });
 });

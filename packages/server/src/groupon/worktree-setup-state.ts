@@ -17,9 +17,9 @@
  * - `setupRunningNotice`, `setupReadyLine`: the words the agent gets
  * - `withPromptPreamble`: the notice before the first prompt as a text attachment, which the agent
  *   reads first and the person's own message in the transcript leaves out
- * - `commandNeedsSetup`, `waitForSetup`, `setupWaitHook`: a Bash call that installs, builds or
- *   tests waits for the setup (at most `SETUP_WAIT_MS`), then runs; a failed setup lets it run at
- *   once with a line in the hand's log
+ * - `commandNeedsSetup`, `waitForSetup`, `setupWaitHook`: a Bash call that runs pnpm (an install,
+ *   or any script, which pnpm 11 installs before) waits for the setup (at most `SETUP_WAIT_MS`),
+ *   then runs; a failed setup lets it run at once with a line in the hand's log
  *
  * Constraints:
  * - Never writes the file and never fails the agent: a missing or broken file means "not running"
@@ -172,12 +172,47 @@ export function setupReadyLine(state: SetupState | null, seconds: number): strin
   return `Worktree ready in ${seconds} s: installing, building and testing are safe now.`;
 }
 
-/** A shell command that installs, builds or tests with pnpm, which must not race the setup. */
-const NEEDS_SETUP =
-  /(?:^|[\s;&|(])pnpm(?:\s+(?:-{1,2}[\w-]+(?:=\S+)?|(?:-C|--dir|--filter|-F)\s+\S+))*\s+(?:run\s+)?(?:install|i|add|test|build|validate|checkout:prepare|type-check)(?=$|[\s;&|)])/;
+/**
+ * A pnpm call at a command's start (after `;`, `&`, `|`, `(`, a newline, `then`, `do`, `time`,
+ * `env`, `npx`, `corepack` or a `VAR=value`), with its options and the subcommand it names. An
+ * option that takes a value (`-C dir`, `--filter pkg`) is read before a bare flag, so its value is
+ * never taken for the subcommand.
+ */
+const PNPM_CALL =
+  /(?:^|[;&|(\n`])\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=\S*|time|env|exec|command|nice|npx|corepack|then|do|else|!)\s+)*pnpm(?=$|[\s;&|)`])(?:\s+(?:(?:-C|--dir|--filter|-F)\s+\S+|-{1,2}[\w-]+(?:=\S+)?))*(?:\s+([^\s;&|)`]+))?/g;
 
+/** pnpm subcommands that only read: they neither install nor run a script, so they never wait. */
+const PNPM_READS_ONLY = new Set([
+  "ls",
+  "list",
+  "ll",
+  "la",
+  "why",
+  "outdated",
+  "config",
+  "root",
+  "bin",
+  "help",
+  "view",
+  "info",
+  "show",
+  "licenses",
+  "audit",
+]);
+
+/**
+ * A shell command that must not race the setup: any pnpm call that installs or runs something.
+ * pnpm 11 verifies the install before it runs any script (`verifyDepsBeforeRun`), so `pnpm -s guards`
+ * ran a whole `pnpm install` beside the setup's own (ledger WW-105, MEASURED on the Mac mini on
+ * 2026-10-22); a list of install, build and test verbs let it through. A bare `pnpm`, `pnpm
+ * --version` and the read-only subcommands never wait.
+ */
 export function commandNeedsSetup(command: string): boolean {
-  return NEEDS_SETUP.test(command);
+  for (const call of command.matchAll(PNPM_CALL)) {
+    const subcommand = call[1];
+    if (subcommand !== undefined && !PNPM_READS_ONLY.has(subcommand)) return true;
+  }
+  return false;
 }
 
 export type SetupWaitOutcome = "not-running" | "ready" | "failed" | "timed-out" | "stopped";

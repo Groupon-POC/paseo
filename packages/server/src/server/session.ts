@@ -6909,6 +6909,7 @@ export class Session {
     let keepBranchName = false;
     if (grouponPlacement) {
       reportCreationStep("naming_branch");
+      const placementStarted = Date.now();
       const placement = await placeTicketlessWorkspace(creationRequest, {
         readFacts: (cwd) => getCheckoutSnapshotFacts(cwd, { paseoHome: this.paseoHome }),
         resolveWorktreeSourceCwd: (source) =>
@@ -6917,6 +6918,10 @@ export class Session {
       });
       creationRequest = placement.request;
       keepBranchName = placement.keepBranchName;
+      this.sessionLogger.info(
+        { ms: Date.now() - placementStarted, keepBranchName },
+        "workspace.create placement",
+      );
     }
     return creationRequest.source.kind === "directory"
       ? this.handleWorkspaceCreateLocal(creationRequest, workspaceId)

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import type { CreationSnapshot, WorkspaceDescriptorPayload } from "@getpaseo/protocol/messages";
 import { CreationService } from "../server/creation/index.js";
-import { reportCreationStep, runWithCreationSteps } from "./creation-steps.js";
+import { createStepTimings, reportCreationStep, runWithCreationSteps } from "./creation-steps.js";
 
 const silentLogger = pino({ level: "silent" });
 const directories: string[] = [];
@@ -109,5 +109,89 @@ describe("creation steps", () => {
       },
     );
     expect(value).toBe(42);
+  });
+
+  test("the daemon log carries each step's duration, and the creation's total", async () => {
+    const lines: Array<{ step: string; ms: number; totalMs: number; msg: string }> = [];
+    const logger = pino(
+      { level: "info" },
+      { write: (line: string) => lines.push(JSON.parse(line)) },
+    );
+    const directory = await mkdtemp(join(tmpdir(), "creation-steps-"));
+    directories.push(directory);
+    await new CreationService(directory, logger).create({
+      kind: "workspace",
+      key: "timed",
+      request: { source: "/project" },
+      workspaceId: workspace.id,
+      hasAgent: false,
+      hasPrompt: false,
+      exists: async () => false,
+      provision: async () => {
+        reportCreationStep("naming_branch");
+        reportCreationStep("fetching_base");
+        reportCreationStep("creating_worktree");
+        return { workspace };
+      },
+    });
+    const steps = lines.filter((line) => line.msg === "workspace creation step");
+    expect(steps.map((line) => line.step)).toEqual([
+      "start",
+      "naming_branch",
+      "fetching_base",
+      "creating_worktree",
+    ]);
+    for (const line of steps) {
+      expect(line.ms).toBeGreaterThanOrEqual(0);
+      expect(line.totalMs).toBeGreaterThanOrEqual(line.ms);
+    }
+  });
+
+  test("a creation that fails still logs the step it was on", async () => {
+    const lines: Array<{ step: string; msg: string }> = [];
+    const logger = pino(
+      { level: "info" },
+      { write: (line: string) => lines.push(JSON.parse(line)) },
+    );
+    const directory = await mkdtemp(join(tmpdir(), "creation-steps-"));
+    directories.push(directory);
+    await new CreationService(directory, logger).create({
+      kind: "workspace",
+      key: "timed-failure",
+      request: { source: "/project" },
+      workspaceId: workspace.id,
+      hasAgent: false,
+      hasPrompt: false,
+      exists: async () => false,
+      provision: async () => {
+        reportCreationStep("fetching_base");
+        throw new Error("git fetch hung");
+      },
+    });
+    expect(
+      lines.filter((line) => line.msg === "workspace creation step").map((line) => line.step),
+    ).toEqual(["start", "fetching_base"]);
+  });
+});
+
+describe("step timings", () => {
+  test("each step is closed when the next begins, the last when the work ends", () => {
+    let clock = 1000;
+    const out: Array<[string, number, number]> = [];
+    const timings = createStepTimings(
+      (timing, total) => out.push([timing.step, timing.ms, total]),
+      () => clock,
+    );
+    clock = 1300;
+    timings.enter("naming_branch");
+    clock = 26_300;
+    timings.enter("fetching_base");
+    clock = 26_900;
+    timings.end();
+    expect(out).toEqual([
+      ["start", 300, 300],
+      ["naming_branch", 25_000, 25_300],
+      ["fetching_base", 600, 25_900],
+    ]);
   });
 });

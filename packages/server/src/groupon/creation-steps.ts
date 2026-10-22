@@ -11,6 +11,10 @@
  * for 45.6 s, of which `git worktree add` of the 22,787 files of engineering-development took about
  * 40 s under load; the window said nothing about it.
  *
+ * `stepTimings` times them: how long each step ran, so a slow creation says which step took the time
+ * (ledger WW-105: the Mac mini's creation took 27 s, 24 s of it before the worktree directory
+ * existed, and the daemon log named no step).
+ *
  * Constraints:
  * - A step is a fact for the screen, never persisted and never a milestone: the creation's phases
  *   (`accepted`, `workspace_ready`, ...) stay the only state a retry reads.
@@ -46,4 +50,37 @@ export function reportCreationStep(id: CreationStepId): void {
   } catch {
     // The step is for the screen only; the work goes on.
   }
+}
+
+/** How long one step of a creation ran; `start` is the time before the first step reported. */
+export interface CreationStepTiming {
+  step: CreationStepId | "start";
+  ms: number;
+}
+
+/**
+ * Times the steps of one creation: `begin` when the work starts, `enter` for each step it reports,
+ * `end` when it returns or throws. Every step's duration goes to `emit` once the next one starts.
+ */
+export function createStepTimings(
+  emit: (timing: CreationStepTiming, totalMs: number) => void,
+  now: () => number = Date.now,
+) {
+  const began = now();
+  let current: CreationStepTiming["step"] = "start";
+  let since = began;
+  const close = (): void => {
+    const at = now();
+    emit({ step: current, ms: at - since }, at - began);
+    since = at;
+  };
+  return {
+    enter(id: CreationStepId): void {
+      close();
+      current = id;
+    },
+    end(): void {
+      close();
+    },
+  };
 }

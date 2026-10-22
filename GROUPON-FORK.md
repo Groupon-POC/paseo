@@ -592,3 +592,23 @@ field's hint names every form (`PLUGIN_SOURCE_HINT`,
 `packages/app/src/screens/settings/plugin-install-form-model.ts`): a registry page or
 `owner/slug`, `github:owner/repo`, a Git URL, `npm:package`, a folder on the Mac, and that a plugin
 runs unsandboxed with the Mac's rights.
+
+## Plugins read the providers in full over the window's own connection
+
+The owner installed the plugin `paseo-bots` (`oliexe/paseo-bots`) and its Provider picker stayed
+empty, "Needs attention: Pick an agent provider" (2026-10-22). The plugin lists providers with
+`providers.snapshot()` of the `PaseoApi` the window lends it (`usePaseo()`, `getPaseoClient()`),
+and keeps the entries with `enabled`. The window's own `DaemonClient` runs in Paseo's `"wire"` mode
+(`packages/app/src/runtime/host-runtime.ts`): it leaves the daemon's compact provider body, and the
+hash-only announcements, to the window's snapshot cache, so the borrowed API answered
+`entries: []` (reproduced against this Mac's daemon: 13 entries through the SDK's default client, 0
+through a wire-mode one). The desk's accounts as providers had no part in it; the standard ids
+`claude` and `codex` were in the body all along. Paseo's own code has the same gap.
+
+`createPaseoApi` (`packages/client/src/index.ts`) now hands a plugin entries whatever the client's
+mode: `providers.snapshot()` expands a compact body, `providers.subscribe()` reads the body behind a
+hash-only announcement (`ProviderSnapshotUpdates`, as the default client does), and
+`providers.waitForReady()` does both (`expandProvidersSnapshotForSdk` and
+`isProvidersSnapshotReference`, `packages/client/src/compat/normalize-provider-models.ts`). The
+window's own cache still reads the compact form; nothing the window shows changes. The test is
+`packages/client/src/plugin-provider-snapshot.test.ts`.

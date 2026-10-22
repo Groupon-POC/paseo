@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): providers.snapshot, subscribe and waitForReady hand a plugin expanded entries even over the app's wire-mode client.
 import type { OwnedSubscription } from "./connection/index.js";
 export type { OwnedSubscription, SubscriptionObserver } from "./connection/index.js";
 import type { DaemonClientConfig } from "./daemon-client.js";
@@ -29,6 +30,11 @@ import type {
   WorkspaceCreateRequest,
 } from "@getpaseo/protocol/messages";
 import { DaemonClient, type CreateAgentRequestOptions } from "./daemon-client.js";
+import {
+  expandProvidersSnapshotForSdk,
+  isProvidersSnapshotReference,
+} from "./compat/normalize-provider-models.js";
+import { ProviderSnapshotUpdates } from "./provider-snapshots/index.js";
 import {
   createTerminalActions,
   type PaseoTerminalActions,
@@ -738,7 +744,8 @@ export function createPaseoApi(
         return daemonClient.listProviderFeatures({ ...draftConfig, provider, model }, options);
       },
       listAvailable: (options) => daemonClient.listAvailableProviders(options),
-      snapshot: (options) => daemonClient.getProvidersSnapshot(options),
+      snapshot: async (options) =>
+        expandProvidersSnapshotForSdk(await daemonClient.getProvidersSnapshot(options)),
       waitForReady: (options) =>
         waitForProvidersReady(
           daemonClient,
@@ -750,9 +757,25 @@ export function createPaseoApi(
       diagnostic: (provider, options) => daemonClient.getProviderDiagnostic(provider, options),
       listUsage: (options) => listProviderUsage(daemonClient, options),
       subscribe: (handler) => {
-        return subscribeEvent("providers_snapshot_update", (message) => {
-          if (message.type === "providers_snapshot_update") handler(message.payload);
+        // A wire-mode client delivers hash-only announcements; fetch each body for the handler.
+        let active = true;
+        const references = new ProviderSnapshotUpdates({
+          active: () => active,
+          fetch: async (cwd) =>
+            expandProvidersSnapshotForSdk(await daemonClient.getProvidersSnapshot({ cwd })),
+          emit: (update) => handler(update.payload),
+          failed: (error) => console.error("Provider snapshot update failed", error),
         });
+        const unsubscribe = subscribeEvent("providers_snapshot_update", (message) => {
+          if (message.type !== "providers_snapshot_update") return;
+          if (isProvidersSnapshotReference(message.payload)) references.receive(message);
+          else handler(expandProvidersSnapshotForSdk(message.payload));
+        });
+        return () => {
+          active = false;
+          references.clear();
+          unsubscribe();
+        };
       },
     },
     config: {
@@ -1077,6 +1100,21 @@ async function waitForProvidersReady(
         reject(error instanceof Error ? error : new Error(String(error)));
       };
       const updateMatches = (update: PaseoProviderSnapshotUpdate) => update.cwd === snapshotCwd;
+      const readSnapshot = async () =>
+        expandProvidersSnapshotForSdk(await daemonClient.getProvidersSnapshot(snapshotOptions));
+      const accept = (update: PaseoProviderSnapshotUpdate, id: string) => {
+        // A hash-only announcement (a wire-mode client) carries no entries: read the body.
+        if (isProvidersSnapshotReference(update)) {
+          void readSnapshot()
+            .then((snapshot) => accept(snapshot, id))
+            .catch(fail);
+          return;
+        }
+        const expanded = expandProvidersSnapshotForSdk(update);
+        latestEntries = expanded.entries;
+        if (expanded.entries.some((entry) => entry.status === "loading")) return;
+        finish({ ...expanded, requestId: id });
+      };
 
       const unsubscribe = observation.subscribe({
         snapshot: () => {},
@@ -1088,9 +1126,7 @@ async function waitForProvidersReady(
             return;
           }
           if (!updateMatches(update)) return;
-          latestEntries = update.entries;
-          if (update.entries.some((entry) => entry.status === "loading")) return;
-          finish({ ...update, requestId });
+          accept(update, requestId);
         },
       });
       const abort = () => fail(new Error("Paseo API is disposed"));
@@ -1110,8 +1146,7 @@ async function waitForProvidersReady(
         );
       }, timeoutMs);
 
-      void daemonClient
-        .getProvidersSnapshot(snapshotOptions)
+      void readSnapshot()
         .then((snapshot) => {
           requestId = snapshot.requestId;
           snapshotCwd = snapshot.cwd;
@@ -1121,9 +1156,7 @@ async function waitForProvidersReady(
             return;
           }
           const pendingUpdate = pendingUpdates.get(snapshotCwd);
-          if (pendingUpdate && !pendingUpdate.entries.some((entry) => entry.status === "loading")) {
-            finish({ ...pendingUpdate, requestId });
-          }
+          if (pendingUpdate) accept(pendingUpdate, requestId);
           return undefined;
         })
         .catch(fail);

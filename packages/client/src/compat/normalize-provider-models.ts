@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the public SDK expands a compact provider snapshot a borrowed wire-mode client left compact.
 import type { AgentModelDefinition, ProviderSnapshotEntry } from "@getpaseo/protocol/agent-types";
 import { normalizeAgentModelDefinition } from "@getpaseo/protocol/agent-types";
 import { expandProviderSnapshot } from "@getpaseo/protocol/provider-snapshot-codec";
@@ -72,6 +73,26 @@ export function normalizeProvidersSnapshotPayload<
         )
       : decoded;
   return entries === payload.entries ? payload : { ...payload, entries };
+}
+
+/**
+ * The public SDK's view of a provider snapshot: entries, never a compact body. The app's own
+ * client runs in "wire" mode and leaves compact bodies for its snapshot cache, so a plugin that
+ * borrows it would otherwise read `entries: []` (paseo-bots' empty provider picker, 2026-10-22).
+ * A payload the client already expanded is returned as it is.
+ */
+export function expandProvidersSnapshotForSdk<
+  T extends GetProvidersSnapshotPayload | ProvidersSnapshotUpdatePayload,
+>(payload: T): T {
+  if (!payload.compactSnapshot || payload.entries.length > 0) return payload;
+  return normalizeProvidersSnapshotPayload(payload, true);
+}
+
+/** An announcement that names the snapshot by hash only; its body has to be fetched. */
+export function isProvidersSnapshotReference(
+  payload: GetProvidersSnapshotPayload | ProvidersSnapshotUpdatePayload,
+): boolean {
+  return !!payload.snapshotHash && !payload.compactSnapshot && payload.entries.length === 0;
 }
 
 export function normalizeProviderSnapshotUpdateMessage(

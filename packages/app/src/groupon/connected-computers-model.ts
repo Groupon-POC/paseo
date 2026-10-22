@@ -12,9 +12,11 @@
  *   the window holds a live connection to its daemon (a hand older than the samples)
  * - the tools the Mac's hand cannot find (`missing-tools-model.ts`), as amber labels on the row and
  *   one sentence each on expanding
- * - the load shown on expanding: CPU and RAM in whole percents from a sample under 60 s old; an
- *   online Mac without one says so; an offline Mac says when it was last seen (Core marks a Mac
- *   seen on every sample too)
+ * - the load from a sample under 60 s old (WW-97): the collapsed row's strip (CPU, RAM, disk in
+ *   percent, the network's speed down and up) and the expanded card's lines (uptime and load
+ *   average, CPU with its cores, RAM and disk in bytes, download and upload); a figure an older
+ *   hand does not send is left out, never shown as 0. An online Mac without a sample says so; an
+ *   offline Mac says when it was last seen (Core marks a Mac seen on every sample too)
  *
  * Constraints:
  * - A sample read more recently than the shared hub list (the section's own 10 s read while a row
@@ -23,6 +25,15 @@
 
 import type { HubMachineLoad } from "./hub";
 import type { HubMachineView } from "./hub-sync";
+import {
+  formatBytes,
+  formatCompactRate,
+  formatLoadAverage,
+  formatPercent,
+  formatRate,
+  formatUptime,
+  shareOf,
+} from "./machine-load-model";
 import { missingToolFixes, shownMissingTools } from "./missing-tools-model";
 import { GROUPON_COMPUTERS, type MissingTool } from "./strings";
 import { seenAgo, uniqueMacViews, yourMacRows } from "./your-macs-model";
@@ -35,6 +46,72 @@ export interface ComputerLoad {
   memoryPercent: number;
   cpuText: string;
   memoryText: string;
+  /** "CPU · 8 cores"; "CPU" from a hand that sends no core count. */
+  cpuLabel: string;
+  /** "RAM · 3.8 GB / 15.1 GB"; "RAM" from a hand that sends no bytes. */
+  memoryLabel: string;
+  /** "up 3d 19h · load 4.51 3.26 2.24", either half alone; null when the hand sends neither. */
+  summary: string | null;
+  /** The root volume; null when the hand sends none. */
+  disk: { percent: number; text: string; label: string } | null;
+  /** The network's speed; null when the hand sends none. */
+  network: { downText: string; upText: string; compactText: string } | null;
+}
+
+/** A fresh sample in words, for the strip and the card. */
+export function computerLoadOf(sample: HubMachineLoad): ComputerLoad {
+  const cpuPercent = Math.min(100, Math.max(0, sample.cpuPercent));
+  const memoryPercent = Math.min(100, Math.max(0, sample.memoryPercent));
+  const memoryBytes =
+    sample.memoryUsedBytes != null && sample.memoryTotalBytes != null
+      ? GROUPON_COMPUTERS.amountOf(
+          formatBytes(sample.memoryUsedBytes, 1024),
+          formatBytes(sample.memoryTotalBytes, 1024),
+        )
+      : null;
+  const diskPercent = shareOf(sample.diskUsedBytes, sample.diskTotalBytes);
+  const uptime = sample.uptimeSeconds != null ? formatUptime(sample.uptimeSeconds) : null;
+  const averages = formatLoadAverage(sample.loadAverage);
+  const summaryParts = [
+    uptime === null ? null : GROUPON_COMPUTERS.up(uptime),
+    averages === null ? null : GROUPON_COMPUTERS.loadAverage(averages),
+  ].filter((part): part is string => part !== null);
+  const down = sample.netRxBytesPerSecond;
+  const up = sample.netTxBytesPerSecond;
+  return {
+    cpuPercent,
+    memoryPercent,
+    cpuText: formatPercent(cpuPercent),
+    memoryText: formatPercent(memoryPercent),
+    cpuLabel:
+      sample.cores != null && sample.cores > 0
+        ? GROUPON_COMPUTERS.cpuCores(sample.cores)
+        : GROUPON_COMPUTERS.cpu,
+    memoryLabel:
+      memoryBytes === null ? GROUPON_COMPUTERS.memory : GROUPON_COMPUTERS.memoryOf(memoryBytes),
+    summary: summaryParts.length === 0 ? null : summaryParts.join(" · "),
+    disk:
+      diskPercent === null || sample.diskUsedBytes == null || sample.diskTotalBytes == null
+        ? null
+        : {
+            percent: diskPercent,
+            text: formatPercent(diskPercent),
+            label: GROUPON_COMPUTERS.diskOf(
+              GROUPON_COMPUTERS.amountOf(
+                formatBytes(sample.diskUsedBytes, 1000),
+                formatBytes(sample.diskTotalBytes, 1000),
+              ),
+            ),
+          },
+    network:
+      down == null || up == null
+        ? null
+        : {
+            downText: formatRate(down),
+            upText: formatRate(up),
+            compactText: `${formatCompactRate(down)}/${formatCompactRate(up)}`,
+          },
+  };
 }
 
 export interface ConnectedComputerRow {
@@ -75,8 +152,6 @@ function noteOf(hasLoad: boolean, online: boolean, lastSeenAt: string, now: Date
   return GROUPON_COMPUTERS.seen(seenAgo(lastSeenAt, now));
 }
 
-const clampPercent = (value: number) => Math.min(100, Math.max(0, Math.round(value)));
-
 export function connectedComputerRows({
   views,
   isOnline,
@@ -100,15 +175,7 @@ export function connectedComputerRows({
     const fresh =
       sample !== null && ageMs(sample.sampledAt, now) < COMPUTER_ONLINE_MS ? sample : null;
     const online = fresh !== null || row.state === "connected";
-    const load =
-      fresh === null
-        ? null
-        : {
-            cpuPercent: clampPercent(fresh.cpuPercent),
-            memoryPercent: clampPercent(fresh.memoryPercent),
-            cpuText: GROUPON_COMPUTERS.percent(clampPercent(fresh.cpuPercent)),
-            memoryText: GROUPON_COMPUTERS.percent(clampPercent(fresh.memoryPercent)),
-          };
+    const load = fresh === null ? null : computerLoadOf(fresh);
     const missingTools = shownMissingTools(
       machine?.missingTools,
       view?.serverId ? codexServerIds.has(view.serverId) : false,

@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import {
   COMPUTER_ONLINE_MS,
+  computerLoadOf,
   connectedComputerRows,
   toggleExpanded,
 } from "./connected-computers-model";
@@ -79,7 +80,17 @@ describe("connectedComputerRows", () => {
       label: "Tomas - Mac Studio",
       isThisComputer: false,
       online: true,
-      load: { cpuPercent: 23, memoryPercent: 61, cpuText: "23%", memoryText: "61%" },
+      load: {
+        cpuPercent: 23.4,
+        memoryPercent: 61,
+        cpuText: "23%",
+        memoryText: "61%",
+        cpuLabel: "CPU",
+        memoryLabel: "RAM",
+        summary: null,
+        disk: null,
+        network: null,
+      },
       note: null,
       missingTools: [],
       fixes: [],
@@ -150,7 +161,7 @@ describe("connectedComputerRows", () => {
       })[0],
     ).toMatchObject({
       online: true,
-      load: { cpuText: "4%", memoryText: "50%" },
+      load: { cpuText: "4.0%", memoryText: "50%" },
     });
   });
 
@@ -226,5 +237,70 @@ describe("connectedComputerRows: the tools a Mac lacks", () => {
     const [row] = rows([view(machine({ missingTools: ["rm -rf", "gh"] }))]);
 
     expect(row?.missingTools).toEqual(["gh"]);
+  });
+});
+
+describe("computerLoadOf: the card's figures", () => {
+  const whole = {
+    cpuPercent: 1.8,
+    memoryPercent: 25,
+    sampledAt: secondsAgo(3),
+    cores: 8,
+    memoryUsedBytes: 3.8 * 1024 ** 3,
+    memoryTotalBytes: 15.1 * 1024 ** 3,
+    diskUsedBytes: 48.6e9,
+    diskTotalBytes: 98.3e9,
+    netRxBytesPerSecond: 45_800,
+    netTxBytesPerSecond: 23_300,
+    uptimeSeconds: 3 * 86_400 + 19 * 3_600 + 125,
+    loadAverage: [4.51, 3.26, 2.24],
+  };
+
+  it("words a whole sample as the card and the strip show it", () => {
+    expect(computerLoadOf(whole)).toEqual({
+      cpuPercent: 1.8,
+      memoryPercent: 25,
+      cpuText: "1.8%",
+      memoryText: "25%",
+      cpuLabel: "CPU · 8 cores",
+      memoryLabel: "RAM · 3.8 GB / 15.1 GB",
+      summary: "up 3d 19h · load 4.51 3.26 2.24",
+      disk: { percent: expect.closeTo(49.44, 2), text: "49%", label: "Disk · 48.6 GB / 98.3 GB" },
+      network: { downText: "45.8 KB/s", upText: "23.3 KB/s", compactText: "46K/23K" },
+    });
+  });
+
+  it("leaves out what an older hand does not send, never showing it as 0", () => {
+    const load = computerLoadOf({ cpuPercent: 40, memoryPercent: 50, sampledAt: secondsAgo(3) });
+
+    expect(load).toMatchObject({
+      cpuLabel: "CPU",
+      memoryLabel: "RAM",
+      summary: null,
+      disk: null,
+      network: null,
+    });
+  });
+
+  it("says the uptime alone, or the load alone, when only one is sent, and one core as a core", () => {
+    expect(computerLoadOf({ ...whole, loadAverage: null }).summary).toBe("up 3d 19h");
+    expect(computerLoadOf({ ...whole, uptimeSeconds: null }).summary).toBe("load 4.51 3.26 2.24");
+    expect(computerLoadOf({ ...whole, cores: 1 }).cpuLabel).toBe("CPU · 1 core");
+  });
+
+  it("puts the strip on a collapsed online row and leaves an offline one without load", () => {
+    const [online, offline] = rows([
+      view(machine({ machine: "a", load: whole })),
+      view(
+        machine({
+          machine: "b",
+          lastSeenAt: secondsAgo(600),
+          load: { ...whole, sampledAt: secondsAgo(600) },
+        }),
+      ),
+    ]);
+
+    expect(online?.load?.network?.compactText).toBe("46K/23K");
+    expect(offline?.load).toBeNull();
   });
 });

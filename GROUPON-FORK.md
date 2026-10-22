@@ -525,6 +525,22 @@ PATH it gives its daemon, at start and every hour, and sends the list as the hub
 labelled only on a Mac a Codex session runs on (`groupon/codex-servers.ts`, read from the agents
 the app already holds). An older hand or Core sends no list and the Mac shows no label.
 
+Each online Mac's load reads like the Paseo plugin host-monitor (owner, 2026-10-22; WW-97): a
+collapsed Mac carries a quiet strip under its name (CPU, RAM and disk in percent, the network down
+and up as `46K/23K`), and an expanded Mac a card: "up 3d 19h · load 4.51 3.26 2.24", CPU with its
+cores, RAM in GB, Download and Upload, each with a bar history, and the root volume in GB with a
+bar (`groupon/computer-load-card.tsx`; the history and the wording `groupon/machine-load-model.ts`).
+The window keeps the last 60 samples of each Mac in memory, from the shared list and the open
+Mac's 10 s read; nothing is stored. Shares above 80 percent turn amber; memory counts in binary
+units as Activity Monitor does, disk and network in decimal ones as the Finder does. A figure an
+older hand does not send leaves its line out.
+
+The idea and the look come from host-monitor in
+[`a31521424/paseo-kit`](https://github.com/a31521424/paseo-kit/tree/main/plugins/host-monitor)
+(Apache-2.0): the card's layout, the bar histories, the one-decimal percent below 10, the compact
+speed in four characters. No code was copied; the fork's components, its sampler (in the hand,
+monorepo `packages/groupon-cli/src/hand/machine-load.ts`) and its wording are its own.
+
 ## Improve this repository
 
 The owner's word of 2026-10-20: "a solution for 'How to improve my repository', where a prompt

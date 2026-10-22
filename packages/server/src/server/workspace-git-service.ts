@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace on a shared trunk (staging, production, main, the default branch, desk.toml's target_branch) is matched to no pull request; `getCheckout` reads the checkout's identity without `git status` (a creation's critical path, MEASURED timing out at 30 s on a loaded MacBook Air, 2026-10-21).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace on a shared trunk (staging, production, main, the default branch, desk.toml's target_branch) is matched to no pull request; `getCheckout` reads the checkout's identity without `git status` (a creation's critical path, MEASURED timing out at 30 s on a loaded MacBook Air, 2026-10-21). A watcher batch is filtered by string before any realpath is resolved, so `pnpm install` in a new worktree no longer freezes the daemon (ledger WW-96).
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -44,6 +44,7 @@ import {
 } from "../services/forge-resolver.js";
 import { parseGitRevParsePath } from "../utils/git-rev-parse-path.js";
 import {
+  createRealpathAwareContainmentMatcher,
   createRealpathAwarePathMatcher,
   getRealpathAwareRelativePath,
   isPathInsideRoot,
@@ -1830,7 +1831,7 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
       const directory = dirname(event.path);
       // Cheap Set lookup first — the steady-state case where the directory is
       // already known must never reach the realpath-aware matcher below.
-      if (target.knownDirectories.has(directory) || matchesWatchPath(directory)) {
+      if (target.knownDirectories.has(directory)) {
         continue;
       }
       // `directory` and `gitDir`/`ignoredDirectory` all derive from the same
@@ -1852,6 +1853,12 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
         }
       }
       if (ignored) {
+        continue;
+      }
+      // Groupon Desk (WW-96): the realpath-aware matcher only after the string checks, so a
+      // new directory under an ignored one (every `node_modules` folder `pnpm install` makes)
+      // is skipped without resolving anything on disk.
+      if (matchesWatchPath(directory)) {
         continue;
       }
       target.knownDirectories.add(directory);
@@ -2014,21 +2021,20 @@ export class WorkspaceGitServiceImpl implements WorkspaceGitService {
   ): boolean {
     const gitDir = join(target.watchPath, ".git");
     const matchesWatchPath = createRealpathAwarePathMatcher(target.watchPath);
+    // Groupon Desk (WW-96): `.git` and every ignored directory resolved once per batch, and an
+    // event compared as written before anything is resolved on disk. The batch of a running
+    // `pnpm install` is thousands of events under `node_modules`, each answered here by string.
+    const insideGitOrIgnored = createRealpathAwareContainmentMatcher([
+      gitDir,
+      ...target.ignoredDirectories,
+    ]);
     return events.some((event) => {
+      if (insideGitOrIgnored(event.path)) {
+        return false;
+      }
       // Directory metadata changes at the watch root do not change Git state.
       // FSEvents may emit these when every changed descendant was ignored.
-      if (matchesWatchPath(event.path)) {
-        return false;
-      }
-      if (isRealpathInsideRoot(gitDir, event.path)) {
-        return false;
-      }
-      for (const ignoredDirectory of target.ignoredDirectories) {
-        if (isRealpathInsideRoot(ignoredDirectory, event.path)) {
-          return false;
-        }
-      }
-      return true;
+      return !matchesWatchPath(event.path);
     });
   }
 

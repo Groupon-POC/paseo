@@ -7,7 +7,8 @@
  * (`groupon-desk.list-directory`, so a remote Mac answers through the relay too).
  *
  * Responsibilities:
- * - Read the daemon's answer (`parseFolderListing`) and ask for one folder (`readFolder`).
+ * - Read the daemon's answer (`parseFolderListing`) and ask for one folder (`readFolder`), with
+ *   the repository each checkout's `origin` names and whether the folder itself is a checkout.
  * - Turn the field and the folder being looked at into what to list, how to filter it and what
  *   "Choose this folder" picks (`browserTarget`).
  * - The rows: the usual places first at the home folder, then the subfolders alphabetically,
@@ -30,6 +31,11 @@ export interface FolderEntry {
   path: string;
   hidden: boolean;
   gitCheckout: boolean;
+  /**
+   * The repository the checkout's `origin` names (`host/path`), null when it names none;
+   * undefined from a daemon older than the field.
+   */
+  remote?: string | null;
 }
 
 export interface FolderListing {
@@ -39,6 +45,11 @@ export interface FolderListing {
   entries: FolderEntry[];
   places: string[];
   truncated: boolean;
+  /**
+   * The folder listed as a checkout (its repository, or null when its `origin` names none); null
+   * when it is no checkout; undefined from a daemon older than the field.
+   */
+  checkout?: { remote: string | null } | null;
   error: string | null;
 }
 
@@ -56,6 +67,30 @@ function isFolderEntry(value: unknown): value is FolderEntry {
   );
 }
 
+// COMPAT(listDirectoryRemote): added in the fork on 2026-10-23; a daemon before it sends neither
+// `remote` nor `checkout`, read as undefined. Remove the undefined branches after 2027-01-23.
+function remoteOf(value: unknown): string | null | undefined {
+  if (typeof value === "string") return value;
+  return value === null ? null : undefined;
+}
+
+function entryOf(entry: FolderEntry): FolderEntry {
+  const remote = remoteOf(entry.remote);
+  const kept: FolderEntry = {
+    name: entry.name,
+    path: entry.path,
+    hidden: entry.hidden,
+    gitCheckout: entry.gitCheckout,
+  };
+  return remote === undefined ? kept : { ...kept, remote };
+}
+
+function checkoutOf(value: unknown): FolderListing["checkout"] {
+  if (value === null) return null;
+  if (!isRecord(value)) return undefined;
+  return { remote: typeof value.remote === "string" ? value.remote : null };
+}
+
 /** The daemon's answer; throws on any other shape (a daemon older than the browser answers with an error). */
 export function parseFolderListing(output: unknown): FolderListing {
   if (
@@ -70,11 +105,12 @@ export function parseFolderListing(output: unknown): FolderListing {
     path: output.path,
     homePath: output.homePath,
     parentPath: typeof output.parentPath === "string" ? output.parentPath : null,
-    entries: output.entries.filter(isFolderEntry),
+    entries: output.entries.filter(isFolderEntry).map(entryOf),
     places: Array.isArray(output.places)
       ? output.places.filter((place): place is string => typeof place === "string")
       : [],
     truncated: output.truncated === true,
+    checkout: checkoutOf(output.checkout),
     error: typeof output.error === "string" ? output.error : null,
   };
 }

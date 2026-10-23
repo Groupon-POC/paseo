@@ -39,7 +39,14 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   Enterprise (`github.groupondev.com`), switched at the top, the person's organisations, teams and
   repositories (on the enterprise also any other organisation, found by name), opening on the host,
   organisation and team picked last time, cloned with `gh` from that host into the Mac's checkout
-  folder and added as a normal project. A host `gh` is not signed in to shows the command that
+  folder and added as a normal project. Its folder step has a second way, "Already on the Mac": the
+  person browses that Mac from its home folder into the checkout wherever it lies, whatever its
+  folder is called, and Add this folder adds it as it is with `project.add`, nothing downloaded
+  (owner, 2026-10-23: "let me choose where the repository is on my computer"). Only a folder whose
+  `origin` names the repository may be added (the daemon's listing says which, rows of it read
+  "This repository"); a checkout whose origin the daemon cannot name (a worktree, an include) is
+  added and then checked by the project key Paseo answers, and a Mac whose daemon predates the
+  listing's `checkout` is told to update. A host `gh` is not signed in to shows the command that
   signs it in. `components/add-project-flow.tsx`
   filters Paseo's `github` method out of the menu.
 - **Pair device and pairing offers.** A phone reaches a Mac through Core once signed in with the
@@ -129,7 +136,8 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (`github-project-store.ts`' `prefill`), which closes back to New workspace after the clone. A
   checkout the hub reports on the chosen Mac that Paseo's daemon does not list yet is opened there
   as a project. While the chosen Mac lacks the repository, one line under the fields says so with
-  "Clone it on <Mac>", and the page has no project (never another repository in its place). Paseo's
+  "Clone it on <Mac>" and "It is already on <Mac>" (the same sheet opened on its "Already on the
+  Mac" way), and the page has no project (never another repository in its place). Paseo's
   own project pick (`screens/new-workspace/project-picker.ts`) is kept, unchanged, and driven onto
   the repository's project on the chosen Mac.
 - **Paseo's built-in daemon: the hand owns it.** The daemon on a Mac starts only by Groupon
@@ -608,8 +616,12 @@ The daemon answers one folder at a time as the built-in RPC `groupon-desk.list-d
 (`packages/server/src/groupon/list-directory.ts`, plugin id `groupon-desk`, answered by
 `session.ts` itself), so a remote Mac answers through the relay like this one: input `{ path }`
 (`~`, `~/…`, absolute, or relative to home), output the folder, its home, its parent (null at
-home), its subfolders with `hidden` and `gitCheckout` flags (at most 2,000, `truncated` beyond),
-the usual places that exist, and `error` as a sentence rather than a throw. It never lists a
+home), its subfolders with `hidden` and `gitCheckout` flags and the repository a checkout's
+`origin` names (`remote`, `host/path` as a project key has it; at most 2,000, `truncated` beyond),
+whether the folder itself is a checkout and of which repository (`checkout`), the usual places
+that exist, and `error` as a sentence rather than a throw. The origin is read from the checkout's
+own `.git/config`, not from git: only a regular file up to 256 KiB, in linear time (an unpacked
+archive can carry any text), and none for a linked worktree, an include or a rewritten address. It never lists a
 folder whose real path (symlinks resolved) is outside the daemon user's home, and never reads
 under `~/Library` on macOS, where readdir can block forever on a privacy prompt the daemon cannot
 show.

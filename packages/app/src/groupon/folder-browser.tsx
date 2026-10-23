@@ -23,7 +23,7 @@ import {
   FolderOpen,
   Star,
 } from "lucide-react-native";
-import { type ComponentType, useCallback, useMemo, useState } from "react";
+import { type ComponentType, useCallback, useEffect, useMemo, useState } from "react";
 import { type PressableStateCallbackType, ScrollView, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ import {
 import { useHubMachinesStore } from "./hub-sync";
 import { macPickerOptions } from "./mac-picker-model";
 import { useHubCheckouts } from "./repository-picker";
+import { normaliseRemote } from "./repository-picker-model";
 
 export const FOLDER_BROWSER = {
   choose: "Choose this folder",
@@ -69,6 +70,7 @@ export const FOLDER_BROWSER = {
   empty: "No folders here",
   noMatch: "No matching folders",
   finderFailed: "Finder could not open a folder dialog.",
+  thisRepository: "This repository",
 } as const;
 
 const NO_PATHS: string[] = [];
@@ -100,10 +102,14 @@ export function browserRowTitle(row: BrowserRow): string {
   return row.entry.name;
 }
 
-export function browserRowSubtitle(row: BrowserRow): string | null {
+/** `markRemote`: the repository being looked for; a checkout of it says so instead of "Git checkout". */
+export function browserRowSubtitle(row: BrowserRow, markRemote?: string | null): string | null {
   if (row.kind === "place") return FOLDER_BROWSER.place;
-  if (row.kind === "folder" && row.entry.gitCheckout) return FOLDER_BROWSER.checkout;
-  return null;
+  if (row.kind !== "folder" || !row.entry.gitCheckout) return null;
+  const remote = row.entry.remote ? normaliseRemote(row.entry.remote) : null;
+  return markRemote && remote === markRemote
+    ? FOLDER_BROWSER.thisRepository
+    : FOLDER_BROWSER.checkout;
 }
 
 export function browserRowKey(row: BrowserRow): string {
@@ -372,14 +378,16 @@ function rowStyle({ hovered, pressed }: PressableStateCallbackType & { hovered?:
 function PanelRow({
   row,
   disabled,
+  markRemote,
   onSelect,
 }: {
   row: BrowserRow;
   disabled?: boolean;
+  markRemote?: string | null;
   onSelect: (row: BrowserRow) => void;
 }) {
   const press = useCallback(() => onSelect(row), [onSelect, row]);
-  const subtitle = browserRowSubtitle(row);
+  const subtitle = browserRowSubtitle(row, markRemote);
   return (
     <PressHighlight
       accessibilityRole="button"
@@ -411,11 +419,17 @@ export function FolderBrowserPanel({
   initialFolder,
   disabled,
   onChange,
+  onLooked,
+  markRemote,
 }: {
   serverId: string;
   initialFolder: string;
   disabled?: boolean;
   onChange: (path: string) => void;
+  /** The folder looked at, absolute, with the listing drawn (which may still be the folder before). */
+  onLooked?: (looked: { chosenPath: string; listing: FolderListing | null }) => void;
+  /** The repository being looked for: its checkouts are marked "This repository". */
+  markRemote?: string | null;
 }) {
   const [folder, setFolder] = useState(initialFolder);
   const [query, setQuery] = useState("");
@@ -424,6 +438,10 @@ export function FolderBrowserPanel({
   const [finderError, setFinderError] = useState<string | null>(null);
   const view = useFolderBrowser({ serverId, folder, query, showHidden });
   const homePath = view.listing?.homePath ?? null;
+  const { chosenPath, listing } = view;
+  useEffect(() => {
+    onLooked?.({ chosenPath, listing });
+  }, [chosenPath, listing, onLooked]);
 
   const go = useCallback(
     (path: string) => {
@@ -470,7 +488,13 @@ export function FolderBrowserPanel({
         {view.loading ? <Text style={styles.muted}>Loading…</Text> : null}
         {view.error ? <Text style={styles.error}>{view.error}</Text> : null}
         {view.rows.map((row) => (
-          <PanelRow key={browserRowKey(row)} row={row} disabled={disabled} onSelect={select} />
+          <PanelRow
+            key={browserRowKey(row)}
+            row={row}
+            disabled={disabled}
+            markRemote={markRemote}
+            onSelect={select}
+          />
         ))}
         {!view.loading && !view.error && view.listing && view.rows.length === 0 ? (
           <Text style={styles.muted}>

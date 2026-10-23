@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; the groupon-desk list-directory RPC.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; the groupon-desk list-directory RPC, with the repository a checkout names.
 import {
   createMessageReceiptsStub,
   createTestCreationService,
@@ -529,8 +529,10 @@ test("answers Groupon Desk's list-directory itself, under the home folder only",
               path: join(home, "Documents", "GitHub"),
               hidden: false,
               gitCheckout: false,
+              remote: null,
             },
           ],
+          checkout: null,
           error: null,
         }),
       },

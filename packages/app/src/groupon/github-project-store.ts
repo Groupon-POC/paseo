@@ -3,15 +3,18 @@
 import { useCallback } from "react";
 import { create } from "zustand";
 import { useAddProjectFlowStore } from "@/stores/add-project-flow-store";
+import type { FolderMode } from "./github-project-model";
 
 /**
  * A repository already chosen: New workspace's "Clone it on <Mac>" opens the sheet at the folder
  * step of it, on its host, and after the clone the sheet closes back to New workspace, which picks
- * the new checkout up on that Mac (no navigation, so the person's draft stays).
+ * the new checkout up on that Mac (no navigation, so the person's draft stays). "It is already on
+ * <Mac>" opens the same step on its other way (`mode` "existing"): add the checkout already there.
  */
 export interface GithubProjectPrefill {
   host: string;
   fullName: string;
+  mode?: FolderMode;
 }
 
 /** The From GitHub sheet's request: the Mac the repository is downloaded to. */

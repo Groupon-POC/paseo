@@ -52,6 +52,36 @@ describe("parseFolderListing and readFolder", () => {
     expect(parsed.truncated).toBe(true);
   });
 
+  it("reads the repository each checkout names and whether the folder itself is one", () => {
+    const parsed = parseFolderListing({
+      ...listing(HOME, []),
+      entries: [
+        entry("repo", { gitCheckout: true, remote: "github.com/org/repo" }),
+        entry("bare", { gitCheckout: true, remote: null }),
+        { ...entry("odd", { gitCheckout: true }), remote: 7 },
+      ],
+      checkout: { remote: "github.com/org/home" },
+    });
+
+    expect(parsed.entries).toEqual([
+      entry("repo", { gitCheckout: true, remote: "github.com/org/repo" }),
+      entry("bare", { gitCheckout: true, remote: null }),
+      entry("odd", { gitCheckout: true }),
+    ]);
+    expect(parsed.checkout).toEqual({ remote: "github.com/org/home" });
+    expect(parseFolderListing({ ...listing(HOME, []), checkout: null }).checkout).toBeNull();
+    expect(parseFolderListing({ ...listing(HOME, []), checkout: { remote: 3 } }).checkout).toEqual({
+      remote: null,
+    });
+  });
+
+  it("leaves both unknown for a daemon that sends neither", () => {
+    const parsed = parseFolderListing({ ...listing(HOME, [entry("repo", { gitCheckout: true })]) });
+
+    expect(parsed.checkout).toBeUndefined();
+    expect(parsed.entries[0]).not.toHaveProperty("remote");
+  });
+
   it("throws on an older daemon's answer", () => {
     expect(() => parseFolderListing({ workspaces: [] })).toThrow(/update Groupon Desk/);
   });

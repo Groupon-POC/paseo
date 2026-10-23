@@ -1,10 +1,14 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the From GitHub sheet's steps, on github.com and on the enterprise.
 import { describe, expect, it } from "vitest";
 import type { GithubAccessAnswer, GithubRepository } from "./desk-plugin-rpc";
+import type { FolderListing } from "./folder-browser-model";
 import {
+  addedProjectVerdict,
   ALL_TEAMS,
   browsesOrganisation,
+  canAddExisting,
   checkoutPathPreview,
+  existingCheckoutVerdict,
   firstStep,
   folderProblem,
   GITHUB_COM,
@@ -20,6 +24,7 @@ import {
   prefilledStep,
   previousStep,
   repositoriesOf,
+  repositoryRemote,
   signInNeeded,
   ssoRefreshCommand,
   stepTitle,
@@ -389,5 +394,101 @@ describe("single sign-on in the way", () => {
     expect(teamHint(org.teams[1] ?? blocked, "GitHub did not answer", "Single sign-on")).toBe(
       "GitHub did not answer",
     );
+  });
+});
+
+describe("adding a checkout already on the Mac", () => {
+  const HOME = "/Users/ann";
+  const TARGET = repositoryRemote("github.com", "groupon2/engineering-development");
+  const listing = (path: string, checkout: FolderListing["checkout"]): FolderListing => ({
+    path,
+    homePath: HOME,
+    parentPath: HOME,
+    entries: [],
+    places: [],
+    truncated: false,
+    checkout,
+    error: null,
+  });
+  const folder = `${HOME}/git/groupon2/monorepo-engineering`;
+
+  it("keys the repository asked for as the daemon keys a checkout", () => {
+    expect(TARGET).toBe("github.com/groupon2/engineering-development");
+    expect(repositoryRemote("github.groupondev.com", "Finance/Orders")).toBe(
+      "github.groupondev.com/finance/orders",
+    );
+  });
+
+  it("adds the folder whose origin is the repository, whatever the folder is called", () => {
+    const verdict = existingCheckoutVerdict({
+      listing: listing(folder, { remote: "github.com/Groupon2/Engineering-Development" }),
+      chosenPath: `${folder}/`,
+      target: TARGET,
+    });
+
+    expect(verdict).toEqual({ kind: "match" });
+    expect(canAddExisting(verdict)).toBe(true);
+  });
+
+  it("refuses another repository's checkout and a folder that is none", () => {
+    const other = existingCheckoutVerdict({
+      listing: listing(folder, { remote: "github.com/groupon2/infra-development" }),
+      chosenPath: folder,
+      target: TARGET,
+    });
+    const plain = existingCheckoutVerdict({
+      listing: listing(folder, null),
+      chosenPath: folder,
+      target: TARGET,
+    });
+
+    expect(other).toEqual({ kind: "other", label: "groupon2/infra-development" });
+    expect(plain).toEqual({ kind: "notCheckout" });
+    expect(canAddExisting(other) || canAddExisting(plain)).toBe(false);
+  });
+
+  it("waits while the listing drawn is still the folder before", () => {
+    expect(
+      existingCheckoutVerdict({ listing: listing(HOME, null), chosenPath: folder, target: TARGET }),
+    ).toEqual({ kind: "loading" });
+    expect(existingCheckoutVerdict({ listing: null, chosenPath: folder, target: TARGET })).toEqual({
+      kind: "loading",
+    });
+  });
+
+  it("lets a checkout whose origin nobody can name be added, to be checked once Paseo added it", () => {
+    const oddConfig = existingCheckoutVerdict({
+      listing: listing(folder, { remote: null }),
+      chosenPath: folder,
+      target: TARGET,
+    });
+
+    expect(oddConfig).toEqual({ kind: "unnamed" });
+    expect(canAddExisting(oddConfig)).toBe(true);
+  });
+
+  it("asks for the update on a Mac whose daemon cannot say what the folder is", () => {
+    const olderDaemon = existingCheckoutVerdict({
+      listing: listing(folder, undefined),
+      chosenPath: folder,
+      target: TARGET,
+    });
+
+    expect(olderDaemon).toEqual({ kind: "olderMac" });
+    expect(canAddExisting(olderDaemon)).toBe(false);
+  });
+
+  it("checks what Paseo added by its project key", () => {
+    expect(
+      addedProjectVerdict("remote:github.com/groupon2/engineering-development", TARGET),
+    ).toEqual({
+      kind: "match",
+    });
+    expect(addedProjectVerdict("remote:github.com/org/other", TARGET)).toEqual({
+      kind: "other",
+      label: "org/other",
+    });
+    expect(addedProjectVerdict("/Users/ann/plain", TARGET)).toEqual({ kind: "unknown" });
+    expect(addedProjectVerdict(undefined, TARGET)).toEqual({ kind: "unknown" });
   });
 });

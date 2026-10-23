@@ -8,7 +8,10 @@
  * relay.
  *
  * Responsibilities:
- * - List a folder's subfolders (never files), each with a hidden flag and a git-checkout flag.
+ * - List a folder's subfolders (never files), each with a hidden flag, a git-checkout flag and
+ *   the repository its `origin` names.
+ * - Say whether the folder listed is a checkout itself, and of which repository, so From GitHub
+ *   can add a checkout already on the Mac instead of cloning it again (owner, 2026-10-23).
  * - Name the usual places under the home folder that exist on this Mac.
  *
  * Constraints:
@@ -17,12 +20,17 @@
  * - Never reads under `~/Library` on macOS: readdir there can block forever on a TCC prompt the
  *   daemon cannot show (the same reason Paseo's directory search skips it).
  * - Answers a problem as data (`error`), never a throw, so the window can say it in one line.
+ * - A checkout's `.git/config` is anybody's text (an unpacked archive carries one): only a regular
+ *   file up to `MAX_GIT_CONFIG_BYTES` is read, every pattern over it runs in linear time, and a
+ *   config that includes another file or rewrites addresses names no repository (only git applies
+ *   those). A linked worktree (`.git` is a file) names none either.
  */
 
 import { constants } from "node:fs";
-import { access, readdir, realpath, stat } from "node:fs/promises";
+import { access, lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
+import { isGitHubHost, parseGitRemoteLocation } from "@getpaseo/protocol/git-remote";
 import { isPathInsideRoot } from "../utils/path.js";
 
 export const LIST_DIRECTORY_METHOD = "groupon-desk.list-directory";
@@ -33,6 +41,9 @@ export const LIST_DIRECTORY_LIMIT = 2_000;
 /** The places a person usually keeps work in, nearest first, shown when they exist. */
 export const USUAL_PLACES = ["Documents/GitHub", "Developer", "Desktop", "Documents"] as const;
 
+/** A checkout's own `.git/config` is a few hundred bytes; anything far larger names no repository. */
+export const MAX_GIT_CONFIG_BYTES = 256 * 1024;
+
 export interface DirectoryEntry {
   name: string;
   path: string;
@@ -40,6 +51,16 @@ export interface DirectoryEntry {
   hidden: boolean;
   /** The folder holds `.git` (a checkout or a worktree). */
   gitCheckout: boolean;
+  /**
+   * The repository its `origin` names, `host/path` as a project key has it (GitHub's path in lower
+   * case, `server/project-key.ts`); null when it names none or the folder is no checkout.
+   */
+  remote: string | null;
+}
+
+/** The folder listed is a checkout itself: the repository its `origin` names, or null. */
+export interface ListedCheckout {
+  remote: string | null;
 }
 
 export interface DirectoryListing {
@@ -53,6 +74,8 @@ export interface DirectoryListing {
   /** The usual places that exist on this Mac, absolute. */
   places: string[];
   truncated: boolean;
+  /** The folder listed as a checkout; null when it holds no `.git`. */
+  checkout: ListedCheckout | null;
   error: string | null;
 }
 
@@ -95,7 +118,56 @@ function byName(a: DirectoryEntry, b: DirectoryEntry): number {
 }
 
 function emptyListing(path: string, homePath: string, error: string): DirectoryListing {
-  return { path, homePath, parentPath: null, entries: [], places: [], truncated: false, error };
+  return {
+    path,
+    homePath,
+    parentPath: null,
+    entries: [],
+    places: [],
+    truncated: false,
+    checkout: null,
+    error,
+  };
+}
+
+/**
+ * The `origin` address a checkout's config text writes; null when it names none, includes another
+ * file or rewrites addresses. Every pattern runs in linear time on hostile text.
+ */
+export function originInGitConfig(text: string): string | null {
+  if (/insteadof/i.test(text) || /^[ \t]*\[[ \t]*include/im.test(text)) return null;
+  let inOrigin = false;
+  for (const line of text.split("\n")) {
+    const section = line.match(/^\s*\[([^\]]*)\]/);
+    if (section) {
+      inOrigin = /^remote\s+"origin"$/.test((section[1] ?? "").trim());
+      continue;
+    }
+    const url = inOrigin ? line.match(/^\s*url\s*=\s*"?([^"\s]+)"?\s*$/) : null;
+    if (url?.[1]) return url[1];
+  }
+  return null;
+}
+
+/** `host/path` of a remote address, as `deriveProjectKey` (`server/project-key.ts`) keys a project. */
+export function remoteKeyOf(remoteUrl: string): string | null {
+  const remote = parseGitRemoteLocation(remoteUrl);
+  if (!remote) return null;
+  const host = remote.port ? `${remote.host}:${remote.port}` : remote.host;
+  return `${host}/${isGitHubHost(remote.host) ? remote.path.toLowerCase() : remote.path}`;
+}
+
+/** The repository the checkout at `folder` names; null for a worktree, an odd config or none. */
+async function remoteOfCheckout(folder: string): Promise<string | null> {
+  const configPath = join(folder, ".git", "config");
+  try {
+    const info = await lstat(configPath);
+    if (!info.isFile() || info.size > MAX_GIT_CONFIG_BYTES) return null;
+    const origin = originInGitConfig(await readFile(configPath, "utf8"));
+    return origin === null ? null : remoteKeyOf(origin);
+  } catch {
+    return null;
+  }
 }
 
 async function usualPlaces(homePath: string): Promise<string[]> {
@@ -153,12 +225,16 @@ async function readSubfolders(
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }))
     .slice(0, LIST_DIRECTORY_LIMIT);
   const entries = await Promise.all(
-    kept.map(async (folder) => ({
-      name: folder.name,
-      path: folder.path,
-      hidden: folder.name.startsWith(".") || (hideLibrary && folder.name === "Library"),
-      gitCheckout: await exists(join(folder.path, ".git")),
-    })),
+    kept.map(async (folder) => {
+      const gitCheckout = await exists(join(folder.path, ".git"));
+      return {
+        name: folder.name,
+        path: folder.path,
+        hidden: folder.name.startsWith(".") || (hideLibrary && folder.name === "Library"),
+        gitCheckout,
+        remote: gitCheckout ? await remoteOfCheckout(folder.path) : null,
+      };
+    }),
   );
   return { entries: entries.sort(byName), truncated: folders.length > LIST_DIRECTORY_LIMIT };
 }
@@ -196,6 +272,7 @@ export async function listDirectory(
     entries: listed.entries,
     places: await usualPlaces(homePath),
     truncated: listed.truncated,
+    checkout: (await exists(join(path, ".git"))) ? { remote: await remoteOfCheckout(path) } : null,
     error: null,
   };
 }

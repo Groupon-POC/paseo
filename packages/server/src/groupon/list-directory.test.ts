@@ -4,7 +4,14 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { LIST_DIRECTORY_ERRORS, LIST_DIRECTORY_METHOD, listDirectory } from "./list-directory.js";
+import {
+  LIST_DIRECTORY_ERRORS,
+  LIST_DIRECTORY_METHOD,
+  listDirectory,
+  MAX_GIT_CONFIG_BYTES,
+  originInGitConfig,
+  remoteKeyOf,
+} from "./list-directory.js";
 
 const tempDirectories: string[] = [];
 
@@ -65,6 +72,7 @@ describe("listDirectory", () => {
       path: join(home, "plain"),
       hidden: false,
       gitCheckout: false,
+      remote: null,
     });
     expect(byName.get("repo")?.gitCheckout).toBe(true);
     expect(byName.get("worktree")?.gitCheckout).toBe(true);
@@ -169,5 +177,101 @@ describe("listDirectory", () => {
     const listing = await listDirectory({ path: 42 }, { homePath: home });
     expect(listing.path).toBe(home);
     expect(listing.error).toBeNull();
+  });
+});
+
+/** A checkout at `path` under `home` whose config names `origin` (or none when `origin` is null). */
+function checkout(home: string, path: string, origin: string | null, extra = ""): void {
+  folders(home, `${path}/.git`);
+  const remote =
+    origin === null
+      ? ""
+      : `[remote "origin"]\n\turl = ${origin}\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n`;
+  writeFileSync(join(home, path, ".git", "config"), `[core]\n\tbare = false\n${remote}${extra}`);
+}
+
+describe("listDirectory, the repository a checkout holds", () => {
+  test("names each checkout's repository as a project key has it, GitHub's path in lower case", async () => {
+    const home = tempHome();
+    checkout(home, "engineering", "git@github.com:Groupon2/Engineering-Development.git");
+    checkout(home, "legacy", "https://github.groupondev.com/Finance/Orders.git");
+    checkout(home, "no-origin", null);
+    folders(home, "worktree");
+    writeFileSync(join(home, "worktree", ".git"), "gitdir: /elsewhere");
+
+    const listing = await listDirectory({ path: "~" }, { homePath: home, platform: "darwin" });
+    const remotes = Object.fromEntries(listing.entries.map((entry) => [entry.name, entry.remote]));
+
+    expect(remotes).toEqual({
+      engineering: "github.com/groupon2/engineering-development",
+      legacy: "github.groupondev.com/Finance/Orders",
+      "no-origin": null,
+      worktree: null,
+    });
+    expect(listing.checkout).toBeNull();
+  });
+
+  test("says when the folder listed is a checkout itself, and of which repository", async () => {
+    const home = tempHome();
+    checkout(
+      home,
+      "git/groupon2/monorepo-engineering",
+      "git@github.com:groupon2/engineering-development.git",
+    );
+
+    const inside = await listDirectory(
+      { path: "~/git/groupon2/monorepo-engineering" },
+      { homePath: home, platform: "darwin" },
+    );
+    const above = await listDirectory(
+      { path: "~/git/groupon2" },
+      { homePath: home, platform: "darwin" },
+    );
+
+    expect(inside.checkout).toEqual({ remote: "github.com/groupon2/engineering-development" });
+    expect(above.checkout).toBeNull();
+  });
+
+  test("names no repository for a config that includes another file, rewrites addresses or is too large", async () => {
+    const home = tempHome();
+    checkout(home, "included", "git@github.com:org/a.git", "[include]\n\tpath = other.config\n");
+    checkout(home, "rewritten", "gh:org/b", '[url "git@github.com:"]\n\tinsteadOf = gh:\n');
+    checkout(home, "huge", "git@github.com:org/c.git", `# ${"x".repeat(MAX_GIT_CONFIG_BYTES)}\n`);
+
+    const listing = await listDirectory({ path: "~" }, { homePath: home, platform: "darwin" });
+
+    expect(listing.entries.map((entry) => [entry.name, entry.gitCheckout, entry.remote])).toEqual([
+      ["huge", true, null],
+      ["included", true, null],
+      ["rewritten", true, null],
+    ]);
+  });
+});
+
+describe("originInGitConfig", () => {
+  test("answers at once on a hostile line: a bracket and 100,000 spaces, then 100,000 blank lines", () => {
+    const hostile = `[${" ".repeat(100_000)}\n${"\n".repeat(100_000)}`;
+    const started = performance.now();
+
+    expect(originInGitConfig(hostile)).toBeNull();
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+
+  test("reads a quoted address and ignores another remote", () => {
+    expect(originInGitConfig('[remote "upstream"]\n\turl = git@github.com:up/x.git\n')).toBeNull();
+    expect(originInGitConfig('[remote "origin"]\n  url="https://github.com/org/repo.git"\n')).toBe(
+      "https://github.com/org/repo.git",
+    );
+  });
+});
+
+describe("remoteKeyOf", () => {
+  test("keys the scp, https and ssh spellings alike, a port kept", () => {
+    expect(remoteKeyOf("git@github.com:Org/Repo.git")).toBe("github.com/org/repo");
+    expect(remoteKeyOf("https://github.com/org/repo")).toBe("github.com/org/repo");
+    expect(remoteKeyOf("ssh://git@git.example.com:2222/team/Repo.git")).toBe(
+      "git.example.com:2222/team/Repo",
+    );
+    expect(remoteKeyOf("/Users/me/bare.git")).toBeNull();
   });
 });

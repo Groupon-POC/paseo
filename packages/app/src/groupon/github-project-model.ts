@@ -11,6 +11,10 @@
  * teams), the way Desk's Dark Factory screen remembers its organisation; Back reaches the teams
  * and the organisations. New workspace opens it on one repository already chosen (a Mac that
  * lacks the repository the person picked): straight at the folder step (`prefilledStep`).
+ * The folder step clones a new copy, or adds a checkout of the repository already on that Mac,
+ * wherever it lies (owner, 2026-10-23: "let me choose where the repository is on my computer"):
+ * the folder the person goes into is added only when its `origin` names the repository
+ * (`existingCheckoutVerdict`), and what Paseo added is checked again (`addedProjectVerdict`).
  * Pure, so the steps and the lists are tested without a screen.
  */
 
@@ -21,6 +25,8 @@ import type {
   GithubRepository,
   GithubTeam,
 } from "./desk-plugin-rpc";
+import type { FolderListing } from "./folder-browser-model";
+import { normaliseRemote } from "./repository-picker-model";
 
 /** github.com: the `groupon2` organisations, as the platform sees them. */
 export const GITHUB_COM = "github.com";
@@ -299,4 +305,67 @@ export function teamHint(team: GithubTeam, unread: string, ssoBlocked?: string):
   const count = team.repositories.length;
   const description = team.description ? ` · ${team.description}` : "";
   return `${count} ${count === 1 ? "repository" : "repositories"}${description}`;
+}
+
+/** The folder step's two ways: clone a new copy, or add the checkout already on the Mac. */
+export type FolderMode = "clone" | "existing";
+
+/** `host/owner/name` of the repository being added, the form the daemon keys a checkout's origin in. */
+export function repositoryRemote(host: string, fullName: string): string | null {
+  return normaliseRemote(`${host}/${fullName}`);
+}
+
+/** `owner/name` of `host/owner/name`, for a sentence. */
+export function remoteLabel(remote: string): string {
+  return remote.split("/").slice(1).join("/") || remote;
+}
+
+/** Whether the folder looked at may be added as the repository's checkout. */
+export type ExistingCheckoutVerdict =
+  | { kind: "loading" }
+  | { kind: "match" }
+  | { kind: "other"; label: string }
+  | { kind: "notCheckout" }
+  /** A checkout whose `origin` the daemon cannot name (a worktree, an include): checked once added. */
+  | { kind: "unnamed" }
+  /** A daemon older than the listing's `checkout`: it cannot say, so the Mac needs the update. */
+  | { kind: "olderMac" };
+
+/**
+ * The folder looked at (`chosenPath`, absolute) against the repository asked for. The listing may
+ * still be the folder before (it stays drawn while the next one loads): then it is loading.
+ */
+export function existingCheckoutVerdict(input: {
+  listing: FolderListing | null;
+  chosenPath: string;
+  target: string | null;
+}): ExistingCheckoutVerdict {
+  const { listing, chosenPath, target } = input;
+  if (!listing || listing.path.replace(/\/+$/, "") !== chosenPath.replace(/\/+$/, "")) {
+    return { kind: "loading" };
+  }
+  if (listing.error || listing.checkout === null) return { kind: "notCheckout" };
+  // COMPAT(listDirectoryRemote): a daemon before 2026-10-23 sends no `checkout`; remove after 2027-01-23.
+  if (listing.checkout === undefined) return { kind: "olderMac" };
+  const remote = listing.checkout.remote ? normaliseRemote(listing.checkout.remote) : null;
+  if (remote === null || target === null) return { kind: "unnamed" };
+  return remote === target ? { kind: "match" } : { kind: "other", label: remoteLabel(remote) };
+}
+
+/** Whether the folder can be added now: the repository's own checkout, or a checkout nobody can name. */
+export function canAddExisting(verdict: ExistingCheckoutVerdict): boolean {
+  return verdict.kind === "match" || verdict.kind === "unnamed";
+}
+
+/**
+ * The project Paseo added from the folder against the repository asked for, by its project key
+ * (`remote:<host>/<path>`); "unknown" when the key names no remote or a daemon sent none.
+ */
+export function addedProjectVerdict(
+  projectKey: string | undefined,
+  target: string | null,
+): { kind: "match" } | { kind: "other"; label: string } | { kind: "unknown" } {
+  const remote = projectKey ? normaliseRemote(projectKey) : null;
+  if (remote === null || target === null) return { kind: "unknown" };
+  return remote === target ? { kind: "match" } : { kind: "other", label: remoteLabel(remote) };
 }

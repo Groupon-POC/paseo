@@ -21,6 +21,12 @@
  * once the clone is a project, closes back to New workspace instead of navigating. The folder step
  * names every Mac that already has the repository, with its path (the hub's checkouts), above the
  * folder browser, so a repository on one Mac is cloned onto another knowingly (`add-to-mac-model.ts`).
+ * Its other way, "Already on the Mac" (New workspace's "It is already on <Mac>" opens straight on
+ * it), browses that Mac from its home folder to the checkout wherever it lies, whatever its folder
+ * is called, and adds it with `project.add` as it is: only a folder whose `origin` names the
+ * repository (the daemon's listing says so; `existingCheckoutVerdict`), and what Paseo added is
+ * checked once more by its project key (owner, 2026-10-23: "let me choose where the repository is
+ * on my computer instead of cloning it into a folder the program picks").
  */
 
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,6 +42,7 @@ import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useFetchQuery } from "@/data/query";
+import type { OpenProjectResult } from "@/hooks/open-project";
 import { useOpenProject } from "@/hooks/use-open-project";
 import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
@@ -44,6 +51,7 @@ import { openExternalUrl } from "@/utils/open-external-url";
 import { MacsHoldingRepository, useMacsHoldingRepository } from "./add-to-mac";
 import { CopyLine } from "./copy-line";
 import { FolderBrowserPanel } from "./folder-browser";
+import type { FolderListing } from "./folder-browser-model";
 import {
   followJob,
   pluginProblemText,
@@ -56,9 +64,12 @@ import {
   type PluginRpcClient,
 } from "./desk-plugin-rpc";
 import {
+  addedProjectVerdict,
   ALL_TEAMS,
   browsesOrganisation,
+  canAddExisting,
   checkoutPathPreview,
+  existingCheckoutVerdict,
   firstStep,
   folderProblem,
   prefilledStep,
@@ -74,10 +85,13 @@ import {
   previousStep,
   repositoriesOf,
   repositoryHint,
+  repositoryRemote,
   signInNeeded,
   ssoRefreshCommand,
   stepTitle,
   teamHint,
+  type ExistingCheckoutVerdict,
+  type FolderMode,
   type GithubStep,
 } from "./github-project-model";
 import { type GithubProjectPrefill, useGithubProjectStore } from "./github-project-store";
@@ -100,6 +114,17 @@ type Download =
   | { status: "idle" }
   | { status: "running"; phase: string }
   | { status: "failed"; error: string };
+
+type AddedProject = Extract<OpenProjectResult, { ok: true }>["project"];
+
+/** What the folder browser of the existing way reports; the folder itself is read off the listing. */
+interface LookedFolder {
+  chosenPath: string;
+  listing: FolderListing | null;
+}
+
+const FIRST_LOOK: LookedFolder = { chosenPath: "~", listing: null };
+const ignoreFolder = () => {};
 
 /** Mounted once beside Paseo's Add project flow; draws the sheet while a request is open. */
 export function GithubProjectSheetHost() {
@@ -178,6 +203,7 @@ function GithubProjectSheet({
   );
   const [query, setQuery] = useState("");
   const [folder, setFolder] = useState<string | null>(null);
+  const [mode, setMode] = useState<FolderMode>(() => prefill?.mode ?? "clone");
   const [download, setDownload] = useState<Download>({ status: "idle" });
   const live = useRef(true);
   useEffect(
@@ -250,6 +276,63 @@ function GithubProjectSheet({
     else onClose();
   }, [answer, download.status, go, onClose, step]);
 
+  const switchMode = useCallback(
+    (next: FolderMode) => {
+      if (download.status === "running") return;
+      setMode(next);
+      setDownload({ status: "idle" });
+    },
+    [download.status],
+  );
+
+  /** The project Paseo holds now: back to New workspace when it asked, else New workspace on it. */
+  const finish = useCallback(
+    (project: AddedProject) => {
+      onClose();
+      // New workspace asked for this repository: it picks the new project up on this Mac itself.
+      if (prefill) return;
+      router.push(
+        buildNewWorkspaceRoute({
+          serverId,
+          projectId: project.projectId,
+          sourceDirectory: project.projectRootPath,
+          displayName: project.projectDisplayName,
+        }),
+      );
+    },
+    [onClose, prefill, serverId],
+  );
+
+  const addExisting = useCallback(
+    async (repository: GithubRepository, path: string) => {
+      if (download.status === "running") return;
+      setDownload({ status: "running", phase: GROUPON_GITHUB.addingExisting(path) });
+      try {
+        const added = await openProject(path);
+        if (!live.current) return;
+        if (!added.ok) {
+          setDownload({ status: "failed", error: added.error ?? GROUPON_GITHUB.notAdded(path) });
+          return;
+        }
+        const verdict = addedProjectVerdict(
+          added.project.projectKey,
+          repositoryRemote(host, repository.fullName),
+        );
+        if (verdict.kind === "other") {
+          setDownload({
+            status: "failed",
+            error: GROUPON_GITHUB.addedOther(verdict.label, repository.fullName),
+          });
+          return;
+        }
+        finish(added.project);
+      } catch (error) {
+        if (live.current) setDownload({ status: "failed", error: pluginProblemText(error) });
+      }
+    },
+    [download.status, finish, host, openProject],
+  );
+
   const startDownload = useCallback(
     async (repository: GithubRepository) => {
       if (!client || download.status === "running") return;
@@ -282,28 +365,23 @@ function GithubProjectSheet({
           });
           return;
         }
-        onClose();
-        // New workspace asked for this clone: it picks the new project up on this Mac itself.
-        if (prefill) return;
-        router.push(
-          buildNewWorkspaceRoute({
-            serverId,
-            projectId: added.project.projectId,
-            sourceDirectory: added.project.projectRootPath,
-            displayName: added.project.projectDisplayName,
-          }),
-        );
+        finish(added.project);
       } catch (error) {
         if (live.current) setDownload({ status: "failed", error: pluginProblemText(error) });
       }
     },
-    [client, download.status, host, onClose, openProject, prefill, serverId, shownFolder],
+    [client, download.status, finish, host, openProject, shownFolder],
   );
 
   const header = useMemo<SheetHeader>(() => {
+    const addsExisting = step.kind === "folder" && mode === "existing";
     const base: SheetHeader = {
       title: stepTitle(step, GROUPON_GITHUB.title, GROUPON_GITHUB.allTeams, answer),
-      subtitle: <SheetSubtitle text={`${GROUPON_GITHUB.downloadsTo} ${hostLabel}`} />,
+      subtitle: (
+        <SheetSubtitle
+          text={`${addsExisting ? GROUPON_GITHUB.addsFrom : GROUPON_GITHUB.downloadsTo} ${hostLabel}`}
+        />
+      ),
     };
     if (step.kind !== "organisations") base.back = { onPress: back, label: "Back" };
     if (step.kind !== "folder") {
@@ -315,7 +393,7 @@ function GithubProjectSheet({
       };
     }
     return base;
-  }, [answer, back, host, hostLabel, step]);
+  }, [answer, back, host, hostLabel, mode, step]);
 
   return (
     <AdaptiveModalSheet
@@ -348,9 +426,13 @@ function GithubProjectSheet({
           query={query}
           folder={shownFolder}
           download={download}
+          mode={mode}
+          macLabel={hostLabel}
           onFolder={setFolder}
+          onMode={switchMode}
           onGo={go}
           onDownload={startDownload}
+          onAddExisting={addExisting}
           onRefresh={refresh}
         />
       ) : null}
@@ -474,9 +556,15 @@ interface StepBodyProps {
   query: string;
   folder: string;
   download: Download;
+  /** The folder step's way: clone a new copy, or add the checkout already on the Mac. */
+  mode: FolderMode;
+  /** The Mac the sheet is for, as the window names it. */
+  macLabel: string;
   onFolder: (folder: string) => void;
+  onMode: (mode: FolderMode) => void;
   onGo: (step: GithubStep) => void;
   onDownload: (repository: GithubRepository) => void;
+  onAddExisting: (repository: GithubRepository, path: string) => void;
   onRefresh: () => Promise<void>;
 }
 
@@ -704,7 +792,53 @@ function RepositoryRows({
   );
 }
 
-function FolderStep({
+type FolderStepProps = StepBodyProps & { repository: GithubRepository };
+
+function FolderStep(props: FolderStepProps) {
+  const { host, serverId, repository, mode, download, onMode } = props;
+  const holdings = useMacsHoldingRepository(host, repository.fullName, serverId);
+  return (
+    <View style={styles.list}>
+      <MacsHoldingRepository holdings={holdings} />
+      <FolderModeSwitch mode={mode} locked={download.status === "running"} onChange={onMode} />
+      {mode === "existing" ? <ExistingFolder {...props} /> : <CloneFolder {...props} />}
+    </View>
+  );
+}
+
+function FolderModeSwitch({
+  mode,
+  locked,
+  onChange,
+}: {
+  mode: FolderMode;
+  locked: boolean;
+  onChange: (mode: FolderMode) => void;
+}) {
+  const options = useMemo(
+    () =>
+      (["clone", "existing"] as const).map((value) => ({
+        value,
+        label: value === "clone" ? GROUPON_GITHUB.modeClone : GROUPON_GITHUB.modeExisting,
+        disabled: locked && value !== mode,
+        testID: `groupon-github-mode-${value}`,
+      })),
+    [locked, mode],
+  );
+  return (
+    <View style={styles.hosts} accessibilityLabel={GROUPON_GITHUB.modeSwitch}>
+      <SegmentedControl
+        options={options}
+        value={mode}
+        onValueChange={onChange}
+        size="sm"
+        testID="groupon-github-mode"
+      />
+    </View>
+  );
+}
+
+function CloneFolder({
   folder,
   host,
   serverId,
@@ -713,15 +847,13 @@ function FolderStep({
   onDownload,
   onRefresh,
   repository,
-}: StepBodyProps & { repository: GithubRepository }) {
+}: FolderStepProps) {
   const running = download.status === "running";
   const start = useCallback(() => onDownload(repository), [onDownload, repository]);
-  const holdings = useMacsHoldingRepository(host, repository.fullName, serverId);
   // The folder is browsed on that Mac, one click at a time; the field still takes a typed path.
   const [initialFolder] = useState(folder);
   return (
-    <View style={styles.list}>
-      <MacsHoldingRepository holdings={holdings} />
+    <>
       <Text style={styles.label}>{GROUPON_GITHUB.folderLabel}</Text>
       <FolderBrowserPanel
         serverId={serverId}
@@ -732,10 +864,7 @@ function FolderStep({
       <Text style={styles.muted}>
         {GROUPON_GITHUB.landsAt} {checkoutPathPreview(folder, repository)}
       </Text>
-      {download.status === "failed" ? (
-        <Problem text={download.error} host={host} onRefresh={onRefresh} />
-      ) : null}
-      {download.status === "running" ? <Waiting text={download.phase} /> : null}
+      <DownloadState download={download} host={host} onRefresh={onRefresh} />
       <View style={styles.actions}>
         <Button
           variant="default"
@@ -747,8 +876,122 @@ function FolderStep({
           {GROUPON_GITHUB.download}
         </Button>
       </View>
-    </View>
+    </>
   );
+}
+
+/** The existing way: browse to the checkout from the home folder and add the folder looked at. */
+function ExistingFolder({
+  host,
+  serverId,
+  macLabel,
+  download,
+  onAddExisting,
+  onRefresh,
+  repository,
+}: FolderStepProps) {
+  const running = download.status === "running";
+  const target = useMemo(
+    () => repositoryRemote(host, repository.fullName),
+    [host, repository.fullName],
+  );
+  const [looked, setLooked] = useState<LookedFolder>(FIRST_LOOK);
+  const verdict = existingCheckoutVerdict({ ...looked, target });
+  const add = useCallback(
+    () => onAddExisting(repository, looked.chosenPath),
+    [looked.chosenPath, onAddExisting, repository],
+  );
+  return (
+    <>
+      <Text style={styles.muted}>{GROUPON_GITHUB.existingHint(repository.fullName, macLabel)}</Text>
+      <FolderBrowserPanel
+        serverId={serverId}
+        initialFolder="~"
+        disabled={running}
+        onChange={ignoreFolder}
+        onLooked={setLooked}
+        markRemote={target}
+      />
+      <ExistingVerdictLine verdict={verdict} repository={repository.fullName} macLabel={macLabel} />
+      <DownloadState download={download} host={host} onRefresh={onRefresh} />
+      <View style={styles.actions}>
+        <Button
+          variant="default"
+          onPress={add}
+          loading={running}
+          disabled={running || !canAddExisting(verdict)}
+          testID="groupon-github-add-existing"
+        >
+          {GROUPON_GITHUB.addExisting}
+        </Button>
+      </View>
+    </>
+  );
+}
+
+function ExistingVerdictLine({
+  verdict,
+  repository,
+  macLabel,
+}: {
+  verdict: ExistingCheckoutVerdict;
+  repository: string;
+  macLabel: string;
+}) {
+  switch (verdict.kind) {
+    case "loading":
+      return null;
+    case "match":
+      return (
+        <Text style={styles.muted} testID="groupon-github-existing-verdict">
+          {GROUPON_GITHUB.existingMatch(repository)}
+        </Text>
+      );
+    case "other":
+      return (
+        <Text style={styles.error} testID="groupon-github-existing-verdict">
+          {GROUPON_GITHUB.existingOther(verdict.label, repository)}
+        </Text>
+      );
+    case "notCheckout":
+      return (
+        <Text style={styles.muted} testID="groupon-github-existing-verdict">
+          {GROUPON_GITHUB.existingNotCheckout(repository)}
+        </Text>
+      );
+    case "unnamed":
+      return (
+        <Text style={styles.muted} testID="groupon-github-existing-verdict">
+          {GROUPON_GITHUB.existingUnnamed}
+        </Text>
+      );
+    case "olderMac":
+      return (
+        <Text style={styles.error} testID="groupon-github-existing-verdict">
+          {GROUPON_GITHUB.existingOlderMac(macLabel)}
+        </Text>
+      );
+    default: {
+      const exhaustive: never = verdict;
+      return exhaustive;
+    }
+  }
+}
+
+/** A clone or an add that failed (single sign-on with its fix), or the phase it runs in. */
+function DownloadState({
+  download,
+  host,
+  onRefresh,
+}: {
+  download: Download;
+  host: string;
+  onRefresh: () => Promise<void>;
+}) {
+  if (download.status === "failed") {
+    return <Problem text={download.error} host={host} onRefresh={onRefresh} />;
+  }
+  return download.status === "running" ? <Waiting text={download.phase} /> : null;
 }
 
 const styles = StyleSheet.create((theme) => ({

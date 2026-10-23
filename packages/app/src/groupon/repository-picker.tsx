@@ -12,7 +12,8 @@
  * - `useRepositoryChoice`: the chosen repository (the person's pick, else the preselected one,
  *   else the repository of Paseo's own pick); choosing one moves the page to the Mac that holds
  *   it; a checkout the hub reports on the chosen Mac that Paseo does not list yet is opened as a
- *   project there; a Mac without it offers the From GitHub clone, prefilled
+ *   project there; a Mac without it offers the From GitHub clone, prefilled, and the same sheet's
+ *   way to add the checkout already on that Mac wherever it lies ("It is already on <Mac>")
  * - `RepositoryOption` and `RepositoryNotice`: a row of the list, and the line under the fields
  *   when the chosen Mac lacks the repository (or is opening it)
  *
@@ -132,6 +133,8 @@ export interface RepositoryChoice {
   macChosen: (serverId: string) => void;
   /** The From GitHub clone of the chosen repository onto the chosen Mac. */
   clone: () => void;
+  /** The same sheet on its other way: pick the checkout already on the chosen Mac. */
+  pickExisting: () => void;
 }
 
 function failureText(error: unknown): string {
@@ -196,7 +199,11 @@ function useRepositoryActions(
     const target = entry ? cloneTargetOf(entry) : null;
     if (target) openClone(selectedServerId, target);
   }, [entry, openClone, selectedServerId]);
-  return { choose, macChosen, clone };
+  const pickExisting = useCallback(() => {
+    const target = entry ? cloneTargetOf(entry) : null;
+    if (target) openClone(selectedServerId, { ...target, mode: "existing" });
+  }, [entry, openClone, selectedServerId]);
+  return { choose, macChosen, clone, pickExisting };
 }
 
 export function useRepositoryChoice(input: RepositoryChoiceInput): RepositoryChoice {
@@ -302,7 +309,7 @@ export function RepositoryOption({
 
 /** The one line under the fields when the chosen Mac lacks the repository, or is opening it. */
 export function RepositoryNotice({ choice }: { choice: RepositoryChoice }): ReactElement | null {
-  const { entry, state, clone, macLabel } = choice;
+  const { entry, state, clone, pickExisting, macLabel } = choice;
   if (!entry || state.kind === "none" || state.kind === "ready") return null;
   let text: string;
   if (state.kind === "opening") {
@@ -322,9 +329,24 @@ export function RepositoryNotice({ choice }: { choice: RepositoryChoice }): Reac
     <View style={styles.notice} testID="new-workspace-repository-notice">
       <Text style={styles.noticeText}>{text}</Text>
       {state.kind === "missing" && state.cloneable ? (
-        <Button variant="outline" size="sm" onPress={clone} testID="new-workspace-repository-clone">
-          {GROUPON_REPOSITORY_PICKER.cloneOn(macLabel)}
-        </Button>
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onPress={clone}
+            testID="new-workspace-repository-clone"
+          >
+            {GROUPON_REPOSITORY_PICKER.cloneOn(macLabel)}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onPress={pickExisting}
+            testID="new-workspace-repository-existing"
+          >
+            {GROUPON_REPOSITORY_PICKER.alreadyOn(macLabel)}
+          </Button>
+        </>
       ) : null}
     </View>
   );

@@ -175,6 +175,7 @@ export const GROUPON_REPOSITORY_PICKER = {
   folderNotOn: (folder: string, mac: string) =>
     `${folder} is a folder on another Mac. Choose a repository on ${mac}.`,
   cloneOn: (mac: string) => `Clone it on ${mac}`,
+  alreadyOn: (mac: string) => `It is already on ${mac}`,
   adding: (path: string, mac: string) => `Opening ${path} on ${mac}`,
   refused: "the Mac refused it",
   addFailed: (path: string, mac: string, reason: string) =>
@@ -260,6 +261,26 @@ export const GROUPON_GITHUB = {
   folderLabel: "Clone into",
   landsAt: "It lands at",
   download: "Clone and add",
+  modeSwitch: "Clone a new copy, or use the one already on the Mac",
+  modeClone: "Clone a new copy",
+  modeExisting: "Already on the Mac",
+  addsFrom: "Adds from",
+  existingHint: (repository: string, mac: string) =>
+    `Go into the folder that holds ${repository} on ${mac}, wherever it is, and add it as it is: nothing is downloaded.`,
+  existingMatch: (repository: string) => `This folder is ${repository}.`,
+  existingOther: (other: string, repository: string) =>
+    `This folder is a checkout of ${other}, not ${repository}.`,
+  existingNotCheckout: (repository: string) =>
+    `This folder is not a git checkout. Go into the folder that holds ${repository}.`,
+  existingUnnamed:
+    "This checkout does not say which repository it holds (a worktree, or an include in its config); it is checked once added.",
+  existingOlderMac: (mac: string) =>
+    `Groupon Desk on ${mac} is too old to tell which repository a folder holds: update it there, or clone a new copy.`,
+  addExisting: "Add this folder",
+  addingExisting: (path: string) => `Adding ${path} as a project`,
+  notAdded: (path: string) => `${path} could not be added.`,
+  addedOther: (other: string, repository: string) =>
+    `That folder holds ${other}, not ${repository}; it was added as a project of its own.`,
 } as const;
 
 /** The eye at the right edge of a passphrase field (`secret-input.tsx`). */

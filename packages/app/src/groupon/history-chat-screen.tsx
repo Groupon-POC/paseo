@@ -1,5 +1,5 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): one chat's saved transcript, opened on the device; a chat a colleague shared opens with its share key, with a composer when they may write; each prompt drawn as the reader's own, or a colleague's with a name chip.
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, ScrollView, Text, View } from "react-native";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { StyleSheet } from "react-native-unistyles";
@@ -256,11 +256,14 @@ export function HubHistoryChatScreen({
   const [shared, setShared] = useState<SharedAccess | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const loadGeneration = useRef(0);
   const load = useCallback(async () => {
     if (!sealKey) return;
+    const generation = ++loadGeneration.current;
     setError(null);
     try {
       const [rows, overview] = await Promise.all([fetchAllMessages(chatId), fetchOverview()]);
+      if (generation !== loadGeneration.current) return;
       const entry = sharedWorkspaceOfChat(overview, chatId);
       const names = knownNames(overview);
       if (entry === null) {
@@ -272,19 +275,30 @@ export function HubHistoryChatScreen({
       setAuthors({ owner: { userId: entry.owner.userId, name: entry.owner.name }, names });
       const key = sharedKeyOf(entry, deskIdentity);
       if (!key.ok) {
+        setShared(null);
+        setMessages(null);
         setError(key.why);
         return;
       }
       setShared({ entry, sealKey: key.sealKey, version: key.version });
       setMessages(openMessages(rows, key.sealKey));
     } catch (caught) {
+      if (generation !== loadGeneration.current) return;
+      // A revoked grant or failed refresh must not leave a stale writer or transcript visible.
+      setShared(null);
+      setMessages(null);
       setError(caught instanceof Error ? caught.message : String(caught));
     }
   }, [chatId, deskIdentity, sealKey]);
   const handleRetry = useCallback(() => void load(), [load]);
 
   useEffect(() => {
+    setShared(null);
+    setMessages(null);
     void load();
+    return () => {
+      loadGeneration.current += 1;
+    };
   }, [load]);
 
   const isShared = shared !== null;

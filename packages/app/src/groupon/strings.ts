@@ -443,8 +443,9 @@ export const GROUPON_SHARE = {
   whoHasAccess: "Who has access",
   nobody: "Nobody else yet.",
   keyWaiting: "key not handed over yet",
-  revoke: "Revoke",
-  revoked: (email: string) => `${email} no longer sees this workspace.`,
+  revoke: "Remove access",
+  revoked: (email: string) =>
+    `Access removed for ${email}. Their open view updates on its next refresh.`,
   sharedWith: (count: number) => `Shared with ${count} ${count === 1 ? "colleague" : "colleagues"}`,
   sharedWithMe: "Shared with me",
   sharedWithMeEmpty: "Nothing shared with you yet.",

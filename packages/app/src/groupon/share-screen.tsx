@@ -12,6 +12,7 @@ import {
   type HubOverview,
   type HubShareRole,
 } from "./hub";
+import { confirmDialog } from "@/utils/confirm-dialog";
 import { AuthorLegend } from "./message-author";
 import { presenceLines } from "./presence-model";
 import { useHubMachinesOfServer, useHubPresence } from "./presence-row";
@@ -98,6 +99,16 @@ export function HubShareScreen({ workspaceId, serverId, daemonWorkspaceId, path 
 
   const handleRevoke = useCallback(
     async (shareId: string, grantee: string) => {
+      if (
+        !(await confirmDialog({
+          title: "Remove access?",
+          message: `${grantee} will no longer be able to read or write in this workspace. Your agents will keep running.`,
+          confirmLabel: "Remove access",
+          cancelLabel: "Cancel",
+          destructive: true,
+        }))
+      )
+        return;
       setBusy(true);
       setError(null);
       try {

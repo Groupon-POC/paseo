@@ -9,6 +9,7 @@ import {
   WorkspaceComposerEditingSessionsProvider,
   useComposerTabFullscreen,
 } from "@/composer/editing-session";
+import { Alert } from "@/components/ui/alert";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { SheetHostScope } from "@/components/ui/isolated-bottom-sheet-modal";
 import type { JsonValue } from "@getpaseo/protocol/agent-types";
@@ -738,6 +739,32 @@ function useResolvedWorkspaceRouteState(input: {
   );
 }
 
+/** Keep the execution computer visible when a cached workspace is offline. */
+function WorkspaceComputerNotice({
+  serverId,
+  directory,
+  error,
+}: {
+  serverId: string;
+  directory: string | null;
+  error: string | null;
+}) {
+  const hosts = useHosts();
+  const connected = useHostRuntimeIsConnected(serverId);
+  const host = hosts.find((entry) => entry.serverId === serverId);
+  const name = getHostDisplayName(host ?? null, serverId);
+  if (connected && !error) return null;
+  return (
+    <Alert
+      testID="workspace-computer-notice"
+      size="sm"
+      variant={error ? "error" : "warning"}
+      title={connected ? `Terminal on ${name}` : `Waiting for ${name}`}
+      description={`${directory ?? "This workspace"} · ${error ?? "Terminal and agents run on this computer. Open Groupon Desk on it and keep it awake, or choose an online computer in New workspace."}`}
+    />
+  );
+}
+
 function shouldInspectWorkspaceRecovery(
   hasHydratedWorkspaces: boolean,
   workspace: WorkspaceDescriptor | null,
@@ -1183,6 +1210,7 @@ function WorkspaceScreenContent({
   const queryClient = useQueryClient();
   const {
     createMutation: createTerminalMutation,
+    createError: terminalCreateError,
     createTerminal,
     handleScriptTerminalStarted,
     handleViewScriptTerminal,
@@ -3719,6 +3747,11 @@ function WorkspaceScreenContent({
           serverId={normalizedServerId}
           workspaceId={normalizedWorkspaceId}
           isRouteFocused={isRouteFocused}
+        />
+        <WorkspaceComputerNotice
+          serverId={normalizedServerId}
+          directory={workspaceDirectory}
+          error={terminalCreateError}
         />
         <View style={styles.threePaneRow}>
           <FloatingPanelPortalHostNameProvider hostName={workspaceFloatingPanelPortalHostName}>

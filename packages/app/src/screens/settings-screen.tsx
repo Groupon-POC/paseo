@@ -932,7 +932,7 @@ function HostPicker({
         style={triggerStyle}
         onPress={handleOpen}
         accessibilityRole="button"
-        accessibilityLabel={t("settings.hostPicker.switchHost")}
+        accessibilityLabel={`Select computer to manage. Current: ${activeHost?.label ?? "none"}`}
         testID="settings-host-picker"
       >
         {activeHost ? (
@@ -1019,7 +1019,10 @@ function SettingsSidebar({
         ))}
       </SidebarGroup>
       {hasHosts ? (
-        <SidebarGroup label={t("settings.groups.host")}>
+        <SidebarGroup
+          label={`${sortedHosts.length} registered ${sortedHosts.length === 1 ? "host" : "hosts"}`}
+        >
+          <Text style={sidebarStyles.hostHint}>Select a computer to manage.</Text>
           <HostPicker
             activeServerId={activeHostServerId}
             sortedHosts={sortedHosts}
@@ -1182,6 +1185,18 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
       orderedHosts: sortedHosts,
     });
   }, [view, selectedSettingsHostServerId, localServerId, hosts, sortedHosts]);
+
+  const managedHost = routedSettingsHostServerId
+    ? hosts.find((host) => host.serverId === routedSettingsHostServerId)
+    : null;
+  const hostContext = routedSettingsHostServerId ? (
+    <View style={sidebarStyles.hostContext} testID="settings-managed-computer">
+      <HostStatusDot serverId={routedSettingsHostServerId} />
+      <Text style={sidebarStyles.hostContextLabel}>
+        Managing: {managedHost?.label ?? routedSettingsHostServerId}
+      </Text>
+    </View>
+  ) : null;
 
   const handleLanguageChange = useCallback(
     (language: AppLanguage) => {
@@ -1514,6 +1529,7 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
     return (
       <View style={styles.container}>
         <PageLayout title={detailTitle} onBack={handleBackFromDetail}>
+          {hostContext}
           {content}
         </PageLayout>
         {addHostModals}
@@ -1542,6 +1558,7 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
         <WindowChromeRegion corners="top-right">
           <View style={desktopStyles.contentPane} testID="settings-detail-pane">
             <PageLayout title={detailTitle} titleTestID="settings-detail-header-title">
+              {hostContext}
               {content}
             </PageLayout>
           </View>
@@ -1676,6 +1693,23 @@ const sidebarStyles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontWeight: theme.fontWeight.normal,
     flex: 1,
+  },
+  hostHint: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    paddingHorizontal: theme.spacing[2],
+    paddingBottom: theme.spacing[2],
+  },
+  hostContext: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    paddingBottom: theme.spacing[4],
+  },
+  hostContextLabel: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.base,
+    flexShrink: 1,
   },
   pickerTrigger: {
     flexDirection: "row",

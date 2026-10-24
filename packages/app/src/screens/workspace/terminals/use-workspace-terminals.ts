@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): report terminal failures and bound the wait for a workspace.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -64,9 +65,48 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
   } = input;
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [pendingCreateInput, setPendingCreateInput] = useState<PendingTerminalCreateInput | null>(
-    null,
+  const [queuedCreate, setQueuedCreate] = useState<{
+    input: PendingTerminalCreateInput;
+    serverId: string;
+    workspaceId: string;
+  } | null>(null);
+  const pendingCreateInput =
+    queuedCreate?.serverId === normalizedServerId &&
+    queuedCreate.workspaceId === normalizedWorkspaceId
+      ? queuedCreate.input
+      : null;
+  const setPendingCreateInput = useCallback(
+    (nextInput: PendingTerminalCreateInput | null) => {
+      setQueuedCreate(
+        nextInput
+          ? { input: nextInput, serverId: normalizedServerId, workspaceId: normalizedWorkspaceId }
+          : null,
+      );
+    },
+    [normalizedServerId, normalizedWorkspaceId],
   );
+  const [createError, setCreateError] = useState<string | null>(null);
+  const reportFailure = useCallback(
+    (reason: string) => {
+      setCreateError(reason);
+      onTerminalCreateFailed(reason);
+    },
+    [onTerminalCreateFailed],
+  );
+  useEffect(() => {
+    setPendingCreateInput(null);
+    setCreateError(null);
+  }, [normalizedServerId, normalizedWorkspaceId, setPendingCreateInput]);
+  useEffect(() => {
+    if (!pendingCreateInput) return;
+    const timer = setTimeout(() => {
+      setPendingCreateInput(null);
+      reportFailure(
+        "The workspace is not ready. Check this computer's connection and try Terminal again.",
+      );
+    }, 15_000);
+    return () => clearTimeout(timer);
+  }, [pendingCreateInput, reportFailure, setPendingCreateInput]);
   const canCreateNow = useMemo(
     () => canCreateWorkspaceTerminal({ isRouteFocused, client, isConnected, workspaceDirectory }),
     [isRouteFocused, client, isConnected, workspaceDirectory],
@@ -146,8 +186,8 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
       // The daemon reports a failed spawn (e.g. a profile command that isn't
       // installed) via payload.error with a null terminal. Surface it instead
       // of silently treating the create as a no-op success.
-      if (!payload.terminal && payload.error) {
-        throw new Error(payload.error);
+      if (!payload.terminal) {
+        throw new Error(payload.error || "The computer did not create a terminal. Try again.");
       }
       return payload;
     },
@@ -172,7 +212,7 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
       }
     },
     onError: (error: unknown) => {
-      onTerminalCreateFailed(error instanceof Error ? error.message : String(error));
+      reportFailure(error instanceof Error ? error.message : String(error));
     },
   });
   const killMutation = useMutation({
@@ -193,6 +233,13 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
       return;
     }
 
+    if (!isConnected || !client) {
+      setPendingCreateInput(null);
+      reportFailure(
+        "This computer is not connected. Open Groupon Desk on it, then try Terminal again.",
+      );
+      return;
+    }
     if (canCreateNow && !createMutation.isPending) {
       const pendingInput = pendingCreateInput;
       setPendingCreateInput(null);
@@ -206,11 +253,15 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
     }
   }, [
     canCreateNow,
+    client,
+    isConnected,
+    reportFailure,
     createMutation,
     hasHydratedWorkspaces,
     isMissingWorkspaceDirectory,
     onWorkspacePathUnavailable,
     pendingCreateInput,
+    setPendingCreateInput,
   ]);
 
   const createTerminal = useCallback(
@@ -219,6 +270,13 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
         return;
       }
 
+      setCreateError(null);
+      if (!isConnected || !client) {
+        reportFailure(
+          "This computer is not connected. Open Groupon Desk on it, then try Terminal again.",
+        );
+        return;
+      }
       if (canCreateNow) {
         createMutation.mutate(createInput);
         return;
@@ -234,12 +292,16 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
     },
     [
       canCreateNow,
+      client,
+      isConnected,
+      reportFailure,
       createMutation,
       hasHydratedWorkspaces,
       isMissingWorkspaceDirectory,
       onTerminalCreateQueued,
       onWorkspacePathUnavailable,
       pendingCreateInput,
+      setPendingCreateInput,
     ],
   );
 
@@ -282,6 +344,7 @@ export function useWorkspaceTerminals(input: UseWorkspaceTerminalsInput) {
 
   return {
     canCreateNow,
+    createError,
     createMutation,
     createTerminal,
     handleScriptTerminalStarted,

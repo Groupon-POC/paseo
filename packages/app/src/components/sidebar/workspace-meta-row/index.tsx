@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the host item says "offline" while the person's Mac it names is offline, as Connected computers does (owner, 2026-10-26).
 import { Fragment, useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, type GestureResponderEvent } from "react-native";
@@ -9,6 +10,8 @@ import {
 } from "@getpaseo/protocol/workspace-labels";
 import type { HostBadgeModel } from "@/hosts/appearance";
 import { HostBadge, HOST_BADGE_ICON_SIZE } from "@/hosts/host-badge";
+import { useComputerOffline } from "@/groupon/computer-presence";
+import { GROUPON_COMPUTERS } from "@/groupon/strings";
 import { WorkspaceLabelChip, WORKSPACE_LABEL_CHIP_INSET } from "@/workspace-labels/chip";
 import type { PrHint } from "@/git/pr-hint";
 import { getForgePresentation, normalizeForge } from "@/git/forge";
@@ -118,7 +121,7 @@ function MetaItemNode({
     return <IdentityItem kind="project" name={item.name} />;
   }
   if (item.kind === "host") {
-    return hostBadge ? <HostBadge badge={hostBadge} /> : null;
+    return hostBadge ? <HostItem badge={hostBadge} /> : null;
   }
   if (item.kind === "changeRequest") {
     return <PullRequestItem hint={item.hint} />;
@@ -130,6 +133,28 @@ function MetaItemNode({
     return <LabelsItem labels={item.labels} leading={leading} />;
   }
   return <ServiceItem summary={item.summary} />;
+}
+
+/** The host badge, then "· offline" while that Mac is offline: the word never yields space to the name. */
+function HostItem({ badge }: { badge: HostBadgeModel }) {
+  const offline = useComputerOffline(badge.serverId);
+  return (
+    <>
+      <HostBadge badge={badge} />
+      {offline ? (
+        <>
+          <Text style={styles.separator}>·</Text>
+          <Text
+            style={styles.hostOffline}
+            numberOfLines={1}
+            testID={`host-offline-${badge.serverId}`}
+          >
+            {GROUPON_COMPUTERS.offline}
+          </Text>
+        </>
+      ) : null}
+    </>
+  );
 }
 
 function IdentityItem({ kind, name }: { kind: "branch" | "project"; name: string }) {
@@ -344,6 +369,12 @@ const styles = StyleSheet.create((theme) => ({
   },
   separator: {
     color: theme.colors.foregroundExtraMuted,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 16,
+    flexShrink: 0,
+  },
+  hostOffline: {
+    color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
     lineHeight: 16,
     flexShrink: 0,

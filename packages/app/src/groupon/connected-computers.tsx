@@ -2,7 +2,8 @@
 
 /**
  * The sidebar's Connected computers (owner, 2026-10-21): the person's Macs, a green dot on those
- * online, "This computer" on the Mac the window runs on, under a collapsed online Mac a strip of
+ * online and the word "offline" after the others (owner, 2026-10-26), "This computer" on the Mac
+ * the window runs on, under a collapsed online Mac a strip of
  * its load, and on pressing one the load card (WW-97, `computer-load-card.tsx`: uptime and load
  * average, CPU, RAM, download, upload with their histories, the disk). The rows come from the hub
  * list the Mac picker reads (`useHubMachinesStore`); the states are `connected-computers-model.ts`.
@@ -29,6 +30,7 @@ import { PressHighlight } from "@/components/ui/press-highlight";
 import { useAppVisible } from "@/hooks/use-app-visible";
 import type { Theme } from "@/styles/theme";
 import {
+  COMPUTERS_REFRESH_MS,
   type ConnectedComputerRow,
   connectedComputerRows,
   toggleExpanded,
@@ -41,9 +43,6 @@ import { recordSamples } from "./machine-load-model";
 import { MissingToolLabels } from "./missing-tool-labels";
 import { useGrouponStore } from "./session";
 import { GROUPON_COMPUTERS } from "./strings";
-
-/** How often the clock ticks and an open Mac's load is read again: the hand's own interval. */
-export const COMPUTERS_REFRESH_MS = 10_000;
 
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedChevronRight = withUnistyles(ChevronRight);
@@ -179,6 +178,15 @@ function ComputerRow({
             {GROUPON_COMPUTERS.thisComputer}
           </Text>
         ) : null}
+        {row.online ? null : (
+          <Text
+            style={styles.offline}
+            numberOfLines={1}
+            testID={`sidebar-computer-offline-${row.id}`}
+          >
+            {GROUPON_COMPUTERS.offline}
+          </Text>
+        )}
         <MissingToolLabels tools={row.missingTools} testID={`sidebar-computer-missing-${row.id}`} />
         <View style={styles.spacer} />
         <Chevron size={12} uniProps={mutedColor} />
@@ -285,6 +293,11 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.success,
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
+  },
+  offline: {
+    flexShrink: 0,
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
   },
   spacer: {
     flex: 1,

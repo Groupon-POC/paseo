@@ -1,7 +1,8 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the sidebar's Connected computers.
 /**
  * Tests for the Connected computers model: online and offline Macs, this computer first, the
- * load on expanding, and a fresher sample winning over the shared list's.
+ * load on expanding, a fresher sample winning over the shared list's, and a workspace's computer
+ * offline by the same rule.
  *
  * Covers: packages/app/src/groupon/connected-computers-model.ts
  */
@@ -9,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMPUTER_ONLINE_MS,
   computerLoadOf,
+  computerOffline,
   connectedComputerRows,
   toggleExpanded,
 } from "./connected-computers-model";
@@ -302,5 +304,34 @@ describe("computerLoadOf: the card's figures", () => {
 
     expect(online?.load?.network?.compactText).toBe("46K/23K");
     expect(offline?.load).toBeNull();
+  });
+});
+
+describe("computerOffline", () => {
+  const miniOn = (overrides: Partial<HubMachineView> = {}) =>
+    view(mini, { serverId: "srv-mini", ...overrides });
+
+  it("says offline for a workspace on a Mac whose hand stopped and that the window cannot reach", () => {
+    expect(
+      computerOffline({ views: [miniOn()], serverId: "srv-mini", connected: false, now: NOW }),
+    ).toBe(true);
+    expect(rows([miniOn()])[0]?.online).toBe(false);
+  });
+
+  it("says nothing while the Mac sends samples or the window holds its connection", () => {
+    const fresh = view(studio, { serverId: "srv-studio" });
+
+    expect(
+      computerOffline({ views: [fresh], serverId: "srv-studio", connected: false, now: NOW }),
+    ).toBe(false);
+    expect(
+      computerOffline({ views: [miniOn()], serverId: "srv-mini", connected: true, now: NOW }),
+    ).toBe(false);
+  });
+
+  it("says nothing for a daemon the hub does not know as one of the person's Macs", () => {
+    expect(
+      computerOffline({ views: [miniOn()], serverId: "srv-elsewhere", connected: false, now: NOW }),
+    ).toBe(false);
   });
 });

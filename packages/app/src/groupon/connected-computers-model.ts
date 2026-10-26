@@ -18,6 +18,9 @@
  *   hand does not send is left out, never shown as 0. An online Mac without a sample says so; an
  *   offline Mac says when it was last seen (Core marks a Mac seen on every sample too)
  *
+ * - `computerOffline`: the same rule for one daemon, so a workspace row's computer says "offline"
+ *   exactly when its row here does (owner, 2026-10-26; `computer-presence.ts`)
+ *
  * Constraints:
  * - A sample read more recently than the shared hub list (the section's own 10 s read while a row
  *   is open) wins over the list's, by its `sampledAt`; nothing here reads the hub itself
@@ -37,6 +40,9 @@ import {
 import { missingToolFixes, shownMissingTools } from "./missing-tools-model";
 import { GROUPON_COMPUTERS, type MissingTool } from "./strings";
 import { seenAgo, uniqueMacViews, yourMacRows } from "./your-macs-model";
+
+/** How often the sidebar's clock ticks and an open Mac's load is read again: the hand's own interval. */
+export const COMPUTERS_REFRESH_MS = 10_000;
 
 /** A Mac is online while its latest load sample is younger than this (the hand sends one every 10 s). */
 export const COMPUTER_ONLINE_MS = 60_000;
@@ -135,6 +141,42 @@ function ageMs(at: string, now: Date): number {
   return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
 }
 
+/** The sample when it is under `COMPUTER_ONLINE_MS` old; null otherwise. */
+function freshSample(sample: HubMachineLoad | null, now: Date): HubMachineLoad | null {
+  return sample !== null && ageMs(sample.sampledAt, now) < COMPUTER_ONLINE_MS ? sample : null;
+}
+
+/**
+ * Online: the Mac's hand sent a load sample within the last 60 s, or the window holds a live
+ * connection to its daemon (a hand older than the samples).
+ */
+export function isComputerOnline(
+  sample: HubMachineLoad | null | undefined,
+  connected: boolean,
+  now: Date,
+): boolean {
+  return connected || freshSample(sample ?? null, now) !== null;
+}
+
+/**
+ * True when the daemon `serverId` belongs to one of the person's Macs and that Mac is offline by
+ * `isComputerOnline`; false for an online one and for a daemon the hub does not know (nothing to say).
+ */
+export function computerOffline({
+  views,
+  serverId,
+  connected,
+  now,
+}: {
+  views: readonly HubMachineView[];
+  serverId: string;
+  connected: boolean;
+  now: Date;
+}): boolean {
+  const view = uniqueMacViews(views).find((candidate) => candidate.serverId === serverId);
+  return view !== undefined && !isComputerOnline(view.machine.load, connected, now);
+}
+
 /** The newer of two samples of one Mac, by `sampledAt`. */
 function newerLoad(
   a: HubMachineLoad | null | undefined,
@@ -172,9 +214,8 @@ export function connectedComputerRows({
     const view = viewOf.get(row.id);
     const machine = view?.machine;
     const sample = newerLoad(machine?.load, freshLoads.get(row.id));
-    const fresh =
-      sample !== null && ageMs(sample.sampledAt, now) < COMPUTER_ONLINE_MS ? sample : null;
-    const online = fresh !== null || row.state === "connected";
+    const fresh = freshSample(sample, now);
+    const online = isComputerOnline(sample, row.state === "connected", now);
     const load = fresh === null ? null : computerLoadOf(fresh);
     const missingTools = shownMissingTools(
       machine?.missingTools,

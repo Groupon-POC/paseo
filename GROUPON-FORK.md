@@ -4,7 +4,8 @@
 
 This branch (`groupon`) is Groupon Desk's fork of [Paseo](https://github.com/getpaseo/paseo) by
 Mohamed Boudra, licensed under Apache-2.0. `LICENSE` and its copyright line are unchanged. The fork
-starts at Paseo's tag `v0.12.0` and is rebased onto Paseo's tags.
+started at Paseo's tag `v0.12.0` and took `v0.13.1` by a merge (2026-10-26), not a rebase:
+`groupon` only moves forward, so every commit Groupon Desk ever pinned stays on the branch.
 
 Every changed source file carries a first-line comment "Changed for Groupon Desk (fork of Paseo,
 Apache-2.0): <what>", and every added file "Added for Groupon Desk". Files that cannot carry a
@@ -68,7 +69,11 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   its disk image (`GROUPON_DESK_DOWNLOAD_URL`). The hub is re-read every 15 s on that screen, and for the
   whole window (`groupon/hub-sync.tsx`, so Your Macs and the `On <Mac>` picker never need a restart) every
   30 s while it is in the foreground, at once when it regains focus or visibility, and when a hub
-  Mac's connection comes online or drops; a failed read keeps the last list and its error line.
+  Mac's connection comes online or drops; a failed read keeps the last list and its error line. Each hub Mac's
+  relay offer arrives sealed under the person's relay key; since Paseo 0.13 a relay connection must
+  carry the daemon's password, so the hand seals the offer and the password together and
+  `groupon/sealed-pairing.ts` opens both (an offer an older hand sealed alone still opens, without a
+  password).
   Your Macs and Settings show when the hub was last read ("updated 14:05") beside Refresh. The sidebar's and the settings'
   host pickers have no Add host option (`components/hosts/host-picker.tsx`), the settings with no
   host show Your Macs where Paseo had Add host and never mount the add-host modals

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the browser project stubs react-native-enriched-markdown.
 import { defineConfig, configDefaults } from "vitest/config";
 import { playwright } from "@vitest/browser-playwright";
 import path from "path";
@@ -76,8 +77,7 @@ export default defineConfig({
       },
       {
         extends: true,
-        // Changed for Groupon Desk (fork of Paseo, Apache-2.0): the browser project stubs the Markdown
-        // renderer's package (test-stubs/react-native-enriched-markdown.ts says why).
+        // The Markdown renderer's package is stubbed here (test-stubs/react-native-enriched-markdown.ts says why).
         resolve: {
           alias: [
             {

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): upsertTrustedOffer, a host from the hub's sealed pairing offer, over the hand's door or over Groupon's Core; the window asks for Groupon's workspace placement (a ticketless workspace gets its own branch); no default localhost probe while manual hosts are off (it is a connection the policy does not allow, and no host is added by address).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): upsertTrustedOffer, a host from the hub's sealed pairing offer, over the hand's door or over Groupon's Core, with the daemon's password the hand sealed beside it; the window asks for Groupon's workspace placement (a ticketless workspace gets its own branch); no default localhost probe while manual hosts are off (it is a connection the policy does not allow, and no host is added by address).
 import { useSyncExternalStore, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import equal from "fast-deep-equal/es6";
@@ -2039,10 +2039,11 @@ export class HostRuntimeStore {
     url: string,
     label?: string,
     relay?: { endpoint: string; useTls: boolean },
+    password?: string,
   ): Promise<HostProfile> {
     await this.loadRegistry();
     const { offer } = parseOfferConnectionUrl(url);
-    return this.upsertConnectionFromOffer(relay ? { ...offer, relay } : offer, label);
+    return this.upsertConnectionFromOffer(relay ? { ...offer, relay } : offer, label, password);
   }
 
   private async upsertConnectionFromOffer(

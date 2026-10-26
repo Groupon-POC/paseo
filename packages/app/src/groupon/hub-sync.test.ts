@@ -122,10 +122,40 @@ describe("addMachine", () => {
   it("opens the offer with the seal key and adds the Mac under its alias", async () => {
     const view = await addMachine(machine(), sealKey);
     expect(view).toMatchObject({ state: "added", serverId: "srv_test", label: "Studio" });
-    expect(upsertTrustedOffer).toHaveBeenCalledWith(OFFER, "Studio");
+    // An older hand's seal: the offer URL alone, so no password goes with it.
+    expect(upsertTrustedOffer).toHaveBeenCalledWith(OFFER, "Studio", undefined, undefined);
     expect(upsertConnectionFromListen).not.toHaveBeenCalled();
     expect(view.direct).toBeNull();
     expect(view.relay).toBe("127.0.0.1:6871");
+  });
+
+  it("adds the Mac with the daemon's password the hand sealed beside the offer", async () => {
+    const sealed = sealAsTheHand(
+      JSON.stringify({ v: 1, offerUrl: OFFER, password: "pw-studio" }),
+      "mac-1",
+      "paseo_offer",
+      vaultKey,
+    );
+    const viaCore = { endpoint: "api-core.livingsocial.com:443", useTls: true };
+
+    const view = await addMachine(machine({ relayOfferSealed: sealed }), sealKey, [], viaCore);
+
+    expect(view).toMatchObject({ state: "added", serverId: "srv_test" });
+    expect(upsertTrustedOffer).toHaveBeenCalledWith(OFFER, "Studio", viaCore, "pw-studio");
+  });
+
+  it("lists the Mac as failed, without adding it, when its pairing is JSON this window cannot read", async () => {
+    const sealed = sealAsTheHand(
+      JSON.stringify({ v: 9, offerUrl: OFFER }),
+      "mac-1",
+      "paseo_offer",
+      vaultKey,
+    );
+
+    const view = await addMachine(machine({ relayOfferSealed: sealed }), sealKey);
+
+    expect(view.state).toBe("failed");
+    expect(upsertTrustedOffer).not.toHaveBeenCalled();
   });
 
   it("adds the Mac through Core when the device has no door, with the offer's own daemon key", async () => {
@@ -133,7 +163,7 @@ describe("addMachine", () => {
 
     const view = await addMachine(machine(), sealKey, [], viaCore);
 
-    expect(upsertTrustedOffer).toHaveBeenCalledWith(OFFER, "Studio", viaCore);
+    expect(upsertTrustedOffer).toHaveBeenCalledWith(OFFER, "Studio", viaCore, undefined);
     expect(view).toMatchObject({
       state: "added",
       relay: "api-core.livingsocial.com:443",

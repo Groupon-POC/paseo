@@ -2,8 +2,10 @@
 
 /**
  * After sign-in, the person's Macs come from the hub (`GET /user/groupon_desk/machines`). Each Mac
- * whose hand registered a Paseo pairing offer carries it sealed under the person's relay key; it
- * is opened here with the seal key and added as a Paseo host over Core's relay, so Paseo's own
+ * whose hand registered a Paseo pairing offer carries it sealed under the person's relay key, with
+ * the daemon's password beside it since 2026-10-26 (`sealed-pairing.ts`: Paseo 0.13 asks a relay
+ * client for it); it is opened here with the seal key and added as a Paseo host over Core's relay
+ * with that password, so Paseo's own
  * workspace and agent screens work against that Mac. A Mac whose offer does not open (another
  * vault) or that has none is listed, not added.
  *
@@ -47,6 +49,7 @@ import {
 import { coreRelayEndpoint } from "./core-relay";
 import { openSealedText } from "./crypto";
 import { fetchMachines, machineLabel, PAIRING_OFFER_KIND, type HubMachine } from "./hub";
+import { readSealedPairing } from "./sealed-pairing";
 import {
   localListenFor,
   readLocalDaemons,
@@ -121,18 +124,27 @@ export async function addMachine(
   const thisMac = thisMachineId !== null && machine.machine === thisMachineId;
   const base = { machine, label, serverId: null, direct: null, thisMac, relay: null, error: null };
   if (!machine.relayOfferSealed) return { ...base, state: "noOffer" };
-  const offerUrl = openSealedText(
+  const opened = openSealedText(
     machine.relayOfferSealed,
     machine.machine,
     PAIRING_OFFER_KIND,
     sealKey,
   );
-  if (offerUrl === null) return { ...base, state: "sealedElsewhere" };
+  if (opened === null) return { ...base, state: "sealedElsewhere" };
+  const pairing = readSealedPairing(opened);
+  if (pairing === null) {
+    return {
+      ...base,
+      state: "failed",
+      error: "This Mac's pairing is in a form this window cannot read: update Groupon Desk.",
+    };
+  }
+  const { offerUrl } = pairing;
+  // Paseo 0.13 admits a relay client only with the daemon's password, which the hand seals beside the offer.
+  const password = pairing.password ?? undefined;
   try {
     const store = getHostRuntimeStore();
-    const profile = viaCore
-      ? await store.upsertTrustedOffer(offerUrl, label, viaCore)
-      : await store.upsertTrustedOffer(offerUrl, label);
+    const profile = await store.upsertTrustedOffer(offerUrl, label, viaCore ?? undefined, password);
     const relay = profile.connections.find((connection) => connection.type === "relay");
     const direct = localListenFor(localDaemons, profile.serverId);
     if (direct) {

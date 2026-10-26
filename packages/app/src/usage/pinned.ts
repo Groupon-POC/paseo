@@ -1,6 +1,8 @@
 // Changed for Groupon Desk (fork of Paseo, Apache-2.0): one sidebar row per account, with a short name, and accounts that cannot report usage kept as greyed rows with the reason.
+import type { TFunction } from "i18next";
+import { i18n } from "@/i18n/i18next";
 import { usageCopy } from "./copy";
-import { formatPct } from "./format";
+import { formatPct, formatDisplayPct, formatProviderUsageLabel } from "./format";
 import { displayPercent } from "./model";
 import { effectiveUsagePins, type UsagePreferences } from "./preferences";
 import { windowTone } from "./tone";
@@ -75,8 +77,9 @@ export function shortAccountName(label: string | undefined): string | null {
 }
 
 /** Why an account reports no usage, in the Usage page's words. */
-function hintOf(entry: UsageReportEntry): string | null {
-  if (entry.report.status === "unavailable") return usageCopy.problem(entry.report.problem);
+function hintOf(entry: UsageReportEntry, t: TFunction): string | null {
+  if (entry.report.status === "unavailable")
+    return usageCopy.problem(entry.report.problem, new Date(), t);
   if (entry.report.status === "error") return entry.report.error;
   return null;
 }
@@ -102,9 +105,9 @@ function groupBySource(reports: readonly UsageReportEntry[]): UsageReportEntry[]
 export function resolvePinnedUsage(
   reports: readonly UsageReportEntry[],
   preferences: UsagePreferences,
+  t: TFunction = i18n.t,
 ): PinnedUsageSource[] {
   const pins = effectiveUsagePins(preferences, reports);
-  const meaning = preferences.displayAs === "remaining" ? "left" : "used";
   const rows = groupBySource(reports).flatMap((entry): PinnedUsageSource[] => {
     const name = shortAccountName(entry.account.label);
     if (entry.report.status !== "available")
@@ -114,7 +117,7 @@ export function resolvePinnedUsage(
           icon: entry.icon ?? null,
           name,
           muted: true,
-          hint: hintOf(entry),
+          hint: hintOf(entry, t),
           windows: [],
         },
       ];
@@ -129,8 +132,8 @@ export function resolvePinnedUsage(
         const percentText = formatPct(percent);
         return {
           key: `${entry.id}/${window.id}`,
-          label: `${describe(entry, window.label)} ${percentText} ${meaning}`,
-          shortLabel: window.shortLabel ?? window.label,
+          label: `${describe(entry, formatProviderUsageLabel(window.id, window.label, t))} ${formatDisplayPct(percent, preferences.displayAs, undefined, t)}`,
+          shortLabel: window.shortLabel ?? formatProviderUsageLabel(window.id, window.label, t),
           percent,
           percentText,
           tone: windowTone(window),

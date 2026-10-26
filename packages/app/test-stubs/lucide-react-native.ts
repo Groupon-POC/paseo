@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the icons the fork's sidebar and 0.13's plugin UI reach in browser tests.
 import type { ComponentType } from "react";
 
 export type LucideIcon = ComponentType<{
@@ -34,6 +35,7 @@ export const CircleDot = StubIcon;
 export const CircleSlash = StubIcon;
 export const CircleX = StubIcon;
 export const ClipboardPaste = StubIcon;
+export const Code = StubIcon;
 export const Copy = StubIcon;
 export const CornerDownLeft = StubIcon;
 export const Cpu = StubIcon;
@@ -65,6 +67,7 @@ export const Info = StubIcon;
 export const Layers = StubIcon;
 export const Link = StubIcon;
 export const Link2 = StubIcon;
+export const Maximize2 = StubIcon;
 export const MemoryStick = StubIcon;
 export const MessageSquare = StubIcon;
 export const MessageSquarePlus = StubIcon;
@@ -112,6 +115,9 @@ export const TriangleAlert = StubIcon;
 export const Undo2 = StubIcon;
 export const Unlink = StubIcon;
 export const Upload = StubIcon;
+export const Workflow = StubIcon;
 export const Wrench = StubIcon;
 export const X = StubIcon;
 export const XCircle = StubIcon;
+export const ZoomIn = StubIcon;
+export const ZoomOut = StubIcon;

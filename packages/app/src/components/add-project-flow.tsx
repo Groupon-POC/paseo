@@ -1,4 +1,5 @@
 // Changed for Groupon Desk (fork of Paseo, Apache-2.0): From GitHub (Groupon's organisations and teams) as the first way, and the only GitHub one: Paseo's Clone from GitHub is off the menu; with no connected host it points at Your Macs, not Add host; the first page lists the person's Macs from the hub, this Mac first even while its hand is not running (greyed with the reason and the command), and the flow opens on this Mac, never on another merely because it is the only one serving; it is also From GitHub's host step (`add-to-mac-model.ts`); Search for directory, Choose parent directory and Choose destination browse the Mac's folders a click at a time (groupon/folder-browser.tsx); this Mac's row and the title carry the green "This computer" label.
+import { usePanelStore } from "@/stores/panel-store";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { router } from "expo-router";
 import type { WorkspaceProjectDescriptorPayload } from "@getpaseo/protocol/messages";
@@ -567,6 +568,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
   const openNewWorkspaceForProject = useCallback(
     (serverId: string, project: WorkspaceProjectDescriptorPayload) => {
       onClose();
+      usePanelStore.getState().showMobileAgent();
       router.push(
         buildNewWorkspaceRoute({
           serverId,
@@ -732,6 +734,7 @@ export function AddProjectFlow({ request, onClose }: AddProjectFlowProps) {
           testID: "add-project-flow-add-host",
           select: () => {
             onClose();
+            usePanelStore.getState().showMobileAgent();
             router.push(buildSettingsAddHostRoute(Date.now()));
           },
         });
@@ -1204,7 +1207,7 @@ const styles = StyleSheet.create((theme) => ({
     paddingTop: theme.spacing[12],
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
   },
   panel: {

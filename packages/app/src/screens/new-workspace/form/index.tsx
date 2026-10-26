@@ -240,7 +240,8 @@ function HostField({
 /**
  * The New workspace setup fields, one trigger per field, each opening its picker. Compact: a stack
  * of full-width fields with the label inside. Desktop: one meta row of badges. Either way, a field
- * that does not apply to the selected project is left out, and Host only shows with a second host.
+ * that does not apply to the selected project is left out. Host always shows, even with one host, so
+ * its Add host action keeps multi-host discoverable.
  */
 export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement {
   const { t } = useTranslation();

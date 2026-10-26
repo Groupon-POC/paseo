@@ -22,7 +22,6 @@ import { useUsagePreferences } from "./display";
 import { useUsageHostId } from "./hosts";
 import { useUsageHostReports } from "./queries";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { usageCopy } from "./copy";
 import { UsageSourceIcon } from "./source-icon";
 import { UsageMeter } from "./meter";
 import {
@@ -37,9 +36,10 @@ import { UsageModal } from "./usage-modal";
 
 /** Each summary window with data on the usage host, under its source; empty while none has. */
 function useUsageSummary(): readonly PinnedUsageSource[] {
+  const { t } = useTranslation();
   const { preferences } = useUsagePreferences();
   const reports = useUsageHostReports(useUsageHostId());
-  return useMemo(() => resolvePinnedUsage(reports, preferences), [preferences, reports]);
+  return useMemo(() => resolvePinnedUsage(reports, preferences, t), [preferences, reports, t]);
 }
 
 /** Whether the sidebar Usage item has anything to show. */
@@ -93,9 +93,9 @@ export function useOpenSidebarUsage(): () => void {
   return openUsage;
 }
 
-function pinnedUsageLabel(label: string, source: PinnedUsageSource): string {
+function pinnedUsageLabel(label: string, source: PinnedUsageSource, emptyText: string): string {
   const name = source.name ? ` ${source.name}` : "";
-  if (source.muted) return `${label}${name}: ${source.hint ?? usageCopy.empty}`;
+  if (source.muted) return `${label}${name}: ${source.hint ?? emptyText}`;
   return `${label}${name}: ${source.windows.map((window) => window.label).join(", ")}`;
 }
 
@@ -193,11 +193,12 @@ function PinnedUsageRow({
   onPress: () => void;
   onLineLayout?: (event: LayoutChangeEvent) => void;
 }) {
+  const { t } = useTranslation();
   const row = (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={pinnedUsageLabel(label, source)}
+      accessibilityLabel={pinnedUsageLabel(label, source, t("providerUsage.empty"))}
       style={triggerStyle}
       testID="sidebar-usage-row"
     >
@@ -231,6 +232,7 @@ function PinnedUsageLine({
   layout: PinnedUsageLayout;
   measuring?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <View testID={measuring ? undefined : "sidebar-usage-source"}>
@@ -244,7 +246,7 @@ function PinnedUsageLine({
       {/* The reason shrinks into whatever the row leaves; it never sets the measured width. */}
       {source.muted && !measuring ? (
         <Text style={[styles.hintInline, styles.windowGap]} numberOfLines={1}>
-          {source.hint ?? usageCopy.empty}
+          {source.hint ?? t("providerUsage.empty")}
         </Text>
       ) : null}
       {source.windows.map((window, windowIndex) => {

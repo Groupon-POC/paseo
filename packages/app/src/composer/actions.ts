@@ -1,5 +1,6 @@
 // Changed for Groupon Desk (fork of Paseo, Apache-2.0): a prompt typed here names the signed-in person as its author.
 import type { SelectedFile } from "@/attachments/selected-file";
+import { FILE_UPLOAD_MAX_BYTES } from "@/attachments/upload-limit";
 import type { ForgeSearchItem } from "@getpaseo/protocol/messages";
 import type { ActiveTurnBehavior } from "@getpaseo/protocol/messages";
 import type {
@@ -59,7 +60,7 @@ export interface ComposerSendClient {
       /** Groupon Desk: the signed-in person, when there is one. */
       author?: UserMessageAuthor;
     },
-  ) => Promise<void>;
+  ) => Promise<unknown>;
   uploadFile: (input: { fileName: string; mimeType: string; bytes: Uint8Array }) => Promise<{
     requestId: string;
     file: {
@@ -136,7 +137,7 @@ export async function uploadFileAttachments(input: {
 
   for (const file of input.files) {
     const bytes = await file.readBytes();
-    if (bytes.byteLength > 50 * 1024 * 1024) {
+    if (bytes.byteLength > FILE_UPLOAD_MAX_BYTES) {
       throw new Error(
         i18n.t("composer.errors.fileTooLarge", { size: "50MB", fileName: file.fileName }),
       );

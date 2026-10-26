@@ -11,6 +11,7 @@ const withAndroidScroll = require("./modules/paseo-scroll/app.plugin");
 const { getNativeReleaseVersion } = require("./native-release-version");
 const appVariant = process.env.APP_VARIANT ?? "production";
 const isFdroidBuild = process.env.PASEO_FDROID_BUILD === "1";
+const isWatchdogBuild = process.env.PASEO_WATCHDOG_BUILD === "1";
 const isProfileBuild = process.env.PASEO_PROFILE_BUILD === "1";
 
 const buildProfile = isFdroidBuild
@@ -172,6 +173,7 @@ export default {
       [
         "expo-build-properties",
         {
+          ios: { enableSceneSupport: true },
           android: {
             minSdkVersion: 29,
             kotlinVersion: "2.1.20",
@@ -181,7 +183,7 @@ export default {
         },
       ],
       ...buildProfile.fdroidPlugins,
-      ...(isProfileBuild ? [withAndroidProfileable] : []),
+      ...(isProfileBuild || isWatchdogBuild ? [withAndroidProfileable] : []),
     ],
     experiments: {
       typedRoutes: true,
@@ -191,6 +193,9 @@ export default {
     extra: {
       fdroidBuild: isFdroidBuild,
       profileBuild: isProfileBuild,
+      watchdogBuild: isWatchdogBuild,
+      diagnosticRevision: process.env.PASEO_DIAGNOSTIC_REVISION,
+      diagnosticBuildTime: process.env.PASEO_DIAGNOSTIC_BUILD_TIME,
       router: {},
       // No EAS project of Groupon's yet: without a project id the app asks Expo for no push token.
     },

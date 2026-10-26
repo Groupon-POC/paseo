@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { useFetchQuery } from "@/data/query";
-import { FileMarkdownPreview } from "@/file-pane/markdown-preview";
+import { FileMarkdownPreview } from "@/file-panels/markdown-preview";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useProjects } from "@/hooks/use-projects";
 import { useHostRuntimeClient } from "@/runtime/host-runtime";

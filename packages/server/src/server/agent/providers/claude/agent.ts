@@ -1019,14 +1019,23 @@ function assertClaudeModeCanRun(mode: PermissionMode, env: NodeJS.ProcessEnv): v
   );
 }
 
+// Groupon Desk: a new Claude chat starts in Bypass for every Desk user (owner's decision, 2026-10-27).
+// Claude Code holds a message between two of the person's sessions that run in different permission
+// modes until the person approves it, so a Desk chat in Auto could not talk to the person's other
+// agents, which run in Bypass. The person can still pick another mode for a chat.
+const GROUPON_DESK_DEFAULT_MODE: PermissionMode = "bypassPermissions";
+
 function claudeModeCatalog(env: NodeJS.ProcessEnv): {
   modes: AgentMode[];
   defaultModeId: PermissionMode;
 } {
   if (claudeAutoModeUnavailableOn(env)) {
-    return { modes: DEFAULT_MODES.filter((mode) => mode.id !== "auto"), defaultModeId: "default" };
+    return {
+      modes: DEFAULT_MODES.filter((mode) => mode.id !== "auto"),
+      defaultModeId: GROUPON_DESK_DEFAULT_MODE,
+    };
   }
-  return { modes: DEFAULT_MODES, defaultModeId: "auto" };
+  return { modes: DEFAULT_MODES, defaultModeId: GROUPON_DESK_DEFAULT_MODE };
 }
 
 function coerceSessionMetadata(metadata: AgentMetadata | undefined): Partial<AgentSessionConfig> {

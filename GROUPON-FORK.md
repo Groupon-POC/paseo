@@ -156,6 +156,13 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   `start_desktop_daemon` and `restart_desktop_daemon`, answers `desktop_daemon_status` as stopped
   without launching Paseo's CLI, and looks for this Mac's daemon in the hand's home
   (`~/.groupon/paseo`) alone, never in `~/.paseo`.
+- **A new Claude chat starts in Bypass** (owner, 2026-10-27, for every Desk user). Paseo starts a
+  Claude chat in Auto; the fork's `claudeModeCatalog`
+  (`packages/server/src/server/agent/providers/claude/agent.ts`, `GROUPON_DESK_DEFAULT_MODE`)
+  answers Bypass as the default mode, whether or not Auto is available. Claude Code holds a message
+  between two of a person's sessions that run in different permission modes until the person
+  approves it, so a chat in Auto could not report to the person's other agents, which run in
+  Bypass. A chat can still pick another mode in the mode picker.
 - **The Core a fresh install starts on.** Production in every release build, the web build
   included; the local Core only in a development bundle (`defaultEnvironmentId`).
 - **The model picker opens where there is room, and is never empty.** Visual pass 2026-10-21: on

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace a relaunch reopened that is gone leaves for the home page (useLeaveGoneRestoredWorkspace).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace a relaunch reopened that is gone leaves for the home page (useLeaveGoneRestoredWorkspace); the computer notice sits inset and closes with its X (WorkspaceComputerNotice).
 import { useHostFeature } from "@/runtime/host-features";
 import {
   AssistantFileLinkResolverProvider,
@@ -745,7 +745,10 @@ function useResolvedWorkspaceRouteState(input: {
   );
 }
 
-/** Keep the execution computer visible when a cached workspace is offline. */
+/**
+ * Keep the execution computer visible when a cached workspace is offline. The X hides this notice
+ * until what it says changes (another computer, another error, back online and offline again).
+ */
 function WorkspaceComputerNotice({
   serverId,
   directory,
@@ -759,15 +762,29 @@ function WorkspaceComputerNotice({
   const connected = useHostRuntimeIsConnected(serverId);
   const host = hosts.find((entry) => entry.serverId === serverId);
   const name = getHostDisplayName(host ?? null, serverId);
-  if (connected && !error) return null;
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+  const shown = !connected || Boolean(error);
+  const title = connected ? `Terminal on ${name}` : `Waiting for ${name}`;
+  const description = `${directory ?? "This workspace"} · ${error ?? "Terminal and agents run on this computer. Open Groupon Desk on it and keep it awake, or choose an online computer in New workspace."}`;
+  const noticeKey = `${serverId}\n${title}\n${description}`;
+  useEffect(() => {
+    // Back online: the next time the computer goes away, the notice shows again.
+    if (!shown) setDismissedKey(null);
+  }, [shown]);
+  const handleDismiss = useCallback(() => setDismissedKey(noticeKey), [noticeKey]);
+  if (!shown || dismissedKey === noticeKey) return null;
   return (
-    <Alert
-      testID="workspace-computer-notice"
-      size="sm"
-      variant={error ? "error" : "warning"}
-      title={connected ? `Terminal on ${name}` : `Waiting for ${name}`}
-      description={`${directory ?? "This workspace"} · ${error ?? "Terminal and agents run on this computer. Open Groupon Desk on it and keep it awake, or choose an online computer in New workspace."}`}
-    />
+    <View style={styles.computerNotice}>
+      <Alert
+        testID="workspace-computer-notice"
+        size="sm"
+        variant={error ? "error" : "warning"}
+        title={title}
+        description={description}
+        onDismiss={handleDismiss}
+        dismissLabel="Close this notice"
+      />
+    </View>
   );
 }
 
@@ -3812,6 +3829,11 @@ function WorkspaceScreenContent({
 }
 
 const styles = StyleSheet.create((theme) => ({
+  computerNotice: {
+    marginHorizontal: theme.spacing[3],
+    marginTop: theme.spacing[2],
+    marginBottom: theme.spacing[1],
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.surface0,

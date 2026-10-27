@@ -1,6 +1,14 @@
-import { AlertTriangle, CheckCircle2, Info, XCircle, type LucideIcon } from "lucide-react-native";
-import { type ReactNode, useMemo } from "react";
-import { Text, View } from "react-native";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): an optional X that closes the alert (onDismiss).
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Info,
+  X,
+  XCircle,
+  type LucideIcon,
+} from "lucide-react-native";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { Pressable, Text, View } from "react-native";
 import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import {
   type ButtonControlSize,
@@ -19,6 +27,10 @@ export interface AlertProps {
   size?: AlertSize;
   children?: ReactNode;
   testID?: string;
+  /** Shows an X at the end of the first line; pressing it calls this. */
+  onDismiss?: () => void;
+  /** The X's accessible name, "Close" when omitted. */
+  dismissLabel?: string;
 }
 
 const VARIANT_ICON: Record<Exclude<AlertVariant, "default">, LucideIcon> = {
@@ -35,6 +47,8 @@ export function Alert({
   size = "md",
   children,
   testID,
+  onDismiss,
+  dismissLabel,
 }: AlertProps) {
   const { theme } = useUnistyles();
   const accentColor = resolveAccentColor(variant, theme);
@@ -71,6 +85,14 @@ export function Alert({
           <View style={[styles.iconSlot, sized.iconSlot]}>{resolvedIcon}</View>
         ) : null}
         {leadContent ? <View style={styles.leadText}>{leadContent}</View> : null}
+        {onDismiss ? (
+          <AlertDismissButton
+            onDismiss={onDismiss}
+            label={dismissLabel ?? "Close"}
+            size={iconSize}
+            alertTestID={testID}
+          />
+        ) : null}
       </View>
       {hasBody ? (
         <View style={resolvedIcon ? sized.indent : null}>
@@ -79,6 +101,37 @@ export function Alert({
         </View>
       ) : null}
     </View>
+  );
+}
+
+function AlertDismissButton({
+  onDismiss,
+  label,
+  size,
+  alertTestID,
+}: {
+  onDismiss: () => void;
+  label: string;
+  size: number;
+  alertTestID?: string;
+}) {
+  const { theme } = useUnistyles();
+  const [hovered, setHovered] = useState(false);
+  const handleHoverIn = useCallback(() => setHovered(true), []);
+  const handleHoverOut = useCallback(() => setHovered(false), []);
+  return (
+    <Pressable
+      onPress={onDismiss}
+      onHoverIn={handleHoverIn}
+      onHoverOut={handleHoverOut}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={8}
+      testID={alertTestID ? `${alertTestID}-dismiss` : undefined}
+      style={hovered ? DISMISS_HOVERED_STYLE : styles.dismiss}
+    >
+      <X size={size} color={hovered ? theme.colors.foreground : theme.colors.foregroundMuted} />
+    </Pressable>
   );
 }
 
@@ -183,6 +236,15 @@ const styles = StyleSheet.create((theme) => {
       minWidth: 0,
       gap: theme.spacing[2],
     },
+    dismiss: {
+      alignSelf: "flex-start",
+      marginLeft: theme.spacing[2],
+      padding: theme.spacing[1],
+      borderRadius: theme.borderRadius.md,
+    },
+    dismissHovered: {
+      backgroundColor: theme.colors.surface2,
+    },
     actions: {
       flexDirection: "row",
       gap: theme.spacing[2],
@@ -190,3 +252,5 @@ const styles = StyleSheet.create((theme) => {
     },
   };
 });
+
+const DISMISS_HOVERED_STYLE = [styles.dismiss, styles.dismissHovered];

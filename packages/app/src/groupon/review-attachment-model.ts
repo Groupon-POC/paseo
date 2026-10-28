@@ -6,6 +6,7 @@
  * chat shows it as a card (`review-attachment-card.tsx`) whose comments open the diff at their line.
  */
 
+import { sessionModeOf } from "@/git/working-diff-comparison/state";
 import type { AgentAttachment } from "@getpaseo/protocol/messages";
 import type { WorkingDiffComparison } from "@/git/working-diff-comparison/state";
 import { GROUPON_REVIEW_CARD } from "./strings";
@@ -18,13 +19,15 @@ const SESSION_REVIEW_BASE = "groupon-session";
 
 /** The comparison the review was made on, to open its comments in the same one. */
 export function reviewComparisonOf(attachment: ReviewAttachment): WorkingDiffComparison {
-  return attachment.baseRef === SESSION_REVIEW_BASE ? "session" : attachment.mode;
+  if (attachment.baseRef !== SESSION_REVIEW_BASE) return attachment.mode;
+  if (attachment.mode === "base") return "session-committed";
+  return attachment.mode === "uncommitted" ? "session-uncommitted" : "session";
 }
 
 /** The comparison in words, for the card's heading. */
 export function reviewScopeLabel(attachment: ReviewAttachment): string {
   const comparison = reviewComparisonOf(attachment);
-  if (comparison === "session") return GROUPON_REVIEW_CARD.session;
+  if (sessionModeOf(comparison) !== null) return GROUPON_REVIEW_CARD.session;
   if (comparison === "uncommitted") return GROUPON_REVIEW_CARD.uncommitted;
   if (comparison === "base") return GROUPON_REVIEW_CARD.committed(attachment.baseRef ?? null);
   return GROUPON_REVIEW_CARD.all;

@@ -227,7 +227,10 @@ import {
 import {
   readSessionChanges,
   SESSION_CHANGES_RPC,
+  sessionChangesModeOf,
+  sessionDiffRange,
   sessionEditsOf,
+  type SessionChangesMode,
   sessionRootHolding,
   shellEditsOf,
   type SessionEdit,
@@ -2777,7 +2780,10 @@ export class Session {
       );
     }
     if (method === SESSION_CHANGES_RPC) {
-      return await this.readGrouponSessionChanges(requiredGrouponRpcString(input, "workspaceId"));
+      return await this.readGrouponSessionChanges(
+        requiredGrouponRpcString(input, "workspaceId"),
+        sessionChangesModeOf(grouponRpcField(input, "mode")),
+      );
     }
     if (method === AGENT_MONITORS_RPC) {
       const agentId = requiredGrouponRpcString(input, "agentId");
@@ -2880,7 +2886,7 @@ export class Session {
   }
 
   /** What the workspace's sessions changed, per repository (`session-changes.ts`). */
-  private async readGrouponSessionChanges(workspaceId: string) {
+  private async readGrouponSessionChanges(workspaceId: string, mode: SessionChangesMode = "all") {
     const edits = await this.grouponSessionEdits(workspaceId);
     // Groupon Desk: what the sessions changed from a shell too (scripts, `git commit`), in the
     // repositories they edited and the folders they run in.
@@ -2902,7 +2908,8 @@ export class Session {
       nameOf: async (root) => basename(await getMainRepoRoot(root).catch(() => root)),
       branchOf: (root) => getCurrentBranch(root),
       headAt: resolveHeadAt,
-      diffSince: (root, baseCommit, paths) => getPathsDiffSince(root, { baseCommit, paths }),
+      diffSince: (root, baseCommit, paths) =>
+        getPathsDiffSince(root, sessionDiffRange(mode, baseCommit, paths)),
     });
   }
 

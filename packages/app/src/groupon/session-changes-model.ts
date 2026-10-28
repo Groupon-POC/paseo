@@ -10,6 +10,7 @@
  * - The answer crosses a process boundary and is checked before use; a file without a path is dropped
  */
 
+import type { SessionChangesMode } from "@/git/working-diff-comparison/state";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { ParsedDiffFile } from "@/git/use-diff-query";
 
@@ -55,9 +56,11 @@ function repoOf(value: unknown): SessionChangesRepo | null {
 export async function readSessionChanges(
   client: Pick<DaemonClient, "invokePluginRpc">,
   workspaceId: string,
+  mode: SessionChangesMode = "all",
 ): Promise<SessionChangesRepo[]> {
   const answer = await client.invokePluginRpc(GROUPON_DESK_RPC_PLUGIN_ID, SESSION_CHANGES_RPC, {
     workspaceId,
+    mode,
   });
   const repos = isRecord(answer) && Array.isArray(answer.repos) ? answer.repos : [];
   return repos.map(repoOf).filter((repo): repo is SessionChangesRepo => repo !== null);

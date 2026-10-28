@@ -73,7 +73,7 @@ describe("a workspace's session changes in the Changes views", () => {
     expect(client.invokePluginRpc).toHaveBeenCalledWith(
       "groupon-desk",
       "groupon-desk.session.changes",
-      { workspaceId: "ws-1" },
+      { workspaceId: "ws-1", mode: "all" },
     );
     expect(repos.map((r) => [r.name, r.files.length])).toEqual([["paseo", 1]]);
   });

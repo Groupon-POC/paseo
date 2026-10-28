@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useFetchQuery } from "@/data/query";
+import type { SessionChangesMode } from "@/git/working-diff-comparison/state";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import {
   readSessionChanges,
@@ -15,8 +16,12 @@ import {
 const SESSION_CHANGES_REFRESH_MS = 4_000;
 const NO_REPOS: SessionChangesRepo[] = [];
 
-export function sessionChangesQueryKey(serverId: string, workspaceId: string | null | undefined) {
-  return ["groupon-session-changes", serverId, workspaceId ?? ""] as const;
+export function sessionChangesQueryKey(
+  serverId: string,
+  workspaceId: string | null | undefined,
+  mode: SessionChangesMode = "all",
+) {
+  return ["groupon-session-changes", serverId, workspaceId ?? "", mode] as const;
 }
 
 /** What the workspace's sessions changed, as one file list, read again every few seconds while enabled. */
@@ -24,16 +29,18 @@ export function useSessionChanges(input: {
   serverId: string;
   workspaceId?: string | null;
   enabled: boolean;
+  mode?: SessionChangesMode;
 }) {
+  const mode = input.mode ?? "all";
   const client = useHostRuntimeClient(input.serverId);
   const connected = useHostRuntimeIsConnected(input.serverId);
   const workspaceId = input.workspaceId ?? null;
   const active = input.enabled && Boolean(client) && connected && workspaceId !== null;
   const query = useFetchQuery({
-    queryKey: sessionChangesQueryKey(input.serverId, workspaceId),
+    queryKey: sessionChangesQueryKey(input.serverId, workspaceId, mode),
     queryFn: async () => {
       if (!client || !workspaceId) return NO_REPOS;
-      return readSessionChanges(client, workspaceId);
+      return readSessionChanges(client, workspaceId, mode);
     },
     enabled: active,
     dataShape: "value",

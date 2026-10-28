@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the "session" comparison reads what the workspace's sessions changed (groupon/use-compared-diff.ts).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the "session" comparison reads what the workspace's sessions changed (groupon/use-compared-diff.ts). The session comparison has three parts: all, committed, uncommitted.
 import { useCallback, useEffect, useMemo } from "react";
 import {
   buildWorkspaceAttachmentScopeKey,
@@ -12,6 +12,7 @@ import {
 } from "@/review";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
 import { useWorkingDiffComparison } from "@/git/working-diff-comparison";
+import { sessionComparisonOf, type SessionChangesMode } from "@/git/working-diff-comparison/state";
 import { useComparedDiff } from "@/groupon/use-compared-diff";
 
 interface UseWorkingDiffOptions {
@@ -57,7 +58,10 @@ export function useWorkingDiff({
   const selectUncommitted = useCallback(() => selectComparison("uncommitted"), [selectComparison]);
   const selectAll = useCallback(() => selectComparison("all"), [selectComparison]);
   const selectBase = useCallback(() => selectComparison("base"), [selectComparison]);
-  const selectSession = useCallback(() => selectComparison("session"), [selectComparison]);
+  const selectSession = useCallback(
+    (mode: SessionChangesMode = "all") => selectComparison(sessionComparisonOf(mode)),
+    [selectComparison],
+  );
   // Groupon Desk: the session comparison reads the workspace's own edits, not the checkout's diff.
   const {
     files,

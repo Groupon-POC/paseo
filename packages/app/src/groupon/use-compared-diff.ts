@@ -1,5 +1,6 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the Changes views' diff, the checkout's or the session's, by the comparison chosen.
 
+import { checkoutModeOf, sessionModeOf } from "@/git/working-diff-comparison/state";
 import { useCallback } from "react";
 import { useCheckoutDiffQuery } from "@/git/use-diff-query";
 import type { WorkingDiffComparison } from "@/git/working-diff-comparison/state";
@@ -23,15 +24,17 @@ export function useComparedDiff(input: {
   isGit: boolean;
   queryScope?: string;
 }) {
-  const wantsSession = input.comparison === "session" && Boolean(input.workspaceId);
+  const sessionMode = sessionModeOf(input.comparison);
+  const wantsSession = sessionMode !== null && Boolean(input.workspaceId);
   const session = useSessionChanges({
     serverId: input.serverId,
     workspaceId: input.workspaceId,
     enabled: input.enabled && wantsSession,
+    mode: sessionMode ?? "all",
   });
-  // A Mac whose daemon predates the session comparison shows its checkout's whole diff instead.
+  // A Mac whose daemon predates the session comparison shows its checkout's diff instead.
   const isSession = wantsSession && !session.unsupported;
-  const checkoutMode = input.comparison === "session" ? "all" : input.comparison;
+  const checkoutMode = checkoutModeOf(input.comparison);
   const checkout = useCheckoutDiffQuery({
     serverId: input.serverId,
     cwd: input.cwd,

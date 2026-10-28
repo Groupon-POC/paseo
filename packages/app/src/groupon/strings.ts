@@ -737,6 +737,20 @@ export const GROUPON_SESSION_CHANGES = {
   empty: "The session has not changed any files yet",
 } as const;
 
+/** The Changes views' two scopes and their three parts, in the comparison menu. */
+export const GROUPON_CHANGES_SCOPES = {
+  session: "Session",
+  worktree: "Worktree",
+  all: "All",
+  committed: "Committed",
+  uncommitted: "Uncommitted",
+  sessionAll: "Everything this workspace's sessions changed since they started, committed or not",
+  sessionCommitted: "The sessions' own commits",
+  sessionUncommitted: "What the sessions changed and have not committed yet",
+  worktreeAll: "The branch against its base with what is not committed: what a pull request shows",
+  worktreeUncommitted: "Changes in the worktree that are not committed yet",
+} as const;
+
 export const GROUPON_DIFF_VIEWER = {
   /** The button after a file's path in the diff viewer. */
   openFile: "Open the whole file",

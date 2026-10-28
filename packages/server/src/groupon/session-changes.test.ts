@@ -22,6 +22,8 @@ import {
 import {
   readSessionChanges,
   sessionEditsOf,
+  sessionChangesModeOf,
+  sessionDiffRange,
   sessionRootHolding,
   shellEditsOf,
   type SessionChangesDeps,
@@ -239,5 +241,25 @@ describe("commits that are not the session's", () => {
     commitAs(root, "o@example.com", "rebased.ts", "2026-01-01T12:45:00Z");
 
     expect(await listFilesCommittedSince(root, new Date("2026-01-01T11:00:00Z"))).toEqual(["a.ts"]);
+  });
+});
+
+describe("a session's changes by part", () => {
+  test("reads all, the commits, or what is not committed, of the same files", async () => {
+    const { root, start } = repo("parts");
+    writeFileSync(join(root, "a.ts"), "two\n");
+    git(root, ["commit", "-q", "-am", "by the session"], "2026-01-01T12:00:00Z");
+    writeFileSync(join(root, "other.ts"), "edited, not committed\n");
+    const paths = ["a.ts", "other.ts"];
+    const changed = async (mode: "all" | "committed" | "uncommitted") =>
+      (await getPathsDiffSince(root, sessionDiffRange(mode, start, paths))).structured
+        .map((file) => file.path)
+        .sort();
+
+    expect(await changed("all")).toEqual(["a.ts", "other.ts"]);
+    expect(await changed("committed")).toEqual(["a.ts"]);
+    expect(await changed("uncommitted")).toEqual(["other.ts"]);
+    expect(sessionChangesModeOf("committed")).toBe("committed");
+    expect(sessionChangesModeOf("anything")).toBe("all");
   });
 });

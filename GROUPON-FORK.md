@@ -867,3 +867,12 @@ chat with the time left until the reset, and its arrival reads the host's usage 
 minutes and its Usage icon turns from green to red as the fullest limit fills
 (`groupon/usage-health.ts`). A usage source that never reported, such as Cursor without a working
 sign-in, is left out; Claude subscriptions stay as greyed rows.
+
+## Changes has two scopes
+
+The comparison menu offers Session (what the workspace's sessions changed) and Worktree (the
+checkout itself), each as All, Committed and Uncommitted, every choice with a line saying what it
+reads. Session Committed is the sessions' files from their base to HEAD, Session Uncommitted the
+same files from HEAD to the working tree (`groupon-desk.session.changes` takes `mode`;
+`sessionDiffRange` in `packages/server/src/groupon/session-changes.ts`; the menu in
+`packages/app/src/git/diff-pane.tsx`). A daemon without the mode answers All.

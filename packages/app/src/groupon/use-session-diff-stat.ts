@@ -1,5 +1,6 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the +/− count of what a workspace's sessions changed, for the composer's pill and the sidebar's hover card.
 
+import { sessionModeOf } from "@/git/working-diff-comparison/state";
 import { useMemo } from "react";
 import { useWorkingDiffComparison } from "@/git/working-diff-comparison";
 import { useSessionChanges } from "./use-session-changes";
@@ -36,11 +37,13 @@ export function useWorkspaceSessionDiffStat(input: {
     workspaceId: input.workspaceId,
     cwd: "",
   });
-  const isSession = comparison === "session";
+  const sessionMode = sessionModeOf(comparison);
+  const isSession = sessionMode !== null;
   const session = useSessionChanges({
     serverId: input.serverId,
     workspaceId: input.workspaceId,
     enabled: input.active && isSession,
+    mode: sessionMode ?? "all",
   });
   const sessionStat = useMemo(() => countDiff(session.files), [session.files]);
   return isSession && !session.unsupported ? sessionStat : undefined;

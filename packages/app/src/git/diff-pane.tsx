@@ -1,8 +1,17 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "Session" comparison (what the workspace's sessions changed, the default), the branch named in the toolbar instead of switched, and a view mode (every file or the selected one) on the diff tab's toolbar with the tree marking the file in view.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "Session" comparison (what the workspace's sessions changed, the default), the branch named in the toolbar instead of switched, and a view mode (every file or the selected one) on the diff tab's toolbar with the tree marking the file in view. The comparison menu has two scopes, Session and Worktree, each with All, Committed and Uncommitted, every choice described.
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { WorkingDiffComparison } from "@/git/working-diff-comparison/state";
+import {
+  checkoutModeOf,
+  sessionModeOf,
+  type SessionChangesMode,
+  type WorkingDiffComparison,
+} from "@/git/working-diff-comparison/state";
 import { useDiffFileFocus } from "@/groupon/diff-file-focus";
-import { GROUPON_DIFF_VIEWER, GROUPON_SESSION_CHANGES } from "@/groupon/strings";
+import {
+  GROUPON_CHANGES_SCOPES,
+  GROUPON_DIFF_VIEWER,
+  GROUPON_SESSION_CHANGES,
+} from "@/groupon/strings";
 import { useSessionFileOpener } from "@/groupon/use-compared-diff";
 import { floatingActionsClearance } from "@/components/ui/floating-action-button";
 import { useState, useCallback, useMemo, type ReactElement, type ReactNode } from "react";
@@ -55,6 +64,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -297,7 +307,26 @@ interface DiffModeMenuProps {
   onSelectBase: () => void;
   onSelectAll: () => void;
   /** Groupon Desk: what the workspace's sessions changed; the menu offers it when given. */
-  onSelectSession?: () => void;
+  onSelectSession?: (mode?: SessionChangesMode) => void;
+}
+
+interface DiffModeChoice {
+  comparison: WorkingDiffComparison;
+  label: string;
+  description?: string;
+  testID: string;
+}
+
+/** Groupon Desk: the trigger's words, "Session · Committed" while the session scope is offered. */
+function diffModeLabel(diffMode: WorkingDiffComparison, scoped: boolean): string {
+  const scopes = GROUPON_CHANGES_SCOPES;
+  const part = { all: scopes.all, committed: scopes.committed, uncommitted: scopes.uncommitted };
+  const session = sessionModeOf(diffMode);
+  if (session) return `${scopes.session} · ${part[session]}`;
+  const checkout = { all: scopes.all, base: scopes.committed, uncommitted: scopes.uncommitted }[
+    checkoutModeOf(diffMode)
+  ];
+  return scoped ? `${scopes.worktree} · ${checkout}` : checkout;
 }
 
 export function DiffModeMenu({
@@ -310,9 +339,48 @@ export function DiffModeMenu({
   onSelectSession,
 }: DiffModeMenuProps) {
   const { t } = useTranslation();
-  const uncommittedLabel = t("workspace.git.diff.uncommitted");
-  const committedLabel = t("workspace.git.diff.committed");
-  const allLabel = t("workspace.git.diff.all");
+  const scopes = GROUPON_CHANGES_SCOPES;
+  const select = useCallback(
+    (comparison: WorkingDiffComparison) => {
+      const session = sessionModeOf(comparison);
+      if (session) onSelectSession?.(session);
+      else if (comparison === "uncommitted") onSelectUncommitted();
+      else if (comparison === "base") onSelectBase();
+      else onSelectAll();
+    },
+    [onSelectAll, onSelectBase, onSelectSession, onSelectUncommitted],
+  );
+  const sessionChoices: DiffModeChoice[] = [
+    { comparison: "session", label: scopes.all, description: scopes.sessionAll, testID: "session" },
+    {
+      comparison: "session-committed",
+      label: scopes.committed,
+      description: scopes.sessionCommitted,
+      testID: "session-committed",
+    },
+    {
+      comparison: "session-uncommitted",
+      label: scopes.uncommitted,
+      description: scopes.sessionUncommitted,
+      testID: "session-uncommitted",
+    },
+  ];
+  const worktreeChoices: DiffModeChoice[] = [
+    { comparison: "all", label: scopes.all, description: scopes.worktreeAll, testID: "all" },
+    {
+      comparison: "base",
+      label: scopes.committed,
+      description: committedDescription,
+      testID: "committed",
+    },
+    {
+      comparison: "uncommitted",
+      label: scopes.uncommitted,
+      description: scopes.worktreeUncommitted,
+      testID: "uncommitted",
+    },
+  ];
+  const scoped = Boolean(onSelectSession);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -326,14 +394,7 @@ export function DiffModeMenu({
           return (
             <>
               <Text style={toolbarLabelTriggerTextStyle(highlighted)} numberOfLines={1}>
-                {
-                  {
-                    session: GROUPON_SESSION_CHANGES.label,
-                    all: allLabel,
-                    uncommitted: uncommittedLabel,
-                    base: committedLabel,
-                  }[diffMode]
-                }
+                {diffModeLabel(diffMode, scoped)}
               </Text>
               <ToolbarLabelTriggerIcon>
                 <ThemedChevronDown size={12} uniProps={extraMutedIconColorMapping} />
@@ -342,46 +403,82 @@ export function DiffModeMenu({
           );
         }}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" width={260} testID={`${testIDPrefix}-status-menu`}>
-        {onSelectSession ? (
-          <>
-            <DropdownMenuItem
-              testID={`${testIDPrefix}-mode-session`}
-              selected={diffMode === "session"}
-              description={GROUPON_SESSION_CHANGES.description}
-              onSelect={onSelectSession}
-            >
-              {GROUPON_SESSION_CHANGES.label}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
+      <DropdownMenuContent align="start" width={300} testID={`${testIDPrefix}-status-menu`}>
+        {scoped ? (
+          <DiffModeGroup
+            title={scopes.session}
+            choices={sessionChoices}
+            diffMode={diffMode}
+            testIDPrefix={testIDPrefix}
+            onSelect={select}
+          />
         ) : null}
-        <DropdownMenuItem
-          testID={`${testIDPrefix}-mode-all`}
-          selected={diffMode === "all"}
-          onSelect={onSelectAll}
-        >
-          {allLabel}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          testID={`${testIDPrefix}-mode-uncommitted`}
-          selected={diffMode === "uncommitted"}
-          onSelect={onSelectUncommitted}
-        >
-          {uncommittedLabel}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          testID={`${testIDPrefix}-mode-committed`}
-          selected={diffMode === "base"}
-          description={committedDescription}
-          onSelect={onSelectBase}
-        >
-          {committedLabel}
-        </DropdownMenuItem>
+        {scoped ? <DropdownMenuSeparator /> : null}
+        <DiffModeGroup
+          title={scoped ? scopes.worktree : null}
+          choices={worktreeChoices}
+          diffMode={diffMode}
+          testIDPrefix={testIDPrefix}
+          onSelect={select}
+        />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function DiffModeGroup({
+  title,
+  choices,
+  diffMode,
+  testIDPrefix,
+  onSelect,
+}: {
+  title: string | null;
+  choices: readonly DiffModeChoice[];
+  diffMode: WorkingDiffComparison;
+  testIDPrefix: string;
+  onSelect: (comparison: WorkingDiffComparison) => void;
+}) {
+  return (
+    <>
+      {title ? <DropdownMenuLabel>{title}</DropdownMenuLabel> : null}
+      {choices.map((choice) => (
+        <DiffModeItem
+          key={choice.comparison}
+          choice={choice}
+          selected={diffMode === choice.comparison}
+          testIDPrefix={testIDPrefix}
+          onSelect={onSelect}
+        />
+      ))}
+    </>
+  );
+}
+
+function DiffModeItem({
+  choice,
+  selected,
+  testIDPrefix,
+  onSelect,
+}: {
+  choice: DiffModeChoice;
+  selected: boolean;
+  testIDPrefix: string;
+  onSelect: (comparison: WorkingDiffComparison) => void;
+}) {
+  const handleSelect = useCallback(
+    () => onSelect(choice.comparison),
+    [choice.comparison, onSelect],
+  );
+  return (
+    <DropdownMenuItem
+      testID={`${testIDPrefix}-mode-${choice.testID}`}
+      selected={selected}
+      description={choice.description}
+      onSelect={handleSelect}
+    >
+      {choice.label}
+    </DropdownMenuItem>
   );
 }
 
@@ -577,7 +674,7 @@ interface ChangesComparisonToolbarModel {
   onSelectBase: () => void;
   onSelectAll: () => void;
   onSelectUncommitted: () => void;
-  onSelectSession?: () => void;
+  onSelectSession?: (mode?: SessionChangesMode) => void;
 }
 
 interface ChangesHeaderProps {
@@ -599,7 +696,7 @@ interface BuildChangesHeaderModelInput {
   onSelectBase: () => void;
   onSelectAll: () => void;
   onSelectUncommitted: () => void;
-  onSelectSession?: () => void;
+  onSelectSession?: (mode?: SessionChangesMode) => void;
   pullRequest: PrHint | null;
   selectedDiffStat: { additions: number; deletions: number } | null;
   serverId: string;

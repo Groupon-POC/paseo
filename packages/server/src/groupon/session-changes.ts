@@ -26,6 +26,24 @@ import type { ParsedDiffFile } from "../server/utils/diff-highlighter.js";
 /** The Groupon Desk plugin RPC the window calls: `{ workspaceId }`, answered `{ repos }`. */
 export const SESSION_CHANGES_RPC = "groupon-desk.session.changes";
 
+/** Which part of the sessions' changes the window asks for: everything, their commits, or what is not committed. */
+export type SessionChangesMode = "all" | "committed" | "uncommitted";
+
+export function sessionChangesModeOf(value: unknown): SessionChangesMode {
+  return value === "committed" || value === "uncommitted" ? value : "all";
+}
+
+/** The diff of a repository's session files for a mode: from the session's base, to HEAD or to the working tree. */
+export function sessionDiffRange(
+  mode: SessionChangesMode,
+  baseCommit: string,
+  paths: readonly string[],
+): { baseCommit: string; paths: readonly string[]; targetRef?: string } {
+  if (mode === "committed") return { baseCommit, paths, targetRef: "HEAD" };
+  if (mode === "uncommitted") return { baseCommit: "HEAD", paths };
+  return { baseCommit, paths };
+}
+
 export interface SessionEdit {
   /** Absolute. */
   path: string;

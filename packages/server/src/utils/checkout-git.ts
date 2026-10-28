@@ -3589,10 +3589,28 @@ export async function getCheckoutDiff(
  */
 export async function getPathsDiffSince(
   cwd: string,
-  input: { baseCommit: string; paths: readonly string[]; ignoreWhitespace?: boolean },
+  input: {
+    baseCommit: string;
+    paths: readonly string[];
+    ignoreWhitespace?: boolean;
+    /** Up to this commit (committed changes only) instead of the working tree. */
+    targetRef?: string;
+  },
 ): Promise<CheckoutDiffResult> {
   cwd = await requireGitWorktreeRoot(cwd);
   if (input.paths.length === 0) return { diff: "", structured: [] };
+  if (input.targetRef) {
+    return readCheckoutDiff(
+      cwd,
+      { mode: "base", ignoreWhitespace: input.ignoreWhitespace, includeStructured: true },
+      {
+        baseRef: input.baseCommit,
+        targetRef: input.targetRef,
+        includeUntracked: false,
+        paths: input.paths,
+      },
+    );
+  }
   const refs: CheckoutDiffRefs = {
     baseRef: input.baseCommit,
     includeUntracked: true,

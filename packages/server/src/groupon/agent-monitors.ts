@@ -219,14 +219,13 @@ function visibleLowByte(byte: number): string {
 function visibleByte(byte: number): string {
   if (byte === 0x09 || byte === 0x0a || byte === 0xa0)
     return `\\${byte.toString(8).padStart(3, "0")}`;
-  if (byte === 0x5c) return "\\\\";
   if (byte < 0x80) return visibleLowByte(byte);
   const low = byte & 0x7f;
   return low < 0x20 || low === 0x7f ? `M${visibleLowByte(low)}` : `M-${visibleLowByte(low)}`;
 }
 
 /**
- * A command as macOS `ps` lists it: a newline and a tab in octal (`\012`), a backslash doubled,
+ * A command as macOS `ps` lists it: a newline and a tab in octal (`\012`), a backslash as itself,
  * a control character as `^X` and each byte of a non-ASCII character in meta notation
  * (`Ж` is `M-PM^V`). Measured on macOS 15; a multi-line or non-ASCII command never matched its
  * shell without it.
@@ -238,18 +237,25 @@ export function psVisible(text: string): string {
 }
 
 /**
- * The command a Claude Code shell runs: its wrapper ends in `eval '<command>' < /dev/null`, the
- * command single-quoted for the shell, a quote in it written `'\\''` or `'"'"'`. Null for a line
- * of another shape.
+ * The command a Claude Code shell runs: its wrapper ends in `eval '<command>'`, the command
+ * single-quoted for the shell, a quote in it written `'\''` or `'"'"'`; a background Bash follows it
+ * with `< /dev/null`, a Monitor watch with `&& pwd -P`. Null for a line of another shape.
  */
 export function evalledCommand(commandLine: string): string | null {
   const start = commandLine.indexOf(" eval '");
-  const end = commandLine.lastIndexOf("' < /dev/null");
-  if (start < 0 || end <= start) return null;
-  return commandLine
-    .slice(start + " eval '".length, end)
-    .replaceAll("'\\''", "'")
-    .replaceAll(`'"'"'`, "'");
+  if (start < 0) return null;
+  let quoted = "";
+  let at = start + " eval '".length;
+  while (at < commandLine.length) {
+    const next = commandLine.indexOf("'", at);
+    if (next < 0) return null;
+    quoted += commandLine.slice(at, next);
+    const escaped = ["'\"'\"'", "'\\''"].find((form) => commandLine.startsWith(form, next));
+    if (!escaped) return quoted;
+    quoted += "'";
+    at = next + escaped.length;
+  }
+  return null;
 }
 
 /**

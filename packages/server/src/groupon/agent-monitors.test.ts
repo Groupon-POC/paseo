@@ -153,6 +153,12 @@ describe("stopping a watch from the window", () => {
     expect(monitorGroupsOf(processes, new Set([200]), "")).toEqual([]);
     expect(evalledCommand(shell(COMMAND))).toBe(COMMAND);
     expect(evalledCommand("tail -f x")).toBeNull();
+    // A Monitor watch's wrapper has no `< /dev/null` after its eval.
+    expect(
+      evalledCommand(
+        `/bin/zsh -c source s.sh && eval 'echo '"'"'a b'"'"'' && pwd -P >| /tmp/claude-1-cwd`,
+      ),
+    ).toBe("echo 'a b'");
   });
 
   it("finds a multi-line, quoted, non-ASCII command as macOS ps lists its shell", () => {
@@ -164,7 +170,7 @@ describe("stopping a watch from the window", () => {
       { pid: 240, ppid: 200, pgid: 240, command: listed },
     ];
 
-    expect(psVisible("a\tb\\c Р щ\u00ff")).toBe("a\\011b\\\\c M-P\\240 M-QM^IM-CM-?");
+    expect(psVisible("a\tb\\c Р щ\u00ff")).toBe("a\\011b\\c M-P\\240 M-QM^IM-CM-?");
     expect(monitorGroupsOf(rows, new Set([200]), command)).toEqual([240]);
     expect(monitorGroupsOf(rows, new Set([200]), command.replace("60", "61"))).toEqual([]);
   });

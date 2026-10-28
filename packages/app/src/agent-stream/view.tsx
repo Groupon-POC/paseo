@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Live, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width. In Live what runs now sits in a slot above the running turn's footer, drawn as the chat draws it, never a row, so the chat does not jump. A question waiting on the person sits the usual gap below the last row. Claude Code's limit message is a red notice with the time to its reset.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Live, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width. In Live what runs now sits in a slot above the running turn's footer, drawn as the chat draws it, never a row, so the chat does not jump. A question waiting on the person sits the usual gap below the last row. Claude Code's limit message is a red notice with the time to its reset; a commit or a push is a node on the git timeline (`groupon/git-timeline.tsx`).
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { StreamWidthProvider, useStreamRowWidthStyle } from "@/groupon/stream-width";
@@ -68,6 +68,8 @@ import type { ToastApi } from "@/components/toast-host";
 import { returnToTimelineTail } from "./timeline-tail-navigation";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { ToolCallDetailsContent } from "@/components/tool-call-details";
+import { gitEventsOf } from "@/groupon/git-events-model";
+import { GitTimeline } from "@/groupon/git-timeline";
 import { QuestionFormCard } from "@/components/question-form-card";
 import { ToolCallSheetProvider } from "@/components/tool-call-sheet";
 import { createStreamPresentation, getStreamItemMessageId } from "./presentation";
@@ -797,6 +799,18 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           ) {
             return (
               <SpeakMessage message={data.detail.input} timestamp={item.timestamp.getTime()} />
+            );
+          }
+
+          const gitEvents = gitEventsOf(item);
+          if (gitEvents.length > 0) {
+            return (
+              <GitTimeline
+                events={gitEvents}
+                detail={data.detail}
+                serverId={resolvedServerId}
+                cwd={(data.detail.type === "shell" ? data.detail.cwd : undefined) ?? context.cwd}
+              />
             );
           }
 

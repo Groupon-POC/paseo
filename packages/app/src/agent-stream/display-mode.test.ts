@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): tests for the chat's display modes.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): tests for the chat's display modes, the git timeline in Live included.
 
 import { describe, expect, it } from "vitest";
 import type { StreamItem } from "@/types/stream";
@@ -34,7 +34,25 @@ const STREAM: StreamItem[] = [
 
 const ids = (items: StreamItem[]) => items.map((item) => item.id);
 
+function commit(id: string, status: string): StreamItem {
+  return {
+    kind: "tool_call",
+    id,
+    timestamp: at,
+    payload: {
+      source: "agent",
+      data: { status, detail: { type: "shell", command: 'git commit -m "x"', output: "" } },
+    },
+  } as unknown as StreamItem;
+}
+
 describe("chat display modes", () => {
+  it("Live keeps a finished commit or push on the git timeline, never one that still runs", () => {
+    const items = [message("m1"), commit("done", "completed"), commit("running", "running")];
+    expect(ids(filterForDisplayMode(items, "live"))).toEqual(["m1", "done"]);
+    expect(ids(filterForDisplayMode(items, "output"))).toEqual(["m1"]);
+  });
+
   it("All shows every row", () => {
     expect(filterForDisplayMode(STREAM, "all")).toBe(STREAM);
   });

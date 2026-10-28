@@ -1,7 +1,8 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): which stream rows the chat shows, by the person's display mode, and Live's slot of what runs now.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): which stream rows the chat shows, by the person's display mode, and Live's slot of what runs now; Live keeps the finished commits and pushes.
 
 import type { ChatDisplayMode } from "@/hooks/use-settings";
 import type { StreamItem } from "@/types/stream";
+import { isGitEventCall } from "@/groupon/git-events-model";
 
 /**
  * Display only: the history keeps every row. Live shows the messages, the tool calls
@@ -20,6 +21,7 @@ export function isShownInDisplayMode(
   if (mode !== "live") return false;
   const data = item.payload.data;
   if (data.status === "failed") return showFailed;
+  if (data.status === "completed" && isGitEventCall(item)) return true;
   // A question the person answered stays: it is part of the conversation, and it stays put.
   return (
     item.payload.source === "agent" &&

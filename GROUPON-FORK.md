@@ -898,3 +898,14 @@ At the end of each turn the daemon reads the transcript's last 512 KB, takes the
 when it is new, makes it the chat's title and the title of a workspace holding only that chat; what
 it carried is kept in `<PASEO_HOME>/groupon/hook-titles.json`, so a restart never puts it back over
 the person's own rename (`packages/server/src/groupon/hook-title.ts`).
+
+## Commits and pushes on a git timeline in the chat
+
+An agent's `git commit` and `git push` were shell rows with the command as text. A shell call that
+commits or pushes is now drawn as nodes on a rail (the person's pick of 2026-10-28, variant C):
+a commit with its short sha, subject and counts, a push in green with where it went, its range and
+the checkout's pull request; a failed one in red with git's reason. Pressing a node opens the
+call's output. The commit and push are read from the command and its output
+(`packages/app/src/groupon/git-events-model.ts`): a quiet commit takes its subject from `-m` or a
+heredoc and has no sha. Such a call never folds into a run of calls (`isGroupableToolCall`), and
+Live keeps it once it finished (`agent-stream/display-mode.ts`).

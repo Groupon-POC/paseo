@@ -41,21 +41,23 @@ export function ComposerDock({
       <View ref={surfaceRef} style={styles.centeredSurface} onLayout={measureViewport}>
         <ScrollView
           style={styles.centeredScroll}
-          contentContainerStyle={styles.centered}
+          contentContainerStyle={SCROLL_CONTENT}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.form(surfaceSize?.width)}>
-            <View style={styles.setup}>{content}</View>
-            <View
-              style={
-                fullscreen
-                  ? [styles.fullscreenComposer, fullscreenFrame]
-                  : [styles.centeredComposer, constraint]
-              }
-            >
-              {composer}
+          <View style={styles.centered}>
+            <View style={styles.form(surfaceSize?.width)}>
+              <View style={styles.setup}>{content}</View>
+              <View
+                style={
+                  fullscreen
+                    ? [styles.fullscreenComposer, fullscreenFrame]
+                    : [styles.centeredComposer, constraint]
+                }
+              >
+                {composer}
+              </View>
+              {overlay}
             </View>
-            {overlay}
           </View>
         </ScrollView>
       </View>
@@ -75,6 +77,9 @@ export function ComposerDock({
     </View>
   );
 }
+
+// Unistyles drops a style on this ScrollView's contentContainerStyle on web (docs/unistyles.md).
+const SCROLL_CONTENT = { flexGrow: 1 } as const;
 
 // A share of a wide window, past the chat column's width on a large monitor.
 const WIDE_FORM_SHARE = 0.6;

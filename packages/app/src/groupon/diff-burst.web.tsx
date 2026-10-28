@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): when the session's diff grows, what it added appears above the diff pill, large, and is drawn into it.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): when the session's diff grows, what it added appears above the diff pill's count, large, and is drawn into it.
 
 /**
  * The pill's own count rolls to its new value, but a few lines on "+7.4k" hardly show. So each

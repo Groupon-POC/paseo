@@ -1,6 +1,6 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): when the count grows, what it grew by bursts above the pill and is drawn into it (groupon/diff-burst). The pill opens with the comparison it counts, switched from the Changes panel's menu, and says None when that comparison has no changes; switching it never bursts.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): when the count grows, what it grew by bursts above the pill and is drawn into it (groupon/diff-burst). The pill opens with the comparison it counts, switched from the Changes panel's menu, and says None when that comparison has no changes; switching it never bursts; a burst falls into the count, not the pill's middle.
 import { memo, useCallback, useMemo, useState, type ReactElement } from "react";
-import { Pressable, Text } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { DiffStat } from "@/components/diff-stat";
 import { composerPillStyles } from "@/composer/pill-styles";
@@ -51,10 +51,14 @@ export function ComposerDiffStatPill({
       style={bodyStyle}
     >
       {modeMenu ?? null}
-      {counting ? null : <PillCount additions={additions} deletions={deletions} />}
-      {burstScope && !counting ? (
-        <DiffBurst additions={additions} deletions={deletions} scope={burstScope} />
-      ) : null}
+      {counting ? null : (
+        <View>
+          <PillCount additions={additions} deletions={deletions} />
+          {burstScope ? (
+            <DiffBurst additions={additions} deletions={deletions} scope={burstScope} />
+          ) : null}
+        </View>
+      )}
     </Pressable>
   );
 }

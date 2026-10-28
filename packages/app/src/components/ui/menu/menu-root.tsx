@@ -1,6 +1,9 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a menu closes when its panel is hidden.
+import { useRetainedPanelActive } from "@/components/retained-panel";
 import {
   forwardRef,
   useCallback,
+  useEffect,
   useMemo,
   type PropsWithChildren,
   type ReactElement,
@@ -43,6 +46,13 @@ export function MenuRoot({
   compactMode?: MenuCompactMode;
 }>): ReactElement {
   const value = useMenuState({ open, defaultOpen, onOpenChange, compactMode });
+  // Groupon Desk: a menu whose panel is hidden (another tab opened) closes rather than hang
+  // over the new tab.
+  const panelActive = useRetainedPanelActive();
+  const { open: isOpen, setOpen } = value;
+  useEffect(() => {
+    if (!panelActive && isOpen) setOpen(false);
+  }, [isOpen, panelActive, setOpen]);
   return <MenuContextProvider value={value}>{children}</MenuContextProvider>;
 }
 

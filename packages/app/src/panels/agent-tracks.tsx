@@ -132,7 +132,7 @@ export const AgentTracks = memo(function AgentTracks({
       <AgentTaskList tasks={tasks} />
       <WorktreeSetupRow line={setupLine} />
       <PresenceRow view={presence.view} hubWorkspaceId={presence.hubWorkspaceId} />
-      <AgentMonitorsPill monitors={monitors} />
+      <AgentMonitorsPill serverId={serverId} agentId={agentId} monitors={monitors} />
       <SubagentsTrack
         serverId={serverId}
         rows={subagentRows}

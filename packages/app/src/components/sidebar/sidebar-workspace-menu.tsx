@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "Share…" with a colleague, for a workspace on the hub (found by its daemon ids, else its folder). "Move to project", a submenu of projects, on a chat without a project.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "Share…" with a colleague, for a workspace on the hub (found by its daemon ids, else its folder). "Move to project", a submenu of projects, on a chat without a project. "Copy session ID" copies the id of the chat the row stands for.
 import { useMemo, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { type PressableStateCallbackType } from "react-native";
@@ -36,6 +36,7 @@ import {
 import { Shortcut } from "@/components/ui/shortcut";
 import { OpenInFileManagerMenuItem } from "@/workspace/open-in-file-manager/menu-item";
 import { ShareWorkspaceMenuItem } from "@/groupon/share-menu-item";
+import { CopySessionIdMenuItem } from "@/groupon/copy-session-id-menu-item";
 import { MoveChatMenuItem, useMoveChatMenuPages } from "@/groupon/move-chat-menu-item";
 import { resolveSidebarWorkspaceAccessibilityLabel } from "@/components/sidebar/sidebar-workspace-title";
 import {
@@ -171,6 +172,12 @@ function SidebarWorkspaceMenuItems({
           {t("sidebar.workspace.actions.copyPath")}
         </WorkspaceMenuItem>
       ) : null}
+      <CopySessionIdMenuItem
+        surface={surface}
+        serverId={serverId}
+        workspaceId={workspaceId}
+        testID={`sidebar-workspace-menu-copy-session-id-${workspaceKey}`}
+      />
       {onCopyBranchName ? (
         <WorkspaceMenuItem
           surface={surface}

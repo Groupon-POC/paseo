@@ -1889,9 +1889,11 @@ export function ChangesSurface({
       onDuplicate: fsEntryDuplicateEnabled ? handleDuplicatePath : undefined,
       onRevert: onRevertPath,
       onVisibleFileChange: focusFilePath,
+      focusLine: fileFocus.focusLine,
     }),
     [
       focusFilePath,
+      fileFocus.focusLine,
       reviewActions,
       documentFocusRequest?.path,
       documentFocusRequest?.revision,

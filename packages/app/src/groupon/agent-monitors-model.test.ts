@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import {
-  monitorLine,
+  monitorTimeLeft,
   monitorsPillLabel,
   readAgentMonitors,
   runningMonitors,
@@ -13,6 +13,7 @@ const NOW = Date.parse("2026-10-28T00:10:00Z");
 const monitor = (overrides: Partial<AgentMonitor>): AgentMonitor => ({
   taskId: "b1",
   description: "build log",
+  command: "tail -f build.log",
   startedAt: "2026-10-28T00:00:00Z",
   expiresAt: "2026-10-28T00:30:00Z",
   ...overrides,
@@ -55,9 +56,11 @@ describe("the agent's Monitor watches in the composer pill", () => {
     expect(running.map((m) => m.taskId)).toEqual(["b1", "b3"]);
     expect(monitorsPillLabel(running.length)).toBe("2 monitors");
     expect(monitorsPillLabel(1)).toBe("1 monitor");
-    expect(running.map((m) => monitorLine(m, NOW))).toEqual([
-      "build log · 20 min left",
-      "b3 · until stopped",
-    ]);
+    expect(running.map((m) => monitorTimeLeft(m, NOW))).toEqual(["20 min left", "until stopped"]);
+    // The last minute counts down in seconds, and the clock passing moves it.
+    const ending = monitor({ expiresAt: "2026-10-28T00:10:45Z" });
+    expect(monitorTimeLeft(ending, NOW)).toBe("45 s left");
+    expect(monitorTimeLeft(ending, NOW + 30_000)).toBe("15 s left");
+    expect(monitorTimeLeft(monitor({}), NOW + 9 * 60_000)).toBe("11 min left");
   });
 });

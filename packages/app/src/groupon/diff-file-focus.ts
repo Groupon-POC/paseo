@@ -3,7 +3,8 @@
 /**
  * One file per workspace that the Changes views agree on: the file picked in the panel's tree, or
  * the one scrolled to the top of the diff viewer. The tree marks it, and the diff viewer can show
- * it alone (the "selected file only" switch, kept on this device in `preferences.ts`).
+ * it alone (the "selected file only" switch, kept on this device in `preferences.ts`). A review
+ * comment in the chat also asks for its line (`focusLine`), which the viewer scrolls to and marks.
  *
  * Constraints:
  * - Kept in memory only: a reload starts again from the first file
@@ -18,17 +19,30 @@ import {
 } from "@/git/working-diff-comparison/state";
 import { useGrouponPreferences } from "./preferences";
 
+/** A line of a file the diff viewer is asked to scroll to and mark (a review comment's line). */
+export interface DiffLineFocus {
+  path: string;
+  side: "old" | "new";
+  lineNumber: number;
+  /** The diff tab's focus request it belongs to. */
+  revision: number;
+}
+
 interface DiffFileFocusState {
   paths: Record<string, string>;
+  lines: Record<string, DiffLineFocus>;
   focus: (key: string, path: string) => void;
+  focusLine: (key: string, line: DiffLineFocus) => void;
 }
 
 export const useDiffFileFocusStore = create<DiffFileFocusState>()((set) => ({
   paths: {},
+  lines: {},
   focus: (key, path) =>
     set((state) =>
       state.paths[key] === path ? state : { paths: { ...state.paths, [key]: path } },
     ),
+  focusLine: (key, line) => set((state) => ({ lines: { ...state.lines, [key]: line } })),
 }));
 
 /** The files to show when only the selected one is wanted: it, or the first when none is. */
@@ -51,6 +65,7 @@ export function useDiffFileFocus(
 ) {
   const key = workingDiffComparisonKey(input);
   const activePath = useDiffFileFocusStore((state) => state.paths[key] ?? null);
+  const lineFocus = useDiffFileFocusStore((state) => state.lines[key] ?? null);
   const focus = useDiffFileFocusStore((state) => state.focus);
   const onlySelected = useGrouponPreferences((state) => state.diffSelectedFileOnly ?? false);
   const setOnlySelected = useGrouponPreferences((state) => state.setDiffSelectedFileOnly);
@@ -68,5 +83,13 @@ export function useDiffFileFocus(
     () => setOnlySelected(!onlySelected),
     [onlySelected, setOnlySelected],
   );
-  return { activePath, focusPath, shownFiles, onlySelected, toggleOnlySelected };
+  // The line asked for with this very request, never one left from an earlier one.
+  const focusLine = useMemo(
+    () =>
+      lineFocus && lineFocus.path === requestedPath && lineFocus.revision === requestRevision
+        ? { side: lineFocus.side, lineNumber: lineFocus.lineNumber }
+        : undefined,
+    [lineFocus, requestRevision, requestedPath],
+  );
+  return { activePath, focusPath, focusLine, shownFiles, onlySelected, toggleOnlySelected };
 }

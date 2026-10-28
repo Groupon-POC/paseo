@@ -32,6 +32,8 @@ export interface WorkingDiffMode {
   onDownload?: (path: string) => void;
   onDuplicate?: (path: string) => void;
   onRevert?: (path: string, oldPath?: string) => void;
+  /** Groupon Desk: a line of `focusPath` to scroll to and mark (a review comment's line). */
+  focusLine?: { side: "old" | "new"; lineNumber: number };
   /** Groupon Desk: the file at the top of the viewport, each time another one gets there. */
   onVisibleFileChange?: (path: string) => void;
 }

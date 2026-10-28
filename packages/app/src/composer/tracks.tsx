@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a track pill may lead with a mark of its own (the Monitor pill's radar).
 import { useCallback, useMemo, useState, type ReactElement, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
@@ -61,6 +62,8 @@ export interface ComposerTrackPillProps {
   accessibilityLabel?: string;
   /** Panel body. Rendered into a popover on wide screens and a sheet on compact ones. */
   children: ReactNode;
+  /** Groupon Desk: a mark drawn before the segments (the Monitor pill's radar). */
+  leading?: ReactNode;
 }
 
 /**
@@ -85,10 +88,12 @@ export function ComposerTrackPill({
   testID,
   accessibilityLabel,
   children,
+  leading,
 }: ComposerTrackPillProps): ReactElement {
   return (
     <MenuRoot compactMode="sheet">
       <ComposerTrackPillTrigger
+        leading={leading}
         segments={segments}
         testID={testID}
         accessibilityLabel={accessibilityLabel ?? segments.map((segment) => segment.text).join(" ")}
@@ -111,10 +116,12 @@ export function ComposerTrackPill({
 }
 
 function ComposerTrackPillTrigger({
+  leading,
   segments,
   testID,
   accessibilityLabel,
 }: {
+  leading?: ReactNode;
   segments: readonly ComposerTrackPillSegment[];
   testID: string;
   accessibilityLabel: string;
@@ -146,6 +153,7 @@ function ComposerTrackPillTrigger({
       style={pillStyle}
     >
       <View style={styles.segments}>
+        {leading}
         {segments.map((segment, index) => (
           <View
             key={segment.bucket ?? "plain"}

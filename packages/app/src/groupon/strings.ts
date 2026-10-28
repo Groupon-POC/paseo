@@ -383,7 +383,8 @@ export const GROUPON_REPOSITORY = {
 } as const;
 
 export const GROUPON_PREFERENCES = {
-  section: "Projects",
+  /** Settings > General: the section of Groupon Desk's own switches. */
+  section: "Groupon Desk",
   remindWorktreeScripts:
     "Remind me to set up worktree scripts for projects without a repository file",
   remindWorktreeScriptsHint:
@@ -745,12 +746,37 @@ export const GROUPON_MONITORS = {
   /** The pill above the composer that counts the agent's Monitor watches. */
   one: "monitor",
   many: "monitors",
-  tooltipTitle: "Watches this agent has running",
+  panelTitle: "Monitors",
   untilStopped: "until stopped",
   minutesLeft: (minutes: number) => `${minutes} min left`,
+  secondsLeft: (seconds: number) => `${seconds} s left`,
+  stop: (name: string) => `Stop ${name}`,
+  stopTooltip: "Stop this watch",
+  notRunning: "That watch is no longer running on its Mac.",
 } as const;
 
 export const GROUPON_STREAM_WIDTH = {
   /** The handles at the agent output's edges. */
   handleLabel: "Drag to widen the agent's output; double-click for the default width",
+} as const;
+
+export const GROUPON_REVIEW_CARD = {
+  /** The card a review sent from the diff becomes in the chat. */
+  title: "Code review",
+  comments: (count: number) => (count === 1 ? "1 comment" : `${count} comments`),
+  session: "Session",
+  all: "All changes",
+  uncommitted: "Uncommitted",
+  committed: (baseRef: string | null) => (baseRef ? `Committed since ${baseRef}` : "Committed"),
+  oldLine: "old",
+  openHint: "Open the diff at this line",
+  more: (count: number) => `Show ${count} more`,
+  fewer: "Show fewer",
+} as const;
+
+export const GROUPON_SESSION_ID = {
+  /** A session's menu in the sidebar. */
+  copy: "Copy session ID",
+  copied: "Session ID",
+  copyFailed: "Could not copy the session ID",
 } as const;

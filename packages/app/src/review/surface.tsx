@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a review comment's icon buttons are square-ish, as the window's buttons.
 import React, {
   useCallback,
   useEffect,
@@ -577,7 +578,8 @@ const styles = StyleSheet.create((theme) => ({
     height: 26,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: theme.borderRadius.full,
+    // Groupon Desk: square-ish, as the buttons beside it.
+    borderRadius: theme.borderRadius.md,
     ...(isWeb
       ? {
           transitionProperty: "background-color",

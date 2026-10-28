@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the New chat shortcut.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the New chat shortcut. Back and forward through a workspace's tabs.
 import { describe, expect, it, vi } from "vitest";
 import { formatShortcut } from "@/utils/format-shortcut";
 import { keyboardEventToComboString } from "./shortcut-string";
@@ -599,6 +599,30 @@ describe("keyboard-shortcuts", () => {
 
       expect(unbound.match?.action).not.toBe("chat.new");
       expect(bound.match?.action).toBe("chat.new");
+    });
+  });
+
+  // Groupon Desk: back and forward through a workspace's tabs, never inside a text field.
+  describe("back and forward through a workspace's tabs", () => {
+    const cmdLeft = { key: "ArrowLeft", code: "ArrowLeft", metaKey: true };
+    const altRight = { key: "ArrowRight", code: "ArrowRight", altKey: true };
+
+    it("goes back on Cmd+Left on a Mac and forward on Alt+Right elsewhere", () => {
+      expect(
+        resolveShortcut({ event: cmdLeft, context: { isMac: true, focusScope: "other" } }).match
+          ?.action,
+      ).toBe("workspace.history.back");
+      expect(
+        resolveShortcut({ event: altRight, context: { isMac: false, focusScope: "other" } }).match
+          ?.action,
+      ).toBe("workspace.history.forward");
+    });
+
+    it("leaves Cmd+Left to the text field the person types in", () => {
+      expect(
+        resolveShortcut({ event: cmdLeft, context: { isMac: true, focusScope: "message-input" } })
+          .match?.action,
+      ).not.toBe("workspace.history.back");
     });
   });
 

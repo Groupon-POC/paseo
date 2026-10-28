@@ -739,8 +739,12 @@ whole file in a tab (`WebFileOpenButton`, `git/diff-document/surface.web.tsx`). 
 
 Claude Code's Monitor tool starts a background watch that wakes the agent on each line of a
 command's output; nothing in Paseo showed one was running. A pill above the composer, on the row
-with Share and the subagents, counts them ("2 monitors"), and its tooltip names each with the time
-it has left (`packages/app/src/groupon/agent-monitors.tsx`). The daemon reads them from the agent's
+with Share and the subagents, counts them ("2 monitors") behind a breathing radar; pressing it
+opens the track panel the subagents use, each watch with its command and the time it has left, and
+a button that stops it (`packages/app/src/groupon/agent-monitors.tsx`). Stopping asks the daemon
+(`groupon-desk.agent.monitor.stop`), which finds the agent's Claude Code process by its
+`GROUPON_DESK_SESSION_ID` and ends the process group whose shell evaluates exactly the watch's
+command; Claude Code then tells the agent the watch ended. The daemon reads them from the agent's
 whole timeline (`groupon-desk.agent.monitors`, `packages/server/src/groupon/agent-monitors.ts`): a
 completed Monitor call that names its task, until a TaskStop of it, a notification of it with an
 end status, its timeout, or a daemon restart (the watch lived in the agent's Claude Code process,
@@ -767,3 +771,15 @@ React stopped with "Maximum update depth exceeded" (#185). The browser test
 `groupon/stream-width.browser.test.tsx` widens a 240-row virtualized chat while it streams and the
 reader scrolls up into it, and checks that no rows overlap, the list stops moving when the stream
 stops, and no update loop is reported.
+
+## A review sent from the diff, in the chat
+
+A review sent from the diff reaches the agent as Paseo's `review` attachment (the comparison, and
+each comment with its file, side, line and the code around it), and the chat showed it as one
+"Review" pill. It is now a card of its comments (`packages/app/src/groupon/review-attachment-card.tsx`):
+the comparison in words, then each comment's file and line, the commented code line as the diff
+shows it, and the comment. A click opens the agent's workspace's diff in the comparison the
+review was made on (`groupon-session` is the session's), scrolled to the line and with the line
+marked (`use-open-review-comment.ts`, the diff's `focusLine`, `git/diff-document/surface.web.tsx`);
+a line the old diff does not show yet is looked for in the next few diffs. The sent comments
+themselves leave the diff once sent, as in Paseo; the card keeps them.

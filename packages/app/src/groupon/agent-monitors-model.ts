@@ -3,7 +3,7 @@
 /**
  * The daemon's answer to `groupon-desk.agent.monitors` (server `groupon/agent-monitors.ts`): each
  * watch the agent started with Claude Code's Monitor tool that still runs. The pill above the
- * composer counts them and its tooltip names each with the time it has left.
+ * composer counts them; its panel names each with its command and the time it has left, and stops one.
  *
  * Constraints:
  * - The answer crosses a process boundary and is checked before use; a watch without a task is dropped
@@ -14,10 +14,13 @@ import { GROUPON_MONITORS } from "./strings";
 
 const GROUPON_DESK_RPC_PLUGIN_ID = "groupon-desk";
 const AGENT_MONITORS_RPC = "groupon-desk.agent.monitors";
+const AGENT_MONITOR_STOP_RPC = "groupon-desk.agent.monitor.stop";
 
 export interface AgentMonitor {
   taskId: string;
   description: string;
+  /** The command it watches. */
+  command: string;
   startedAt: string;
   /** Null for a watch that runs until it is stopped. */
   expiresAt: string | null;
@@ -33,6 +36,7 @@ function monitorOf(value: unknown): AgentMonitor | null {
   return {
     taskId: value.taskId,
     description: typeof value.description === "string" ? value.description : "",
+    command: typeof value.command === "string" ? value.command : "",
     startedAt: typeof value.startedAt === "string" ? value.startedAt : "",
     expiresAt: typeof value.expiresAt === "string" ? value.expiresAt : null,
   };
@@ -62,10 +66,23 @@ export function monitorsPillLabel(count: number): string {
   return `${count} ${count === 1 ? GROUPON_MONITORS.one : GROUPON_MONITORS.many}`;
 }
 
-/** One watch in the tooltip: what it watches and how long it has left. */
-export function monitorLine(monitor: AgentMonitor, now: number): string {
-  const name = monitor.description || monitor.taskId;
-  if (monitor.expiresAt === null) return `${name} · ${GROUPON_MONITORS.untilStopped}`;
-  const minutes = Math.max(1, Math.ceil((Date.parse(monitor.expiresAt) - now) / 60_000));
-  return `${name} · ${GROUPON_MONITORS.minutesLeft(minutes)}`;
+/** How long a watch has left at `now`: minutes, the last minute in seconds, or until stopped. */
+export function monitorTimeLeft(monitor: AgentMonitor, now: number): string {
+  if (monitor.expiresAt === null) return GROUPON_MONITORS.untilStopped;
+  const seconds = Math.max(0, Math.ceil((Date.parse(monitor.expiresAt) - now) / 1000));
+  if (seconds < 60) return GROUPON_MONITORS.secondsLeft(seconds);
+  return GROUPON_MONITORS.minutesLeft(Math.ceil(seconds / 60));
+}
+
+/** Asks the daemon to stop one of the agent's watches; whether it found it running. */
+export async function stopAgentMonitor(
+  client: Pick<DaemonClient, "invokePluginRpc">,
+  agentId: string,
+  taskId: string,
+): Promise<boolean> {
+  const answer = await client.invokePluginRpc(GROUPON_DESK_RPC_PLUGIN_ID, AGENT_MONITOR_STOP_RPC, {
+    agentId,
+    taskId,
+  });
+  return isRecord(answer) && answer.stopped === true;
 }

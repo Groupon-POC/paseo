@@ -1,4 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace a relaunch reopened that is gone leaves for the home page (useLeaveGoneRestoredWorkspace); the computer notice sits inset and closes with its X (WorkspaceComputerNotice).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace a relaunch reopened that is gone leaves for the home page (useLeaveGoneRestoredWorkspace); the computer notice sits inset and closes with its X (WorkspaceComputerNotice). Back and forward through the tabs it showed (useWorkspaceTabHistory).
+import { useWorkspaceTabHistory } from "@/groupon/use-workspace-tab-history";
 import { useHostFeature } from "@/runtime/host-features";
 import {
   AssistantFileLinkResolverProvider,
@@ -2793,6 +2794,16 @@ function WorkspaceScreenContent({
   const workspaceActionsEnabled = Boolean(
     isRouteFocused && normalizedServerId && normalizedWorkspaceId,
   );
+  // Groupon Desk: back and forward through the tabs this workspace showed.
+  useWorkspaceTabHistory({
+    workspaceKey: persistenceKey,
+    enabled: workspaceActionsEnabled,
+    handlerId: buildWorkspaceKeyboardHandlerId({
+      name: "workspace-tab-history",
+      serverId: normalizedServerId,
+      workspaceId: normalizedWorkspaceId,
+    }),
+  });
 
   useKeyboardActionHandler({
     handlerId: buildWorkspaceKeyboardHandlerId({

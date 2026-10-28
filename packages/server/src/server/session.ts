@@ -219,7 +219,13 @@ import {
   sessionRootHolding,
   type SessionEdit,
 } from "../groupon/session-changes.js";
-import { AGENT_MONITORS_RPC, activeMonitorsOf } from "../groupon/agent-monitors.js";
+import {
+  AGENT_MONITOR_STOP_RPC,
+  AGENT_MONITORS_RPC,
+  activeMonitorsOf,
+  nodeMonitorStopDeps,
+  stopAgentMonitor,
+} from "../groupon/agent-monitors.js";
 import { placeTicketlessWorkspace } from "../groupon/workspace-placement.js";
 import { nameWorkspaceBranch } from "../groupon/workspace-branch.js";
 import {
@@ -2710,6 +2716,12 @@ export class Session {
       const agentId = requiredGrouponRpcString(input, "agentId");
       return { monitors: await this.readGrouponAgentMonitors(agentId) };
     }
+    if (method === AGENT_MONITOR_STOP_RPC) {
+      return await this.stopGrouponAgentMonitor(
+        requiredGrouponRpcString(input, "agentId"),
+        requiredGrouponRpcString(input, "taskId"),
+      );
+    }
     throw new Error(`Unknown Groupon Desk method: ${method}`);
   }
 
@@ -2726,6 +2738,15 @@ export class Session {
       new Date(),
       daemonStartedAt,
     );
+  }
+
+  /** Stops one of an agent's running Monitor watches, as the person asked from the window. */
+  private async stopGrouponAgentMonitor(agentId: string, taskId: string) {
+    const monitor = (await this.readGrouponAgentMonitors(agentId)).find(
+      (candidate) => candidate.taskId === taskId,
+    );
+    if (!monitor) return { stopped: false };
+    return await stopAgentMonitor({ agentId, monitor }, nodeMonitorStopDeps());
   }
 
   /** The edits of a workspace's sessions this daemon has loaded (a session not loaded keeps no timeline here). */

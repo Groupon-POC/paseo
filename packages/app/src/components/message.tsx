@@ -1,6 +1,7 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague or another agent draws in its own tint with a name chip (groupon/message-author.tsx). A tool call follows the Describe tool calls setting, its name set apart from its title by weight; a question call shows its answered form in the history, open until folded, and nothing while it waits (groupon/answered-questions.tsx).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague or another agent draws in its own tint with a name chip (groupon/message-author.tsx). A tool call follows the Describe tool calls setting, its name set apart from its title by weight; a question call shows its answered form in the history, open until folded, and nothing while it waits (groupon/answered-questions.tsx). A review sent from the diff shows as a card of its comments, each opening the diff at its line (groupon/review-attachment-card.tsx).
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
+import { ReviewAttachmentCard } from "@/groupon/review-attachment-card";
 import { AssistantForkMenu, type AssistantForkTarget } from "@/components/assistant-fork-menu";
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import {
@@ -515,6 +516,17 @@ export const UserMessage = memo(function UserMessage({
           {hasAttachments ? (
             <View style={attachmentPreviewContainerStyle}>
               {attachments.map((attachment, index) => {
+                // Groupon Desk: a review from the diff shows its comments, each opening its line.
+                if (attachment.type === "review") {
+                  return (
+                    <ReviewAttachmentCard
+                      key={`review:${attachment.cwd}:${attachment.comments.length}`}
+                      attachment={attachment}
+                      serverId={serverId}
+                      agentId={agentId}
+                    />
+                  );
+                }
                 const content = getAgentAttachmentPillContent(attachment, t);
                 return (
                   <AttachmentFrame

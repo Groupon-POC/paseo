@@ -1,7 +1,8 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): what New workspace says while a workspace is being created, instead of a bare spinner.
 
 /**
- * The caption under New workspace's composer from Enter until the workspace opens: the step the
+ * The loader row under New workspace's composer from Enter until the workspace opens (TARS's blob,
+ * as a running turn shows it), with the time and the step the
  * daemon reports (`CreationSnapshot.step`, `packages/server/src/groupon/creation-steps.ts`) and how
  * long it has run. Measured on the owner's MacBook Air (2026-10-21, ledger WW-86): the composer was
  * muted for 45.6 s with no word on what was happening; `git worktree add` was most of it.
@@ -49,6 +50,20 @@ export function formatElapsed(ms: number): string {
   if (seconds < 60) return `${seconds} s`;
   const minutes = Math.floor(seconds / 60);
   return `${minutes} min ${String(seconds % 60).padStart(2, "0")} s`;
+}
+
+/**
+ * What the loader row shows: the whole wait leading, as the turn footer's time leads its loader,
+ * then the step the daemon reported with its own time; no step before the daemon reports one.
+ */
+export function creationStatus(
+  progress: CreationProgress,
+  now: number,
+): { elapsed: string; step: string | null } {
+  const elapsed = formatElapsed(now - progress.submittedAt);
+  if (!progress.stepId || progress.stepSeenAt === null) return { elapsed, step: null };
+  const label = STEP_LABELS[progress.stepId] ?? "Preparing the workspace";
+  return { elapsed, step: `${label}, ${formatElapsed(now - progress.stepSeenAt)}` };
 }
 
 /**

@@ -1,9 +1,10 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time. The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width.
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { StreamWidthProvider, useStreamRowWidthStyle } from "@/groupon/stream-width";
 import { StreamWidthHandles } from "@/groupon/stream-width-handles";
 import { useStreamWidth } from "@/groupon/use-stream-width";
+import { usePausedTurnStart } from "@/groupon/paused-turn-start";
 import React, {
   forwardRef,
   memo,
@@ -939,12 +940,17 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     // Groupon Desk: while the agent waits on the person (a question, a permission) the turn shows
     // no loader and counts no time; the waiting card is what the person looks at.
     const isWorking = isAgentWorking(isTurnActive, pendingPermissionItems.length);
+    // ...and the time it waited is not counted once the person answers.
+    const footerTurnStartedAt = usePausedTurnStart(
+      baseRenderModel.turnTiming.runningStartedAt,
+      pendingPermissionItems.length > 0,
+    );
     const turnFooterNode = useMemo(
       () =>
         isWorking || bottomTurnFooterHost ? (
           <TurnFooter
             isRunning={isWorking}
-            inFlightTurnStartedAt={baseRenderModel.turnTiming.runningStartedAt}
+            inFlightTurnStartedAt={footerTurnStartedAt}
             host={bottomTurnFooterHost}
             strategy={streamRenderStrategy}
             supportsTimelineCursor={supportsAgentForkContextCursor}
@@ -957,7 +963,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         handleForkInFlightTurn,
         readOnly,
         isWorking,
-        baseRenderModel.turnTiming.runningStartedAt,
+        footerTurnStartedAt,
         bottomTurnFooterHost,
         streamRenderStrategy,
         supportsAgentForkContextCursor,

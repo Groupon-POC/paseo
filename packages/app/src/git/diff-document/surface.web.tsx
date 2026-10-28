@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): an open button after each file's path, and the file in view reported to the Changes tree.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): an open button after each file's path, the file in view reported to the Changes tree, and a review comment's line scrolled to and marked.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ViewStyle } from "react-native";
@@ -52,6 +52,8 @@ import type {
 } from "./types";
 import { useDiffDocumentWorkspaceCache } from "./workspace-cache";
 
+/** Groupon Desk: how many diffs a focused line may take to appear before the viewer stops looking. */
+const FOCUS_LINE_ATTEMPTS = 3;
 const DEFAULT_MONO_STACK = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 const RESIZE_SETTLE_DELAY_MS = 120;
 
@@ -94,6 +96,7 @@ export function DiffSurface(props: DiffSurfaceProps) {
   const modelRef = useRef<ReturnType<typeof buildDiffDocumentModel> | null>(null);
   const previousModelRef = useRef<ReturnType<typeof buildDiffDocumentModel> | null>(null);
   const consumedFocusRef = useRef<string | null>(null);
+  const focusAttemptsRef = useRef({ key: "", count: 0 });
   const scrollTopRef = useRef(0);
   const horizontalOffsetsRef = useRef(new Map<string, number>());
   const selectionRef = useRef<DiffSelection | null>(null);
@@ -481,19 +484,6 @@ export function DiffSurface(props: DiffSurfaceProps) {
   const mode = props.mode;
   const collapsedFilePaths = props.collapsedFilePaths;
   const onToggleFile = props.onToggleFile;
-  useEffect(() => {
-    if (mode.kind !== "working") return;
-    const focusPath = mode.focusPath;
-    if (!focusPath) return;
-    const requestKey = `${mode.focusRequestId ?? "initial"}:${focusPath}`;
-    if (consumedFocusRef.current === requestKey) return;
-    if (collapsedFilePaths.has(focusPath)) onToggleFile(focusPath);
-    const file = model.files.find((entry) => entry.path === focusPath);
-    if (file && scrollRef.current) {
-      scrollRef.current.scrollTop = file.top;
-      consumedFocusRef.current = requestKey;
-    }
-  }, [collapsedFilePaths, mode, model.files, onToggleFile]);
 
   // Groupon Desk: the file at the top of the viewport, told to the Changes tree as it changes.
   const visibleFileRef = useRef<string | null>(null);
@@ -610,6 +600,40 @@ export function DiffSurface(props: DiffSurfaceProps) {
     props.files,
     desiredTypography,
     setSelection,
+  ]);
+  // Declared after the effect that clears the selection on a new layout, so a focused line keeps its mark.
+  useEffect(() => {
+    if (mode.kind !== "working") return;
+    const focusPath = mode.focusPath;
+    if (!focusPath) return;
+    const focusLine = mode.focusLine;
+    const lineKey = focusLine ? `${focusLine.side}${focusLine.lineNumber}` : "";
+    const requestKey = `${mode.focusRequestId ?? "initial"}:${focusPath}:${lineKey}`;
+    if (consumedFocusRef.current === requestKey) return;
+    if (collapsedFilePaths.has(focusPath)) onToggleFile(focusPath);
+    const file = model.files.find((entry) => entry.path === focusPath);
+    if (file && scrollRef.current) {
+      // Groupon Desk: a review comment's line is scrolled a third down the view and marked.
+      const line = focusLine ? findDiffLine(model.rows, focusPath, focusLine) : null;
+      scrollRef.current.scrollTop = line
+        ? Math.max(file.top, line.top - viewport.height / 3)
+        : file.top;
+      if (line) setSelection({ anchor: line.start, focus: line.end });
+      // A line not shown yet may come with the next diff (the comparison just changed): try a
+      // few more times before giving up on it.
+      const attempts = focusAttemptsRef.current;
+      const tries = attempts.key === requestKey ? attempts.count + 1 : 1;
+      focusAttemptsRef.current = { key: requestKey, count: tries };
+      if (!focusLine || line || tries >= FOCUS_LINE_ATTEMPTS) consumedFocusRef.current = requestKey;
+    }
+  }, [
+    collapsedFilePaths,
+    mode,
+    model.files,
+    model.rows,
+    onToggleFile,
+    setSelection,
+    viewport.height,
   ]);
   const pointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -1061,6 +1085,34 @@ function WebFileHeaderSection({
       <div data-testid={`diff-file-${file.fileIndex}-body`} style={BODY_MARKER_STYLE} />
     </div>
   );
+}
+
+/**
+ * Groupon Desk: the row of a file's line on one side, and the selection that spans its text; null
+ * when the diff does not show that line.
+ */
+function findDiffLine(
+  rows: ReturnType<typeof buildDiffDocumentModel>["rows"],
+  path: string,
+  target: { side: "old" | "new"; lineNumber: number },
+): { top: number; start: DiffSelection["anchor"]; end: DiffSelection["anchor"] } | null {
+  for (const row of rows) {
+    if (row.kind !== "line" || row.path !== path) continue;
+    for (const [cellIndex, cell] of row.cells.entries()) {
+      if (!cell || cell.lineNumber !== target.lineNumber) continue;
+      const side = cell.reviewTarget?.side ?? cell.sourceIdentity.side;
+      if (side !== target.side) continue;
+      const at = (sourceOffset: number) => ({
+        fileIndex: row.fileIndex,
+        rowIndex: row.index,
+        cellIndex,
+        side,
+        sourceOffset,
+      });
+      return { top: row.top, start: at(0), end: at(cell.content.length) };
+    }
+  }
+  return null;
 }
 
 /**

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the New chat shortcut.
 import { describe, expect, it, vi } from "vitest";
 import { formatShortcut } from "@/utils/format-shortcut";
 import { keyboardEventToComboString } from "./shortcut-string";
@@ -581,6 +582,23 @@ describe("keyboard-shortcuts", () => {
       });
 
       expect(result.match?.action).toBe("workspace.pane.focus.down");
+    });
+  });
+
+  // Groupon Desk: "New chat" ships with no key; the person binds one in Settings.
+  describe("the New chat shortcut", () => {
+    const cmdShiftO = { key: "o", code: "KeyO", metaKey: true, shiftKey: true };
+
+    it("fires nothing until a key is bound, then starts a chat on that key", () => {
+      const unbound = resolveShortcut({ event: cmdShiftO, context: { isMac: true } });
+      const bound = resolveShortcut({
+        event: cmdShiftO,
+        context: { isMac: true },
+        bindings: buildEffectiveBindings({ "chat-new-mac": "Cmd+Shift+O" }),
+      });
+
+      expect(unbound.match?.action).not.toBe("chat.new");
+      expect(bound.match?.action).toBe("chat.new");
     });
   });
 

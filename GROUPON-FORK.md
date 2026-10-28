@@ -679,3 +679,19 @@ hash-only announcement (`ProviderSnapshotUpdates`, as the default client does), 
 `isProvidersSnapshotReference`, `packages/client/src/compat/normalize-provider-models.ts`). The
 window's own cache still reads the compact form; nothing the window shows changes. The test is
 `packages/client/src/plugin-provider-snapshot.test.ts`.
+
+## A chat moves into a worktree of its own repository
+
+A chat that started in a checkout often goes on in a worktree its agent made there (a new
+ticket's branch). The window's diff, terminal, pull request and archive follow a chat's workspace,
+so the chat follows the work: the Groupon Desk plugin's `groupon-desk.chats.relocate` (`{ agentId,
+path }`, `packages/server/src/groupon/chat-relocation.ts`) checks that the path is an existing
+folder of the same repository (the same main checkout root), finds or makes that folder's
+workspace, answers it at once, and once the agent's turn ends (a question waiting on the person is
+not its end) reloads the agent's session in the worktree under that workspace:
+`reloadAgentSession`'s `workspaceId` (`packages/server/src/server/agent/agent-manager.ts`). The
+chat keeps its id, so its link, its tab and the hub's record of it stay; the session is the same
+Claude Code session, resumed from the new folder. It waits for the turn because the agent asks
+from inside that turn (the door's `desk_move`), and a reload then would cut it. Another
+repository's work is never a move: the door's `desk_start` hands it to a new chat with the
+conversation. The test is `packages/server/src/groupon/chat-relocation.test.ts`.

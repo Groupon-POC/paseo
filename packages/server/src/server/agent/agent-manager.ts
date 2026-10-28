@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a submitted prompt's user_message names its author when the sender gave one (`notePromptAuthor`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a submitted prompt's user_message names its author when the sender gave one (`notePromptAuthor`); a reload can move the agent into another workspace (`reloadAgentSession`'s `workspaceId`, a chat's relocation into a worktree).
 import { projectTimelineRows } from "./timeline-projection.js";
 import type { PluginLifecycle } from "../plugins/lifecycle/index.js";
 import { describeHookAgent, publishAgentStream } from "../plugins/lifecycle/index.js";
@@ -365,6 +365,20 @@ function stripSteerOptions(options?: AgentSteerOptions): AgentRunOptions | undef
 export interface WaitForAgentOptions {
   signal?: AbortSignal;
   waitForActive?: boolean;
+}
+
+export interface ReloadAgentSessionOptions {
+  rehydrateFromDisk?: boolean;
+  /** Groupon Desk: the workspace the reloaded agent belongs to from now on; its own by default. */
+  workspaceId?: string;
+}
+
+/** Groupon Desk: the workspace a reloaded agent belongs to: the one the reload names, else its own. */
+function reloadWorkspaceId<TCurrent>(
+  options: ReloadAgentSessionOptions | undefined,
+  current: TCurrent,
+): string | TCurrent {
+  return options?.workspaceId ?? current;
 }
 
 export interface WaitForAgentResult {
@@ -1547,7 +1561,7 @@ export class AgentManager {
   reloadAgentSession(
     agentId: string,
     overrides?: Partial<AgentSessionConfig>,
-    options?: { rehydrateFromDisk?: boolean },
+    options?: ReloadAgentSessionOptions,
   ): Promise<ManagedAgent> {
     return this.trackAgentRegistrationOperation(
       this.runLifecycleMutation(agentId, () =>
@@ -1559,7 +1573,7 @@ export class AgentManager {
   private async reloadAgentSessionInternal(
     agentId: string,
     overrides?: Partial<AgentSessionConfig>,
-    options?: { rehydrateFromDisk?: boolean },
+    options?: ReloadAgentSessionOptions,
   ): Promise<ManagedAgent> {
     this.assertAcceptingAgentRegistrations();
     let existing = this.requireSessionAgent(agentId);
@@ -1568,6 +1582,7 @@ export class AgentManager {
       existing = this.requireSessionAgent(agentId);
     }
     const rehydrateFromDisk = options?.rehydrateFromDisk ?? false;
+    const workspaceId = reloadWorkspaceId(options, existing.workspaceId);
     const preservedHistoryPrimed = existing.historyPrimed;
     const preservedLastUsage = existing.lastUsage;
     const preservedLastError = existing.lastError;
@@ -1592,7 +1607,7 @@ export class AgentManager {
       storedConfig.cwd,
       paseoToolPolicy,
       undefined,
-      { reason: "refresh", purpose: "interactive", workspaceId: existing.workspaceId },
+      { reason: "refresh", purpose: "interactive", workspaceId },
     );
     const providerLaunchConfig = this.resolveProviderLaunchConfig(launchConfig, launchContext);
     if (
@@ -1634,7 +1649,7 @@ export class AgentManager {
       handedToRegistration = true;
       return this.registerSession(session, storedConfig, agentId, {
         labels: existing.labels,
-        workspaceId: existing.workspaceId,
+        workspaceId,
         owner: existing.owner,
         createdAt: existing.createdAt,
         updatedAt: existing.updatedAt,

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s").
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time.
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import React, {
@@ -926,11 +926,14 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         }),
       [client, pendingPermissionItems],
     );
+    // Groupon Desk: while the agent waits on the person (a question, a permission) the turn shows
+    // no loader and counts no time; the waiting card is what the person looks at.
+    const isWorking = isAgentWorking(isTurnActive, pendingPermissionItems.length);
     const turnFooterNode = useMemo(
       () =>
-        isTurnActive || bottomTurnFooterHost ? (
+        isWorking || bottomTurnFooterHost ? (
           <TurnFooter
-            isRunning={isTurnActive}
+            isRunning={isWorking}
             inFlightTurnStartedAt={baseRenderModel.turnTiming.runningStartedAt}
             host={bottomTurnFooterHost}
             strategy={streamRenderStrategy}
@@ -943,7 +946,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         handleForkAssistantTurn,
         handleForkInFlightTurn,
         readOnly,
-        isTurnActive,
+        isWorking,
         baseRenderModel.turnTiming.runningStartedAt,
         bottomTurnFooterHost,
         streamRenderStrategy,
@@ -1289,6 +1292,11 @@ interface ThoughtSlotProps {
   seconds: number | null;
   isLastInSequence: boolean;
   defaultExpanded: boolean;
+}
+
+/** Groupon Desk: the agent works while its turn is active and nothing waits on the person. */
+function isAgentWorking(isTurnActive: boolean, waitingOnPerson: number): boolean {
+  return isTurnActive && waitingOnPerson === 0;
 }
 
 /**

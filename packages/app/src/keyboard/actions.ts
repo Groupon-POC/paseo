@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `chat.new`, the "New chat" shortcut.
 export type KeyboardFocusScope =
   | "terminal"
   | "message-input"
@@ -49,6 +50,7 @@ export type KeyboardActionId =
   | "shortcuts.dialog.toggle"
   | "workspace.terminal.new"
   | "workspace.new"
+  | "chat.new"
   | "workspace.project.pick"
   | "worktree.new"
   | "workspace.archive"

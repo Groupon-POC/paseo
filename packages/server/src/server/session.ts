@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`).
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory } from "./agent/directory.js";
@@ -21,7 +21,8 @@ import equal from "fast-deep-equal";
 import { WorkspaceSetupObservation } from "./workspace-setup-observation.js";
 import { SessionDelivery, type OwnedSubscription } from "./session/owned-subscriptions/index.js";
 import { v4 as uuidv4 } from "uuid";
-import { lstat, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, realpath, rename, rm, stat } from "node:fs/promises";
+import { setTimeout as delay } from "node:timers/promises";
 import { basename, join, resolve, sep } from "path";
 import { homedir } from "node:os";
 import { CLIENT_CAPS, type ClientCapability } from "@getpaseo/protocol/client-capabilities";
@@ -203,8 +204,10 @@ import {
 import type { ServiceProxySubsystem } from "./service-proxy.js";
 import {
   getCheckoutSnapshotFacts,
+  getMainRepoRoot,
   renameCurrentBranch as renameCurrentBranchDefault,
 } from "../utils/checkout-git.js";
+import { CHAT_RELOCATE_RPC, scheduleChatRelocation } from "../groupon/chat-relocation.js";
 import { placeTicketlessWorkspace } from "../groupon/workspace-placement.js";
 import { nameWorkspaceBranch } from "../groupon/workspace-branch.js";
 import {
@@ -2688,7 +2691,51 @@ export class Session {
       }
       return await this.moveGrouponChat(agentId, targetWorkspaceId);
     }
+    if (method === CHAT_RELOCATE_RPC) {
+      const read = (key: string) =>
+        typeof input === "object" && input !== null ? Reflect.get(input, key) : null;
+      const agentId = read("agentId");
+      const path = read("path");
+      if (typeof agentId !== "string" || typeof path !== "string") {
+        throw new Error("agentId and path are required");
+      }
+      return await this.relocateGrouponChat(agentId, path);
+    }
     throw new Error(`Unknown Groupon Desk method: ${method}`);
+  }
+
+  /** A chat moves into another worktree of its repository once its turn ends (`chat-relocation.ts`). */
+  private relocateGrouponChat(agentId: string, path: string) {
+    return scheduleChatRelocation(
+      { agentId, path },
+      {
+        getChat: async (id) => {
+          const record = await this.agentStorage.get(id);
+          return record ? { cwd: record.cwd, hasSession: Boolean(record.persistence) } : null;
+        },
+        realpath: (folder) => realpath(folder).catch(() => null),
+        mainRepoRoot: (cwd) => getMainRepoRoot(cwd).catch(() => null),
+        workspaceFor: async (cwd) => {
+          const workspace = await this.workspaceProvisioning.findOrCreateWorkspaceForDirectory(cwd);
+          await this.syncWorkspaceGitObserverForWorkspace(workspace);
+          await this.emitWorkspaceUpdateForWorkspaceId(workspace.workspaceId);
+          return { workspaceId: workspace.workspaceId };
+        },
+        waitForTurnEnd: async (id) => {
+          // A question the agent waits on is not the end of its turn: look again a little later.
+          while ((await this.agentManager.waitForAgentEvent(id)).permission) await delay(2_000);
+        },
+        relocate: async (id, cwd, workspaceId) => {
+          const snapshot = await this.agentManager.reloadAgentSession(id, { cwd }, { workspaceId });
+          await this.agentUpdates.forwardLiveAgent(snapshot);
+        },
+        onFailure: (id, error) =>
+          this.sessionLogger.error(
+            { err: error, agentId: id },
+            "A chat's move into a worktree failed",
+          ),
+      },
+    );
   }
 
   /** The "No project" project, whose root holds a folder per project-less chat. */

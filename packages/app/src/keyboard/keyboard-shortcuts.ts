@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "New chat" binding (`chat.new`, no default key).
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import type {
   KeyboardActionId,
@@ -162,6 +163,7 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "cycle-theme",
   ],
   workspaces: [
+    "new-chat",
     "new-agent",
     "new-workspace",
     "workspace-jump-index",
@@ -358,6 +360,30 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
       id: "archive-workspace",
       section: "workspaces",
       label: "Archive workspace",
+    },
+  },
+
+  // --- New chat (Groupon Desk): no key by default, the person binds one in Settings ---
+  {
+    id: "chat-new-mac",
+    action: "chat.new",
+    combo: "",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "new-chat",
+      section: "workspaces",
+      label: "New chat",
+    },
+  },
+  {
+    id: "chat-new-non-mac",
+    action: "chat.new",
+    combo: "",
+    when: { mac: false, commandCenter: false, terminal: false },
+    help: {
+      id: "new-chat",
+      section: "workspaces",
+      label: "New chat",
     },
   },
 

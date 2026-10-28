@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague or another agent draws in its own tint with a name chip (groupon/message-author.tsx). A tool call follows the Describe tool calls setting, its name set apart from its title by weight; a question call shows its answered form in the history, open until folded (groupon/answered-questions.tsx).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague or another agent draws in its own tint with a name chip (groupon/message-author.tsx). A tool call follows the Describe tool calls setting, its name set apart from its title by weight; a question call shows its answered form in the history, open until folded, and nothing while it waits (groupon/answered-questions.tsx).
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
 import { AssistantForkMenu, type AssistantForkTarget } from "@/components/assistant-fork-menu";
@@ -2410,6 +2410,10 @@ export const ToolCall = memo(function ToolCall({
     presentation.isLoadingDetails,
     maxDetailHeight,
   ]);
+
+  // Groupon Desk: a question still waiting is the live form under the chat; the history shows it
+  // once answered, so the questions never appear twice.
+  if (isQuestion && (status === "running" || status === "executing")) return null;
 
   if (presentation.isPlan && effectiveDetail?.type === "plan") {
     return (

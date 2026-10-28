@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activeMonitorsOf,
+  aliveOnly,
   evalledCommand,
   monitorGroupsOf,
   stopAgentMonitor,
@@ -65,6 +66,7 @@ describe("an agent's running Monitor watches", () => {
 
     expect(activeMonitorsOf(rows, NOW, SINCE)).toEqual([
       {
+        kind: "monitor",
         taskId: "a1",
         description: "build log",
         command: "",
@@ -136,6 +138,7 @@ describe("stopping a watch from the window", () => {
     { pid: 220, ppid: 200, pgid: 200, command: shell(COMMAND) },
   ];
   const monitor: AgentMonitor = {
+    kind: "monitor",
     taskId: "b1",
     description: "build errors",
     command: COMMAND,
@@ -190,5 +193,73 @@ describe("stopping a watch from the window", () => {
     );
 
     expect(answer).toEqual({ stopped: false });
+  });
+});
+
+describe("an agent's background commands", () => {
+  const bash = (taskId: string, description: string, command: string, at: string) => ({
+    timestamp: at,
+    item: {
+      type: "tool_call",
+      name: "Bash",
+      status: "completed",
+      detail: {
+        type: "shell",
+        command,
+        description,
+        output: `Command running in background with ID: ${taskId}. Output is being written to: /tmp/x`,
+      },
+    },
+  });
+  const notice = (label: string, at: string) => ({
+    timestamp: at,
+    item: {
+      type: "tool_call",
+      name: "task_notification",
+      status: "completed",
+      detail: { type: "plain_text", label, text: label },
+    },
+  });
+
+  it("lists a command run in the background until a notice of its end, which may name only its description", () => {
+    const rows = [
+      bash("c1", "Build Desk", "pnpm desk:build", "2026-10-28T00:01:00Z"),
+      bash("c2", "Run tests", "pnpm test", "2026-10-28T00:02:00Z"),
+      // A shell command that ran in the foreground is no task.
+      {
+        timestamp: "2026-10-28T00:03:00Z",
+        item: {
+          type: "tool_call",
+          name: "Bash",
+          status: "completed",
+          detail: { type: "shell", command: "ls", output: "a b" },
+        },
+      },
+      notice('Background command "Build Desk" completed (exit code 0)', "2026-10-28T00:05:00Z"),
+    ];
+
+    expect(activeMonitorsOf(rows, NOW, SINCE).map((m) => [m.kind, m.taskId, m.expiresAt])).toEqual([
+      ["command", "c2", null],
+    ]);
+  });
+
+  it("keeps only the tasks whose process still runs under the agent's Claude Code process", () => {
+    const shell = (command: string) =>
+      `/bin/zsh -c source snap.sh && eval '${command}' < /dev/null && pwd -P >| /tmp/claude-1-cwd`;
+    const processes: ProcessRow[] = [
+      { pid: 200, ppid: 100, pgid: 100, command: "/x/claude" },
+      { pid: 210, ppid: 200, pgid: 210, command: shell("pnpm test") },
+    ];
+    const tasks = activeMonitorsOf(
+      [
+        bash("c2", "Run tests", "pnpm test", "2026-10-28T00:02:00Z"),
+        bash("c3", "Gone", "sleep 1", "2026-10-28T00:02:00Z"),
+      ],
+      NOW,
+      SINCE,
+    );
+
+    expect(aliveOnly(tasks, processes, new Set([200])).map((m) => m.taskId)).toEqual(["c2"]);
+    expect(aliveOnly(tasks, processes, new Set())).toEqual([]);
   });
 });

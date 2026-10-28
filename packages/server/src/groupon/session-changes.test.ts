@@ -1,15 +1,29 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): tests for an agent session's own changes, on real git repositories.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { getPathsDiffSince, resolveHeadAt } from "../utils/checkout-git.js";
+import {
+  getPathsDiffSince,
+  listFilesCommittedSince,
+  listUncommittedFiles,
+  resolveHeadAt,
+} from "../utils/checkout-git.js";
 import {
   readSessionChanges,
   sessionEditsOf,
   sessionRootHolding,
+  shellEditsOf,
   type SessionChangesDeps,
 } from "./session-changes.js";
 
@@ -152,5 +166,40 @@ describe("an agent session's own changes", () => {
     expect(inside).toBe(edited.root);
     expect(elsewhere).toBeNull();
     expect(climbing).toBeNull();
+  });
+});
+
+describe("changes a session made from a shell", () => {
+  test("counts its commits and the uncommitted files changed since it started, not older ones", async () => {
+    const { root } = repo("paseo");
+    // Untracked before the session started: not the session's.
+    writeFileSync(join(root, "old-notes.md"), "notes\n");
+    utimesSync(
+      join(root, "old-notes.md"),
+      new Date("2026-01-01T10:30:00Z"),
+      new Date("2026-01-01T10:30:00Z"),
+    );
+    // The session commits from a shell at 12:00, then edits b.ts and leaves it uncommitted.
+    writeFileSync(join(root, "a.ts"), "two\n");
+    git(root, ["commit", "-q", "-am", "by the session"], "2026-01-01T12:00:00Z");
+    writeFileSync(join(root, "b.ts"), "new\n");
+
+    const edits = await shellEditsOf(
+      { edits: [], startedIn: [{ dir: root, at: new Date("2026-01-01T11:00:00Z") }] },
+      {
+        worktreeRootOf: deps.worktreeRootOf,
+        committedSince: listFilesCommittedSince,
+        uncommitted: listUncommittedFiles,
+        modifiedAt: async (path) => statSync(path).mtime,
+      },
+    );
+
+    expect(edits.map((found) => found.path.slice(root.length + 1)).sort()).toEqual([
+      "a.ts",
+      "b.ts",
+    ]);
+    expect(new Set(edits.map((found) => found.at.toISOString()))).toEqual(
+      new Set(["2026-01-01T11:00:00.000Z"]),
+    );
   });
 });

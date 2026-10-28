@@ -1,10 +1,11 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width. In Live what runs now sits in a slot above the running turn's footer, drawn as the chat draws it, never a row, so the chat does not jump.
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { StreamWidthProvider, useStreamRowWidthStyle } from "@/groupon/stream-width";
 import { StreamWidthHandles } from "@/groupon/stream-width-handles";
 import { useStreamWidth } from "@/groupon/use-stream-width";
 import { usePausedTurnStart } from "@/groupon/paused-turn-start";
+import { liveItemOf } from "./display-mode";
 import React, {
   forwardRef,
   memo,
@@ -752,6 +753,22 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       [autoExpandReasoning, setInlineDetailsExpanded],
     );
 
+    // Groupon Desk: Live's slot draws a streaming thought as the chat does, folded.
+    const renderLiveThought = useCallback(
+      (item: Extract<StreamItem, { kind: "thought" }>) => (
+        <ThoughtSlot
+          itemId={item.id}
+          onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
+          text={item.text}
+          status={item.status}
+          seconds={thoughtSeconds(item)}
+          isLastInSequence
+          defaultExpanded={false}
+        />
+      ),
+      [setInlineDetailsExpanded],
+    );
+
     const renderSingleToolCallItem = useCallback(
       (
         item: Extract<StreamItem, { kind: "tool_call" }>,
@@ -945,11 +962,20 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       baseRenderModel.turnTiming.runningStartedAt,
       pendingPermissionItems.length > 0,
     );
+    const liveActivity = useLiveSlot({
+      isWorking,
+      displayMode,
+      tail: effectiveStreamItems,
+      head: effectiveStreamHead,
+      renderToolCall: renderSingleToolCallItem,
+      renderThought: renderLiveThought,
+    });
     const turnFooterNode = useMemo(
       () =>
         isWorking || bottomTurnFooterHost ? (
           <TurnFooter
             isRunning={isWorking}
+            activity={liveActivity}
             inFlightTurnStartedAt={footerTurnStartedAt}
             host={bottomTurnFooterHost}
             strategy={streamRenderStrategy}
@@ -964,6 +990,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         readOnly,
         isWorking,
         footerTurnStartedAt,
+        liveActivity,
         bottomTurnFooterHost,
         streamRenderStrategy,
         supportsAgentForkContextCursor,
@@ -1322,6 +1349,38 @@ interface ThoughtSlotProps {
 }
 
 /** Groupon Desk: the agent works while its turn is active and nothing waits on the person. */
+/**
+ * Groupon Desk: in Live, the slot above the running turn's footer that holds what runs now
+ * (`liveItemOf`), drawn as the chat draws it: what runs is never a row there, and the slot keeps
+ * its height between calls, so the chat does not jump.
+ */
+function useLiveSlot(input: {
+  isWorking: boolean;
+  displayMode: string;
+  tail: readonly StreamItem[];
+  head: readonly StreamItem[] | null | undefined;
+  renderToolCall: (item: Extract<StreamItem, { kind: "tool_call" }>, isLast: boolean) => ReactNode;
+  renderThought: (item: Extract<StreamItem, { kind: "thought" }>) => ReactNode;
+}): ReactNode {
+  const { tail, head, renderToolCall, renderThought } = input;
+  const enabled = input.isWorking && input.displayMode === "fluent";
+  const item = useMemo(
+    () => (enabled ? (liveItemOf(head ?? []) ?? liveItemOf(tail)) : null),
+    [enabled, head, tail],
+  );
+  return useMemo(() => {
+    if (!enabled) return null;
+    let content: ReactNode = null;
+    if (item?.kind === "tool_call") content = renderToolCall(item, true);
+    if (item?.kind === "thought") content = renderThought(item);
+    return (
+      <View style={stylesheet.liveSlot} testID="turn-live-slot">
+        {content}
+      </View>
+    );
+  }, [enabled, item, renderThought, renderToolCall]);
+}
+
 function isAgentWorking(isTurnActive: boolean, waitingOnPerson: number): boolean {
   return isTurnActive && waitingOnPerson === 0;
 }
@@ -1697,6 +1756,11 @@ const stylesheet = StyleSheet.create((theme) => ({
   },
   list: {
     flex: 1,
+  },
+  // Groupon Desk: Live's slot of what runs now keeps one collapsed row's height between calls.
+  liveSlot: {
+    minHeight: 40,
+    justifyContent: "center",
   },
   streamItemWrapper: {
     width: "100%",

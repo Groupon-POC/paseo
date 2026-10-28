@@ -36,6 +36,15 @@ describe("a question call's answers", () => {
     expect(readQuestionAnswers(null)).toEqual({});
   });
 
+  it("reads the answers from a history the daemon read back, wrapped once more", () => {
+    expect(
+      readQuestionAnswers({
+        output:
+          'Your questions have been answered: "Commit now?"="Yes, to the current branches". You can now continue.',
+      }),
+    ).toEqual({ "Commit now?": "Yes, to the current branches" });
+  });
+
   it("marks the picked option, keeps an answer in the person's own words, and leaves an unanswered question empty", () => {
     const rows = answeredQuestions(
       [

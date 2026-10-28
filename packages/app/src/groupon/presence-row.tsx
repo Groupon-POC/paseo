@@ -127,7 +127,7 @@ export const PresenceRow = memo(function PresenceRow({
   if (view.kind === "share") {
     if (!canShare) return null;
     return (
-      <View style={composerPillStyles.body} testID="groupon-presence-share">
+      <View style={[composerPillStyles.body, styles.apart]} testID="groupon-presence-share">
         <Tooltip delayDuration={250} enabledOnDesktop enabledOnMobile={false}>
           <TooltipTrigger
             onPress={openShare}
@@ -147,7 +147,7 @@ export const PresenceRow = memo(function PresenceRow({
   }
   return (
     <View
-      style={[composerPillStyles.body, styles.row]}
+      style={[composerPillStyles.body, styles.row, styles.apart]}
       accessibilityLabel={view.label}
       testID="groupon-presence-row"
     >
@@ -185,6 +185,8 @@ const CHIP_SIZE = 22;
 
 const styles = StyleSheet.create((theme) => ({
   row: { gap: theme.spacing[1], paddingHorizontal: theme.spacing[2] },
+  // Share and the people in the room stand apart from the agent's own pills after them.
+  apart: { marginRight: theme.spacing[2] },
   shareTrigger: { flexDirection: "row", alignItems: "center", gap: theme.spacing[1] },
   chip: {
     width: CHIP_SIZE,

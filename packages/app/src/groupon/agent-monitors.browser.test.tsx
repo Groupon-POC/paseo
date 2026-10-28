@@ -13,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentMonitor } from "./agent-monitors-model";
 
 const invokePluginRpc = vi.fn(async () => ({ stopped: true }));
+// The blob's colors come from the theme, which the browser project's stub does not hand it.
+vi.mock("./whimsy-loader", () => ({ WhimsyLoader: () => null }));
 vi.mock("@/runtime/host-runtime", () => ({
   useHostRuntimeClient: () => ({ invokePluginRpc }),
   useHostRuntimeIsConnected: () => true,
@@ -30,6 +32,7 @@ const { AgentMonitorsPill } = await import("./agent-monitors");
 const in20Minutes = new Date(Date.now() + 20 * 60_000 - 1000).toISOString();
 const MONITORS: AgentMonitor[] = [
   {
+    kind: "monitor",
     taskId: "b1",
     description: "desk build: failures and finish only",
     command: 'tail -n 0 -F /tmp/desk-build.log | grep --line-buffered "BUILD FAILED"',
@@ -37,6 +40,7 @@ const MONITORS: AgentMonitor[] = [
     expiresAt: in20Minutes,
   },
   {
+    kind: "monitor",
     taskId: "b2",
     description: "deploy events",
     command: "node watch-deploy.js",

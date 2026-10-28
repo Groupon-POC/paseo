@@ -209,6 +209,8 @@ import {
   getPathsDiffSince,
   getWorktreeRoot,
   renameCurrentBranch as renameCurrentBranchDefault,
+  listFilesCommittedSince,
+  listUncommittedFiles,
   resolveHeadAt,
 } from "../utils/checkout-git.js";
 import { CHAT_RELOCATE_RPC, scheduleChatRelocation } from "../groupon/chat-relocation.js";
@@ -217,12 +219,15 @@ import {
   SESSION_CHANGES_RPC,
   sessionEditsOf,
   sessionRootHolding,
+  shellEditsOf,
   type SessionEdit,
 } from "../groupon/session-changes.js";
 import {
   AGENT_MONITOR_STOP_RPC,
   AGENT_MONITORS_RPC,
   activeMonitorsOf,
+  agentProcessesOf,
+  aliveOnly,
   nodeMonitorStopDeps,
   stopAgentMonitor,
 } from "../groupon/agent-monitors.js";
@@ -2726,18 +2731,23 @@ export class Session {
   }
 
   /**
-   * The Monitor watches an agent has running; none for an agent this daemon has not loaded. The
-   * watches live in the agent's Claude Code process, a child of this daemon, so a watch started
-   * before this daemon process did is gone.
+   * What an agent has running in the background (Monitor watches, background commands); none for
+   * an agent this daemon has not loaded. They live in the agent's Claude Code process, a child of
+   * this daemon: one started before this daemon process did is gone, and one whose process ended
+   * is gone too.
    */
   private async readGrouponAgentMonitors(agentId: string) {
     if (!this.agentManager.getAgent(agentId)) return [];
     const daemonStartedAt = new Date(Date.now() - process.uptime() * 1000);
-    return activeMonitorsOf(
+    const candidates = activeMonitorsOf(
       await this.agentManager.getTimelineRows(agentId),
       new Date(),
       daemonStartedAt,
     );
+    if (candidates.length === 0) return candidates;
+    // Only what still runs: a notice of a task's end does not always name it.
+    const { processes, agentPids } = await agentProcessesOf(agentId, nodeMonitorStopDeps());
+    return aliveOnly(candidates, processes, agentPids);
   }
 
   /** Stops one of an agent's running Monitor watches, as the person asked from the window. */
@@ -2793,7 +2803,22 @@ export class Session {
   /** What the workspace's sessions changed, per repository (`session-changes.ts`). */
   private async readGrouponSessionChanges(workspaceId: string) {
     const edits = await this.grouponSessionEdits(workspaceId);
-    return readSessionChanges(edits, {
+    // Groupon Desk: what the sessions changed from a shell too (scripts, `git commit`), in the
+    // repositories they edited and the folders they run in.
+    const startedIn = (await this.agentStorage.listByWorkspace(workspaceId))
+      .filter((record) => this.agentManager.getAgent(record.id))
+      .map((record) => ({ dir: record.cwd, at: new Date(record.createdAt) }))
+      .filter((start) => !Number.isNaN(start.at.getTime()));
+    const shellEdits = await shellEditsOf(
+      { edits, startedIn },
+      {
+        worktreeRootOf: (dir) => getWorktreeRoot(dir),
+        committedSince: listFilesCommittedSince,
+        uncommitted: listUncommittedFiles,
+        modifiedAt: async (path) => (await stat(path).catch(() => null))?.mtime ?? null,
+      },
+    );
+    return readSessionChanges([...edits, ...shellEdits], {
       worktreeRootOf: (dir) => getWorktreeRoot(dir),
       nameOf: async (root) => basename(await getMainRepoRoot(root).catch(() => root)),
       branchOf: (root) => getCurrentBranch(root),

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a running turn shows TARS's blob and typed word (`groupon/whimsy-loader`). While it runs the time leads and no fork is offered; its row takes the agent output's width (groupon/stream-width.ts).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a running turn shows TARS's blob and typed word (`groupon/whimsy-loader`). While it runs the time leads and no fork is offered; its row takes the agent output's width (groupon/stream-width.ts). In Live it carries the slot of what runs now, above its time and blob.
 import React, { memo, useCallback, useMemo, type ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -45,6 +45,7 @@ export type InFlightTurnForkHandler = (target: AssistantForkTarget) => Promise<v
 
 export const TurnFooter = memo(function TurnFooter({
   isRunning,
+  activity = null,
   inFlightTurnStartedAt,
   host,
   strategy,
@@ -53,6 +54,8 @@ export const TurnFooter = memo(function TurnFooter({
   onForkInFlightTurn,
 }: {
   isRunning: boolean;
+  /** Groupon Desk: Live's slot of what the agent does now, above the time and the blob. */
+  activity?: ReactNode;
   inFlightTurnStartedAt: Date | null;
   host: TurnFooterHost | null;
   strategy: TurnContentStrategy;
@@ -64,6 +67,7 @@ export const TurnFooter = memo(function TurnFooter({
     return (
       <TurnFooterRow>
         <RunningTurnFooter
+          activity={activity}
           inFlightTurnStartedAt={inFlightTurnStartedAt}
           onForkInFlightTurn={onForkInFlightTurn}
         />
@@ -144,18 +148,24 @@ const WorkingIndicator = memo(function WorkingIndicator({
 
 function RunningTurnFooter({
   inFlightTurnStartedAt,
+  activity,
   onForkInFlightTurn,
 }: {
   inFlightTurnStartedAt: Date | null;
+  activity: ReactNode;
   onForkInFlightTurn?: InFlightTurnForkHandler;
 }) {
+  // Groupon Desk: Live's slot has a line of its own above the time and the blob.
   return (
-    <View style={stylesheet.turnFooterSlot} testID="turn-working-indicator">
-      <WorkingIndicator
-        inFlightTurnStartedAt={inFlightTurnStartedAt}
-        onForkInFlightTurn={onForkInFlightTurn}
-      />
-    </View>
+    <>
+      {activity}
+      <View style={stylesheet.turnFooterSlot} testID="turn-working-indicator">
+        <WorkingIndicator
+          inFlightTurnStartedAt={inFlightTurnStartedAt}
+          onForkInFlightTurn={onForkInFlightTurn}
+        />
+      </View>
+    </>
   );
 }
 

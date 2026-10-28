@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { StreamItem } from "@/types/stream";
-import { filterForDisplayMode } from "./display-mode";
+import { filterForDisplayMode, liveItemOf } from "./display-mode";
 
 const at = new Date("2026-10-27T12:00:00Z");
 
@@ -36,23 +36,37 @@ const ids = (items: StreamItem[]) => items.map((item) => item.id);
 
 describe("chat display modes", () => {
   it("All shows every row", () => {
-    expect(filterForDisplayMode(STREAM, "all", true)).toBe(STREAM);
+    expect(filterForDisplayMode(STREAM, "all")).toBe(STREAM);
   });
 
-  it("Fluent shows the running call, the live thought and the failed calls during a turn", () => {
-    expect(ids(filterForDisplayMode(STREAM, "fluent", true))).toEqual([
-      "m1",
-      "bad",
-      "live",
-      "t-live",
-    ]);
+  it("Live never adds a row for what runs now, so the list does not jump; failed calls stay", () => {
+    expect(ids(filterForDisplayMode(STREAM, "fluent"))).toEqual(["m1", "bad"]);
   });
 
-  it("Fluent keeps only the failed calls once the turn is over", () => {
-    expect(ids(filterForDisplayMode(STREAM, "fluent", false))).toEqual(["m1", "bad"]);
+  it("Live keeps a question the person answered", () => {
+    const answered = {
+      kind: "tool_call",
+      id: "q",
+      timestamp: at,
+      payload: { source: "agent", data: { name: "AskUserQuestion", status: "completed" } },
+    } as unknown as StreamItem;
+
+    expect(ids(filterForDisplayMode([message("m1"), answered], "fluent"))).toEqual(["m1", "q"]);
+    expect(ids(filterForDisplayMode([message("m1"), answered], "output"))).toEqual(["m1"]);
   });
 
   it("Output only shows the messages", () => {
-    expect(ids(filterForDisplayMode(STREAM, "output", true))).toEqual(["m1"]);
+    expect(ids(filterForDisplayMode(STREAM, "output"))).toEqual(["m1"]);
+  });
+});
+
+describe("Live's slot of what runs now", () => {
+  it("holds the latest running call, else a streaming thought, else nothing", () => {
+    const live = tool("live", "running");
+    const thinking = thought("t", "loading");
+
+    expect(liveItemOf([message("m1"), live])).toBe(live);
+    expect(liveItemOf([live, thinking])).toBe(thinking);
+    expect(liveItemOf([message("m1"), tool("ok", "completed")])).toBeNull();
   });
 });

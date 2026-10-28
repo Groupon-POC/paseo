@@ -95,7 +95,7 @@ export function createStreamPresentation() {
       filteredMode !== displayMode ||
       filteredTurnActive !== input.isTurnActive
     ) {
-      filteredTail = filterForDisplayMode(projection.tail, displayMode, input.isTurnActive);
+      filteredTail = filterForDisplayMode(projection.tail, displayMode);
       filteredSource = projection.tail;
       filteredMode = displayMode;
       filteredTurnActive = input.isTurnActive;
@@ -103,7 +103,7 @@ export function createStreamPresentation() {
     return {
       ...projection,
       tail: filteredTail,
-      head: filterForDisplayMode(projection.head, displayMode, input.isTurnActive),
+      head: filterForDisplayMode(projection.head, displayMode),
     };
   };
 }

@@ -26,4 +26,14 @@ describe("the agent output's width", () => {
     expect(shareForStreamWidth(1200, 2000, 820)).toBe(0.6);
     expect(shareForStreamWidth(1900, 2000, 820)).toBe(0.8);
   });
+
+  it("keeps the text clear of the chat outline's rail, the content width included", () => {
+    // The rail shows from a 918 px pane; the output leaves 56 px on each side for it.
+    expect(resolveStreamMaxWidth({ share: null, paneWidth: 920, contentMaxWidth: 820 })).toBe(808);
+    expect(resolveStreamMaxWidth({ share: null, paneWidth: 900, contentMaxWidth: 820 })).toBe(820);
+    expect(resolveStreamMaxWidth({ share: null, paneWidth: 2000, contentMaxWidth: 1950 })).toBe(
+      1888,
+    );
+    expect(resolveStreamMaxWidth({ share: 0.79, paneWidth: 1000, contentMaxWidth: 700 })).toBe(784);
+  });
 });

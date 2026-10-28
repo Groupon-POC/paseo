@@ -489,6 +489,8 @@ export const GROUPON_PRESENCE = {
 
 export const GROUPON_TASKS = {
   title: "My tasks",
+  /** Beside the title while a fresh read runs behind the rows kept on this device. */
+  updating: "Updating",
   caption:
     "From Jira, read by the platform for you. Every change to the filters or columns is kept as your default.",
   assigneeMine: "Current user",
@@ -746,13 +748,16 @@ export const GROUPON_MONITORS = {
   /** The pill above the composer that counts the agent's Monitor watches. */
   one: "monitor",
   many: "monitors",
-  panelTitle: "Monitors",
+  oneCommand: "command",
+  manyCommands: "commands",
+  panelTitle: "Running in the background",
+  runningFor: (time: string) => `running for ${time}`,
   untilStopped: "until stopped",
   minutesLeft: (minutes: number) => `${minutes} min left`,
   secondsLeft: (seconds: number) => `${seconds} s left`,
   stop: (name: string) => `Stop ${name}`,
-  stopTooltip: "Stop this watch",
-  notRunning: "That watch is no longer running on its Mac.",
+  stopTooltip: "Stop it",
+  notRunning: "That is no longer running on its Mac.",
 } as const;
 
 export const GROUPON_STREAM_WIDTH = {

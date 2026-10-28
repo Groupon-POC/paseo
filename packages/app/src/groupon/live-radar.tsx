@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the Monitor pill's breathing radar on a phone, animated by Reanimated.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the background tasks pill's breathing radar on a phone, where TARS's blob does not draw.
 
 import { useEffect, type ReactElement } from "react";
 import { Radar } from "lucide-react-native";

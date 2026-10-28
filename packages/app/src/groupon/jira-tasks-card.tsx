@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): My tasks under the New workspace page's composer. Hidden when the person turns My tasks off in Settings.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): My tasks under the New workspace page's composer. Hidden when the person turns My tasks off in Settings. Its text is a size larger than Paseo's small text, readable on a large monitor. What it read last shows at once from this device while a fresh read runs behind a small spinner.
 
 /**
  * The person's Jira tasks under the composer: Jira's filter bar, the table with the person's
@@ -56,6 +56,7 @@ import {
   type PageTrail,
   type TasksState,
 } from "./jira-tasks-model";
+import { tasksPageKey, useJiraTasksCache } from "./jira-tasks-cache";
 import { GROUPON_TASKS } from "./strings";
 import { useGrouponPreferences } from "./preferences";
 
@@ -92,14 +93,30 @@ function useTasksState(client: PluginRpcClient, serverId: string) {
   const [state, setState] = useState<TasksState | null>(null);
   const [saveProblem, setSaveProblem] = useState<string | null>(null);
   const changed = useRef(false);
+  const fromCache = useRef(false);
   const loaded = viewQuery.data ?? null;
   const failed = viewQuery.error !== null;
+  // Groupon Desk: the view this device kept for the Mac shows at once, the fresh one replaces it.
+  const cachedView = useJiraTasksCache((cache) => cache.views[serverId] ?? null);
+  const rememberView = useJiraTasksCache((cache) => cache.rememberView);
 
   useEffect(() => {
-    if (state !== null) return;
-    if (loaded) setState(stateFromView(loaded.view));
-    else if (failed) setState(stateFromView(null));
-  }, [failed, loaded, state]);
+    if (loaded?.view) rememberView(serverId, loaded.view);
+  }, [loaded, rememberView, serverId]);
+
+  useEffect(() => {
+    if (state === null && !loaded && cachedView) {
+      fromCache.current = true;
+      setState(stateFromView(cachedView));
+      return;
+    }
+    // The person's own changes win over the view read back; the kept view only stood in.
+    const standIn = state !== null && fromCache.current && !changed.current;
+    if ((state === null || standIn) && loaded) {
+      fromCache.current = false;
+      setState(stateFromView(loaded.view));
+    } else if (state === null && failed) setState(stateFromView(null));
+  }, [cachedView, failed, loaded, state]);
 
   useEffect(() => {
     if (!state || !changed.current) return undefined;
@@ -130,9 +147,18 @@ function useTasksSearch(client: PluginRpcClient, serverId: string, state: TasksS
     enabled: state !== null,
     dataShape: "value",
     staleTimeMs: 30_000,
+    // Groupon Desk: kept in memory a while between visits to the page.
+    gcTime: 30 * 60 * 1000,
     retry: false,
   });
-  const page = search.data?.page ?? null;
+  const pageKey = tasksPageKey({ serverId, jql, columns, cursor });
+  const cachedPage = useJiraTasksCache((cache) => cache.pages[pageKey]?.page ?? null);
+  const rememberPage = useJiraTasksCache((cache) => cache.rememberPage);
+  const freshPage = search.data?.page ?? null;
+  useEffect(() => {
+    if (freshPage) rememberPage(pageKey, freshPage, Date.now());
+  }, [freshPage, pageKey, rememberPage]);
+  const page = freshPage ?? cachedPage;
   const problem = problemFrom(
     search.data?.problem ?? null,
     search.error ? pluginProblemText(search.error) : null,
@@ -143,7 +169,9 @@ function useTasksSearch(client: PluginRpcClient, serverId: string, state: TasksS
     trail,
     setTrail,
     problemText: problemText ?? null,
-    loading: state === null || search.isLoading,
+    loading: page === null && (state === null || search.isLoading),
+    /** A fresh read runs behind rows already shown (kept or earlier). */
+    refreshing: page !== null && search.isFetching,
   };
 }
 
@@ -171,7 +199,11 @@ function TasksCard({
   onTakeTicket: (ticket: string) => void;
 }) {
   const { state, update, saveProblem } = useTasksState(client, serverId);
-  const { page, trail, setTrail, problemText, loading } = useTasksSearch(client, serverId, state);
+  const { page, trail, setTrail, problemText, loading, refreshing } = useTasksSearch(
+    client,
+    serverId,
+    state,
+  );
   const { typeChoices, statusChoices } = usePillChoices(state, page);
   const [picking, setPicking] = useState(false);
 
@@ -197,7 +229,15 @@ function TasksCard({
   return (
     <View style={styles.card} testID="groupon-jira-tasks">
       <View style={styles.heading}>
-        <Text style={styles.title}>{GROUPON_TASKS.title}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{GROUPON_TASKS.title}</Text>
+          {refreshing ? (
+            <View style={styles.refreshing} testID="groupon-jira-tasks-refreshing">
+              <ThemedSpinner size={12} />
+              <Text style={styles.muted}>{GROUPON_TASKS.updating}</Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={styles.caption}>{GROUPON_TASKS.caption}</Text>
       </View>
       {state ? (
@@ -440,13 +480,23 @@ const styles = StyleSheet.create((theme) => ({
   heading: {
     gap: theme.spacing[1],
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[3],
+  },
+  refreshing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1],
+  },
   title: {
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.lg,
+    fontSize: theme.fontSize.xl,
   },
   caption: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
   },
   status: {
     flexDirection: "row",
@@ -455,11 +505,11 @@ const styles = StyleSheet.create((theme) => ({
   },
   muted: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
   },
   error: {
     color: theme.colors.destructive,
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
   },
   tableScroll: {
     flexGrow: 0,
@@ -502,20 +552,20 @@ const styles = StyleSheet.create((theme) => ({
   },
   headerText: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
   },
   cellText: {
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
+    fontSize: theme.fontSize.base,
   },
   link: {
     color: theme.colors.accent,
-    fontSize: theme.fontSize.sm,
+    fontSize: theme.fontSize.base,
     flexShrink: 1,
   },
   statusText: {
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
   },
   statusTodo: {
     alignSelf: "flex-start",

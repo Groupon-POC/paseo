@@ -11,6 +11,7 @@ import {
 
 const NOW = Date.parse("2026-10-28T00:10:00Z");
 const monitor = (overrides: Partial<AgentMonitor>): AgentMonitor => ({
+  kind: "monitor",
   taskId: "b1",
   description: "build log",
   command: "tail -f build.log",
@@ -54,13 +55,27 @@ describe("the agent's Monitor watches in the composer pill", () => {
     const running = runningMonitors(monitors, NOW);
 
     expect(running.map((m) => m.taskId)).toEqual(["b1", "b3"]);
-    expect(monitorsPillLabel(running.length)).toBe("2 monitors");
-    expect(monitorsPillLabel(1)).toBe("1 monitor");
+    expect(monitorsPillLabel(running)).toBe("2 monitors");
+    expect(monitorsPillLabel([monitor({})])).toBe("1 monitor");
+    expect(
+      monitorsPillLabel([monitor({}), monitor({ kind: "command" }), monitor({ kind: "command" })]),
+    ).toBe("1 monitor · 2 commands");
     expect(running.map((m) => monitorTimeLeft(m, NOW))).toEqual(["20 min left", "until stopped"]);
     // The last minute counts down in seconds, and the clock passing moves it.
     const ending = monitor({ expiresAt: "2026-10-28T00:10:45Z" });
     expect(monitorTimeLeft(ending, NOW)).toBe("45 s left");
     expect(monitorTimeLeft(ending, NOW + 30_000)).toBe("15 s left");
     expect(monitorTimeLeft(monitor({}), NOW + 9 * 60_000)).toBe("11 min left");
+  });
+
+  it("says how long a background command has been running", () => {
+    const command = monitor({
+      kind: "command",
+      startedAt: "2026-10-28T00:07:00Z",
+      expiresAt: null,
+    });
+
+    expect(monitorTimeLeft(command, NOW)).toBe("running for 3 min");
+    expect(monitorTimeLeft(command, Date.parse("2026-10-28T00:07:40Z"))).toBe("running for 40 s");
   });
 });

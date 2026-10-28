@@ -4438,3 +4438,42 @@ function getUnavailablePullRequestStatus(
   }
   return null;
 }
+
+/**
+ * Groupon Desk: the files the commits on HEAD since `since` changed, merges left out, relative to
+ * the worktree root (what a session committed from a shell, `groupon/session-changes.ts`).
+ */
+export async function listFilesCommittedSince(cwd: string, since: Date): Promise<string[]> {
+  const seconds = Math.floor(since.getTime() / 1000);
+  const log = await runGitCommand(
+    ["log", "--no-merges", `--since=@${seconds}`, "--name-only", "--format=", "HEAD"],
+    { cwd, envOverlay: READ_ONLY_GIT_ENV, acceptExitCodes: [0, 128] },
+  );
+  return [
+    ...new Set(
+      log.stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+/** Groupon Desk: the worktree's uncommitted files, tracked or not, relative to its root. */
+export async function listUncommittedFiles(cwd: string): Promise<string[]> {
+  const status = await runGitCommand(["status", "--porcelain=v1", "-z", "--untracked-files=all"], {
+    cwd,
+    envOverlay: READ_ONLY_GIT_ENV,
+    acceptExitCodes: [0, 128],
+  });
+  const entries = status.stdout.split("\0");
+  const files: string[] = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index] ?? "";
+    if (entry.length < 4) continue;
+    files.push(entry.slice(3));
+    // A rename or copy is followed by its old path.
+    if (entry[0] === "R" || entry[0] === "C") index += 1;
+  }
+  return files;
+}

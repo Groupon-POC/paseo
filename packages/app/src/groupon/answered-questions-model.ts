@@ -32,6 +32,8 @@ function textOf(output: unknown): string {
   if (Array.isArray(output)) return output.map(textOf).join("\n");
   if (isRecord(output) && typeof output.text === "string") return output.text;
   if (isRecord(output) && output.content !== undefined) return textOf(output.content);
+  // A history read back from the daemon wraps the result once more: { output: "…answered: …" }.
+  if (isRecord(output) && output.output !== undefined) return textOf(output.output);
   return "";
 }
 

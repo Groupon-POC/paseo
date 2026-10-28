@@ -10,6 +10,7 @@
  *
  * Constraints:
  * - Never narrower than the content width, never wider than the pane less a tenth on each side
+ * - Never under the chat outline's rail at the pane's left edge, the content width included
  * - Pixels move in steps, so a pane resized by a pixel does not re-lay out every row
  */
 
@@ -20,9 +21,30 @@ export const STREAM_SIDE_MARGIN_SHARE = 0.1;
 /** The output's width moves in these steps. */
 export const STREAM_WIDTH_STEP_PX = 16;
 
+/**
+ * The chat outline's rail (`agent-stream/chat-outline/rail.web.tsx`) shows at the pane's left edge
+ * once the pane is this wide; the output keeps clear of it.
+ */
+export const OUTLINE_RAIL_MIN_PANE = 918;
+/**
+ * Room kept on each side of the output while the rail shows: its 8 px inset and 36 px width, the
+ * list's and the row's own padding taken off, and 20 px between the rail and the text.
+ */
+const OUTLINE_RAIL_CLEARANCE = 56;
+
+/** The widest the output may be beside the chat outline's rail; no limit where the rail is hidden. */
+function outlineRailLimit(paneWidth: number): number {
+  return paneWidth >= OUTLINE_RAIL_MIN_PANE
+    ? paneWidth - 2 * OUTLINE_RAIL_CLEARANCE
+    : Number.POSITIVE_INFINITY;
+}
+
 /** The widest the output may be in a pane this wide. */
 export function streamWidthCeiling(paneWidth: number): number {
-  return Math.floor(paneWidth * (1 - 2 * STREAM_SIDE_MARGIN_SHARE));
+  return Math.min(
+    Math.floor(paneWidth * (1 - 2 * STREAM_SIDE_MARGIN_SHARE)),
+    outlineRailLimit(paneWidth),
+  );
 }
 
 /** Whether a pane is wide enough for the output to grow past the content width at all. */
@@ -48,10 +70,17 @@ export function resolveStreamMaxWidth(input: {
   paneWidth: number;
   contentMaxWidth: number;
 }): number {
-  if (input.share === null || input.paneWidth <= 0) return input.contentMaxWidth;
+  if (input.paneWidth <= 0) return input.contentMaxWidth;
+  // Even the content width gives way to the outline's rail: it never sits on the text.
+  if (input.share === null) {
+    return Math.min(input.contentMaxWidth, outlineRailLimit(input.paneWidth));
+  }
   const stepped =
     Math.round((input.share * input.paneWidth) / STREAM_WIDTH_STEP_PX) * STREAM_WIDTH_STEP_PX;
-  return clampStreamWidth(stepped, input.paneWidth, input.contentMaxWidth);
+  return Math.min(
+    clampStreamWidth(stepped, input.paneWidth, input.contentMaxWidth),
+    outlineRailLimit(input.paneWidth),
+  );
 }
 
 /** The share to keep for a width dragged to; null (the content width) when it is back there. */

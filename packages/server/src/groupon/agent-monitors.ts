@@ -1,11 +1,15 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the Monitor watches an agent has running, read from its timeline.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): what an agent has running in the background (Monitor watches and background commands), read from its timeline and checked against its processes.
 
 /**
  * Claude Code's Monitor tool starts a background watch that wakes the agent on each line of a
  * command's output. The window shows which watches an agent has running, beside Share above the
  * composer; this reads them from the agent's timeline: a completed Monitor call whose answer names
  * its task, not yet ended by a TaskStop of that task, a task notification carrying an end status,
- * its timeout, or the end of the daemon process the agent ran under.
+ * its timeout, or the end of the daemon process the agent ran under. A shell command the agent ran
+ * in the background (Bash with run_in_background) is read the same way: its answer names its task,
+ * and a notice of its end names it, or only its description. Each is then checked against the
+ * agent's processes (`aliveOnly`), so one whose process has ended leaves the list even when no
+ * notice said so.
  *
  * The person may stop one from the window (`stopAgentMonitor`): the watch is a shell Claude Code
  * started as a process group of its own under the agent's process, found by the agent's session id
@@ -34,6 +38,8 @@ const STOPPED_MONITORS = new Set<string>();
 const DEFAULT_MONITOR_TIMEOUT_MS = 300_000;
 
 export interface AgentMonitor {
+  /** A Monitor watch, or a shell command the agent runs in the background. */
+  kind: "monitor" | "command";
   taskId: string;
   description: string;
   /** The command it watches, as the agent gave it. */
@@ -69,12 +75,49 @@ function startedMonitor(
       ? input.timeout_ms
       : DEFAULT_MONITOR_TIMEOUT_MS;
   return {
+    kind: "monitor",
     taskId,
     description: typeof input.description === "string" ? input.description : "",
     command: typeof input.command === "string" ? input.command : "",
     startedAt: new Date(startedAt).toISOString(),
     expiresAt: input.persistent === true ? null : new Date(startedAt + timeout).toISOString(),
   };
+}
+
+/** A shell command the agent started in the background: Bash answering with its task id. */
+function startedBackgroundCommand(
+  call: { status: unknown; detail: Record<string, unknown> },
+  timestamp: string,
+): AgentMonitor | null {
+  if (call.status !== "completed") return null;
+  const taskId = /Command running in background with ID: ([\w-]+)/.exec(
+    JSON.stringify(call.detail.output ?? ""),
+  )?.[1];
+  const startedAt = Date.parse(timestamp);
+  if (!taskId || Number.isNaN(startedAt)) return null;
+  const input = isRecord(call.detail.input) ? call.detail.input : call.detail;
+  return {
+    kind: "command",
+    taskId,
+    description: typeof input.description === "string" ? input.description : "",
+    command: typeof input.command === "string" ? input.command : "",
+    startedAt: new Date(startedAt).toISOString(),
+    expiresAt: null,
+  };
+}
+
+/** A background command's end notice that names only its description: `Background command "…" completed`. */
+function endedCommandDescription(call: {
+  name: string;
+  detail: Record<string, unknown>;
+}): string | null {
+  if (call.name !== "task_notification") return null;
+  const label = typeof call.detail.label === "string" ? call.detail.label : "";
+  return (
+    /^Background command "(.*)" (?:completed|failed|was killed|was stopped|killed|stopped)/.exec(
+      label,
+    )?.[1] ?? null
+  );
 }
 
 /** The task a row ends: a TaskStop of it, or a notification of it that carries an end status. */
@@ -104,13 +147,15 @@ export function activeMonitorsOf(
   for (const row of rows) {
     const call = toolCall(row.item);
     if (!call) continue;
-    if (call.name === "Monitor") {
-      const monitor = startedMonitor(call, row.timestamp);
-      if (monitor) monitors.set(monitor.taskId, monitor);
+    const started = startedTask(call, row.timestamp);
+    if (started) {
+      monitors.set(started.taskId, started);
       continue;
     }
     const ended = endedTask(call);
     if (ended) monitors.delete(ended);
+    const endedDescription = endedCommandDescription(call);
+    if (endedDescription !== null) dropLatestCommand(monitors, endedDescription);
   }
   return [...monitors.values()].filter(
     (monitor) =>
@@ -118,6 +163,24 @@ export function activeMonitorsOf(
       Date.parse(monitor.startedAt) >= aliveSince.getTime() &&
       (monitor.expiresAt === null || Date.parse(monitor.expiresAt) > now.getTime()),
   );
+}
+
+/** A task a row starts: a Monitor watch, or a background shell command. */
+function startedTask(
+  call: { name: string; status: unknown; detail: Record<string, unknown> },
+  timestamp: string,
+): AgentMonitor | null {
+  if (call.name === "Monitor") return startedMonitor(call, timestamp);
+  if (call.name === "Bash") return startedBackgroundCommand(call, timestamp);
+  return null;
+}
+
+/** Ends the latest background command with that description: its notice named nothing else. */
+function dropLatestCommand(monitors: Map<string, AgentMonitor>, description: string): void {
+  const latest = [...monitors.values()].findLast(
+    (monitor) => monitor.kind === "command" && monitor.description === description,
+  );
+  if (latest) monitors.delete(latest.taskId);
 }
 
 export interface ProcessRow {
@@ -179,20 +242,45 @@ export async function stopAgentMonitor(
   input: { agentId: string; monitor: AgentMonitor },
   deps: MonitorStopDeps,
 ): Promise<{ stopped: boolean }> {
-  const processes = await deps.listProcesses();
-  const agentPids = new Set<number>();
-  for (const row of processes) {
-    if (row.ppid !== deps.daemonPid || !/claude/.test(row.command)) continue;
-    const environment = await deps.environmentOf(row.pid);
-    if (environment.includes(`GROUPON_DESK_SESSION_ID=${input.agentId}`)) agentPids.add(row.pid);
-  }
+  const { processes, agentPids } = await agentProcessesOf(input.agentId, deps);
   const groups = monitorGroupsOf(processes, agentPids, input.monitor.command);
   for (const group of groups) deps.killGroup(group);
   if (groups.length > 0) STOPPED_MONITORS.add(input.monitor.taskId);
   return { stopped: groups.length > 0 };
 }
 
+/** This Mac's processes, and which of them are the agent's Claude Code processes. */
+export async function agentProcessesOf(
+  agentId: string,
+  deps: Pick<MonitorStopDeps, "daemonPid" | "listProcesses" | "environmentOf">,
+): Promise<{ processes: ProcessRow[]; agentPids: Set<number> }> {
+  const processes = await deps.listProcesses();
+  const agentPids = new Set<number>();
+  for (const row of processes) {
+    if (row.ppid !== deps.daemonPid || !/claude/.test(row.command)) continue;
+    const environment = await deps.environmentOf(row.pid);
+    if (environment.includes(`GROUPON_DESK_SESSION_ID=${agentId}`)) agentPids.add(row.pid);
+  }
+  return { processes, agentPids };
+}
+
+/**
+ * The tasks whose process still runs under the agent's Claude Code process; none when that process
+ * is gone, for its tasks went with it.
+ */
+export function aliveOnly(
+  monitors: readonly AgentMonitor[],
+  processes: readonly ProcessRow[],
+  agentPids: ReadonlySet<number>,
+): AgentMonitor[] {
+  return monitors.filter(
+    (monitor) => monitorGroupsOf(processes, agentPids, monitor.command).length > 0,
+  );
+}
+
 const run = promisify(execFile);
+/** The environments of the agents' Claude Code processes, read once per process. */
+const ENVIRONMENTS = new Map<number, string>();
 
 /** This Mac's processes, the environment of one, and ending a group, for `stopAgentMonitor`. */
 export function nodeMonitorStopDeps(): MonitorStopDeps {
@@ -217,12 +305,17 @@ export function nodeMonitorStopDeps(): MonitorStopDeps {
       });
     },
     environmentOf: async (pid) => {
+      const known = ENVIRONMENTS.get(pid);
+      if (known !== undefined) return known;
       try {
-        if (process.platform === "linux") {
-          return (await readFile(`/proc/${pid}/environ`, "utf8")).replaceAll("\0", " ");
-        }
-        const { stdout } = await run("ps", ["-wwE", "-o", "command=", "-p", String(pid)]);
-        return stdout;
+        const environment =
+          process.platform === "linux"
+            ? (await readFile(`/proc/${pid}/environ`, "utf8")).replaceAll("\0", " ")
+            : (await run("ps", ["-wwE", "-o", "command=", "-p", String(pid)])).stdout;
+        // A Claude Code process lives as long as its agent: read its environment once.
+        if (ENVIRONMENTS.size > 256) ENVIRONMENTS.clear();
+        ENVIRONMENTS.set(pid, environment);
+        return environment;
       } catch {
         // A process that ended, or one this user may not read, is not the agent's.
         return "";

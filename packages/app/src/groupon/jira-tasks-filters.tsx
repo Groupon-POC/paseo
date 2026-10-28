@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): My tasks' filter bar, modelled on Jira's.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): My tasks' filter bar, modelled on Jira's. Its text is a size larger, as the table's.
 
 /**
  * Jira's filter bar over My tasks: Assignee = Current user, Type, Status, Created in the last N
@@ -299,12 +299,12 @@ const styles = StyleSheet.create((theme) => ({
   },
   pillText: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
     maxWidth: 260,
   },
   pillTextActive: {
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
     maxWidth: 260,
   },
   more: {
@@ -316,6 +316,6 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[1],
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
   },
 }));

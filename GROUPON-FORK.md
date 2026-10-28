@@ -735,16 +735,20 @@ under it (its own surface, a line above it, the name heavier than its folder,
 whole file in a tab (`WebFileOpenButton`, `git/diff-document/surface.web.tsx`). The browser test is
 `packages/app/src/git/diff-document/surface.web.browser.test.tsx`.
 
-## The agent's Monitor watches, beside Share
+## What the agent runs in the background, beside Share
 
 Claude Code's Monitor tool starts a background watch that wakes the agent on each line of a
 command's output; nothing in Paseo showed one was running. A pill above the composer, on the row
-with Share and the subagents, counts them ("2 monitors") behind a breathing radar; pressing it
+with Share and the subagents, counts them ("2 monitors") behind TARS's blob, without its word; pressing it
 opens the track panel the subagents use, each watch with its command and the time it has left, and
 a button that stops it (`packages/app/src/groupon/agent-monitors.tsx`). Stopping asks the daemon
 (`groupon-desk.agent.monitor.stop`), which finds the agent's Claude Code process by its
 `GROUPON_DESK_SESSION_ID` and ends the process group whose shell evaluates exactly the watch's
-command; Claude Code then tells the agent the watch ended. The daemon reads them from the agent's
+command; Claude Code then tells the agent the watch ended. Shell commands the agent runs in the
+background (Bash with run_in_background) show in the same pill and panel ("1 monitor · 2
+commands"), each with how long it has been running, so work that goes on after the turn's
+"Worked for" is visible; the daemon keeps only tasks whose process group still runs under the
+agent's Claude Code process. The daemon reads them from the agent's
 whole timeline (`groupon-desk.agent.monitors`, `packages/server/src/groupon/agent-monitors.ts`): a
 completed Monitor call that names its task, until a TaskStop of it, a notification of it with an
 end status, its timeout, or a daemon restart (the watch lived in the agent's Claude Code process,
@@ -783,3 +787,12 @@ review was made on (`groupon-session` is the session's), scrolled to the line an
 marked (`use-open-review-comment.ts`, the diff's `focusLine`, `git/diff-document/surface.web.tsx`);
 a line the old diff does not show yet is looked for in the next few diffs. The sent comments
 themselves leave the diff once sent, as in Paseo; the card keeps them.
+
+## Live never jumps
+
+In the Live display mode a running tool call and a streaming thought used to be rows that left the
+chat when they finished, so the whole list jumped each time. Live now keeps only the messages and the
+failed calls (and the questions the person answered) as rows; what runs now sits in a slot above
+the running turn's footer, drawn as the chat draws it (the same tool row, folded thinking), and
+the slot keeps one row's height between calls (`packages/app/src/agent-stream/display-mode.ts`,
+`liveItemOf`).

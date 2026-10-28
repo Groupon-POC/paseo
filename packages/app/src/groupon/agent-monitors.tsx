@@ -1,8 +1,8 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): a pill above the composer, a little apart from Share, while the agent has Monitor watches running; its radar breathes, and its panel lists each watch with the time it has left and stops it.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): a pill above the composer, beside Share, while the agent has something running in the background (Monitor watches, background commands); TARS's blob moves, and its panel lists each with its time and stops it.
 
 import { memo, useCallback, useEffect, useMemo, type ReactElement } from "react";
 import { Text, View } from "react-native";
-import { CircleStop } from "lucide-react-native";
+import { X } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ComposerTrackPill, ComposerTrackRow } from "@/composer/tracks";
@@ -23,6 +23,7 @@ import {
   stopAgentMonitor,
 } from "./agent-monitors-model";
 import { LiveRadar } from "./live-radar";
+import { WhimsyLoader } from "./whimsy-loader";
 import { useTickingNow } from "./use-ticking-now";
 import { GROUPON_MONITORS } from "./strings";
 
@@ -30,7 +31,7 @@ import { GROUPON_MONITORS } from "./strings";
 const MONITORS_REFRESH_MS = 15_000;
 const NO_MONITORS: AgentMonitor[] = [];
 /** The tool calls that start or end a watch; a new one reads the watches again at once. */
-const MONITOR_TOOLS = new Set(["Monitor", "TaskStop", "task_notification"]);
+const MONITOR_TOOLS = new Set(["Monitor", "Bash", "TaskStop", "task_notification"]);
 
 function monitorsQueryKey(serverId: string, agentId: string) {
   return ["groupon-agent-monitors", serverId, agentId] as const;
@@ -109,25 +110,24 @@ export const AgentMonitorsPill = memo(function AgentMonitorsPill({
   monitors: readonly AgentMonitor[];
 }): ReactElement | null {
   const stop = useStopMonitor(serverId, agentId);
-  const label = monitorsPillLabel(monitors.length);
+  const label = monitorsPillLabel(monitors);
   const segments = useMemo(() => [{ bucket: null, text: label }], [label]);
   if (monitors.length === 0) return null;
   return (
-    <View style={styles.pill}>
-      <ComposerTrackPill
-        leading={LIVE_RADAR}
-        segments={segments}
-        panelTitle={GROUPON_MONITORS.panelTitle}
-        accessibilityLabel={label}
-        testID="groupon-agent-monitors"
-      >
-        <MonitorsPanel monitors={monitors} onStop={stop} />
-      </ComposerTrackPill>
-    </View>
+    <ComposerTrackPill
+      leading={LIVE_RADAR}
+      segments={segments}
+      panelTitle={GROUPON_MONITORS.panelTitle}
+      accessibilityLabel={label}
+      testID="groupon-agent-monitors"
+    >
+      <MonitorsPanel monitors={monitors} onStop={stop} />
+    </ComposerTrackPill>
   );
 });
 
-const LIVE_RADAR = <LiveRadar />;
+// TARS's blob, without its word, while something runs; a phone keeps the breathing radar.
+const LIVE_RADAR = <WhimsyLoader fallback={<LiveRadar />} size={16} wordless />;
 
 /** The panel's rows; mounted only while it is open, so its clock ticks only then. */
 function MonitorsPanel({
@@ -182,18 +182,17 @@ function MonitorRow({
         onPress={stop}
         testID={`groupon-agent-monitor-stop-${monitor.taskId}`}
       >
-        <ThemedStop size={paneContentToolbarIconSize(isCompact)} uniProps={mutedColor} />
+        <ThemedStop size={paneContentToolbarIconSize(isCompact)} uniProps={stopColor} />
       </ToolbarButton>
     </ComposerTrackRow>
   );
 }
 
-const ThemedStop = withUnistyles(CircleStop);
-const mutedColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+// A red cross: stopping ends the agent's work, so it reads as the one destructive action here.
+const ThemedStop = withUnistyles(X);
+const stopColor = (theme: Theme) => ({ color: theme.colors.statusDanger });
 
 const styles = StyleSheet.create((theme) => ({
-  // Apart from Share and the people beside it: the watches are the agent's, not the room's.
-  pill: { marginLeft: theme.spacing[2] },
   rowText: { flexGrow: 1, flexShrink: 1, flexBasis: "auto", minWidth: 0, gap: 2 },
   rowTitle: { fontSize: theme.fontSize.base, color: theme.colors.foreground },
   rowCommand: {

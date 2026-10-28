@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): TARS's working loader, a morphing blob with a typed word.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): TARS's working loader, a morphing blob with a typed word, or the blob alone.
 import {
   useEffect,
   useId,
@@ -133,6 +133,8 @@ function useTypedWord(): { text: string; done: boolean } {
 
 interface BlobProps {
   size: number;
+  /** Only the blob, with no typed word (the background tasks' pill). */
+  wordless?: boolean;
   colors: [string, string, string];
   mutedColor: string;
   accentColor: string;
@@ -140,7 +142,13 @@ interface BlobProps {
 
 const WRAPPER_STYLE: CSSProperties = { display: "inline-flex", alignItems: "center", gap: 8 };
 
-function Blob({ size, colors, mutedColor, accentColor }: BlobProps): ReactElement {
+function Blob({
+  size,
+  colors,
+  mutedColor,
+  accentColor,
+  wordless = false,
+}: BlobProps): ReactElement {
   const id = useId().replace(/[^a-zA-Z0-9]/g, "");
   const [first, second, third] = colors;
   const { css, firstShape } = useMemo(() => {
@@ -186,8 +194,6 @@ function Blob({ size, colors, mutedColor, accentColor }: BlobProps): ReactElemen
       caret: { marginLeft: 2, color: accentColor },
     } satisfies Record<string, CSSProperties>;
   }, [accentColor, id, mutedColor]);
-  const typed = useTypedWord();
-
   return (
     <span style={WRAPPER_STYLE} data-testid="whimsy-loader">
       <style>{css}</style>
@@ -204,11 +210,25 @@ function Blob({ size, colors, mutedColor, accentColor }: BlobProps): ReactElemen
           <path d={firstShape} fill={first} style={styles.body} />
         </g>
       </svg>
-      <span style={styles.word}>
-        {typed.text}
-        {typed.done ? "…" : ""}
-        <span style={styles.caret}>▌</span>
-      </span>
+      {wordless ? null : <TypedWord wordStyle={styles.word} caretStyle={styles.caret} />}
+    </span>
+  );
+}
+
+/** The word TARS types beside the blob, erased and replaced in turn. */
+function TypedWord({
+  wordStyle,
+  caretStyle,
+}: {
+  wordStyle: CSSProperties;
+  caretStyle: CSSProperties;
+}): ReactElement {
+  const typed = useTypedWord();
+  return (
+    <span style={wordStyle}>
+      {typed.text}
+      {typed.done ? "…" : ""}
+      <span style={caretStyle}>▌</span>
     </span>
   );
 }
@@ -224,6 +244,13 @@ const themeColors = (theme: Theme) => ({
   accentColor: theme.colors.accent,
 });
 
-export function WhimsyLoader({ size = 20 }: { fallback?: ReactNode; size?: number }): ReactElement {
-  return <ThemedBlob size={size} uniProps={themeColors} />;
+export function WhimsyLoader({
+  size = 20,
+  wordless = false,
+}: {
+  fallback?: ReactNode;
+  size?: number;
+  wordless?: boolean;
+}): ReactElement {
+  return <ThemedBlob size={size} wordless={wordless} uniProps={themeColors} />;
 }

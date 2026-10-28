@@ -17,6 +17,8 @@ const AGENT_MONITORS_RPC = "groupon-desk.agent.monitors";
 const AGENT_MONITOR_STOP_RPC = "groupon-desk.agent.monitor.stop";
 
 export interface AgentMonitor {
+  /** A Monitor watch, or a shell command the agent runs in the background. */
+  kind: "monitor" | "command";
   taskId: string;
   description: string;
   /** The command it watches. */
@@ -34,6 +36,7 @@ function monitorOf(value: unknown): AgentMonitor | null {
     return null;
   }
   return {
+    kind: value.kind === "command" ? "command" : "monitor",
     taskId: value.taskId,
     description: typeof value.description === "string" ? value.description : "",
     command: typeof value.command === "string" ? value.command : "",
@@ -61,13 +64,33 @@ export function runningMonitors(monitors: readonly AgentMonitor[], now: number):
   );
 }
 
-/** The pill's words: "1 monitor", "3 monitors". */
-export function monitorsPillLabel(count: number): string {
-  return `${count} ${count === 1 ? GROUPON_MONITORS.one : GROUPON_MONITORS.many}`;
+const counted = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
+
+/** The pill's words: "1 monitor", "2 commands", "1 monitor · 2 commands". */
+export function monitorsPillLabel(monitors: readonly Pick<AgentMonitor, "kind">[]): string {
+  const watches = monitors.filter((monitor) => monitor.kind === "monitor").length;
+  const commands = monitors.length - watches;
+  const parts = [
+    watches > 0 ? counted(watches, GROUPON_MONITORS.one, GROUPON_MONITORS.many) : null,
+    commands > 0
+      ? counted(commands, GROUPON_MONITORS.oneCommand, GROUPON_MONITORS.manyCommands)
+      : null,
+  ];
+  return parts.filter((part): part is string => part !== null).join(" · ");
 }
 
-/** How long a watch has left at `now`: minutes, the last minute in seconds, or until stopped. */
+/**
+ * What the panel says of a task's time at `now`: a watch's time left (minutes, the last minute in
+ * seconds, or until stopped), a background command's time running so far.
+ */
 export function monitorTimeLeft(monitor: AgentMonitor, now: number): string {
+  if (monitor.kind === "command") {
+    const seconds = Math.max(0, Math.floor((now - Date.parse(monitor.startedAt)) / 1000));
+    return GROUPON_MONITORS.runningFor(
+      seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min`,
+    );
+  }
   if (monitor.expiresAt === null) return GROUPON_MONITORS.untilStopped;
   const seconds = Math.max(0, Math.ceil((Date.parse(monitor.expiresAt) - now) / 1000));
   if (seconds < 60) return GROUPON_MONITORS.secondsLeft(seconds);

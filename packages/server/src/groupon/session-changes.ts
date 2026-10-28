@@ -11,6 +11,10 @@
  * - `readSessionChanges`: those files grouped by repository, each with its baseline and its diff
  * - `sessionRootHolding`: which of those repositories holds a path, so the window may read it
  *
+ * A session that changes files from a shell (a script, `git commit`) shows them too
+ * (`shellEditsOf`): in each repository it edited or runs in, what its commits since it started
+ * there changed, and the uncommitted files that changed after that.
+ *
  * Constraints:
  * - A file outside any git repository has no diff and is left out
  * - Only completed edits count: a failed or cancelled Write changed nothing
@@ -77,6 +81,59 @@ export function sessionEditsOf(
     });
   }
   return edits;
+}
+
+export interface ShellChangeDeps {
+  worktreeRootOf(dir: string): Promise<string | null>;
+  /** Files the commits on HEAD since then changed, merges left out, relative to the root. */
+  committedSince(root: string, since: Date): Promise<string[]>;
+  /** The worktree's uncommitted files, relative to the root. */
+  uncommitted(root: string): Promise<string[]>;
+  /** When a file last changed; null when it is gone. */
+  modifiedAt(path: string): Promise<Date | null>;
+}
+
+/** The most uncommitted files looked at in one repository. */
+const UNCOMMITTED_LIMIT = 400;
+
+/**
+ * The files a session changed without Edit or Write (a script, `sed`, `git commit` from a shell),
+ * in the repositories it edited and the folders it runs in: what the commits on HEAD since it
+ * started there changed, and the uncommitted files that changed after that. Each counts from that
+ * start, as an Edit there would.
+ */
+export async function shellEditsOf(
+  input: { edits: readonly SessionEdit[]; startedIn: readonly { dir: string; at: Date }[] },
+  deps: ShellChangeDeps,
+): Promise<SessionEdit[]> {
+  const sinceByRoot = new Map<string, Date>();
+  const starts = [
+    ...input.edits.map((edit) => ({ dir: dirname(edit.path), at: edit.at })),
+    ...input.startedIn,
+  ];
+  for (const start of starts) {
+    const root = await deps.worktreeRootOf(start.dir).catch(() => null);
+    if (!root) continue;
+    const since = sinceByRoot.get(root);
+    if (!since || start.at < since) sinceByRoot.set(root, start.at);
+  }
+  const found = await Promise.all(
+    [...sinceByRoot.entries()].map(async ([root, since]) => {
+      const [committed, uncommitted] = await Promise.all([
+        deps.committedSince(root, since).catch(() => []),
+        deps.uncommitted(root).catch(() => []),
+      ]);
+      const changedSince = await Promise.all(
+        uncommitted.slice(0, UNCOMMITTED_LIMIT).map(async (file) => {
+          const at = await deps.modifiedAt(resolve(root, file)).catch(() => null);
+          return at && at >= since ? file : null;
+        }),
+      );
+      const files = new Set([...committed, ...changedSince.filter((file) => file !== null)]);
+      return [...files].map((file) => ({ path: resolve(root, file), at: since }));
+    }),
+  );
+  return found.flat();
 }
 
 /**

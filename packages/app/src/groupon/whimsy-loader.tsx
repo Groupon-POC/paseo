@@ -7,6 +7,7 @@ export function WhimsyLoader({
 }: {
   fallback: ReactElement;
   size?: number;
+  wordless?: boolean;
 }): ReactElement {
   return fallback;
 }

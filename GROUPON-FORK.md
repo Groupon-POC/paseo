@@ -876,3 +876,12 @@ reads. Session Committed is the sessions' files from their base to HEAD, Session
 same files from HEAD to the working tree (`groupon-desk.session.changes` takes `mode`;
 `sessionDiffRange` in `packages/server/src/groupon/session-changes.ts`; the menu in
 `packages/app/src/git/diff-pane.tsx`). A daemon without the mode answers All.
+
+## A hook's session title reaches the chat
+
+A title a `UserPromptSubmit` hook (`hookSpecificOutput.sessionTitle`) or `/rename` gives a running
+Claude session lands in its transcript as a `custom-title` record, which Paseo read only on import.
+At the end of each turn the daemon reads the transcript's last 512 KB, takes the last such title and,
+when it is new, makes it the chat's title and the title of a workspace holding only that chat; what
+it carried is kept in `<PASEO_HOME>/groupon/hook-titles.json`, so a restart never puts it back over
+the person's own rename (`packages/server/src/groupon/hook-title.ts`).

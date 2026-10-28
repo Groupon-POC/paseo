@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository. A title a hook or /rename gives a Claude session becomes its chat's at the end of a turn (`groupon/hook-title.ts`).
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory } from "./agent/directory.js";
@@ -218,6 +218,13 @@ import {
   relocationCandidatesOf,
   scheduleChatRelocation,
 } from "../groupon/chat-relocation.js";
+import {
+  configDirOf,
+  hookTitleLedger,
+  lastCustomTitleOf,
+  readTranscriptTail,
+} from "../groupon/hook-title.js";
+import { claudeTranscriptPathSync } from "./agent/providers/claude/project-dir.js";
 import {
   claimTurnEvent,
   followedWorktreeOf,
@@ -2209,6 +2216,50 @@ export class Session {
     } catch (error) {
       this.sessionLogger.warn({ err: error, agentId }, "A chat could not follow its worktree");
     }
+    await this.carryGrouponHookTitle(agentId).catch((error: unknown) =>
+      this.sessionLogger.warn({ err: error, agentId }, "A chat could not take its session's title"),
+    );
+  }
+
+  /** Groupon Desk: a title a hook or /rename gave the Claude session becomes its chat's, and a lone chat's workspace's. */
+  private async carryGrouponHookTitle(agentId: string): Promise<void> {
+    const record = await this.agentStorage.get(agentId);
+    const sessionId = record?.persistence?.sessionId;
+    if (!record || !sessionId || !record.provider.startsWith("claude")) return;
+    const configDir = await this.grouponClaudeConfigDir(agentId);
+    const path = claudeTranscriptPathSync({
+      cwd: record.cwd,
+      sessionId,
+      configDir: configDir ?? undefined,
+    });
+    const title = lastCustomTitleOf((await readTranscriptTail(path)) ?? "");
+    const ledger = hookTitleLedger(this.paseoHome);
+    if (!title || (await ledger.applied(agentId)) === title) return;
+    await this.agentManager.updateAgentMetadata(agentId, { title });
+    await ledger.remember(agentId, title);
+    const workspaceId = record.workspaceId;
+    if (!workspaceId) return;
+    const chats = (await this.agentStorage.listByWorkspace(workspaceId)).filter(
+      (row) => !row.archivedAt,
+    );
+    if (chats.length !== 1) return;
+    await this.workspaceRegistry.update(workspaceId, (existing) => ({
+      ...existing,
+      title,
+      updatedAt: new Date().toISOString(),
+    }));
+    await this.emitWorkspaceUpdateForWorkspaceId(workspaceId);
+  }
+
+  /** The `CLAUDE_CONFIG_DIR` the agent's Claude Code runs with (a subscription's own folder); null for the default. */
+  private async grouponClaudeConfigDir(agentId: string): Promise<string | null> {
+    const deps = nodeMonitorStopDeps();
+    const { agentPids } = await agentProcessesOf(agentId, deps);
+    for (const pid of agentPids) {
+      const dir = configDirOf(await deps.environmentOf(pid));
+      if (dir) return dir;
+    }
+    return null;
   }
 
   private emitProviderSubagentWorkspaceUpdate(event: ProviderSubagentManagerEvent): void {

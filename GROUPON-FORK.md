@@ -877,6 +877,13 @@ same files from HEAD to the working tree (`groupon-desk.session.changes` takes `
 `sessionDiffRange` in `packages/server/src/groupon/session-changes.ts`; the menu in
 `packages/app/src/git/diff-pane.tsx`). A daemon without the mode answers All.
 
+## One "Compacting" marker per compaction
+
+Claude Code repeats its "compacting" status while a compaction runs, and an interrupted turn
+reopens the marker in the next one, so the chat drew a second spinner under the person's message
+and resolved only one of them. A new loading marker now replaces any older one, and the finished
+compaction resolves the newest (`reduceTimelineCompaction`, `packages/app/src/types/stream.ts`).
+
 ## A hook's session title reaches the chat
 
 A title a `UserPromptSubmit` hook (`hookSpecificOutput.sessionTitle`) or `/rename` gives a running

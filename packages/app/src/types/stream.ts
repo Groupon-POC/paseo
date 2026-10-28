@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message keeps its author from the timeline, through every merge; a thought keeps when it started, so a finished one says how long it took.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message keeps its author from the timeline, through every merge; a thought keeps when it started, so a finished one says how long it took; one compaction shows one "Compacting" marker, even when a turn is interrupted in the middle of it.
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import type {
   AgentProvider,
@@ -1479,7 +1479,9 @@ function reduceTimelineCompaction(
   timelineCursor?: TimelinePosition,
 ): StreamItem[] {
   if (item.status === "completed") {
-    const loadingIdx = state.findIndex((s) => s.kind === "compaction" && s.status === "loading");
+    const loadingIdx = state.findLastIndex(
+      (s) => s.kind === "compaction" && s.status === "loading",
+    );
     const existing = loadingIdx >= 0 ? state[loadingIdx] : undefined;
     if (loadingIdx >= 0 && existing && existing.kind === "compaction") {
       const updated: CompactionItem = {
@@ -1489,7 +1491,11 @@ function reduceTimelineCompaction(
         trigger: item.trigger ?? existing.trigger,
         preTokens: item.preTokens ?? existing.preTokens,
       };
-      return [...state.slice(0, loadingIdx), updated, ...state.slice(loadingIdx + 1)];
+      return withoutLoadingCompactions([
+        ...state.slice(0, loadingIdx),
+        updated,
+        ...state.slice(loadingIdx + 1),
+      ]);
     }
     if (loadingIdx >= 0) {
       return state;
@@ -1504,7 +1510,13 @@ function reduceTimelineCompaction(
     trigger: item.trigger,
     preTokens: item.preTokens,
   };
-  return [...state, compaction];
+  return [...withoutLoadingCompactions(state), compaction];
+}
+
+// Groupon Desk: a turn interrupted mid-compaction reopens the marker in the next turn; one compaction shows one marker, the newest.
+function withoutLoadingCompactions(state: StreamItem[]): StreamItem[] {
+  const kept = state.filter((s) => s.kind !== "compaction" || s.status !== "loading");
+  return kept.length === state.length ? state : kept;
 }
 
 function reduceTimelineEvent(

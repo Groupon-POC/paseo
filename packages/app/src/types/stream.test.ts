@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a thought keeps when it started.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a thought keeps when it started; one compaction shows one marker.
 import assert from "node:assert/strict";
 import invariant from "tiny-invariant";
 import { describe, expect, it } from "vitest";
@@ -1423,6 +1423,47 @@ describe("stream reducer canonical tool calls", () => {
     assert.strictEqual(
       state.some((item) => item.kind === "compaction" && item.status === "loading"),
       false,
+    );
+  });
+
+  it("keeps one compaction marker when a turn is interrupted mid-compaction", () => {
+    const state = hydrateStreamState([
+      {
+        event: compactionTimeline("loading", "auto"),
+        timestamp: new Date("2025-01-01T10:50:00Z"),
+      },
+      {
+        event: { type: "turn_canceled", provider: "claude", reason: "interrupted" },
+        timestamp: new Date("2025-01-01T10:50:01Z"),
+      },
+      {
+        event: {
+          type: "timeline",
+          provider: "claude",
+          item: { type: "user_message", text: "what is left?", messageId: "ask" },
+        },
+        timestamp: new Date("2025-01-01T10:50:02Z"),
+      },
+      {
+        event: compactionTimeline("loading", "auto"),
+        timestamp: new Date("2025-01-01T10:50:03Z"),
+      },
+    ]);
+    assert.deepStrictEqual(
+      state
+        .filter((item) => item.kind === "compaction" || item.kind === "user_message")
+        .map((item) => (item.kind === "compaction" ? `compaction:${item.status}` : item.kind)),
+      ["user_message", "compaction:loading"],
+    );
+
+    const done = hydrateStreamState([
+      { event: compactionTimeline("loading", "auto"), timestamp: new Date("2025-01-01T10:50:00Z") },
+      { event: compactionTimeline("loading", "auto"), timestamp: new Date("2025-01-01T10:50:03Z") },
+      { event: compactionTimeline("completed"), timestamp: new Date("2025-01-01T10:50:09Z") },
+    ]);
+    assert.deepStrictEqual(
+      done.filter((item) => item.kind === "compaction").map((item) => item.status),
+      ["completed"],
     );
   });
 

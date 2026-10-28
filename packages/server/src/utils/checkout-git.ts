@@ -4440,13 +4440,34 @@ function getUnavailablePullRequestStatus(
 }
 
 /**
- * Groupon Desk: the files the commits on HEAD since `since` changed, merges left out, relative to
- * the worktree root (what a session committed from a shell, `groupon/session-changes.ts`).
+ * Groupon Desk: the files the person's own commits on HEAD's line since `since` changed, merges and
+ * the work a merge brought in left out, relative to the worktree root (what a session committed
+ * from a shell, `groupon/session-changes.ts`).
  */
 export async function listFilesCommittedSince(cwd: string, since: Date): Promise<string[]> {
   const seconds = Math.floor(since.getTime() / 1000);
+  // Only the person's own commits on this branch's line: a merge brings others' work in through
+  // its second parent (`--first-parent` stops there), and a rebase onto a shared branch puts
+  // others' commits on the line (the author filter leaves them out).
+  const email = (
+    await runGitCommand(["config", "--get", "user.email"], {
+      cwd,
+      envOverlay: READ_ONLY_GIT_ENV,
+      acceptExitCodes: [0, 1, 128],
+    })
+  ).stdout.trim();
+  const author = email ? ["--fixed-strings", `--author=<${email}>`] : [];
   const log = await runGitCommand(
-    ["log", "--no-merges", `--since=@${seconds}`, "--name-only", "--format=", "HEAD"],
+    [
+      "log",
+      "--no-merges",
+      "--first-parent",
+      `--since=@${seconds}`,
+      ...author,
+      "--name-only",
+      "--format=",
+      "HEAD",
+    ],
     { cwd, envOverlay: READ_ONLY_GIT_ENV, acceptExitCodes: [0, 128] },
   );
   return [

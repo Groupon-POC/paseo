@@ -55,6 +55,8 @@ function repo(name: string) {
   const root = join(home, name);
   mkdirSync(root);
   git(root, ["init", "-q", "-b", "main"], "2026-01-01T10:00:00Z");
+  // The person working here: their commits are the session's, anybody else's are not.
+  git(root, ["config", "user.email", "t@example.com"], "2026-01-01T10:00:00Z");
   writeFileSync(join(root, "a.ts"), "one\n");
   writeFileSync(join(root, "other.ts"), "left alone\n");
   git(root, ["add", "."], "2026-01-01T10:00:00Z");
@@ -201,5 +203,41 @@ describe("changes a session made from a shell", () => {
     expect(new Set(edits.map((found) => found.at.toISOString()))).toEqual(
       new Set(["2026-01-01T11:00:00.000Z"]),
     );
+  });
+});
+
+describe("commits that are not the session's", () => {
+  /** A commit as somebody else, at a given time. */
+  function commitAs(root: string, email: string, file: string, at: string) {
+    writeFileSync(join(root, file), `${file}\n`);
+    git(root, ["add", file], at);
+    execFileSync("git", ["commit", "-q", "-m", file], {
+      cwd: root,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "o",
+        GIT_AUTHOR_EMAIL: email,
+        GIT_COMMITTER_NAME: "o",
+        GIT_COMMITTER_EMAIL: email,
+        GIT_AUTHOR_DATE: at,
+        GIT_COMMITTER_DATE: at,
+      },
+    });
+  }
+
+  test("leave out the work a merge brought in and others' commits on the line, after a sync", async () => {
+    const { root } = repo("engineering");
+    // Others' work on the shared branch, after the session started.
+    git(root, ["switch", "-q", "-c", "staging"], "2026-01-01T10:00:00Z");
+    commitAs(root, "o@example.com", "theirs.ts", "2026-01-01T11:30:00Z");
+    git(root, ["switch", "-q", "main"], "2026-01-01T10:00:00Z");
+    // The session's own commit, then a sync that merges the shared branch in.
+    writeFileSync(join(root, "a.ts"), "two\n");
+    git(root, ["commit", "-q", "-am", "by the session"], "2026-01-01T12:00:00Z");
+    git(root, ["merge", "-q", "--no-edit", "staging"], "2026-01-01T12:30:00Z");
+    // A rebase onto a shared branch puts somebody else's commit on the line itself.
+    commitAs(root, "o@example.com", "rebased.ts", "2026-01-01T12:45:00Z");
+
+    expect(await listFilesCommittedSince(root, new Date("2026-01-01T11:00:00Z"))).toEqual(["a.ts"]);
   });
 });

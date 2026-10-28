@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): rows measured at another output width are measured again (the agent output's width handles, groupon/stream-width.ts).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): rows measured at another output width are measured again (the agent output's width handles, groupon/stream-width.ts). A tail too short to fill the viewport loads older rows by itself.
 import React, {
   type CSSProperties,
   useCallback,
@@ -34,6 +34,7 @@ import {
   abandonHistoryStartPaginationRequest,
   createHistoryStartPaginationState,
   evaluateHistoryStartPagination,
+  HISTORY_START_THRESHOLD_PX,
   isHistoryStartLoadingOperation,
   rearmHistoryStartPagination,
   settleHistoryStartPagination,
@@ -485,6 +486,9 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       !followOutputRef.current || isScrollContainerNearBottom(scrollContainer);
     return {
       distanceFromHistoryStart: scrollContainer.scrollTop,
+      // Groupon Desk: a short tail fills the screen from older rows before the person scrolls.
+      viewportUnfilled:
+        scrollContainer.scrollHeight - scrollContainer.clientHeight <= HISTORY_START_THRESHOLD_PX,
       hasOlderHistory,
       isLoadingOlderHistory,
       // An explicit jump owns the landing position. Revealing another local

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a tail too short to fill the viewport loads older rows by itself (`viewportUnfilled`).
 export const HISTORY_START_THRESHOLD_PX = 96;
 
 export type HistoryStartPaginationState =
@@ -13,6 +14,12 @@ export interface HistoryStartPaginationInput {
   isLoadingOlderHistory: boolean;
   isReady: boolean;
   progressKey: string | null;
+  /**
+   * Groupon Desk: the rows reach no further than the threshold past the viewport's top, so there
+   * is nothing to scroll up to: a session opened on a short tail loads older rows until they fill
+   * the screen, before the person scrolls, instead of jumping once they do.
+   */
+  viewportUnfilled?: boolean;
 }
 
 export interface HistoryStartPaginationTransition {
@@ -49,6 +56,17 @@ export function abandonHistoryStartPaginationRequest(
 }
 
 export function evaluateHistoryStartPagination(
+  state: HistoryStartPaginationState,
+  input: HistoryStartPaginationInput,
+): HistoryStartPaginationTransition {
+  // Groupon Desk: rows that do not fill the viewport arm the pagination without scroll intent.
+  if (state.status === "dormant" && input.viewportUnfilled) {
+    return evaluateArmedHistoryStartPagination({ status: "ready" }, input);
+  }
+  return evaluateArmedHistoryStartPagination(state, input);
+}
+
+function evaluateArmedHistoryStartPagination(
   state: HistoryStartPaginationState,
   input: HistoryStartPaginationInput,
 ): HistoryStartPaginationTransition {

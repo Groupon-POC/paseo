@@ -849,3 +849,12 @@ rule; `StatusRing`'s `tone="background"`). The daemon answers `groupon-desk.work
 with the workspaces of loaded agents that have such a task alive, one process listing for all
 (`backgroundWorkspaceIdsOf` in `packages/server/src/groupon/agent-monitors.ts`); the window asks
 once per host every 15 s (`packages/app/src/groupon/background-workspaces.ts`).
+
+## A short tail fills the screen
+
+A long session opened after a restart shows its tail only, twenty rows to the last user message,
+which can stop half way up the screen; older rows waited for the person to scroll up, and their
+arrival then jumped the list. While the rows do not reach past the viewport's top by the history
+threshold, the history start pagination loads older rows by itself, page by page, until they do
+(`viewportUnfilled` in `packages/app/src/agent-stream/history-start-pagination.ts`, measured in
+`strategy-web.tsx`).

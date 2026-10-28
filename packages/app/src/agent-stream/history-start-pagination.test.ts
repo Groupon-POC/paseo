@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a tail too short to fill the viewport loads older rows by itself.
 import { describe, expect, it } from "vitest";
 import {
   abandonHistoryStartPaginationRequest,
@@ -43,6 +44,23 @@ describe("history start pagination", () => {
     const evaluated = evaluateHistoryStartPagination(dormant, visibleHistoryStart);
 
     expect(evaluated).toEqual({ state: { status: "dormant" }, shouldLoad: false });
+  });
+
+  it("loads without scroll intent while the rows do not fill the viewport", () => {
+    const dormant = createHistoryStartPaginationState();
+    const unfilled = evaluateHistoryStartPagination(dormant, {
+      ...visibleHistoryStart,
+      viewportUnfilled: true,
+    });
+    const notReady = evaluateHistoryStartPagination(dormant, {
+      ...visibleHistoryStart,
+      viewportUnfilled: true,
+      isReady: false,
+    });
+
+    expect(unfilled.shouldLoad).toBe(true);
+    expect(unfilled.state).toMatchObject({ status: "loading" });
+    expect(notReady.shouldLoad).toBe(false);
   });
 
   it("waits for anchored page geometry before authorizing another page", () => {

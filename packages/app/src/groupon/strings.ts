@@ -747,6 +747,13 @@ export const GROUPON_DIFF_VIEWER = {
   selectedFileOnly: "Selected file only",
 } as const;
 
+export const GROUPON_USAGE_LIMIT = {
+  title: (limit: string) => `You've hit your ${limit} limit`,
+  resetsIn: (left: string, at: string) => `Resets in ${left}, at ${at}.`,
+  resetsAt: (at: string) => `Resets at ${at}.`,
+  reset: (at: string) => `It reset at ${at}.`,
+} as const;
+
 export const GROUPON_MONITORS = {
   /** The pill above the composer that counts the agent's Monitor watches. */
   one: "monitor",

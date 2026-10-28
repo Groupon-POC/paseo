@@ -63,4 +63,21 @@ describe("the centered dock", () => {
       setup.getBoundingClientRect().bottom - 1,
     );
   });
+
+  it("keeps the form centred across the window's width", async () => {
+    act(() =>
+      root?.render(
+        <div style={FILL}>
+          <ComposerDock centered>{[SETUP, TALL_COMPOSER]}</ComposerDock>
+        </div>,
+      ),
+    );
+    await act(async () => new Promise((done) => setTimeout(done, 50)));
+
+    const composer = document.querySelector<HTMLElement>('[data-testid="composer"]')!;
+    const box = composer.parentElement!.parentElement!.getBoundingClientRect();
+    const hostBox = host!.getBoundingClientRect();
+    expect(Math.abs(box.left + box.width / 2 - (hostBox.left + hostBox.width / 2))).toBeLessThan(2);
+    expect(box.width).toBeGreaterThan(400);
+  });
 });

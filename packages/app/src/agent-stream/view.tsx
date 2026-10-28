@@ -1,10 +1,12 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Live, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width. In Live what runs now sits in a slot above the running turn's footer, drawn as the chat draws it, never a row, so the chat does not jump. A question waiting on the person sits the usual gap below the last row.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Live, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width. In Live what runs now sits in a slot above the running turn's footer, drawn as the chat draws it, never a row, so the chat does not jump. A question waiting on the person sits the usual gap below the last row. Claude Code's limit message is a red notice with the time to its reset.
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { StreamWidthProvider, useStreamRowWidthStyle } from "@/groupon/stream-width";
 import { StreamWidthHandles } from "@/groupon/stream-width-handles";
 import { useStreamWidth } from "@/groupon/use-stream-width";
 import { usePausedTurnStart } from "@/groupon/paused-turn-start";
+import { parseUsageLimitMessage } from "@/groupon/usage-limit-model";
+import { UsageLimitNoticeRow } from "@/groupon/usage-limit-notice";
 import { liveItemOf } from "./display-mode";
 import React, {
   forwardRef,
@@ -710,6 +712,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
 
     const renderAssistantMessageItem = useCallback(
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "assistant_message" }>) => {
+        // Groupon Desk: Claude Code's "You've hit your limit" is a red notice with its reset.
+        const limit = parseUsageLimitMessage(item.text, item.timestamp);
+        if (limit)
+          return <UsageLimitNoticeRow notice={limit} serverId={resolvedServerId ?? null} />;
         return (
           <AssistantFileLinkResolverProvider
             client={client}

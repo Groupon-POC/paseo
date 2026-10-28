@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the sidebar's reports are read again every three minutes, and a host's usage can be refreshed from outside the Usage screen (`useRefreshUsageReports`).
 import { useTranslation } from "react-i18next";
 import { supportsUsageReports } from "@getpaseo/client/internal/daemon-client";
 import { useCallback, useMemo } from "react";
@@ -35,6 +36,7 @@ import type { UsageReportEntry, UsageView } from "./types";
 // The daemon caches each report for five minutes, so re-reading it is cheap. Only
 // an explicit refresh passes `forceRefresh` and reaches the source's API.
 const REPORTS_STALE_TIME_MS = 60_000;
+const SIDEBAR_REPORTS_REFRESH_MS = 180_000;
 
 /** Every report list of a host: its own and each agent's. */
 function hostUsageQueryKey(serverId: string) {
@@ -172,8 +174,18 @@ export function useUsageHostReports(serverId: string | null): UsageReportEntry[]
     queryFn: serverId ? () => listReports(queryClient, serverId) : skipToken,
     dataShape: "list",
     staleTimeMs: REPORTS_STALE_TIME_MS,
+    // Groupon Desk: the sidebar follows the limits while the window stays open.
+    refetchInterval: serverId ? SIDEBAR_REPORTS_REFRESH_MS : false,
   });
   return query.data ?? NO_REPORTS;
+}
+
+/** Groupon Desk: reads a host's usage again from its sources, as the Usage refresh button does. */
+export function useRefreshUsageReports(serverId: string | null): () => void {
+  const queryClient = useQueryClient();
+  return useCallback(() => {
+    if (serverId) void refreshReports(queryClient, serverId).catch(() => undefined);
+  }, [queryClient, serverId]);
 }
 
 /**

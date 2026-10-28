@@ -858,3 +858,12 @@ arrival then jumped the list. While the rows do not reach past the viewport's to
 threshold, the history start pagination loads older rows by itself, page by page, until they do
 (`viewportUnfilled` in `packages/app/src/agent-stream/history-start-pagination.ts`, measured in
 `strategy-web.tsx`).
+
+## Usage limits stand out
+
+Claude Code's "You've hit your 5-hour limit · resets 7pm (Europe/Prague)" is a red notice in the
+chat with the time left until the reset, and its arrival reads the host's usage again at once
+(`groupon/usage-limit-model.ts`, `usage-limit-notice.tsx`). The sidebar reads usage every three
+minutes and its Usage icon turns from green to red as the fullest limit fills
+(`groupon/usage-health.ts`). A usage source that never reported, such as Cursor without a working
+sign-in, is left out; Claude subscriptions stay as greyed rows.

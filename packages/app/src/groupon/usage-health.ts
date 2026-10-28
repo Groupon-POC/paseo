@@ -21,6 +21,24 @@ function usedPercent(window: UsageWindow): number | null {
   return window.remainingPct != null ? 100 - window.remainingPct : null;
 }
 
+// The Groupon plugin marks the subscription Desk signs in with now in its account line.
+const SUBSCRIPTIONS_SOURCE = "groupon-subscriptions";
+const IN_USE_MARK = "also the default Claude sign-in";
+
+/** Of the Claude subscriptions, only the one in use now when one is marked; every other source as it is. */
+export function inUseUsageReports<T extends Pick<UsageReportEntry, "sourceId" | "account">>(
+  reports: readonly T[],
+): T[] {
+  const inUse = reports.filter(
+    (entry) =>
+      entry.sourceId === SUBSCRIPTIONS_SOURCE && entry.account.label?.includes(IN_USE_MARK),
+  );
+  if (inUse.length === 0) return [...reports];
+  return reports.filter(
+    (entry) => entry.sourceId !== SUBSCRIPTIONS_SOURCE || inUse.includes(entry),
+  );
+}
+
 /** The fullest limit across the sources that report, in percent used; null when none reports. */
 export function fullestUsagePercent(reports: readonly UsageReportEntry[]): number | null {
   let fullest: number | null = null;

@@ -1,7 +1,12 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): tests for reading Claude Code's limit message.
 
 import { describe, expect, it } from "vitest";
-import { fullestUsagePercent, isShownUsageReport, usageHealthColor } from "./usage-health";
+import {
+  fullestUsagePercent,
+  inUseUsageReports,
+  isShownUsageReport,
+  usageHealthColor,
+} from "./usage-health";
 import { parseUsageLimitMessage, timeUntilReset } from "./usage-limit-model";
 
 describe("Claude Code's limit message", () => {
@@ -52,6 +57,16 @@ describe("usage sources and the sidebar icon", () => {
     expect(
       isShownUsageReport({ ...(report("codex", "error") as object), lastSuccessful: {} } as never),
     ).toBe(true);
+  });
+
+  it("keeps only the Claude subscription in use, when the plugin marks one", () => {
+    const sub = (label: string) => ({ sourceId: "groupon-subscriptions", account: { label } });
+    const idle = sub("Claude · a@example.com (Max)");
+    const used = sub("Claude · b@example.com (Max) · also the default Claude sign-in");
+    const other = { sourceId: "cursor", account: {} };
+
+    expect(inUseUsageReports([idle, used, other])).toEqual([used, other]);
+    expect(inUseUsageReports([idle, other])).toEqual([idle, other]);
   });
 
   it("colours the icon by the fullest limit", () => {

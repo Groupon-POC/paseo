@@ -3,9 +3,17 @@
 import { useMemo } from "react";
 import { useUsageHostId } from "@/usage/hosts";
 import { useUsageHostReports } from "@/usage/queries";
-import { fullestUsagePercent, usageHealthColor, type UsageHealthColor } from "./usage-health";
+import {
+  fullestUsagePercent,
+  inUseUsageReports,
+  usageHealthColor,
+  type UsageHealthColor,
+} from "./usage-health";
 
 export function useUsageHealthColor(): UsageHealthColor | null {
   const reports = useUsageHostReports(useUsageHostId());
-  return useMemo(() => usageHealthColor(fullestUsagePercent(reports)), [reports]);
+  return useMemo(
+    () => usageHealthColor(fullestUsagePercent(inUseUsageReports(reports))),
+    [reports],
+  );
 }

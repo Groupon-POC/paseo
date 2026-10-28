@@ -1,5 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one sidebar row per account, with a short name, and accounts that cannot report usage kept as greyed rows with the reason. A source that never reported (Cursor without a working sign-in) is left out (`isShownUsageReport`).
-import { isShownUsageReport } from "@/groupon/usage-health";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one sidebar row per account, with a short name, and accounts that cannot report usage kept as greyed rows with the reason. A source that never reported (Cursor without a working sign-in) is left out (`isShownUsageReport`). Of the Claude subscriptions only the one in use shows (`inUseUsageReports`).
+import { inUseUsageReports, isShownUsageReport } from "@/groupon/usage-health";
 import type { TFunction } from "i18next";
 import { i18n } from "@/i18n/i18next";
 import { usageCopy } from "./copy";
@@ -109,7 +109,7 @@ export function resolvePinnedUsage(
   t: TFunction = i18n.t,
 ): PinnedUsageSource[] {
   const pins = effectiveUsagePins(preferences, reports);
-  const rows = groupBySource(reports.filter(isShownUsageReport)).flatMap(
+  const rows = groupBySource(inUseUsageReports(reports.filter(isShownUsageReport))).flatMap(
     (entry): PinnedUsageSource[] => {
       const name = shortAccountName(entry.account.label);
       if (entry.report.status !== "available")

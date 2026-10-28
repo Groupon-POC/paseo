@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "New chat" leads the sidebar header rows, set off by a line.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "New chat" leads the sidebar header rows, set off by a line, unless the person hid it in Settings > Sidebar.
 import { router, usePathname } from "expo-router";
 import { CalendarClock, History, Plus, Search } from "lucide-react-native";
 import { memo, useCallback, useMemo, useRef, type ComponentType, type ReactNode } from "react";
@@ -7,6 +7,7 @@ import { View, type StyleProp, type ViewStyle } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { SidebarHeaderRow } from "@/components/sidebar/sidebar-header-row";
 import { SidebarNewChatRow } from "@/groupon/new-chat-row";
+import { useSettings } from "@/hooks/use-settings";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { PluginSidebarItem } from "@/plugins/sidebar-items";
 import { canCreateWorktreeForProjectKind } from "@/projects/host-projects";
@@ -43,6 +44,7 @@ interface SidebarNavRowsProps extends SidebarNavRowProps {
  */
 export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: SidebarNavRowsProps) {
   const { items } = useSidebarNavItems("header");
+  const showNewChat = useSettings((settings) => settings.sidebarNewChatRow);
   const visibleItems = useMemo(() => items.filter((item) => item.visible), [items]);
   const groupRef = useRef<View | null>(null);
 
@@ -61,8 +63,9 @@ export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: Si
     const Row = BUILTIN_ROWS[item.id];
     return <Row key={item.key} onBeforeNavigate={onBeforeNavigate} />;
   });
-  // Groupon Desk: "New chat" always leads, set off from the rows the person orders.
-  const firstRow = <SidebarNewChatRow onBeforeNavigate={onBeforeNavigate} />;
+  // Groupon Desk: "New chat" leads, set off from the rows the person orders; hidden, the trailing
+  // control keeps the first line to itself.
+  const firstRow = showNewChat ? <SidebarNewChatRow onBeforeNavigate={onBeforeNavigate} /> : null;
 
   return (
     <View ref={groupRef} collapsable={false} style={style}>
@@ -74,7 +77,7 @@ export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: Si
       ) : (
         firstRow
       )}
-      {rows.length > 0 ? <View style={styles.separator} /> : null}
+      {firstRow && rows.length > 0 ? <View style={styles.separator} /> : null}
       {rows}
     </View>
   );

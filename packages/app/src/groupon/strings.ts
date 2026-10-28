@@ -718,10 +718,13 @@ export const GROUPON_CHAT_DISPLAY = {
   label: "Show in chat",
   options: {
     all: "All",
-    fluent: "Live",
+    live: "Live",
     output: "Output only",
   },
   hint: "All shows every tool call and thought; Live only what runs now and what failed; Output only the agent's messages. History keeps every row.",
+  /** The warning sign beside Live in the composer's menu: Live keeps the failed tool calls while it is lit. */
+  showFailed: "Show failed tool calls in Live",
+  hideFailed: "Hide failed tool calls in Live",
   descriptions: "Title shell calls by what they do",
   descriptionsHint:
     "A shell call shows the description the agent wrote instead of the raw command, as Claude Code in VS Code does.",

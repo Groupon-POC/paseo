@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a sent review brings the recipient's chat forward.
 import { describe, expect, it } from "vitest";
 import {
   createReviewFeedback,
@@ -174,6 +175,21 @@ describe("review feedback", () => {
     expect(feedback.model.getState().phase).toEqual({
       kind: "idle",
     });
+  });
+  it("brings the recipient's chat forward once the feedback is sent, never after a failure", async () => {
+    const revealed: string[] = [];
+    const feedback = setup(["one"]);
+    feedback.ports.reveal = (recipient) => revealed.push(recipient.agentId);
+
+    const failed = feedback.model.press();
+    feedback.fail();
+    await failed;
+    expect(revealed).toEqual([]);
+
+    const sent = feedback.model.press();
+    feedback.succeed();
+    await sent;
+    expect(revealed).toEqual(["one"]);
   });
   it("clears unchanged sent comments while preserving additions", async () => {
     const feedback = setup(["one"]);

@@ -4,18 +4,22 @@ import type { ChatDisplayMode } from "@/hooks/use-settings";
 import type { StreamItem } from "@/types/stream";
 
 /**
- * Display only: the history keeps every row. "fluent" (Live) shows the messages, the tool calls
- * that failed and the questions the person answered; what runs now (a tool call, thinking) is not a row there, it is the turn footer's
+ * Display only: the history keeps every row. Live shows the messages, the tool calls
+ * that failed (unless the person turned them off, `showFailed`) and the questions the person answered; what runs now (a tool call, thinking) is not a row there, it is the turn footer's
  * slot above the running turn's footer (`liveItemOf`), so nothing enters the list and leaves it again and the chat
  * never jumps. "output" shows no tool call and no thinking at all.
  */
-export function isShownInDisplayMode(item: StreamItem, mode: ChatDisplayMode): boolean {
+export function isShownInDisplayMode(
+  item: StreamItem,
+  mode: ChatDisplayMode,
+  showFailed = true,
+): boolean {
   if (mode === "all") return true;
   if (item.kind === "thought") return false;
   if (item.kind !== "tool_call") return true;
-  if (mode !== "fluent") return false;
+  if (mode !== "live") return false;
   const data = item.payload.data;
-  if (data.status === "failed") return true;
+  if (data.status === "failed") return showFailed;
   // A question the person answered stays: it is part of the conversation, and it stays put.
   return (
     item.payload.source === "agent" &&
@@ -24,9 +28,13 @@ export function isShownInDisplayMode(item: StreamItem, mode: ChatDisplayMode): b
   );
 }
 
-export function filterForDisplayMode(items: StreamItem[], mode: ChatDisplayMode): StreamItem[] {
+export function filterForDisplayMode(
+  items: StreamItem[],
+  mode: ChatDisplayMode,
+  showFailed = true,
+): StreamItem[] {
   if (mode === "all") return items;
-  return items.filter((item) => isShownInDisplayMode(item, mode));
+  return items.filter((item) => isShownInDisplayMode(item, mode, showFailed));
 }
 
 /**

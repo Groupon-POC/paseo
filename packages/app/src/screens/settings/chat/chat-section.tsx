@@ -12,7 +12,7 @@ import { isNative } from "@/constants/platform";
 import { useAppSettings, type AppSettings } from "@/hooks/use-settings";
 import { GROUPON_CHAT_DISPLAY } from "@/groupon/strings";
 
-const DISPLAY_MODE_OPTIONS = (["all", "fluent", "output"] as const).map((value) => ({
+const DISPLAY_MODE_OPTIONS = (["all", "live", "output"] as const).map((value) => ({
   value,
   label: GROUPON_CHAT_DISPLAY.options[value],
 }));

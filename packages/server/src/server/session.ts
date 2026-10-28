@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository.
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory } from "./agent/directory.js";
@@ -213,7 +213,17 @@ import {
   listUncommittedFiles,
   resolveHeadAt,
 } from "../utils/checkout-git.js";
-import { CHAT_RELOCATE_RPC, scheduleChatRelocation } from "../groupon/chat-relocation.js";
+import {
+  CHAT_RELOCATE_RPC,
+  relocationCandidatesOf,
+  scheduleChatRelocation,
+} from "../groupon/chat-relocation.js";
+import {
+  claimTurnEvent,
+  followedWorktreeOf,
+  noteTurnStart,
+  takeTurnStart,
+} from "../groupon/worktree-follow.js";
 import {
   readSessionChanges,
   SESSION_CHANGES_RPC,
@@ -228,6 +238,8 @@ import {
   activeMonitorsOf,
   agentProcessesOf,
   aliveOnly,
+  BACKGROUND_WORKSPACES_RPC,
+  backgroundWorkspaceIdsOf,
   nodeMonitorStopDeps,
   stopAgentMonitor,
 } from "../groupon/agent-monitors.js";
@@ -2144,6 +2156,56 @@ export class Session {
       // listings see them; everything else above filters them out.
       { replayState: false, includeInternal: true },
     );
+    // Groupon Desk: a chat follows its turn into another worktree of its repository.
+    const unsubscribeEvents = this.unsubscribeAgentEvents;
+    const unsubscribeFollow = this.subscribeToGrouponWorktreeFollow();
+    this.unsubscribeAgentEvents = () => {
+      unsubscribeEvents();
+      unsubscribeFollow();
+    };
+  }
+
+  /**
+   * Groupon Desk: when a turn ends whose edits in the chat's repository all lie in one other
+   * worktree, the chat moves there (`groupon/worktree-follow.ts`). Every session hears the turn's
+   * events; the first to claim one handles it.
+   */
+  private subscribeToGrouponWorktreeFollow(): () => void {
+    return this.agentManager.subscribe(
+      (event) => {
+        if (event.type !== "agent_stream") return;
+        const kind = event.event.type;
+        if (kind !== "turn_started" && kind !== "turn_completed") return;
+        if (!claimTurnEvent(event)) return;
+        if (kind === "turn_started") noteTurnStart(event.agentId, Date.now());
+        // After the dispatch that ended the turn, never inside it.
+        else setTimeout(() => void this.followGrouponWorktree(event.agentId), 0);
+      },
+      { replayState: false },
+    );
+  }
+
+  private async followGrouponWorktree(agentId: string): Promise<void> {
+    const since = takeTurnStart(agentId);
+    if (since === null || this.agentManager.getAgent(agentId)?.internal) return;
+    try {
+      const record = await this.agentStorage.get(agentId);
+      if (!record?.persistence) return;
+      const edits = sessionEditsOf(
+        await this.agentManager.getTimelineRows(agentId),
+        record.cwd,
+      ).filter((edit) => edit.at.getTime() >= since);
+      const target = await followedWorktreeOf(
+        { edits, chatCwd: record.cwd },
+        {
+          worktreeRootOf: (dir) => getWorktreeRoot(dir),
+          mainRepoRoot: (dir) => getMainRepoRoot(dir).catch(() => null),
+        },
+      );
+      if (target) await this.relocateGrouponChat(agentId, target);
+    } catch (error) {
+      this.sessionLogger.warn({ err: error, agentId }, "A chat could not follow its worktree");
+    }
   }
 
   private emitProviderSubagentWorkspaceUpdate(event: ProviderSubagentManagerEvent): void {
@@ -2721,6 +2783,9 @@ export class Session {
       const agentId = requiredGrouponRpcString(input, "agentId");
       return { monitors: await this.readGrouponAgentMonitors(agentId) };
     }
+    if (method === BACKGROUND_WORKSPACES_RPC) {
+      return { workspaceIds: await this.readGrouponBackgroundWorkspaces() };
+    }
     if (method === AGENT_MONITOR_STOP_RPC) {
       return await this.stopGrouponAgentMonitor(
         requiredGrouponRpcString(input, "agentId"),
@@ -2748,6 +2813,20 @@ export class Session {
     // Only what still runs: a notice of a task's end does not always name it.
     const { processes, agentPids } = await agentProcessesOf(agentId, nodeMonitorStopDeps());
     return aliveOnly(candidates, processes, agentPids);
+  }
+
+  /** The workspaces whose loaded agents have a background task running (`backgroundWorkspaceIdsOf`). */
+  private async readGrouponBackgroundWorkspaces(): Promise<string[]> {
+    const now = new Date();
+    const daemonStartedAt = new Date(Date.now() - process.uptime() * 1000);
+    const agents = [];
+    for (const agent of this.agentManager.listAgents()) {
+      if (!agent.workspaceId) continue;
+      const rows = await this.agentManager.getTimelineRows(agent.id);
+      const candidates = activeMonitorsOf(rows, now, daemonStartedAt);
+      agents.push({ agentId: agent.id, workspaceId: agent.workspaceId, candidates });
+    }
+    return backgroundWorkspaceIdsOf(agents, nodeMonitorStopDeps());
   }
 
   /** Stops one of an agent's running Monitor watches, as the person asked from the window. */
@@ -2839,7 +2918,7 @@ export class Session {
         realpath: (folder) => realpath(folder).catch(() => null),
         mainRepoRoot: (cwd) => getMainRepoRoot(cwd).catch(() => null),
         workspaceFor: async (cwd) => {
-          const workspace = await this.workspaceProvisioning.findOrCreateWorkspaceForDirectory(cwd);
+          const workspace = await this.grouponWorktreeWorkspace(agentId, cwd);
           await this.syncWorkspaceGitObserverForWorkspace(workspace);
           await this.emitWorkspaceUpdateForWorkspaceId(workspace.workspaceId);
           return { workspaceId: workspace.workspaceId };
@@ -2849,8 +2928,10 @@ export class Session {
           while ((await this.agentManager.waitForAgentEvent(id)).permission) await delay(2_000);
         },
         relocate: async (id, cwd, workspaceId) => {
+          const left = (await this.agentStorage.get(id))?.workspaceId ?? null;
           const snapshot = await this.agentManager.reloadAgentSession(id, { cwd }, { workspaceId });
           await this.agentUpdates.forwardLiveAgent(snapshot);
+          if (left && left !== workspaceId) await this.archiveGrouponWorkspaceIfEmpty(left);
         },
         onFailure: (id, error) =>
           this.sessionLogger.error(
@@ -2859,6 +2940,44 @@ export class Session {
           ),
       },
     );
+  }
+
+  /**
+   * The workspace a moved chat takes: one of its own project's on the folder that no chat is in
+   * (the one it left there, say), else a new one there under the chat's title
+   * (`relocationCandidatesOf`).
+   */
+  private async grouponWorktreeWorkspace(agentId: string, cwd: string) {
+    const record = await this.agentStorage.get(agentId);
+    const chatWorkspace = record?.workspaceId
+      ? await this.workspaceRegistry.get(record.workspaceId)
+      : null;
+    if (!chatWorkspace) return this.workspaceProvisioning.findOrCreateWorkspaceForDirectory(cwd);
+    const candidates = relocationCandidatesOf(
+      await this.workspaceRegistry.list(),
+      chatWorkspace.projectId,
+      cwd,
+    );
+    for (const candidate of candidates) {
+      if (!(await this.grouponWorkspaceHasChats(candidate.workspaceId))) return candidate;
+    }
+    return this.workspaceProvisioning.createWorkspaceForDirectory(
+      cwd,
+      record?.title ?? chatWorkspace.title,
+      chatWorkspace.projectId,
+    );
+  }
+
+  private async grouponWorkspaceHasChats(workspaceId: string): Promise<boolean> {
+    const records = await this.agentStorage.listByWorkspace(workspaceId);
+    return records.some((record) => !record.archivedAt);
+  }
+
+  /** The workspace a moved chat left, archived once no chat is in it; its folder stays as it is. */
+  private async archiveGrouponWorkspaceIfEmpty(workspaceId: string): Promise<void> {
+    if (await this.grouponWorkspaceHasChats(workspaceId)) return;
+    await this.archiveWorkspaceRecord(workspaceId);
+    await this.emitWorkspaceUpdateForWorkspaceId(workspaceId);
   }
 
   /** The "No project" project, whose root holds a folder per project-less chat. */

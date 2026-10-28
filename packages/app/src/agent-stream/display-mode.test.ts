@@ -40,7 +40,7 @@ describe("chat display modes", () => {
   });
 
   it("Live never adds a row for what runs now, so the list does not jump; failed calls stay", () => {
-    expect(ids(filterForDisplayMode(STREAM, "fluent"))).toEqual(["m1", "bad"]);
+    expect(ids(filterForDisplayMode(STREAM, "live"))).toEqual(["m1", "bad"]);
   });
 
   it("Live keeps a question the person answered", () => {
@@ -51,8 +51,13 @@ describe("chat display modes", () => {
       payload: { source: "agent", data: { name: "AskUserQuestion", status: "completed" } },
     } as unknown as StreamItem;
 
-    expect(ids(filterForDisplayMode([message("m1"), answered], "fluent"))).toEqual(["m1", "q"]);
+    expect(ids(filterForDisplayMode([message("m1"), answered], "live"))).toEqual(["m1", "q"]);
     expect(ids(filterForDisplayMode([message("m1"), answered], "output"))).toEqual(["m1"]);
+  });
+
+  it("Live drops the failed calls once the person turns them off", () => {
+    expect(ids(filterForDisplayMode(STREAM, "live", false))).toEqual(["m1"]);
+    expect(filterForDisplayMode(STREAM, "all", false)).toBe(STREAM);
   });
 
   it("Output only shows the messages", () => {

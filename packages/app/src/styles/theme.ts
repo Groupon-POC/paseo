@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme (Paseo's dark surfaces, the Groupon green as the accent), first in the picker; the colleague's message tint (colleagueMessage, colleagueMessageBorder) and the other-agent tint (agentMessage, agentMessageBorder). The Bearded Arc theme (BeardedBear's VS Code theme).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme (Paseo's dark surfaces, the Groupon green as the accent), first in the picker; the colleague's message tint (colleagueMessage, colleagueMessageBorder) and the other-agent tint (agentMessage, agentMessageBorder). The Bearded Arc theme (BeardedBear's VS Code theme). `statusDotBackground`, the status band's teal for an agent's background task.
 import { withAlpha } from "@/groupon/message-author-model";
 import { Platform } from "react-native";
 import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
@@ -230,6 +230,9 @@ const lightStatusDotColors = {
   statusDotDanger: "#f12e2f",
   statusDotWarning: "#b37824",
   statusDotRunning: "#268ae0",
+  // Groupon Desk: an agent's background task (a Monitor watch, a background command), teal at hue
+  // 195 by the same rule, one step from working's blue.
+  statusDotBackground: "#299898",
 };
 
 const darkStatusDotColors = {
@@ -238,6 +241,7 @@ const darkStatusDotColors = {
   statusDotDanger: "#f7796d",
   statusDotWarning: "#db932e",
   statusDotRunning: "#5caaf6",
+  statusDotBackground: "#35baba",
 };
 
 export interface LightThemeConfig {

@@ -4,8 +4,10 @@ import { describe, expect, it } from "vitest";
 import {
   activeMonitorsOf,
   aliveOnly,
+  backgroundWorkspaceIdsOf,
   evalledCommand,
   monitorGroupsOf,
+  psVisible,
   stopAgentMonitor,
   type AgentMonitor,
   type ProcessRow,
@@ -153,6 +155,20 @@ describe("stopping a watch from the window", () => {
     expect(evalledCommand("tail -f x")).toBeNull();
   });
 
+  it("finds a multi-line, quoted, non-ASCII command as macOS ps lists its shell", () => {
+    const command = `R=roll_1; while :; do\n  echo "$(jq -c '.data')" | grep -q '"done"' && break # Ждём\n  sleep 60\ndone`;
+    // Measured on macOS: a newline in octal, Claude Code's '"'"' quote, UTF-8 bytes in meta notation.
+    const listed = `/bin/zsh -c source snap.sh 2>/dev/null || true && eval 'R=roll_1; while :; do\\012  echo "$(jq -c '"'"'.data'"'"')" | grep -q '"'"'"done"'"'"' && break # M-PM^VM-PM-4M-QM^QM-PM-<\\012  sleep 60\\012done' < /dev/null && pwd -P >| /tmp/claude-1-cwd`;
+    const rows: ProcessRow[] = [
+      { pid: 200, ppid: 100, pgid: 100, command: "/Users/n/.local/bin/claude" },
+      { pid: 240, ppid: 200, pgid: 240, command: listed },
+    ];
+
+    expect(psVisible("a\tb\\c Р щ\u00ff")).toBe("a\\011b\\\\c M-P\\240 M-QM^IM-CM-?");
+    expect(monitorGroupsOf(rows, new Set([200]), command)).toEqual([240]);
+    expect(monitorGroupsOf(rows, new Set([200]), command.replace("60", "61"))).toEqual([]);
+  });
+
   it("ends that group, found by the agent's session id, and hides the watch at once", async () => {
     const killed: number[] = [];
     const answer = await stopAgentMonitor(
@@ -261,5 +277,62 @@ describe("an agent's background commands", () => {
 
     expect(aliveOnly(tasks, processes, new Set([200])).map((m) => m.taskId)).toEqual(["c2"]);
     expect(aliveOnly(tasks, processes, new Set())).toEqual([]);
+  });
+});
+
+describe("the sidebar's background marks", () => {
+  const shell = (command: string) =>
+    `/bin/zsh -c source snap.sh && eval '${command}' < /dev/null && pwd -P >| /tmp/claude-1-cwd`;
+  const task = (taskId: string, command: string): AgentMonitor => ({
+    kind: "command",
+    taskId,
+    description: taskId,
+    command,
+    startedAt: "2026-10-28T00:02:00.000Z",
+    expiresAt: null,
+  });
+
+  it("names the workspaces whose agents still run a background task, listing processes once", async () => {
+    let listings = 0;
+    const deps = {
+      daemonPid: 100,
+      listProcesses: async (): Promise<ProcessRow[]> => {
+        listings += 1;
+        return [
+          { pid: 200, ppid: 100, pgid: 100, command: "/x/claude a" },
+          { pid: 300, ppid: 100, pgid: 100, command: "/x/claude b" },
+          { pid: 210, ppid: 200, pgid: 210, command: shell("pnpm test") },
+        ];
+      },
+      environmentOf: async (pid: number) =>
+        pid === 200 ? "GROUPON_DESK_SESSION_ID=agent-a" : "GROUPON_DESK_SESSION_ID=agent-b",
+    };
+
+    const ids = await backgroundWorkspaceIdsOf(
+      [
+        { agentId: "agent-a", workspaceId: "ws-a", candidates: [task("c1", "pnpm test")] },
+        // Its task ended with no notice: no process runs it any more.
+        { agentId: "agent-b", workspaceId: "ws-b", candidates: [task("c2", "sleep 600")] },
+        { agentId: "agent-c", workspaceId: "ws-c", candidates: [] },
+      ],
+      deps,
+    );
+
+    expect(ids).toEqual(["ws-a"]);
+    expect(listings).toBe(1);
+  });
+
+  it("lists no process when no agent has a task", async () => {
+    const listProcesses = async (): Promise<ProcessRow[]> => {
+      throw new Error("not listed");
+    };
+
+    expect(
+      await backgroundWorkspaceIdsOf([{ agentId: "a", workspaceId: "w", candidates: [] }], {
+        daemonPid: 1,
+        listProcesses,
+        environmentOf: async () => "",
+      }),
+    ).toEqual([]);
   });
 });

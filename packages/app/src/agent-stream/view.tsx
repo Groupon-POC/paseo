@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width. In Live what runs now sits in a slot above the running turn's footer, drawn as the chat draws it, never a row, so the chat does not jump.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Live, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width. In Live what runs now sits in a slot above the running turn's footer, drawn as the chat draws it, never a row, so the chat does not jump. A question waiting on the person sits the usual gap below the last row.
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { StreamWidthProvider, useStreamRowWidthStyle } from "@/groupon/stream-width";
@@ -341,6 +341,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const autoExpandReasoning = useSettings((settings) => settings.autoExpandReasoning);
     const toolCallDetailLevel = useSettings((settings) => settings.toolCallDetailLevel);
     const displayMode = useSettings((settings) => settings.chatDisplayMode);
+    const liveShowsFailedTools = useSettings((settings) => settings.liveShowsFailedTools);
     const chatOutlineEnabled = useSettings((settings) => settings.chatOutlineEnabled);
     const settingsContentMaxWidth = useSettings(resolveContentMaxWidth);
     const viewportRef = useRef<StreamViewportHandle | null>(null);
@@ -529,6 +530,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           level: toolCallDetailLevel,
           isTurnActive,
           displayMode,
+          showFailed: liveShowsFailedTools,
         }),
       [
         presentStream,
@@ -538,6 +540,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         toolCallDetailLevel,
         isTurnActive,
         displayMode,
+        liveShowsFailedTools,
       ],
     );
     const {
@@ -1363,7 +1366,7 @@ function useLiveSlot(input: {
   renderThought: (item: Extract<StreamItem, { kind: "thought" }>) => ReactNode;
 }): ReactNode {
   const { tail, head, renderToolCall, renderThought } = input;
-  const enabled = input.isWorking && input.displayMode === "fluent";
+  const enabled = input.isWorking && input.displayMode === "live";
   const item = useMemo(
     () => (enabled ? (liveItemOf(head ?? []) ?? liveItemOf(tail)) : null),
     [enabled, head, tail],
@@ -1779,6 +1782,9 @@ const stylesheet = StyleSheet.create((theme) => ({
   },
   listHeaderContent: {
     gap: theme.spacing[3],
+    // Groupon Desk: a question or permission waiting on the person sits the usual gap below the
+    // last row, as the answered question does; the last row itself has no gap below.
+    paddingTop: theme.spacing[4],
   },
   syncingIndicator: {
     flexDirection: "row",

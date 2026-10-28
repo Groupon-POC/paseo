@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the header card leads with the switch for "New chat" (`groupon/new-chat-sidebar-setting.tsx`).
 import { useCallback, useMemo, type ComponentType, type ReactElement } from "react";
 import { Text, View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -19,6 +20,7 @@ import { Shortcut } from "@/components/ui/shortcut";
 import { Switch } from "@/components/ui/switch";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
+import { NewChatSidebarSetting } from "@/groupon/new-chat-sidebar-setting";
 import {
   builtinSidebarNavLabelKey,
   builtinSidebarNavShortcutAction,
@@ -79,6 +81,8 @@ interface SidebarNavRowProps {
   item: SidebarNavItem;
   isFirst: boolean;
   isLast: boolean;
+  /** A row sits above this one in the card although it is the first to move (Groupon Desk's "New chat"). */
+  belowFixedRow?: boolean;
   onMove: (key: string, direction: "up" | "down") => void;
   onSetVisible: (key: string, visible: boolean) => void;
 }
@@ -87,6 +91,7 @@ function SidebarNavRow({
   item,
   isFirst,
   isLast,
+  belowFixedRow = false,
   onMove,
   onSetVisible,
 }: SidebarNavRowProps): ReactElement {
@@ -101,8 +106,12 @@ function SidebarNavRow({
   );
 
   const rowStyle = useMemo(
-    () => [settingsStyles.row, isFirst ? null : settingsStyles.rowBorder, styles.row],
-    [isFirst],
+    () => [
+      settingsStyles.row,
+      isFirst && !belowFixedRow ? null : settingsStyles.rowBorder,
+      styles.row,
+    ],
+    [isFirst, belowFixedRow],
   );
 
   return (
@@ -166,12 +175,14 @@ function SidebarItemsCard({ section }: { section: SidebarSection }): ReactElemen
       testID={`sidebar-nav-section-${section}`}
     >
       <View style={settingsStyles.card}>
+        {section === "header" ? <NewChatSidebarSetting /> : null}
         {items.map((item, index) => (
           <SidebarNavRow
             key={item.key}
             item={item}
             isFirst={index === 0}
             isLast={index === items.length - 1}
+            belowFixedRow={section === "header"}
             onMove={move}
             onSetVisible={setVisible}
           />

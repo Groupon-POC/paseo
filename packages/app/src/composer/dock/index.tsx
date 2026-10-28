@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the centered dock (New workspace) widens with a wide window.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the centered dock (New workspace) widens with a wide window, and scrolls as a whole when the composer grows taller than the room left, instead of squeezing the setup fields under it.
 export { ComposerDockBackground } from "./internal/background";
 export { ComposerFullscreenBody, ComposerFullscreenFooter } from "./internal/fullscreen";
 import { ScrollView } from "@/components/ui/scroll-view";
@@ -35,23 +35,29 @@ export function ComposerDock({
     if (height > 0) setSurfaceSize({ width, height });
   }, []);
   if (centered) {
+    // Groupon Desk: the whole form scrolls. A setup area that shrank on its own was cut off under
+    // the composer once the composer grew (a pull request's card after its fetch).
     return (
-      <View ref={surfaceRef} style={styles.centered} onLayout={measureViewport}>
-        <View style={styles.form(surfaceSize?.width)}>
-          <ScrollView style={styles.setup} keyboardShouldPersistTaps="handled">
-            {content}
-          </ScrollView>
-          <View
-            style={
-              fullscreen
-                ? [styles.fullscreenComposer, fullscreenFrame]
-                : [styles.centeredComposer, constraint]
-            }
-          >
-            {composer}
+      <View ref={surfaceRef} style={styles.centeredSurface} onLayout={measureViewport}>
+        <ScrollView
+          style={styles.centeredScroll}
+          contentContainerStyle={styles.centered}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.form(surfaceSize?.width)}>
+            <View style={styles.setup}>{content}</View>
+            <View
+              style={
+                fullscreen
+                  ? [styles.fullscreenComposer, fullscreenFrame]
+                  : [styles.centeredComposer, constraint]
+              }
+            >
+              {composer}
+            </View>
+            {overlay}
           </View>
-          {overlay}
-        </View>
+        </ScrollView>
       </View>
     );
   }
@@ -82,8 +88,10 @@ const styles = StyleSheet.create((theme) => ({
   // never reaches the zoomed visual viewport, while a fixed box chains to the viewport
   // directly. React Native Web renders `fixed`; React Native's style type omits it.
   fullscreenComposer: { position: "fixed" as "absolute" },
+  centeredSurface: { flex: 1 },
+  centeredScroll: { flex: 1 },
   centered: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingBottom: HEADER_INNER_HEIGHT + 24,
@@ -97,5 +105,5 @@ const styles = StyleSheet.create((theme) => ({
     ),
   }),
   centeredComposer: { flexShrink: 0 },
-  setup: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
+  setup: { flexShrink: 0 },
 }));

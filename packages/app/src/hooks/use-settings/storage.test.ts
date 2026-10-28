@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a fresh install defaults to the Groupon dark theme; a stored choice is kept. `sidebarNewWorkspaceRows` defaults on and loads off.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a fresh install defaults to the Groupon dark theme; a stored choice is kept. `sidebarNewWorkspaceRows` defaults on and loads off. Live stored as "fluent" loads as Live.
 import { describe, expect, it } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
 import {
@@ -251,6 +251,16 @@ describe("loadAppSettingsFromStorage", () => {
     const result = await loadAppSettingsFromStorage(deps);
 
     expect(result.sidebarNewWorkspaceRows).toBe(false);
+  });
+
+  it("loads Live stored under its old name as Live", async () => {
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({ chatDisplayMode: "fluent" }),
+      }),
+    });
+
+    expect((await loadAppSettingsFromStorage(deps)).chatDisplayMode).toBe("live");
   });
 
   it("defaults sidebar navigation items to an empty preference list", async () => {

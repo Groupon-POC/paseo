@@ -16,6 +16,9 @@
  * in that process's environment and the watch's command in the shell's, and ended with SIGTERM;
  * Claude Code then tells the agent the watch ended.
  *
+ * `backgroundWorkspaceIdsOf` answers the sidebar which workspaces have such a task running, so
+ * their rows turn while their agents wait.
+ *
  * Constraints:
  * - Reading never changes anything; stopping ends only a process group led by a child of the
  *   agent's own Claude Code process, never that process or anything else
@@ -30,6 +33,9 @@ export const AGENT_MONITORS_RPC = "groupon-desk.agent.monitors";
 
 /** The window's "stop this watch": `{ agentId, taskId }`, answered `{ stopped }`. */
 export const AGENT_MONITOR_STOP_RPC = "groupon-desk.agent.monitor.stop";
+
+/** The sidebar's busy-in-the-background marks: `{}`, answered `{ workspaceIds }`. */
+export const BACKGROUND_WORKSPACES_RPC = "groupon-desk.workspaces.background";
 
 /** Watches the person stopped from the window, gone before the agent's own notice of it lands. */
 const STOPPED_MONITORS = new Set<string>();
@@ -202,15 +208,48 @@ export interface MonitorStopDeps {
 
 const collapse = (text: string) => text.replace(/\s+/g, " ").trim();
 
+/** A byte below the meta bit, as BSD `ps` draws it: `^X` for a control character, else itself. */
+function visibleLowByte(byte: number): string {
+  if (byte === 0x7f) return "^?";
+  if (byte < 0x20) return `^${String.fromCharCode(byte + 0x40)}`;
+  return String.fromCharCode(byte);
+}
+
+/** One byte of a command line as BSD `ps` (macOS) draws it. */
+function visibleByte(byte: number): string {
+  if (byte === 0x09 || byte === 0x0a || byte === 0xa0)
+    return `\\${byte.toString(8).padStart(3, "0")}`;
+  if (byte === 0x5c) return "\\\\";
+  if (byte < 0x80) return visibleLowByte(byte);
+  const low = byte & 0x7f;
+  return low < 0x20 || low === 0x7f ? `M${visibleLowByte(low)}` : `M-${visibleLowByte(low)}`;
+}
+
+/**
+ * A command as macOS `ps` lists it: a newline and a tab in octal (`\012`), a backslash doubled,
+ * a control character as `^X` and each byte of a non-ASCII character in meta notation
+ * (`Ж` is `M-PM^V`). Measured on macOS 15; a multi-line or non-ASCII command never matched its
+ * shell without it.
+ */
+export function psVisible(text: string): string {
+  let visible = "";
+  for (const byte of new TextEncoder().encode(text)) visible += visibleByte(byte);
+  return visible;
+}
+
 /**
  * The command a Claude Code shell runs: its wrapper ends in `eval '<command>' < /dev/null`, the
- * command single-quoted for the shell. Null for a line of another shape.
+ * command single-quoted for the shell, a quote in it written `'\\''` or `'"'"'`. Null for a line
+ * of another shape.
  */
 export function evalledCommand(commandLine: string): string | null {
   const start = commandLine.indexOf(" eval '");
   const end = commandLine.lastIndexOf("' < /dev/null");
   if (start < 0 || end <= start) return null;
-  return commandLine.slice(start + " eval '".length, end).replaceAll("'\\''", "'");
+  return commandLine
+    .slice(start + " eval '".length, end)
+    .replaceAll("'\\''", "'")
+    .replaceAll(`'"'"'`, "'");
 }
 
 /**
@@ -225,11 +264,15 @@ export function monitorGroupsOf(
 ): number[] {
   const wanted = collapse(command);
   if (!wanted) return [];
+  // `ps` lists the shell's line escaped (`psVisible`); a plain line is compared as it is.
+  const wantedListed = collapse(psVisible(command));
   return processes
     .filter((row) => {
       if (!agentPids.has(row.ppid) || row.pid !== row.pgid || agentPids.has(row.pgid)) return false;
       const evalled = evalledCommand(row.command);
-      return evalled !== null && collapse(evalled) === wanted;
+      if (evalled === null) return false;
+      const listed = collapse(evalled);
+      return listed === wanted || listed === wantedListed;
     })
     .map((row) => row.pgid);
 }
@@ -276,6 +319,29 @@ export function aliveOnly(
   return monitors.filter(
     (monitor) => monitorGroupsOf(processes, agentPids, monitor.command).length > 0,
   );
+}
+
+/**
+ * The workspaces where an agent has a task still running in the background, for the sidebar:
+ * each agent's candidates from its timeline, checked against one listing of this Mac's processes.
+ */
+export async function backgroundWorkspaceIdsOf(
+  agents: readonly { agentId: string; workspaceId: string; candidates: readonly AgentMonitor[] }[],
+  deps: Pick<MonitorStopDeps, "daemonPid" | "listProcesses" | "environmentOf">,
+): Promise<string[]> {
+  const busy = agents.filter((agent) => agent.candidates.length > 0);
+  if (busy.length === 0) return [];
+  const processes = await deps.listProcesses();
+  const listed = { ...deps, listProcesses: async () => processes };
+  const workspaceIds = new Set<string>();
+  for (const agent of busy) {
+    if (workspaceIds.has(agent.workspaceId)) continue;
+    const { agentPids } = await agentProcessesOf(agent.agentId, listed);
+    if (aliveOnly(agent.candidates, processes, agentPids).length > 0) {
+      workspaceIds.add(agent.workspaceId);
+    }
+  }
+  return [...workspaceIds];
 }
 
 const run = promisify(execFile);

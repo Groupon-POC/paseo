@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): once feedback is sent, the recipient's chat comes forward (`reveal`).
 import type { ComposerAttachment } from "@/attachments/types";
 import type { ReviewDraftComment } from "../state";
 import type { WorkspaceTabDescriptor } from "@/screens/workspace/workspace-tabs-types";
@@ -18,6 +19,8 @@ export interface ReviewFeedbackPorts {
   send: (recipient: FeedbackRecipient, attachment: FeedbackAttachment) => Promise<void>;
   clearSent: (comments: readonly ReviewDraftComment[]) => void;
   failedMessage: () => string;
+  /** Groupon Desk: brings the recipient's chat forward once its feedback is sent. */
+  reveal?: (recipient: FeedbackRecipient) => void;
 }
 export type FeedbackPhase =
   | { kind: "idle" }
@@ -115,6 +118,7 @@ function createFeedbackView(
       await ports.send(recipient, attachment);
       ports.clearSent(sentComments);
       workflow.changePhase({ kind: "idle" });
+      ports.reveal?.(recipient);
     } catch (error) {
       workflow.changePhase({
         kind: "failed",

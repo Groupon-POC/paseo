@@ -696,6 +696,23 @@ from inside that turn (the door's `desk_move`), and a reload then would cut it. 
 repository's work is never a move: the door's `desk_start` hands it to a new chat with the
 conversation. The test is `packages/server/src/groupon/chat-relocation.test.ts`.
 
+The chat also follows without being asked. A skill such as review-address picks or makes a
+worktree and works there while the chat stays on the checkout, so the window kept showing the
+checkout's diff and branch. When a turn ends and every file it edited (Edit, Write) in the chat's
+repository lies in one other worktree that is still there, the daemon moves the chat into it the
+same way (`packages/server/src/groupon/worktree-follow.ts`, wired in `session.ts`'s
+`subscribeToGrouponWorktreeFollow`). A worktree the turn only read, or removed before it ended, an
+edit in another repository, or edits in two worktrees move nothing. Every session hears the turn's
+events, so the first to claim one handles it, and a chat already waiting to move (the agent's own
+`desk_move`) is not moved twice.
+
+The chat takes a workspace of its own project on that folder that no chat is in, or a new one there
+under the chat's title (`relocationCandidatesOf`, used by `session.ts`'s `grouponWorktreeWorkspace`),
+and the workspace it left is archived once no chat is in it (the record only: its folder stays).
+Paseo's path lookup alone made a worktree outside its own worktrees folder (a skill's
+`.claude/worktrees/<name>`) a project of its own, and on a checkout, where every chat has a
+workspace of its own, put the chat into another chat's.
+
 ## Changes shows what the session changed
 
 Paseo's Changes views compare a checkout: its uncommitted work, or its branch against a base. A
@@ -796,3 +813,39 @@ failed calls (and the questions the person answered) as rows; what runs now sits
 the running turn's footer, drawn as the chat draws it (the same tool row, folded thinking), and
 the slot keeps one row's height between calls (`packages/app/src/agent-stream/display-mode.ts`,
 `liveItemOf`).
+
+The failed calls are the person's choice: the warning sign beside Live in the composer's display
+menu (the icon the chat draws on a failed call) keeps them while lit and drops them when not
+(`liveShowsFailedTools`, on by default; `packages/app/src/groupon/chat-display-mode-control.tsx`).
+
+## Every sidebar row can be hidden
+
+Settings > Sidebar already hid and ordered Paseo's own top rows and the plugins' (My bots among
+them); Groupon Desk's "New chat", which always leads, now has its switch at the top of that card
+(`sidebarNewChatRow`, on by default; `packages/app/src/groupon/new-chat-sidebar-setting.tsx`). It is
+never moved: hidden, the row's trailing control keeps the first line to itself
+(`packages/app/src/components/sidebar/sidebar-nav-rows.tsx`).
+
+## New workspace scrolls as a whole
+
+The centered New workspace form kept its title and setup fields (project, Mac, branch) in a
+scroll area of their own that shrank when the composer grew, so a pull request's card arriving
+after its fetch cut the fields off under the composer. The whole form scrolls now and neither part
+shrinks (`packages/app/src/composer/dock/index.tsx`, the centered branch; test
+`centered-dock.browser.test.tsx`).
+
+## Sent feedback returns to the chat
+
+Sending review feedback from the diff brings the recipient's chat tab forward once the message is
+sent, so the person sees the agent take it up; a failed send stays on the diff with its comments
+(`packages/app/src/review/feedback/index.ts`, the `reveal` port, wired in `use-feedback.ts` to
+`revealWorkspaceTab`).
+
+## A background task turns the sidebar row too
+
+A session whose turn ended while its Monitor watch or background command still runs shows the
+sidebar's busy ring in the status band's teal (`statusDotBackground`, hue 195 by the band's own
+rule; `StatusRing`'s `tone="background"`). The daemon answers `groupon-desk.workspaces.background`
+with the workspaces of loaded agents that have such a task alive, one process listing for all
+(`backgroundWorkspaceIdsOf` in `packages/server/src/groupon/agent-monitors.ts`); the window asks
+once per host every 15 s (`packages/app/src/groupon/background-workspaces.ts`).

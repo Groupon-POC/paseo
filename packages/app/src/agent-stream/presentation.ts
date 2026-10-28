@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the chat's display mode filters the presented rows.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the chat's display mode filters the presented rows, and Live hides failed calls when the person turned them off.
 import type { TimelineItemTransform } from "@/plugins/timeline/model";
 import { projectPluginTimelineItems } from "@/plugins/timeline/projection";
 import {
@@ -18,6 +18,8 @@ interface PresentationInput {
   level: ToolCallDetailLevel;
   isTurnActive: boolean;
   displayMode?: ChatDisplayMode;
+  /** Live keeps the failed tool calls; on unless the person turned them off. */
+  showFailed?: boolean;
 }
 
 /** Find and scrolling address a plugin row by the source it replaces. */
@@ -53,6 +55,7 @@ export function createStreamPresentation() {
   let preparedHistory: PreparedToolCallHistory | null = null;
   let filteredSource: StreamItem[] | undefined;
   let filteredMode: ChatDisplayMode | undefined;
+  let filteredShowFailed: boolean | undefined;
   let filteredTurnActive: boolean | undefined;
   let filteredTail: StreamItem[] = [];
 
@@ -90,20 +93,23 @@ export function createStreamPresentation() {
       isTurnActive: input.isTurnActive,
     });
     if (displayMode === "all") return projection;
+    const showFailed = input.showFailed ?? true;
     if (
       filteredSource !== projection.tail ||
       filteredMode !== displayMode ||
+      filteredShowFailed !== showFailed ||
       filteredTurnActive !== input.isTurnActive
     ) {
-      filteredTail = filterForDisplayMode(projection.tail, displayMode);
+      filteredTail = filterForDisplayMode(projection.tail, displayMode, showFailed);
       filteredSource = projection.tail;
       filteredMode = displayMode;
+      filteredShowFailed = showFailed;
       filteredTurnActive = input.isTurnActive;
     }
     return {
       ...projection,
       tail: filteredTail,
-      head: filterForDisplayMode(projection.head, displayMode),
+      head: filterForDisplayMode(projection.head, displayMode, showFailed),
     };
   };
 }

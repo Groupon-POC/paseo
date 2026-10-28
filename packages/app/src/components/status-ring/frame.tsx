@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a background tone, the same ring in the status band's teal for an agent's background task.
 import type { ReactNode } from "react";
 import { StyleSheet as RNStyleSheet, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
@@ -19,6 +20,11 @@ export interface StatusRingProps {
   // tab dot, the project tile under a sidebar badge. Leave it out where the ring sits on flat
   // background and has nothing to knock out.
   backdrop?: SurfaceBackdrop | null;
+  /**
+   * Groupon Desk: "background" for an agent whose turn ended while its Monitor watch or background
+   * command still runs; the same ring in the status band's teal. A named variant, not a colour.
+   */
+  tone?: "running" | "background";
 }
 
 /**
@@ -30,12 +36,17 @@ export interface StatusRingProps {
  * site, outside anything Unistyles tracks, and leave the mark in the old theme until something
  * incidental re-rendered the row.
  */
-export function StatusRingFrame({ backdrop, children }: StatusRingProps & { children: ReactNode }) {
+export function StatusRingFrame({
+  backdrop,
+  tone = "running",
+  children,
+}: StatusRingProps & { children: ReactNode }) {
+  const background = tone === "background";
   return (
     <View style={[styles.frame, getBackdropStyle(backdrop)]}>
-      <View style={styles.track} />
+      <View style={background ? styles.trackBackground : styles.track} />
       {children}
-      <View style={styles.centerDot} />
+      <View style={background ? styles.centerDotBackground : styles.centerDot} />
     </View>
   );
 }
@@ -80,6 +91,7 @@ export const styles = StyleSheet.create((theme) => {
     borderWidth: STATUS_RING_STROKE,
   } as const;
   const runningColor = getStatusDotColor({ theme, bucket: "running" }) ?? undefined;
+  const backgroundColor = theme.colors.statusDotBackground;
 
   return {
     frame: {
@@ -119,6 +131,26 @@ export const styles = StyleSheet.create((theme) => {
       height: STATUS_INDICATOR_FILLED_DOT_SIZE,
       borderRadius: theme.borderRadius.full,
       backgroundColor: runningColor,
+    },
+
+    // Groupon Desk: the background tone, the same three parts in the band's teal.
+    trackBackground: {
+      ...circle,
+      position: "absolute",
+      borderColor: backgroundColor,
+      opacity: STATUS_RING_TRACK_OPACITY,
+    },
+    arcBackground: {
+      ...circle,
+      borderColor: "transparent",
+      borderTopColor: backgroundColor,
+      opacity: STATUS_RING_HEAD_OPACITY,
+    },
+    centerDotBackground: {
+      width: STATUS_INDICATOR_FILLED_DOT_SIZE,
+      height: STATUS_INDICATOR_FILLED_DOT_SIZE,
+      borderRadius: theme.borderRadius.full,
+      backgroundColor,
     },
   };
 });

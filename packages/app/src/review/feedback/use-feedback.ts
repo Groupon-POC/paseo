@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): sending feedback from the diff brings the recipient's chat forward.
 import { createElement, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import {
   useReviewDraftComments,
@@ -6,6 +7,7 @@ import {
 } from "../store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
+import { revealWorkspaceTab } from "@/workspace-tabs/navigation";
 import { deriveWorkspaceTabModel } from "@/screens/workspace/workspace-tab-model";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import { useAppSettings } from "@/hooks/use-settings";
@@ -102,6 +104,9 @@ export function useReviewFeedback(input: {
         clearSent: (sentComments) =>
           clearSentReviewDraftComments({ key: reviewDraftKey, comments: sentComments }),
         failedMessage: () => i18n.t("review.feedback.failed"),
+        reveal: (recipient) => {
+          if (workspaceKey) revealWorkspaceTab(workspaceKey, recipient.tab.tabId);
+        },
       }),
     [reviewDraftKey, serverId, workspaceKey, workspaceId],
   );

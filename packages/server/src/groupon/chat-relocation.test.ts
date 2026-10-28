@@ -1,7 +1,11 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): tests for a chat's move into a worktree of its own repository.
 
 import { describe, expect, test } from "vitest";
-import { type ChatRelocationDeps, scheduleChatRelocation } from "./chat-relocation.js";
+import {
+  type ChatRelocationDeps,
+  scheduleChatRelocation,
+  relocationCandidatesOf,
+} from "./chat-relocation.js";
 
 const CHECKOUT = "/Users/n/projects/groupon-monorepo";
 const WORKTREE = `${CHECKOUT}/.claude/worktrees/ENC-10950`;
@@ -88,6 +92,19 @@ describe("a chat's move into a worktree of its repository", () => {
     ).rejects.toThrow("The chat has no session to continue yet");
   });
 
+  test("moves a chat once when it is asked twice before its turn ends (desk_move and the follow of its edits)", async () => {
+    const w = world();
+
+    const first = await scheduleChatRelocation({ agentId: "agent-1", path: WORKTREE }, w.deps);
+    const second = await scheduleChatRelocation({ agentId: "agent-1", path: WORKTREE }, w.deps);
+    w.turn.resolve();
+    await settle();
+
+    expect(second).toEqual(first);
+    expect(w.workspaces).toEqual([WORKTREE]);
+    expect(w.relocated).toHaveLength(1);
+  });
+
   test("reports a move that fails after the turn, instead of losing it", async () => {
     const boom = new Error("resume failed");
     const w = world({
@@ -101,5 +118,29 @@ describe("a chat's move into a worktree of its repository", () => {
     await settle();
 
     expect(w.failures).toEqual([boom]);
+  });
+});
+
+describe("the workspaces a moved chat may take", () => {
+  const row = (workspaceId: string, projectId: string, cwd: string, archivedAt: string | null) => ({
+    workspaceId,
+    projectId,
+    cwd,
+    archivedAt,
+    background: false,
+  });
+
+  test("are the chat's own project's active ones on the folder, never a project of the worktree's own", () => {
+    const workspaces = [
+      row("ws-stray", "proj-worktree", WORKTREE, null),
+      row("ws-old", "proj-monorepo", WORKTREE, "2026-10-27T10:00:00Z"),
+      row("ws-live", "proj-monorepo", WORKTREE, null),
+      row("ws-checkout", "proj-monorepo", CHECKOUT, null),
+    ];
+
+    expect(
+      relocationCandidatesOf(workspaces, "proj-monorepo", WORKTREE).map((w) => w.workspaceId),
+    ).toEqual(["ws-live"]);
+    expect(relocationCandidatesOf(workspaces.slice(0, 2), "proj-monorepo", WORKTREE)).toEqual([]);
   });
 });

@@ -841,11 +841,12 @@ sent, so the person sees the agent take it up; a failed send stays on the diff w
 (`packages/app/src/review/feedback/index.ts`, the `reveal` port, wired in `use-feedback.ts` to
 `revealWorkspaceTab`).
 
-## A background task turns the sidebar row too
+## A background task makes the sidebar row breathe
 
-A session whose turn ended while its Monitor watch or background command still runs shows the
-sidebar's busy ring in the status band's teal (`statusDotBackground`, hue 195 by the band's own
-rule; `StatusRing`'s `tone="background"`). The daemon answers `groupon-desk.workspaces.background`
+A session whose turn ended while its Monitor watch or background command still runs shows a teal
+dot that breathes (`statusDotBackground`, hue 195 by the band's own rule;
+`packages/app/src/groupon/background-pulse.web.tsx`), never the working ring, so the two do not read
+as one (the person's pick of 2026-10-28; Paseo's `StatusRing` is back to its own code). The daemon answers `groupon-desk.workspaces.background`
 with the workspaces of loaded agents that have such a task alive, one process listing for all
 (`backgroundWorkspaceIdsOf` in `packages/server/src/groupon/agent-monitors.ts`); the window asks
 once per host every 15 s (`packages/app/src/groupon/background-workspaces.ts`).

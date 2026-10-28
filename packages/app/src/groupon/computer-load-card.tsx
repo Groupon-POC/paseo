@@ -221,6 +221,7 @@ const styles = StyleSheet.create((theme) => ({
     flexWrap: "wrap",
     columnGap: theme.spacing[2],
     rowGap: 2,
+    marginTop: theme.spacing[1.5],
     paddingLeft: theme.spacing[2] + 7 + theme.spacing[1.5],
     paddingRight: theme.spacing[2],
     paddingBottom: theme.spacing[1],

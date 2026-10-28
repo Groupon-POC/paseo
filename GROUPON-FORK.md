@@ -841,11 +841,12 @@ sent, so the person sees the agent take it up; a failed send stays on the diff w
 (`packages/app/src/review/feedback/index.ts`, the `reveal` port, wired in `use-feedback.ts` to
 `revealWorkspaceTab`).
 
-## A background task turns the sidebar row too
+## A background task makes the sidebar row breathe
 
-A session whose turn ended while its Monitor watch or background command still runs shows the
-sidebar's busy ring in the status band's teal (`statusDotBackground`, hue 195 by the band's own
-rule; `StatusRing`'s `tone="background"`). The daemon answers `groupon-desk.workspaces.background`
+A session whose turn ended while its Monitor watch or background command still runs shows a teal
+dot that breathes (`statusDotBackground`, hue 195 by the band's own rule;
+`packages/app/src/groupon/background-pulse.web.tsx`), never the working ring, so the two do not read
+as one (the person's pick of 2026-10-28; Paseo's `StatusRing` is back to its own code). The daemon answers `groupon-desk.workspaces.background`
 with the workspaces of loaded agents that have such a task alive, one process listing for all
 (`backgroundWorkspaceIdsOf` in `packages/server/src/groupon/agent-monitors.ts`); the window asks
 once per host every 15 s (`packages/app/src/groupon/background-workspaces.ts`).
@@ -897,3 +898,14 @@ At the end of each turn the daemon reads the transcript's last 512 KB, takes the
 when it is new, makes it the chat's title and the title of a workspace holding only that chat; what
 it carried is kept in `<PASEO_HOME>/groupon/hook-titles.json`, so a restart never puts it back over
 the person's own rename (`packages/server/src/groupon/hook-title.ts`).
+
+## Commits and pushes on a git timeline in the chat
+
+An agent's `git commit` and `git push` were shell rows with the command as text. A shell call that
+commits or pushes is now drawn as nodes on a rail (the person's pick of 2026-10-28, variant C):
+a commit with its short sha, subject and counts, a push in green with where it went, its range and
+the checkout's pull request; a failed one in red with git's reason. Pressing a node opens the
+call's output. The commit and push are read from the command and its output
+(`packages/app/src/groupon/git-events-model.ts`): a quiet commit takes its subject from `-m` or a
+heredoc and has no sha. Such a call never folds into a run of calls (`isGroupableToolCall`), and
+Live keeps it once it finished (`agent-stream/display-mode.ts`).

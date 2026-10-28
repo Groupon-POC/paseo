@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace whose agent runs a background task (a Monitor watch, a background command) turns in the status band's teal.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace whose agent runs a background task (a Monitor watch, a background command) breathes in the status band's teal.
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
 import { Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -28,6 +28,7 @@ import {
 } from "@/utils/status-indicator-geometry";
 import { shouldRenderSyncedStatusLoader } from "@/utils/status-loader";
 import { StatusRing } from "@/components/status-ring";
+import { BackgroundPulse } from "@/groupon/background-pulse";
 import { useWorkspaceRunsInBackground } from "@/groupon/background-workspaces";
 import { resolveSidebarWorkspacePrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
 import { DensityIcon } from "@/components/ui/density-icon";
@@ -229,11 +230,11 @@ function WorkspaceStatusIndicator({
   }
 
   // Groupon Desk: a turn that ended while its Monitor watch or background command still runs
-  // turns too, in the status band's teal.
+  // breathes in the status band's teal.
   if (runsInBackground) {
     return (
       <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-background">
-        <StatusRing tone="background" />
+        <BackgroundPulse />
       </View>
     );
   }

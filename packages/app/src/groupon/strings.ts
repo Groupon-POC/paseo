@@ -810,3 +810,17 @@ export const GROUPON_SESSION_ID = {
   copied: "Session ID",
   copyFailed: "Could not copy the session ID",
 } as const;
+
+/** The chat's git timeline: an agent's commits and pushes as nodes on a rail. */
+export const GROUPON_GIT_TIMELINE = {
+  commit: "Commit",
+  committing: (subject: string | null) => (subject ? `Committing: ${subject}` : "Committing…"),
+  commitFailed: (problem: string | null) =>
+    problem ? `Commit failed: ${problem}` : "Commit failed",
+  files: (count: number) => (count === 1 ? "1 file" : `${count} files`),
+  pushed: (target: string | null) => (target ? `Pushed to ${target}` : "Pushed"),
+  pushing: (target: string | null) => (target ? `Pushing to ${target}…` : "Pushing…"),
+  upToDate: (target: string | null) => (target ? `${target} is up to date` : "Nothing to push"),
+  pushFailed: (problem: string | null) => (problem ? `Push failed: ${problem}` : "Push failed"),
+  newBranch: "new branch",
+} as const;

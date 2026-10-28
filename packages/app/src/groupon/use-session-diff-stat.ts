@@ -65,6 +65,8 @@ export function useWorkspaceShownDiffStat(input: {
   workspaceId: string;
   checkoutStat: DiffCount | null;
   active: boolean;
+  /** A base the workspace's agent asked for: the checkout's own count then no longer answers "all". */
+  baseRef?: string | null;
 }): DiffCount | null | undefined {
   const session = useWorkspaceSessionDiffStat(input);
   const part = useWorktreePartDiffStat(input);
@@ -78,6 +80,7 @@ function useWorktreePartDiffStat(input: {
   serverId: string;
   workspaceId: string;
   active: boolean;
+  baseRef?: string | null;
 }): ComparedStat | undefined {
   const { comparison } = useWorkingDiffComparison({
     serverId: input.serverId,
@@ -86,11 +89,16 @@ function useWorktreePartDiffStat(input: {
   });
   const cwd = useWorkspaceDirectory(input.serverId, input.workspaceId) ?? "";
   const checkoutPart = checkoutModeOf(comparison);
-  const part = sessionModeOf(comparison) === null && checkoutPart !== "all" ? checkoutPart : null;
+  const ownBase = !input.baseRef;
+  const part =
+    sessionModeOf(comparison) === null && (checkoutPart !== "all" || !ownBase)
+      ? checkoutPart
+      : null;
   const checkout = useCheckoutDiffQuery({
     serverId: input.serverId,
     cwd,
     mode: part ?? "uncommitted",
+    ...(input.baseRef ? { baseRef: input.baseRef } : {}),
     ignoreWhitespace: false,
     enabled: input.active && part !== null && cwd.length > 0,
   });

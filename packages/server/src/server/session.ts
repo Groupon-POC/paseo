@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository. A title a hook or /rename gives a Claude session becomes its chat's at the end of a turn (`groupon/hook-title.ts`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository. A title a hook or /rename gives a Claude session becomes its chat's at the end of a turn (`groupon/hook-title.ts`); a moved chat carries the Changes comparison its agent asked for, and a message that starts its next turn.
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory } from "./agent/directory.js";
@@ -218,6 +218,12 @@ import {
   relocationCandidatesOf,
   scheduleChatRelocation,
 } from "../groupon/chat-relocation.js";
+import {
+  type CompareRequest,
+  compareRequestOf,
+  WORKSPACE_COMPARE_RPC,
+  workspaceCompareLedger,
+} from "../groupon/workspace-compare.js";
 import {
   configDirOf,
   hookTitleLedger,
@@ -2212,7 +2218,8 @@ export class Session {
           mainRepoRoot: (dir) => getMainRepoRoot(dir).catch(() => null),
         },
       );
-      if (target) await this.relocateGrouponChat(agentId, target);
+      if (target)
+        await this.relocateGrouponChat(agentId, target, { compare: null, continueWith: null });
     } catch (error) {
       this.sessionLogger.warn({ err: error, agentId }, "A chat could not follow its worktree");
     }
@@ -2828,7 +2835,14 @@ export class Session {
       return await this.relocateGrouponChat(
         requiredGrouponRpcString(input, "agentId"),
         requiredGrouponRpcString(input, "path"),
+        {
+          compare: compareRequestOf(grouponRpcField(input, "compare"), new Date()),
+          continueWith: optionalGrouponRpcText(input, "continueWith"),
+        },
       );
+    }
+    if (method === WORKSPACE_COMPARE_RPC) {
+      return { requests: await workspaceCompareLedger(this.paseoHome).all() };
     }
     if (method === SESSION_CHANGES_RPC) {
       return await this.readGrouponSessionChanges(
@@ -2964,8 +2978,16 @@ export class Session {
     });
   }
 
-  /** A chat moves into another worktree of its repository once its turn ends (`chat-relocation.ts`). */
-  private relocateGrouponChat(agentId: string, path: string) {
+  /**
+   * A chat moves into another worktree of its repository once its turn ends (`chat-relocation.ts`).
+   * Once there, the window is asked to show `compare` for its workspace and `continueWith` starts
+   * the next turn, so the agent's work goes on in the worktree without waiting for the person.
+   */
+  private relocateGrouponChat(
+    agentId: string,
+    path: string,
+    after: { compare: CompareRequest | null; continueWith: string | null },
+  ) {
     return scheduleChatRelocation(
       { agentId, path },
       {
@@ -2990,6 +3012,10 @@ export class Session {
           const snapshot = await this.agentManager.reloadAgentSession(id, { cwd }, { workspaceId });
           await this.agentUpdates.forwardLiveAgent(snapshot);
           if (left && left !== workspaceId) await this.archiveGrouponWorkspaceIfEmpty(left);
+          if (after.compare) {
+            await workspaceCompareLedger(this.paseoHome).remember(workspaceId, after.compare);
+          }
+          if (after.continueWith) await this.handleSendAgentMessage(id, after.continueWith);
         },
         onFailure: (id, error) =>
           this.sessionLogger.error(
@@ -9498,6 +9524,16 @@ function hostSource(options: SessionOptions): string {
 /** Groupon Desk: one field of a plugin RPC's input, which crosses a process boundary unchecked. */
 function grouponRpcField(input: unknown, key: string): unknown {
   return typeof input === "object" && input !== null ? Reflect.get(input, key) : null;
+}
+
+/** A text field an RPC may leave out; at most 4000 characters, as a message to an agent. */
+function optionalGrouponRpcText(input: unknown, key: string): string | null {
+  const value = grouponRpcField(input, key);
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string" || value.trim() === "" || value.length > 4_000) {
+    throw new Error(`${key} must be a text of at most 4000 characters`);
+  }
+  return value;
 }
 
 function requiredGrouponRpcString(input: unknown, key: string): string {

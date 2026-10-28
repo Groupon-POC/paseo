@@ -909,3 +909,16 @@ call's output. The commit and push are read from the command and its output
 (`packages/app/src/groupon/git-events-model.ts`): a quiet commit takes its subject from `-m` or a
 heredoc and has no sha. Such a call never folds into a run of calls (`isGroupableToolCall`), and
 Live keeps it once it finished (`agent-stream/display-mode.ts`).
+
+## A moved chat brings its comparison and goes on by itself
+
+An agent that reviews a pull request in a worktree of its own (the principal gate) moves its chat
+there with the door's `desk_move` and asks how the Changes compare: `groupon-desk.chats.relocate`
+takes `compare` (a comparison, and `baseRef`, the pull request's base) and `continueWith` (a
+message). After the move the daemon keeps the request for the new workspace
+(`<PASEO_HOME>/groupon/workspace-compare.json`, `packages/server/src/groupon/workspace-compare.ts`)
+and sends the message, which starts the next turn in the worktree without waiting for the person.
+The window reads the requests (`groupon-desk.workspaces.compare`, every 5 s while a chat is open),
+switches the workspace's Changes to the asked comparison once per request, so the person's own
+pick afterwards stays, and diffs the base comparison and the pill's count against the asked base
+(`packages/app/src/groupon/requested-compare.ts`).

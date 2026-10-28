@@ -410,8 +410,10 @@ every call it makes carries the origin `groupon-desk://app`: Core's CORS allowli
 daemon allows it (`packages/server/src/server/bootstrap.ts`), and the hand's relay door must admit
 it. The same scheme is the window's macOS URL scheme (`packages/desktop/electron-builder.yml`):
 `groupon-desk://h/<server>/agent/<agent>` opens an agent, built and read by
-`packages/protocol/src/agent-deep-link.ts` (`paseo agent open` hands it to the window). The
-menu-bar app keeps its own `groupondesk` scheme, so the two never claim the same links. There is
+`packages/protocol/src/agent-deep-link.ts` (`paseo agent open` hands it to the window). The same
+link in a chat opens that agent's chat in the window itself, on the desktop and on the web
+(`packages/app/src/assistant-file-links/use-file-link.ts`): an agent that hands work to a new chat
+(the door's `desk_start`, which answers the link) points the person at it. The menu-bar app keeps its own `groupondesk` scheme, so the two never claim the same links. There is
 no fallback: a `paseo://` page, origin or link is not served, allowed or read (owner, 2026-10-20:
 nobody used the old one). Moving the origin also moved the window's local storage, so a window
 built before the rename starts with empty settings once. Upstream's native mobile tests under

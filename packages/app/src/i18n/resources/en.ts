@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name wherever the English names it, the engine's included (owner, 2026-10-20: no trace of Paseo a person meets); the project config is .groupon/desk.toml.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name wherever the English names it, the engine's included (owner, 2026-10-20: no trace of Paseo a person meets); the project config is .groupon/desk.toml. The desktop notifications switch (`settings.notifications.enabled`, `enabledHint`). The sidebar's Show New workspace toggle (`sidebar.display.showNewWorkspaceRows`). New workspace's isolation reads Local or Worktree.
 export const en = {
   paneFind: {
     connectionFailure: "Could not search this chat. Check the host connection and retry.",
@@ -1173,6 +1173,7 @@ export const en = {
     },
     display: {
       showBackground: "Show background",
+      showNewWorkspaceRows: "Show New workspace",
       trigger: "Display preferences",
       heading: "Display",
       sort: {
@@ -1350,7 +1351,7 @@ export const en = {
     create: "Create",
     isolation: {
       local: "Local",
-      worktree: "New worktree",
+      worktree: "Worktree",
       label: "Isolation",
     },
     fields: {
@@ -2258,6 +2259,8 @@ export const en = {
       title: "Notifications",
       permission: "Notification permission",
       refreshAccessibility: "Refresh notification permission",
+      enabled: "Desktop notifications",
+      enabledHint: "Show a notification when an agent finishes or needs you",
       playSound: "Play sound",
       playSoundHint: "Play a sound when a desktop notification arrives",
       test: "Test notification",

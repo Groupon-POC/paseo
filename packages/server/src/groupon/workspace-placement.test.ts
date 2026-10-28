@@ -74,6 +74,12 @@ describe("a workspace started without a ticket", () => {
     expect(placement.keepBranchName).toBe(true);
   });
 
+  test("Local on staging stays Local when the request asks to stay in place", async () => {
+    const original = request({ kind: "directory", path: REPO, inPlaceOnTrunk: true });
+    const placement = await placeTicketlessWorkspace(original, deps("staging"));
+    expect(placement.request).toBe(original);
+  });
+
   test("Local on the person's own branch stays Local", async () => {
     const original = request({ kind: "directory", path: REPO });
     const placement = await placeTicketlessWorkspace(original, deps("ctzaruba/fix-the-login"));

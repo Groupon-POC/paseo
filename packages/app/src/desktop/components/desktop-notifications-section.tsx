@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a switch that turns the window's desktop notifications off, above the sound.
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View } from "react-native";
@@ -38,6 +39,15 @@ export function DesktopNotificationsSection() {
   const handleRequestNotifications = useCallback(() => {
     void requestPermission("notifications");
   }, [requestPermission]);
+
+  const handleEnabledChange = useCallback(
+    (enabled: boolean) => {
+      void updateSettings({ notifications: { enabled } }).catch(() => {
+        // useDesktopSettings owns the user-visible IPC error.
+      });
+    },
+    [updateSettings],
+  );
 
   const handlePlaySoundChange = useCallback(
     (playSound: boolean) => {
@@ -97,13 +107,26 @@ export function DesktopNotificationsSection() {
         />
         <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
           <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>{t("settings.notifications.enabled")}</Text>
+            <Text style={settingsStyles.rowHint}>{t("settings.notifications.enabledHint")}</Text>
+          </View>
+          <Switch
+            value={settings.notifications.enabled}
+            onValueChange={handleEnabledChange}
+            disabled={isSaving}
+            accessibilityLabel={t("settings.notifications.enabled")}
+            testID="desktop-notifications-enabled-switch"
+          />
+        </View>
+        <View style={[settingsStyles.row, settingsStyles.rowBorder]}>
+          <View style={settingsStyles.rowContent}>
             <Text style={settingsStyles.rowTitle}>{t("settings.notifications.playSound")}</Text>
             <Text style={settingsStyles.rowHint}>{t("settings.notifications.playSoundHint")}</Text>
           </View>
           <Switch
             value={settings.notifications.playSound}
             onValueChange={handlePlaySoundChange}
-            disabled={isSaving}
+            disabled={isSaving || !settings.notifications.enabled}
             accessibilityLabel={t("settings.notifications.playSound")}
             testID="desktop-notifications-play-sound-switch"
           />

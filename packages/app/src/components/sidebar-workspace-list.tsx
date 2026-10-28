@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a project row's "+" (new workspace) always shows, as in Conductor; its menu offers Improve this repository; a project's "+ New workspace" row is always under its last workspace, not only for a project with none.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a project row's "+" (new workspace) always shows, as in Conductor; its menu offers Improve this repository; a project's "+ New workspace" row is always under its last workspace, not only for a project with none. The "New workspace" row follows the sidebar's Show New workspace setting. "No project" leads the project list while it holds a chat and is hidden when empty.
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
   View,
@@ -77,6 +77,8 @@ import {
 } from "@/hooks/use-sidebar-workspaces-list";
 import { useSidebarOrderStore } from "@/stores/sidebar-order-store";
 import { useSidebarViewStore, type SidebarGroupMode } from "@/stores/sidebar-view-store";
+import { useSettings } from "@/hooks/use-settings";
+import { arrangeChatsProject } from "@/groupon/project-less-chats";
 import { useShowShortcutBadges } from "@/hooks/use-show-shortcut-badges";
 import {
   ContextMenu,
@@ -1789,20 +1791,22 @@ function ProjectBlock({
   const handleToggleCollapsed = useCallback(() => {
     onToggleCollapsed(project.viewKey);
   }, [onToggleCollapsed, project.viewKey]);
+  const showNewWorkspaceRows = useSettings((settings) => settings.sidebarNewWorkspaceRows);
 
   const childrenModel = buildSidebarProjectChildrenModel({
     collapsed,
     workspaceCount: project.workspaces.length,
     trailingAction: rowModel.trailingAction,
   });
-  const newWorkspaceRow = childrenModel.newWorkspaceTarget ? (
-    <NewWorkspaceGhostRow
-      project={project}
-      displayName={displayName}
-      worktreeTarget={childrenModel.newWorkspaceTarget}
-      onWorkspacePress={onWorkspacePress}
-    />
-  ) : null;
+  const newWorkspaceRow =
+    childrenModel.newWorkspaceTarget && showNewWorkspaceRows ? (
+      <NewWorkspaceGhostRow
+        project={project}
+        displayName={displayName}
+        worktreeTarget={childrenModel.newWorkspaceTarget}
+        onWorkspacePress={onWorkspacePress}
+      />
+    ) : null;
   let projectChildren = null;
   if (childrenModel.showWorkspaces) {
     projectChildren = (
@@ -2223,7 +2227,11 @@ function ProjectModeList({
   );
   const selectionEnabled = isWorkspaceRoute;
   const activeWorkspaceSelection = useActiveWorkspaceSelection();
-  const { pinnedChats, unpinnedProjects } = pinnedGroups;
+  const { pinnedChats } = pinnedGroups;
+  const unpinnedProjects = useMemo(
+    () => arrangeChatsProject(pinnedGroups.unpinnedProjects),
+    [pinnedGroups.unpinnedProjects],
+  );
   const {
     visibleItems: visiblePinnedChats,
     expanded: pinnedChatsExpanded,

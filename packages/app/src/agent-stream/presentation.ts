@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the chat's display mode filters the presented rows.
 import type { TimelineItemTransform } from "@/plugins/timeline/model";
 import { projectPluginTimelineItems } from "@/plugins/timeline/projection";
 import {
@@ -7,6 +8,8 @@ import {
   type ToolCallDetailLevel,
 } from "@/tool-calls/detail-level/projection";
 import type { StreamItem, UserMessageItem } from "@/types/stream";
+import type { ChatDisplayMode } from "@/hooks/use-settings";
+import { filterForDisplayMode } from "./display-mode";
 
 interface PresentationInput {
   tail: StreamItem[];
@@ -14,6 +17,7 @@ interface PresentationInput {
   transform: TimelineItemTransform | undefined;
   level: ToolCallDetailLevel;
   isTurnActive: boolean;
+  displayMode?: ChatDisplayMode;
 }
 
 /** Find and scrolling address a plugin row by the source it replaces. */
@@ -47,6 +51,10 @@ export function createStreamPresentation() {
   let preparedTail: StreamItem[] | undefined;
   let preparedLevel: ToolCallDetailLevel | undefined;
   let preparedHistory: PreparedToolCallHistory | null = null;
+  let filteredSource: StreamItem[] | undefined;
+  let filteredMode: ChatDisplayMode | undefined;
+  let filteredTurnActive: boolean | undefined;
+  let filteredTail: StreamItem[] = [];
 
   function presentRows(item: StreamItem): StreamItem[] {
     return [item.kind === "user_message" ? presentUserMessage(item) : item];
@@ -66,17 +74,36 @@ export function createStreamPresentation() {
       const blocks = presentRows(item);
       head.push(...blocks);
     }
-    if (preparedTail !== historyRows || preparedLevel !== input.level) {
-      preparedHistory = prepareToolCallHistory(input.level, historyRows);
+    // Groupon Desk: a display mode filters flat rows, so a failed call never hides in a group.
+    const displayMode = input.displayMode ?? "all";
+    const level = displayMode === "all" ? input.level : "detailed";
+    if (preparedTail !== historyRows || preparedLevel !== level) {
+      preparedHistory = prepareToolCallHistory(level, historyRows);
       preparedTail = historyRows;
-      preparedLevel = input.level;
+      preparedLevel = level;
     }
-    return projectToolCallDetailLevel({
-      level: input.level,
+    const projection = projectToolCallDetailLevel({
+      level,
       tail: historyRows,
       head,
       preparedHistory,
       isTurnActive: input.isTurnActive,
     });
+    if (displayMode === "all") return projection;
+    if (
+      filteredSource !== projection.tail ||
+      filteredMode !== displayMode ||
+      filteredTurnActive !== input.isTurnActive
+    ) {
+      filteredTail = filterForDisplayMode(projection.tail, displayMode, input.isTurnActive);
+      filteredSource = projection.tail;
+      filteredMode = displayMode;
+      filteredTurnActive = input.isTurnActive;
+    }
+    return {
+      ...projection,
+      tail: filteredTail,
+      head: filterForDisplayMode(projection.head, displayMode, input.isTurnActive),
+    };
   };
 }

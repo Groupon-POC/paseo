@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation.
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory } from "./agent/directory.js";
@@ -136,6 +136,7 @@ import {
   getAgentStreamEventTurnId,
   type AgentPersistenceHandle,
   type AgentPermissionResponse,
+  type AgentProvider,
   type AgentRunOptions,
   type AgentSessionConfig,
 } from "./agent/agent-sdk-types.js";
@@ -180,6 +181,7 @@ import {
 import {
   createAgentStructuredTextGeneration,
   createGitMetadataGenerator,
+  type StructuredTextGeneration,
 } from "./session/checkout/git-metadata-generator.js";
 import { ScheduleSession } from "./session/schedule/schedule-session.js";
 import { ProviderCatalogSession } from "./session/provider/provider-catalog-session.js";
@@ -211,6 +213,17 @@ import {
   listTrainArchivedWorkspaces,
 } from "../groupon/train-archived.js";
 import { LIST_DIRECTORY_METHOD, listDirectory } from "../groupon/list-directory.js";
+import {
+  CHATS_PROJECT_NAME,
+  ChatClassificationSchema,
+  GROUPON_CHATS_RPC,
+  buildClassificationPrompt,
+  chatsRootOf,
+  describeProject,
+  moveChatAgent,
+  placeChat,
+  type ChatsProject,
+} from "../groupon/project-less-chats.js";
 import {
   createGitMutationService,
   type GitMutationService,
@@ -776,6 +789,7 @@ export class Session {
   private readonly workspaceAutoName: WorkspaceAutoName;
   private readonly gitMutation: GitMutationService;
   private readonly workspaceProvisioning: WorkspaceProvisioningService;
+  private readonly grouponChatGeneration: StructuredTextGeneration;
   private readonly workspaceRecovery: WorkspaceRecoveryService;
   private readonly daemonConfigStore: DaemonConfigStore;
   private readonly pushNotifications: PushNotifications;
@@ -1007,6 +1021,13 @@ export class Session {
       }),
       paseoHome: this.paseoHome,
       worktreesRoot: this.worktreesRoot,
+      logger: this.sessionLogger,
+    });
+    this.grouponChatGeneration = createAgentStructuredTextGeneration({
+      agentManager: this.agentManager,
+      providerSnapshotManager,
+      readDaemonConfig: () => this.readStructuredGenerationDaemonConfig(),
+      getFocusedSelection: () => undefined,
       logger: this.sessionLogger,
     });
     this.workspaceGitObserver = createWorkspaceGitObserverService({
@@ -2649,7 +2670,111 @@ export class Session {
       });
       return { workspaces };
     }
+    if (method === GROUPON_CHATS_RPC.ensure) {
+      return await this.ensureChatsProject();
+    }
+    if (method === GROUPON_CHATS_RPC.place) {
+      const prompt =
+        typeof input === "object" && input !== null ? Reflect.get(input, "prompt") : "";
+      return { placement: await this.placeGrouponChat(typeof prompt === "string" ? prompt : "") };
+    }
+    if (method === GROUPON_CHATS_RPC.move) {
+      const read = (key: string) =>
+        typeof input === "object" && input !== null ? Reflect.get(input, key) : null;
+      const agentId = read("agentId");
+      const targetWorkspaceId = read("targetWorkspaceId");
+      if (typeof agentId !== "string" || typeof targetWorkspaceId !== "string") {
+        throw new Error("agentId and targetWorkspaceId are required");
+      }
+      return await this.moveGrouponChat(agentId, targetWorkspaceId);
+    }
     throw new Error(`Unknown Groupon Desk method: ${method}`);
+  }
+
+  /** The "No project" project, whose root holds a folder per project-less chat. */
+  private async ensureChatsProject(): Promise<ChatsProject> {
+    const rootPath = chatsRootOf(this.paseoHome);
+    await mkdir(rootPath, { recursive: true });
+    const project = await this.workspaceProvisioning.findOrCreateProjectForDirectory(rootPath);
+    if (project.customName !== CHATS_PROJECT_NAME) {
+      const named = await this.projectRegistry.update(project.projectId, (record) => ({
+        ...record,
+        customName: CHATS_PROJECT_NAME,
+        updatedAt: new Date().toISOString(),
+      }));
+      if (named) await this.emitProjectUpdate({ kind: "upsert", project: named });
+    }
+    return { projectId: project.projectId, rootPath };
+  }
+
+  private placeGrouponChat(prompt: string) {
+    const chatsRoot = chatsRootOf(this.paseoHome);
+    return placeChat(prompt, {
+      chatsRoot,
+      listProjects: async () =>
+        (await this.projectRegistry.list())
+          .filter((project) => !project.archivedAt)
+          .map((project) =>
+            describeProject({
+              projectId: project.projectId,
+              name: project.customName ?? project.displayName,
+              rootPath: project.rootPath,
+              kind: project.kind,
+            }),
+          ),
+      classify: (text, candidates) =>
+        this.grouponChatGeneration.generate({
+          cwd: chatsRoot,
+          prompt: buildClassificationPrompt(text, candidates),
+          schema: ChatClassificationSchema,
+          schemaName: "ChatPlacement",
+          agentTitle: "Chat placement",
+        }),
+      ensureChatsProject: () => this.ensureChatsProject(),
+    });
+  }
+
+  private moveGrouponChat(agentId: string, targetWorkspaceId: string) {
+    return moveChatAgent(
+      { agentId, targetWorkspaceId },
+      {
+        chatsRoot: chatsRootOf(this.paseoHome),
+        getAgent: async (id) => {
+          const record = await this.agentStorage.get(id);
+          return record
+            ? {
+                provider: record.provider,
+                cwd: record.cwd,
+                sessionId: record.persistence?.sessionId ?? null,
+              }
+            : null;
+        },
+        getWorkspaceDirectory: async (id) => (await this.workspaceRegistry.get(id))?.cwd ?? null,
+        dropAgent: (id) => this.handleDeleteAgentRequest(id, `groupon-chat-move-${id}`),
+        importSession: async (request) => {
+          const requestId = `groupon-chat-move-${request.providerHandleId}`;
+          const { snapshot, timelineSize, createdWorkspace } = await importProviderSession({
+            request: { ...request, provider: request.provider as AgentProvider, requestId },
+            workspaceProvisioning: this.workspaceProvisioning,
+            agentManager: this.agentManager,
+            agentStorage: this.agentStorage,
+            logger: this.sessionLogger,
+          });
+          if (createdWorkspace) await this.registerWorkspaceForImportedAgent(createdWorkspace);
+          this.emit({
+            type: "status",
+            payload: {
+              status: "agent_resumed",
+              agentId: snapshot.id,
+              requestId,
+              timelineSize,
+              agent: await this.buildAgentPayload(snapshot),
+            },
+          });
+          return snapshot.id;
+        },
+      },
+    );
   }
 
   private dispatchPluginDirectoryMessage(msg: SessionInboundMessage): Promise<void> | undefined {

@@ -1,4 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a page may keep its scroll position across an appearance remount.
 import { useMemo, type ReactNode } from "react";
+import { useRememberedScroll } from "@/groupon/remembered-scroll";
 import { Platform, ScrollView, Text, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,6 +20,8 @@ interface PageLayoutProps {
   titleTestID?: string;
   /** Controls for the whole page: right of the title on desktop, in the back header on compact. */
   actions?: ReactNode;
+  /** Keeps the page's scroll position when its content remounts (an appearance change). */
+  scrollMemoryKey?: string;
   children: ReactNode;
 }
 
@@ -32,8 +36,10 @@ export function PageLayout({
   testID,
   titleTestID,
   actions,
+  scrollMemoryKey,
   children,
 }: PageLayoutProps) {
+  const rememberedScroll = useRememberedScroll(scrollMemoryKey);
   const isCompact = useIsCompactFormFactor();
   const insets = useSafeAreaInsets();
   const scrollContentStyle = useMemo(() => ({ paddingBottom: insets.bottom }), [insets.bottom]);
@@ -49,6 +55,7 @@ export function PageLayout({
       <PageScrollView
         // Leave room for field borders and padding around the focused native input.
         {...(Platform.OS === "android" ? { bottomOffset: SPACING[4] } : {})}
+        {...rememberedScroll}
         style={styles.scroll}
         contentContainerStyle={scrollContentStyle}
         testID={testID}

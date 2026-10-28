@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): My tasks under the New workspace page's composer.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): My tasks under the New workspace page's composer. Hidden when the person turns My tasks off in Settings.
 
 /**
  * The person's Jira tasks under the composer: Jira's filter bar, the table with the person's
@@ -57,6 +57,7 @@ import {
   type TasksState,
 } from "./jira-tasks-model";
 import { GROUPON_TASKS } from "./strings";
+import { useGrouponPreferences } from "./preferences";
 
 const TAKE_WIDTH = 190;
 const ThemedSpinner = withUnistyles(LoadingSpinner, (theme: Theme) => ({
@@ -73,7 +74,8 @@ export function JiraTasksCard({
 }) {
   const compact = useIsCompactFormFactor();
   const client = useHostRuntimeClient(serverId);
-  if (compact || !client) return null;
+  const shown = useGrouponPreferences((state) => state.showMyTasks ?? true);
+  if (compact || !client || !shown) return null;
   return <TasksCard client={client} serverId={serverId} onTakeTicket={onTakeTicket} />;
 }
 

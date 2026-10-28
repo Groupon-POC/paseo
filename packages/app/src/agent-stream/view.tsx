@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s").
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import React, {
@@ -335,6 +335,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const { t } = useTranslation();
     const autoExpandReasoning = useSettings((settings) => settings.autoExpandReasoning);
     const toolCallDetailLevel = useSettings((settings) => settings.toolCallDetailLevel);
+    const displayMode = useSettings((settings) => settings.chatDisplayMode);
     const chatOutlineEnabled = useSettings((settings) => settings.chatOutlineEnabled);
     const contentMaxWidth = useSettings(resolveContentMaxWidth);
     const viewportRef = useRef<StreamViewportHandle | null>(null);
@@ -515,6 +516,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           transform: transformTimelineItem,
           level: toolCallDetailLevel,
           isTurnActive,
+          displayMode,
         }),
       [
         presentStream,
@@ -523,6 +525,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         transformTimelineItem,
         toolCallDetailLevel,
         isTurnActive,
+        displayMode,
       ],
     );
     const {
@@ -729,6 +732,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
             text={item.text}
             status={item.status}
+            seconds={thoughtSeconds(item)}
             isLastInSequence={layoutItem.isLastInToolSequence}
             defaultExpanded={autoExpandReasoning}
           />
@@ -1281,8 +1285,20 @@ interface ThoughtSlotProps {
   onInlineDetailsExpandedChangeByItemId: (itemId: string, expanded: boolean) => void;
   text: string;
   status: Extract<StreamItem, { kind: "thought" }>["status"];
+  /** Groupon Desk: how long it took, once it is ready; null when not known. */
+  seconds: number | null;
   isLastInSequence: boolean;
   defaultExpanded: boolean;
+}
+
+/**
+ * Groupon Desk: whole seconds from a thought's first chunk to its last, at least 1; null when its
+ * chunks do not tell (no start, or one chunk, as a replayed history can carry it).
+ */
+function thoughtSeconds(item: Extract<StreamItem, { kind: "thought" }>): number | null {
+  if (!item.startedAt) return null;
+  const elapsed = item.timestamp.getTime() - item.startedAt.getTime();
+  return elapsed > 0 ? Math.max(1, Math.round(elapsed / 1000)) : null;
 }
 
 // Reasoning text is paced the same way assistant text is; see @/hooks/use-revealed-text.
@@ -1291,16 +1307,22 @@ function ThoughtSlot({
   onInlineDetailsExpandedChangeByItemId,
   text,
   status,
+  seconds,
   isLastInSequence,
   defaultExpanded,
 }: ThoughtSlotProps) {
   const revealedText = useRevealedText(text, status === "ready" ? "complete" : "streaming");
+  const metadata = useMemo(
+    () => (status === "ready" && seconds !== null ? { thoughtSeconds: seconds } : undefined),
+    [status, seconds],
+  );
   return (
     <ToolCallSlot
       itemId={itemId}
       onInlineDetailsExpandedChangeByItemId={onInlineDetailsExpandedChangeByItemId}
       toolName="thinking"
       args={revealedText}
+      metadata={metadata}
       status={status === "ready" ? "completed" : "executing"}
       isLastInSequence={isLastInSequence}
       defaultExpanded={defaultExpanded}

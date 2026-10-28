@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shell call keeps the `description` its model wrote, for the call's title.
 import { z } from "zod";
 
 import type { ToolCallDetail } from "../agent-sdk-types.js";
@@ -102,6 +103,8 @@ export const ToolShellInputSchema = z
     return {
       command,
       cwd: nonEmptyString(value.cwd) ?? nonEmptyString(value.directory),
+      description:
+        typeof value.description === "string" ? nonEmptyString(value.description) : undefined,
     };
   });
 
@@ -819,6 +822,7 @@ export function toShellToolDetail(
     type: "shell",
     command,
     ...(input?.cwd ? { cwd: input.cwd } : {}),
+    ...(input?.description ? { description: input.description } : {}),
     ...(output?.output ? { output: output.output } : {}),
     ...(output?.exitCode !== undefined ? { exitCode: output.exitCode } : {}),
   };

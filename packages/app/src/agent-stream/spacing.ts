@@ -1,11 +1,16 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): two replies next to each other sit a short gap apart (16 px, was 40).
 import type { StreamItem } from "@/types/stream";
 import { SPACING } from "@/styles/theme";
 
 export function getAssistantMessageSpacing(params: {
   item: StreamItem;
   hasFooterBelow?: boolean;
+  belowItem?: StreamItem | null;
 }): "default" | "compactBottom" {
-  return params.item.kind === "assistant_message" && params.hasFooterBelow
+  if (params.item.kind !== "assistant_message") return "default";
+  // Groupon Desk: a reply right above another one (tool calls hidden by Output only or Live)
+  // gives up its bottom padding, so two replies sit a short gap apart, not two paddings and a gap.
+  return params.hasFooterBelow || params.belowItem?.kind === "assistant_message"
     ? "compactBottom"
     : "default";
 }
@@ -38,6 +43,9 @@ export function getGapBetweenStreamItems(
     return SPACING[1];
   }
   if (isToolSequenceItem(item) && belowItem.kind === "assistant_message") {
+    return SPACING[1];
+  }
+  if (item.kind === "assistant_message" && belowItem.kind === "assistant_message") {
     return SPACING[1];
   }
   return SPACING[4];

@@ -1,8 +1,69 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shell call titled by its `description`; a question call titled Question.
 import { describe, expect, it } from "vitest";
 
 import { buildToolCallDisplayModel } from "./tool-call-display.js";
 
 describe("shared tool-call display mapping", () => {
+  it("titles a shell call by its description only when asked to", () => {
+    const input = {
+      name: "Bash",
+      status: "completed" as const,
+      error: null,
+      detail: { type: "shell" as const, command: "pnpm test", description: "Run the unit tests" },
+    };
+    expect(buildToolCallDisplayModel(input).summary).toBe("pnpm test");
+    expect(buildToolCallDisplayModel({ ...input, preferDescription: true }).summary).toBe(
+      "Run the unit tests",
+    );
+    expect(
+      buildToolCallDisplayModel({
+        ...input,
+        detail: { type: "shell", command: "ls" },
+        preferDescription: true,
+      }).summary,
+    ).toBe("ls");
+  });
+
+  it("titles a question call Question, with its questions' headers", () => {
+    const display = buildToolCallDisplayModel({
+      name: "AskUserQuestion",
+      status: "completed",
+      error: null,
+      detail: {
+        type: "unknown",
+        input: {
+          questions: [
+            { header: "Same-proj wt", question: "Who makes the worktree?", options: [] },
+            { header: "Commit", question: "Commit what is done?", options: [] },
+          ],
+        },
+        output: null,
+      },
+    });
+
+    expect(display).toEqual({ displayName: "Question", summary: "Same-proj wt · Commit" });
+  });
+
+  it("titles a finished thought by how long it took, Thought when that is not known, and one still going Thinking", () => {
+    const thought = {
+      name: "thinking",
+      error: null,
+      detail: { type: "unknown" as const, input: "Weighing the two options", output: null },
+      metadata: { thoughtSeconds: 12 },
+    };
+
+    expect(buildToolCallDisplayModel({ ...thought, status: "completed" }).displayName).toBe(
+      "Thought for 12s",
+    );
+    expect(buildToolCallDisplayModel({ ...thought, status: "running" }).displayName).toBe(
+      "Thinking",
+    );
+    expect(
+      buildToolCallDisplayModel({ ...thought, status: "completed", metadata: undefined })
+        .displayName,
+    ).toBe("Thought");
+  });
+
   it("builds summary from canonical detail", () => {
     const display = buildToolCallDisplayModel({
       name: "read_file",

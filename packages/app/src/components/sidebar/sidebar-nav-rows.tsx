@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "New chat" leads the sidebar header rows, set off by a line.
 import { router, usePathname } from "expo-router";
 import { CalendarClock, History, Plus, Search } from "lucide-react-native";
 import { memo, useCallback, useMemo, useRef, type ComponentType, type ReactNode } from "react";
@@ -5,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { SidebarHeaderRow } from "@/components/sidebar/sidebar-header-row";
+import { SidebarNewChatRow } from "@/groupon/new-chat-row";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { PluginSidebarItem } from "@/plugins/sidebar-items";
 import { canCreateWorktreeForProjectKind } from "@/projects/host-projects";
@@ -36,18 +38,15 @@ interface SidebarNavRowsProps extends SidebarNavRowProps {
 }
 
 /**
- * Top-level sidebar navigation, ordered and filtered by the user's
- * `sidebarNavItems` preference. Renders nothing — not even the bordered group
- * wrapper — when every item is hidden and there is no `firstRowTrailing`.
+ * Top-level sidebar navigation: Groupon Desk's "New chat", then the rows ordered and filtered by
+ * the user's `sidebarNavItems` preference.
  */
 export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: SidebarNavRowsProps) {
   const { items } = useSidebarNavItems("header");
   const visibleItems = useMemo(() => items.filter((item) => item.visible), [items]);
   const groupRef = useRef<View | null>(null);
 
-  if (visibleItems.length === 0 && !firstRowTrailing) return null;
-
-  const [firstRow, ...restRows] = visibleItems.map((item) => {
+  const rows = visibleItems.map((item) => {
     if (item.kind === "plugin") {
       return (
         <PluginSidebarItem
@@ -62,6 +61,8 @@ export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: Si
     const Row = BUILTIN_ROWS[item.id];
     return <Row key={item.key} onBeforeNavigate={onBeforeNavigate} />;
   });
+  // Groupon Desk: "New chat" always leads, set off from the rows the person orders.
+  const firstRow = <SidebarNewChatRow onBeforeNavigate={onBeforeNavigate} />;
 
   return (
     <View ref={groupRef} collapsable={false} style={style}>
@@ -73,7 +74,8 @@ export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: Si
       ) : (
         firstRow
       )}
-      {restRows}
+      {rows.length > 0 ? <View style={styles.separator} /> : null}
+      {rows}
     </View>
   );
 }
@@ -192,7 +194,7 @@ const BUILTIN_ROWS: Record<BuiltinSidebarNavId, ComponentType<SidebarNavRowProps
   schedules: SidebarSchedulesRow,
 };
 
-const styles = StyleSheet.create({
+const styles = StyleSheet.create((theme) => ({
   firstRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -201,4 +203,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-});
+  separator: {
+    height: 1,
+    backgroundColor: theme.colors.border,
+    marginVertical: theme.spacing[1],
+  },
+}));

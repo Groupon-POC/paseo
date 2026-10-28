@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `optionsPosition`; a draft lists its commands before the first "/", since listing them starts a provider session.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { TFunction } from "i18next";
@@ -9,7 +10,10 @@ import {
   type DraftCommandConfig,
   type DraftCommandTarget,
 } from "./use-agent-commands-query";
-import { orderAutocompleteOptions } from "@/components/ui/autocomplete-utils";
+import {
+  orderAutocompleteOptions,
+  type AutocompleteOptionsPosition,
+} from "@/components/ui/autocomplete-utils";
 import { useAutocomplete } from "./use-autocomplete";
 import { useSessionStore } from "@/stores/session-store";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
@@ -40,6 +44,7 @@ interface UseAgentAutocompleteInput {
   onClientSlashCommand?: (command: ClientSlashCommand) => void;
   canExecuteClientSlashCommand?: boolean;
   pluginClientSlashCommands?: readonly PluginClientSlashCommand[];
+  optionsPosition?: AutocompleteOptionsPosition;
 }
 
 interface AgentAutocompleteKeyPressEvent {
@@ -200,6 +205,7 @@ interface BuildAutocompleteOptionsInput {
   activeSlashCommand: SlashCommandRange | null;
   activeFileMention: FileMentionRange | null;
   fileSuggestions: DirectorySuggestionEntry[];
+  optionsPosition?: AutocompleteOptionsPosition;
   t: TFunction;
 }
 
@@ -236,13 +242,13 @@ function buildCommandAutocompleteOptions(input: BuildAutocompleteOptionsInput) {
       availableCommands,
       input.commandFilterQuery,
     );
-    const orderedMatches = orderAutocompleteOptions(matches);
+    const orderedMatches = orderAutocompleteOptions(matches, input.optionsPosition);
     return orderedMatches.map((entry) => mapCommandToOption(entry, input.t));
   }
 
   const activeFileMention = input.activeFileMention;
   if (input.mode === "file" && activeFileMention) {
-    const orderedEntries = orderAutocompleteOptions(input.fileSuggestions);
+    const orderedEntries = orderAutocompleteOptions(input.fileSuggestions, input.optionsPosition);
     return orderedEntries.map((entry) => ({
       type: "workspace_entry" as const,
       id: `${entry.kind}:${entry.path}`,
@@ -293,6 +299,18 @@ function resolveCanLoadCommands(args: {
     return false;
   }
   return Boolean(args.agentId) || args.isDraftContext;
+}
+
+// A draft lists commands by starting a provider session, which takes seconds: start it before the first "/".
+function resolveCommandsQueryEnabled(args: {
+  mode: AutocompleteMode;
+  isDraftContext: boolean;
+  canLoadCommands: boolean;
+  canListCommands: boolean;
+}): boolean {
+  return (
+    (args.mode === "command" || args.isDraftContext) && args.canLoadCommands && args.canListCommands
+  );
 }
 
 function resolveAutocompleteIsLoading(args: {
@@ -375,6 +393,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
     onClientSlashCommand,
     canExecuteClientSlashCommand,
     pluginClientSlashCommands = [],
+    optionsPosition,
   } = input;
 
   const activeSlashCommand = useMemo(
@@ -435,7 +454,12 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
   const commandsQuery = useAgentCommandsQuery({
     serverId,
     agentId,
-    enabled: mode === "command" && canLoadCommands && canListCommands,
+    enabled: resolveCommandsQueryEnabled({
+      mode,
+      isDraftContext,
+      canLoadCommands,
+      canListCommands,
+    }),
     draftConfig: queryDraftConfig,
   });
   const { commands, isError, error } = commandsQuery;
@@ -491,6 +515,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
         isDraftContext,
         isVisible,
         mode,
+        optionsPosition,
         t,
       }),
     [
@@ -503,6 +528,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
       isDraftContext,
       isVisible,
       mode,
+      optionsPosition,
       t,
     ],
   );
@@ -581,6 +607,7 @@ export function useAgentAutocomplete(input: UseAgentAutocompleteInput): AgentAut
     options,
     query: mode === "command" ? commandFilterQuery : fileFilterQuery,
     onSelectOption: selectOptionFromKeyPress,
+    optionsPosition,
     onEscape:
       mode === "command" && activeSlashCommand?.position === "start"
         ? () => setUserInput("")

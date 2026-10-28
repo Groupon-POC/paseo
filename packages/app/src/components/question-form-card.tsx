@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the question nav, an option row and the styles are exported, so the chat's history shows an answered question in the same form (`groupon/answered-questions.tsx`).
 import { Alert } from "@/components/ui/alert";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { useState, useCallback, useMemo, useRef, type RefObject } from "react";
@@ -60,7 +61,7 @@ interface QuestionOptionRowProps {
   onToggle: (qIndex: number, optIndex: number, multiSelect: boolean) => void;
 }
 
-function QuestionOptionRow({
+export function QuestionOptionRow({
   qIndex,
   optIndex,
   option,
@@ -245,7 +246,7 @@ interface QuestionNavProps {
 
 // Titled tabs (one per question header) with a check on answered ones. Hidden for
 // a lone question — a single "1 of 1" tab carries no information.
-function QuestionNav({
+export function QuestionNav({
   questions,
   activeIndex,
   isAnswered,
@@ -786,3 +787,5 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
   },
 }));
+
+export { styles as questionFormStyles };

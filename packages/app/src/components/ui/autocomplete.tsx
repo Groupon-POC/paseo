@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a `position` prop; below the input the list is not pinned to its end and the detail card sits under it.
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ScrollView,
@@ -14,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { File, Folder } from "lucide-react-native";
 import type { Theme } from "@/styles/theme";
 import { getScrollOffsetToRevealItem } from "./scroll-reveal";
+import type { AutocompleteOptionsPosition } from "./autocomplete-utils";
 
 export interface AutocompleteOption {
   id: string;
@@ -32,6 +34,7 @@ interface AutocompleteProps {
   loadingText?: string;
   emptyText?: string;
   maxHeight?: number;
+  position?: AutocompleteOptionsPosition;
 }
 
 const BOLT_GLYPH_PATTERN = /\u26A1|\uFE0F/gu;
@@ -126,6 +129,7 @@ export function Autocomplete({
   loadingText,
   emptyText,
   maxHeight = 220,
+  position = "above-input",
 }: AutocompleteProps) {
   const { t } = useTranslation();
   const { theme } = useUnistyles();
@@ -162,11 +166,12 @@ export function Autocomplete({
   }, [selectedIndex]);
 
   const pinToBottom = useCallback(() => {
+    if (position === "below-input") return;
     scrollRef.current?.scrollToEnd({ animated: false });
     requestAnimationFrame(() => {
       scrollRef.current?.scrollToEnd({ animated: false });
     });
-  }, []);
+  }, [position]);
 
   useEffect(() => {
     rowLayoutsRef.current.clear();
@@ -243,21 +248,22 @@ export function Autocomplete({
     );
   }
 
+  const detailCard =
+    selectedOption?.kind === "command" && selectedOption.description ? (
+      <View style={styles.detailCard}>
+        <Text style={styles.detailLabel}>
+          {removeBoltGlyphs(selectedOption.label) ?? selectedOption.label}
+        </Text>
+        <Text style={styles.detailDescription}>{removeBoltGlyphs(selectedOption.description)}</Text>
+        {selectedOption.detail ? (
+          <Text style={styles.detailHint}>{removeBoltGlyphs(selectedOption.detail)}</Text>
+        ) : null}
+      </View>
+    ) : null;
+
   return (
     <View style={styles.outerWrapper}>
-      {selectedOption?.kind === "command" && selectedOption.description ? (
-        <View style={styles.detailCard}>
-          <Text style={styles.detailLabel}>
-            {removeBoltGlyphs(selectedOption.label) ?? selectedOption.label}
-          </Text>
-          <Text style={styles.detailDescription}>
-            {removeBoltGlyphs(selectedOption.description)}
-          </Text>
-          {selectedOption.detail ? (
-            <Text style={styles.detailHint}>{removeBoltGlyphs(selectedOption.detail)}</Text>
-          ) : null}
-        </View>
-      ) : null}
+      {position === "above-input" ? detailCard : null}
       <View style={containerStyle}>
         <ScrollView
           ref={scrollRef}
@@ -282,6 +288,7 @@ export function Autocomplete({
           ))}
         </ScrollView>
       </View>
+      {position === "below-input" ? detailCard : null}
     </View>
   );
 }

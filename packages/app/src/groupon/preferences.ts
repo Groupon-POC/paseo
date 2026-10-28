@@ -1,11 +1,12 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): Groupon Desk's own app preferences on this device.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): Groupon Desk's own app preferences on this device. And whether My tasks shows under the New workspace composer.
 
 /**
  * Preferences the fork adds, kept on this device beside Paseo's own: whether to be reminded to
  * set up worktree scripts for a project without a repository file (off by default: the owner
  * wants no such card for anyone unless they ask for it, 2026-10-19), and where From GitHub opens:
  * the GitHub host last switched to, and on each host the organisation and team last picked; and
- * the repository the Standards page read last; and the repository New workspace was last on; whether the add-to-home-screen card was dismissed; and whether the sidebar's computers and limits are folded to two lines.
+ * the repository the Standards page read last; and the repository New workspace was last on; whether the add-to-home-screen card was dismissed; and whether the sidebar's computers and limits are folded to two lines;
+ * and whether Local stays in the checkout on a shared trunk (off by default: Local there becomes a worktree).
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -36,12 +37,18 @@ const GrouponPreferencesSchema = z.object({
   installCardDismissed: z.boolean().optional(),
   /** The sidebar's Connected computers and limits folded to two lines (owner, 2026-10-28). */
   footerPanelCollapsed: z.boolean().optional(),
+  /** Local stays in the checkout even on a shared trunk, instead of becoming a worktree. */
+  localInPlaceOnTrunk: z.boolean().optional(),
+  /** My tasks under the New workspace composer (on by default). */
+  showMyTasks: z.boolean().optional(),
 });
 
 type GrouponPreferences = z.infer<typeof GrouponPreferencesSchema>;
 
 interface GrouponPreferencesState extends GrouponPreferences {
   setRemindWorktreeScripts: (value: boolean) => void;
+  setLocalInPlaceOnTrunk: (value: boolean) => void;
+  setShowMyTasks: (value: boolean) => void;
   rememberGithubHost: (host: string) => void;
   rememberGithubPlace: (host: string, organisation: string, team: string) => void;
   rememberStandardsPlace: (serverId: string, repoRoot: string) => void;
@@ -57,6 +64,8 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
     (set) => ({
       ...DEFAULT_GROUPON_PREFERENCES,
       setRemindWorktreeScripts: (value) => set({ remindWorktreeScripts: value }),
+      setLocalInPlaceOnTrunk: (value) => set({ localInPlaceOnTrunk: value }),
+      setShowMyTasks: (value) => set({ showMyTasks: value }),
       rememberGithubHost: (host) => set({ githubHost: host }),
       rememberGithubPlace: (host, organisation, team) =>
         set((state) => ({
@@ -81,6 +90,8 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
         lastRepositoryId: state.lastRepositoryId ?? null,
         installCardDismissed: state.installCardDismissed ?? false,
         footerPanelCollapsed: state.footerPanelCollapsed ?? false,
+        localInPlaceOnTrunk: state.localInPlaceOnTrunk ?? false,
+        showMyTasks: state.showMyTasks ?? true,
       }),
       version: 1,
     },

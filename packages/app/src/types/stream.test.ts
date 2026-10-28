@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a thought keeps when it started.
 import assert from "node:assert/strict";
 import invariant from "tiny-invariant";
 import { describe, expect, it } from "vitest";
@@ -753,6 +754,20 @@ describe("stream reducer canonical tool calls", () => {
     expect(first).toEqual(second);
     const assistantMessage = first.find((item) => item.kind === "assistant_message");
     assert.strictEqual(assistantMessage?.text, "Hello world");
+  });
+
+  it("keeps when a thought started and when its last chunk came, so a finished one tells its length", () => {
+    const state = hydrateStreamState([
+      { event: reasoningTimeline("Weighing "), timestamp: new Date("2025-01-01T10:00:00Z") },
+      { event: reasoningTimeline("the options"), timestamp: new Date("2025-01-01T10:00:12Z") },
+    ]);
+
+    const thought = state.find((item) => item.kind === "thought");
+    expect(thought).toMatchObject({
+      text: "Weighing the options",
+      startedAt: new Date("2025-01-01T10:00:00Z"),
+      timestamp: new Date("2025-01-01T10:00:12Z"),
+    });
   });
 
   it("keeps adjacent assistant timeline items separate when message ids differ", () => {

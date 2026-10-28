@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "Show New workspace" toggle beside Show background.
 import {
   useCallback,
   useMemo,
@@ -389,6 +390,14 @@ export function SidebarDisplayPreferencesMenu(): ReactElement {
             onSelect={preferences.toggleBackground}
           >
             {t("sidebar.display.showBackground")}
+          </MenuItem>
+          <MenuItem
+            selected={preferences.showNewWorkspaceRows}
+            closeOnSelect={false}
+            onSelect={preferences.toggleNewWorkspaceRows}
+            testID="sidebar-display-new-workspace-rows"
+          >
+            {t("sidebar.display.showNewWorkspaceRows")}
           </MenuItem>
         </MenuSurface>
       </MenuRoot>

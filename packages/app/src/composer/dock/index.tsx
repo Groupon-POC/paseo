@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the centered dock (New workspace) widens with a wide window.
 export { ComposerDockBackground } from "./internal/background";
 export { ComposerFullscreenBody, ComposerFullscreenFooter } from "./internal/fullscreen";
 import { ScrollView } from "@/components/ui/scroll-view";
@@ -36,7 +37,7 @@ export function ComposerDock({
   if (centered) {
     return (
       <View ref={surfaceRef} style={styles.centered} onLayout={measureViewport}>
-        <View style={styles.form}>
+        <View style={styles.form(surfaceSize?.width)}>
           <ScrollView style={styles.setup} keyboardShouldPersistTaps="handled">
             {content}
           </ScrollView>
@@ -69,6 +70,10 @@ export function ComposerDock({
   );
 }
 
+// A share of a wide window, past the chat column's width on a large monitor.
+const WIDE_FORM_SHARE = 0.6;
+const WIDE_FORM_MAX_WIDTH = 1200;
+
 const styles = StyleSheet.create((theme) => ({
   surface: { flex: 1, overflow: "hidden" },
   content: { flex: 1, justifyContent: "flex-end" },
@@ -83,7 +88,14 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
     paddingBottom: HEADER_INNER_HEIGHT + 24,
   },
-  form: { flexShrink: 1, width: "100%", maxWidth: theme.contentMaxWidth },
+  form: (surfaceWidth: number | undefined) => ({
+    flexShrink: 1,
+    width: "100%",
+    maxWidth: Math.max(
+      theme.contentMaxWidth,
+      Math.min(WIDE_FORM_MAX_WIDTH, Math.round((surfaceWidth ?? 0) * WIDE_FORM_SHARE)),
+    ),
+  }),
   centeredComposer: { flexShrink: 0 },
   setup: { flexGrow: 0, flexShrink: 1, minHeight: 0 },
 }));

@@ -388,6 +388,11 @@ export const GROUPON_PREFERENCES = {
     "Remind me to set up worktree scripts for projects without a repository file",
   remindWorktreeScriptsHint:
     "Off by default. A repository's .groupon/desk.toml is everyone's setup; turn this on to see the reminder card for a project that has none.",
+  showMyTasks: "Show My tasks on New workspace",
+  showMyTasksHint: "Your Jira tasks under the composer, each with Take to development.",
+  localInPlaceOnTrunk: "Keep Local in the checkout on a shared branch",
+  localInPlaceOnTrunkHint:
+    "Off by default: Local on staging, main or another shared branch becomes a worktree on a branch of its own. Turn this on to work in the checkout itself.",
 } as const;
 
 export const GROUPON_ENCORE = {
@@ -691,4 +696,27 @@ export const GROUPON_MISSING_TOOLS = {
   },
   /** With several tools missing, each sentence starts with its tool. */
   fixOf: (tool: MissingTool, sentence: string) => `${tool}: ${sentence}`,
+} as const;
+
+export const GROUPON_CHATS = {
+  newChat: "New chat",
+  noProject: "No project",
+  moveToProject: "Move to project",
+  moving: "Moving…",
+  moveFailed: "The chat could not be moved",
+  startFailed: "The chat could not be started",
+  noHost: "No Mac is connected",
+} as const;
+
+export const GROUPON_CHAT_DISPLAY = {
+  label: "Show in chat",
+  options: {
+    all: "All",
+    fluent: "Live",
+    output: "Output only",
+  },
+  hint: "All shows every tool call and thought; Live only what runs now and what failed; Output only the agent's messages. History keeps every row.",
+  descriptions: "Title shell calls by what they do",
+  descriptionsHint:
+    "A shell call shows the description the agent wrote instead of the raw command, as Claude Code in VS Code does.",
 } as const;

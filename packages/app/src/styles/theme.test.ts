@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme leads the catalog and has its own expectations.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme leads the catalog and has its own expectations. Bearded Arc last in the picker.
 import { describe, expect, it } from "vitest";
 import {
   darkGrouponTheme,
@@ -40,9 +40,11 @@ describe("Theme catalog", () => {
       "claude",
       "ghostty",
       "pureBlack",
+      "beardedArc",
     ]);
     expect(getNextThemePreference("dark")).toBe("auto");
-    expect(getNextThemePreference("pureBlack")).toBe("grouponDark");
+    expect(getNextThemePreference("pureBlack")).toBe("beardedArc");
+    expect(getNextThemePreference("beardedArc")).toBe("grouponDark");
     expect(getNextThemePreference("grouponDark")).toBe("light");
   });
 });

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the terminal's text keeps a 12 px inset from the pane's left edge, never against the sidebar.
 "use dom";
 
 import type {
@@ -49,6 +50,9 @@ export interface TerminalEmulatorHandle {
   showKeyboard: () => void;
   blur: () => void;
 }
+
+/** Groupon Desk: the space between the pane's left edge and the terminal's first column. */
+const TERMINAL_LEFT_INSET = 12;
 
 const HOST_DIV_STYLE: CSSProperties = {
   flex: 1,
@@ -586,6 +590,9 @@ export default function TerminalEmulator({
       height: "100%",
       minHeight: 0,
       minWidth: 0,
+      // The inset sits on the root, so xterm's fit measures the host inside it and no column is cut.
+      boxSizing: "border-box",
+      paddingLeft: TERMINAL_LEFT_INSET,
       backgroundColor: xtermTheme.background ?? "#0b0b0b",
       overflow: "hidden",
       overscrollBehavior: "none",

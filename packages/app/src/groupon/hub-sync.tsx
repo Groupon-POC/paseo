@@ -48,7 +48,13 @@ import {
 } from "@/runtime/host-runtime";
 import { coreRelayEndpoint } from "./core-relay";
 import { openSealedText } from "./crypto";
-import { fetchMachines, machineLabel, PAIRING_OFFER_KIND, type HubMachine } from "./hub";
+import {
+  fetchMachines,
+  machineLabel,
+  PAIRING_OFFER_KIND,
+  saveMachineAlias,
+  type HubMachine,
+} from "./hub";
 import { readSealedPairing } from "./sealed-pairing";
 import {
   localListenFor,
@@ -207,6 +213,16 @@ export const useHubMachinesStore = create<HubMachinesState>((set, get) => ({
     }
   },
 }));
+
+/** Names the hub Mac behind a daemon, so a rename in Settings reaches the picker and Your Macs. */
+export async function nameHubMac(serverId: string, alias: string): Promise<void> {
+  const views = useHubMachinesStore
+    .getState()
+    .machines.filter((view) => view.serverId === serverId);
+  if (views.length === 0) return;
+  for (const view of views) await saveMachineAlias(view.machine.machine, alias);
+  await useHubMachinesStore.getState().sync();
+}
 
 /** How often the hub is read again while the window is in the foreground (header: why 30 s). */
 export const HUB_RESYNC_MS = 30_000;

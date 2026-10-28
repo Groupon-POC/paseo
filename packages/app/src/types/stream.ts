@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message keeps its author from the timeline, through every merge.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message keeps its author from the timeline, through every merge; a thought keeps when it started, so a finished one says how long it took.
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import type {
   AgentProvider,
@@ -736,6 +736,8 @@ export interface ThoughtItem {
   turnId?: string;
   text: string;
   timestamp: Date;
+  /** Groupon Desk: its first chunk's time; `timestamp` is its last one's. */
+  startedAt?: Date;
   status: ThoughtStatus;
 }
 
@@ -1019,6 +1021,7 @@ function appendThought(
     ...(timelineCursor ? { timelineCursor } : {}),
     text: chunk,
     timestamp,
+    startedAt: timestamp,
     status: "loading",
   };
   return [...state, item];

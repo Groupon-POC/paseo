@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `autocompletePosition`; a terminal composer shows slash commands when its caller hands it `commandDraft`, without plugin client commands. The chat's display mode picker sits beside the context meter. `fillWidth`, for New workspace's wider dock.
 import {
   useComposerEditingSession,
   useComposerFullscreen,
@@ -93,7 +94,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Shortcut } from "@/components/ui/shortcut";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { AutocompletePopover } from "@/components/ui/autocomplete-popover";
+import { ChatDisplayModeControl } from "@/groupon/chat-display-mode-control";
 import type { AutocompleteOption } from "@/components/ui/autocomplete";
+import type { AutocompleteOptionsPosition } from "@/components/ui/autocomplete-utils";
 import { useAgentAutocomplete } from "@/hooks/use-agent-autocomplete";
 import { usePluginClientSlashCommands } from "@/plugins/client-slash-commands";
 import {
@@ -954,6 +957,10 @@ interface ComposerProps {
   onFocusInput?: (focus: () => void) => void;
   /** Draft context for listing commands before an agent exists. Omitted for running agents. */
   commandDraft?: DraftCommandTarget;
+  /** Where the slash-command and file lists open; below suits a composer near the top of its screen. */
+  autocompletePosition?: AutocompleteOptionsPosition;
+  /** Takes its dock's width rather than the chat column's; New workspace sizes its dock itself. */
+  fillWidth?: boolean;
   /** Called when a message is about to be sent (any path: keyboard, dictation, queued). */
   onMessageSent?: () => void;
   onComposerHeightChange?: (height: number) => void;
@@ -1034,6 +1041,7 @@ function ComposerAutocompleteBinding({
     <ComposerAutocomplete
       visible={autocomplete.isVisible && show}
       anchorRef={anchorRef}
+      position={configuration.optionsPosition}
       options={autocomplete.options}
       selectedIndex={autocomplete.selectedIndex}
       onSelect={onSelect}
@@ -1253,6 +1261,8 @@ function ComposerContentImpl({
   autoFocusKey,
   onFocusInput,
   commandDraft,
+  autocompletePosition,
+  fillWidth = false,
   onMessageSent,
   onComposerHeightChange,
   onAttentionInputFocus,
@@ -1267,6 +1277,8 @@ function ComposerContentImpl({
   placeholder,
 }: ComposerContentProps) {
   const mode = resolveComposerInputMode(inputMode);
+  // A terminal prompt is argv, but a CLI that runs slash commands from it is handed their source.
+  const showAutocomplete = mode.showAutocomplete || commandDraft !== undefined;
   const { t } = useTranslation();
   const buttonIconSize = resolveComposerButtonIconSize();
   const client = useHostRuntimeClient(serverId);
@@ -2062,16 +2074,19 @@ function ComposerContentImpl({
   const beforeVoiceContent = useMemo(
     () =>
       hasAgent ? (
-        <View style={styles.contextWindowMeterSlot}>
-          <ContextWindowMeter
-            serverId={serverId}
-            agentId={agentId}
-            maxTokens={agentState.contextWindowMaxTokens}
-            usedTokens={agentState.contextWindowUsedTokens}
-            totalCostUsd={agentState.totalCostUsd}
-            glyphSize={contextWindowMeterGlyphSize}
-          />
-        </View>
+        <>
+          <ChatDisplayModeControl />
+          <View style={styles.contextWindowMeterSlot}>
+            <ContextWindowMeter
+              serverId={serverId}
+              agentId={agentId}
+              maxTokens={agentState.contextWindowMaxTokens}
+              usedTokens={agentState.contextWindowUsedTokens}
+              totalCostUsd={agentState.totalCostUsd}
+              glyphSize={contextWindowMeterGlyphSize}
+            />
+          </View>
+        </>
       ) : null,
     [
       hasAgent,
@@ -2289,8 +2304,12 @@ function ComposerContentImpl({
     [isComposerLocked, isFullscreen],
   );
   const inputAreaContentStyle = useMemo(
-    () => [styles.inputAreaContent, isFullscreen && styles.fullscreenFill],
-    [isFullscreen],
+    () => [
+      styles.inputAreaContent,
+      fillWidth && styles.dockWidth,
+      isFullscreen && styles.fullscreenFill,
+    ],
+    [fillWidth, isFullscreen],
   );
   const messageInputContainerStyle = useMemo(
     () => [styles.messageInputContainer, isFullscreen && styles.fullscreenFill],
@@ -2347,7 +2366,8 @@ function ComposerContentImpl({
       draft: commandDraft,
       canExecuteClientSlashCommand: buildOutgoingAttachments(attachments).length === 0,
       onClientSlashCommand: runClientSlashCommand,
-      pluginClientSlashCommands,
+      pluginClientSlashCommands: mode.showAutocomplete ? pluginClientSlashCommands : [],
+      optionsPosition: autocompletePosition,
     }),
     [
       replaceUserInput,
@@ -2357,7 +2377,9 @@ function ComposerContentImpl({
       buildOutgoingAttachments,
       attachments,
       runClientSlashCommand,
+      mode.showAutocomplete,
       pluginClientSlashCommands,
+      autocompletePosition,
     ],
   );
   const messageInputContainerRef = useRef<View>(null);
@@ -2425,7 +2447,7 @@ function ComposerContentImpl({
                 cursor={cursor}
                 inputRef={messageInputRef}
                 anchorRef={messageInputContainerRef}
-                show={mode.showAutocomplete && !isFullscreen}
+                show={showAutocomplete && !isFullscreen}
                 ref={autocompleteRef}
                 configuration={autocompleteConfiguration}
               />
@@ -2567,6 +2589,9 @@ const styles = StyleSheet.create((theme: Theme) => ({
     width: "100%",
     maxWidth: theme.contentMaxWidth,
     gap: theme.spacing[3],
+  },
+  dockWidth: {
+    maxWidth: "100%",
   },
   messageInputContainer: {
     flexShrink: 1,

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the error section keeps an inset inside the card.
 import { useMemo, type ReactNode } from "react";
 import {
   View,
@@ -697,7 +698,7 @@ function buildDetailSections(
 function ErrorSection({ errorText, ds }: { errorText: string; ds: DetailStyles }) {
   const { t } = useTranslation();
   return (
-    <View style={styles.section}>
+    <View style={[styles.section, styles.errorSection]}>
       <Text style={[styles.sectionTitle, styles.errorText]}>{t("toolCallDetails.error")}</Text>
       <ScrollView
         horizontal
@@ -827,6 +828,11 @@ const styles = StyleSheet.create((theme) => {
     },
     section: {
       gap: theme.spacing[2],
+    },
+    // Groupon Desk: the error sits inside the card, its border clear of the card's rounded edge.
+    errorSection: {
+      paddingHorizontal: theme.spacing[3],
+      paddingBottom: theme.spacing[3],
     },
     fillHeight: {
       flex: 1,

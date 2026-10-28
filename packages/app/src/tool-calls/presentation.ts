@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shell call may be titled by its `description`.
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import { buildAgentMessageDisplay } from "@getpaseo/protocol/paseo-tool-presentation/index";
 import type { PlanOutcome } from "@/components/plan-card";
@@ -23,6 +24,7 @@ interface BuildToolCallPresentationInput {
   cwd?: string;
   metadata?: Record<string, unknown>;
   targetAgentTitle?: string;
+  preferDescription?: boolean;
   resolveIcon: ToolCallIconResolver;
 }
 
@@ -70,6 +72,7 @@ export function buildToolCallPresentation(
     metadata: input.metadata,
     cwd: input.cwd,
     targetAgentTitle: input.targetAgentTitle,
+    preferDescription: input.preferDescription,
   });
   const isLoadingDetails = isPendingToolCallDetail({
     detail,

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user_message timeline item may name its author.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user_message timeline item may name its author. A shell detail may carry its `description`.
 import type {
   AgentFeature,
   AgentFeatureSelect,
@@ -244,6 +244,8 @@ export type ToolCallDetail =
       type: "shell";
       command: string;
       cwd?: string;
+      /** What the model says the command does (Claude's Bash `description`). */
+      description?: string;
       output?: string;
       exitCode?: number | null;
     }

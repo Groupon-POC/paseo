@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`). The composers follow the screen's focus, so a list left open does not float over another page; slash commands open below the input, and the Claude Code profile lists them from the chat's Claude draft. Local stays in the checkout on a shared branch when the person's Groupon setting says so. New workspace on "No project" is a chat: the daemon places it by its first message. Import session and Start a ticket step aside while a workspace is created. The composer takes the dock's width, which widens with a wide window.
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
+import { useIsFocused } from "expo-router/react-navigation";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { createNameId } from "mnemonic-id";
@@ -33,6 +34,7 @@ import { ensureCheckoutStatus } from "@/git/checkout-status-cache";
 import { useDaemonConfig } from "@/hooks/use-daemon-config";
 import { resolveTerminalProfiles } from "@getpaseo/protocol/terminal-profiles";
 import type { TerminalProfile } from "@getpaseo/protocol/messages";
+import type { DraftCommandTarget } from "@/hooks/use-agent-commands-query";
 import { resolveLaunchTarget, type LaunchTarget } from "@/new-workspace-launch/target";
 import { useTerminalComposerState } from "@/new-workspace-launch/composer-state";
 import { runCreateTerminalWorkspace } from "./new-workspace-terminal";
@@ -119,6 +121,14 @@ import {
   type MacPickerOption,
 } from "@/groupon/mac-picker-model";
 import { useGrouponPreferences } from "@/groupon/preferences";
+import { GROUPON_CHATS } from "@/groupon/strings";
+import {
+  chatCreationTarget,
+  isChatsProjectRoot,
+  placeChat,
+  withAgentCwd,
+  type ChatCreationTarget,
+} from "@/groupon/project-less-chats";
 import {
   RepositoryNotice,
   useRepositoryChoice,
@@ -303,6 +313,34 @@ interface WorkspaceCreationResult {
   agent?: AgentSnapshotPayload;
 }
 
+interface CreationTarget extends ChatCreationTarget {
+  agent?: CreateWorkspaceRequestOptions["agent"];
+}
+
+// A chat started on "No project" is placed by the daemon first: in a project, or a folder of its own.
+async function resolveCreationTarget(input: {
+  client: NonNullable<ReturnType<typeof useHostRuntimeClient>>;
+  isolation: "local" | "worktree";
+  project: HostProjectListItem;
+  sourceDirectory: string;
+  agent?: CreateWorkspaceRequestOptions["agent"];
+  prompt: string;
+  serverId: string;
+}): Promise<CreationTarget> {
+  if (isChatsProjectRoot(input.sourceDirectory)) {
+    const target = chatCreationTarget(await placeChat(input.client, input.prompt));
+    return { ...target, agent: input.agent && withAgentCwd(input.agent, target.sourceDirectory) };
+  }
+  const projectId = getHostProjectId(input.project, input.serverId);
+  if (!projectId) throw new Error("Project is not available on the selected host");
+  return {
+    projectId,
+    sourceDirectory: input.sourceDirectory,
+    isolation: input.isolation,
+    agent: input.agent,
+  };
+}
+
 async function createMultiplicityWorkspace(input: {
   idempotencyKey: string;
   worktreeSlug: string;
@@ -323,29 +361,30 @@ async function createMultiplicityWorkspace(input: {
   serverId: string;
   createFailedMessage: string;
 }): Promise<WorkspaceCreationResult> {
-  const projectId = getHostProjectId(input.project, input.serverId);
-  if (!projectId) throw new Error("Project is not available on the selected host");
-  const isWorktree = input.isolation === "worktree";
+  const target = await resolveCreationTarget(input);
+  const { projectId, sourceDirectory, agent } = target;
+  const isWorktree = target.isolation === "worktree";
   const firstAgentContext = buildFirstAgentContext({
     prompt: input.prompt,
     attachments: input.attachments,
   });
   const payload = await input.client.createWorkspace({
     idempotencyKey: input.idempotencyKey,
-    agent: input.agent,
+    agent,
     onEvent: input.onEvent,
     source: isWorktree
       ? {
           kind: "worktree",
-          cwd: input.sourceDirectory,
+          cwd: sourceDirectory,
           projectId,
           worktreeSlug: input.worktreeSlug,
           ...input.checkoutRequest,
         }
       : {
           kind: "directory",
-          path: input.sourceDirectory,
+          path: sourceDirectory,
           projectId,
+          ...(useGrouponPreferences.getState().localInPlaceOnTrunk ? { inPlaceOnTrunk: true } : {}),
         },
     ...(firstAgentContext ? { firstAgentContext } : {}),
   });
@@ -923,6 +962,23 @@ function useNewWorkspaceInitialContext({
   };
 }
 
+function screenTitle(sourceDirectory: string | null | undefined, workspaceTitle: string): string {
+  return isChatsProjectRoot(sourceDirectory) ? GROUPON_CHATS.newChat : workspaceTitle;
+}
+
+// Claude Code runs a slash command given as its prompt; the list needs the chat's Claude model to ask for it.
+function resolveTerminalCommandDraft(input: {
+  profile: TerminalProfile | null;
+  takesPrompt: boolean;
+  chatDraft: DraftCommandTarget | undefined;
+}): DraftCommandTarget | undefined {
+  const { profile, takesPrompt, chatDraft } = input;
+  if (profile?.id !== "claude" || !takesPrompt || chatDraft?.status !== "ready") {
+    return undefined;
+  }
+  return chatDraft.config.provider === "claude" ? chatDraft : undefined;
+}
+
 export function NewWorkspaceScreen({
   serverId,
   sourceDirectory: sourceDirectoryProp,
@@ -933,6 +989,7 @@ export function NewWorkspaceScreen({
   const queryClient = useQueryClient();
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
+  const isFocused = useIsFocused();
   const toast = useToast();
   const composerEditing = useNewWorkspaceComposerEditing();
   const { leaveFullscreen } = composerEditing;
@@ -1648,6 +1705,12 @@ export function NewWorkspaceScreen({
   });
 
   const isComposerFullscreen = composerEditing.isFullscreen(isTerminalLaunch);
+  const chatCommandDraft = composerState?.commandDraft;
+  const terminalCommandDraft = resolveTerminalCommandDraft({
+    profile: selectedTerminalProfile,
+    takesPrompt: terminalTakesPrompt,
+    chatDraft: chatCommandDraft,
+  });
   const composer = isTerminalLaunch ? (
     <Composer
       key="terminal"
@@ -1658,7 +1721,7 @@ export function NewWorkspaceScreen({
       submitLabel={terminalSubmitLabel}
       agentId={draftKey}
       serverId={selectedServerId}
-      isPaneFocused={true}
+      isPaneFocused={isFocused}
       onSubmitMessage={handleSubmitTerminalLaunch}
       allowEmptySubmit={true}
       submitButtonAccessibilityLabel={t("newWorkspace.launch.submit")}
@@ -1675,6 +1738,9 @@ export function NewWorkspaceScreen({
       clearDraft={noopClearDraft}
       autoFocus={terminalTakesPrompt}
       autoFocusKey={launchFocusKey}
+      commandDraft={terminalCommandDraft}
+      autocompletePosition="below-input"
+      fillWidth
     />
   ) : (
     <Composer
@@ -1682,7 +1748,7 @@ export function NewWorkspaceScreen({
       editingSession={composerEditing.chat}
       agentId={draftKey}
       serverId={selectedServerId}
-      isPaneFocused={true}
+      isPaneFocused={isFocused}
       onSubmitMessage={handleSubmitNewWorkspace}
       allowEmptySubmit={true}
       submitButtonAccessibilityLabel={t("newWorkspace.create")}
@@ -1704,7 +1770,9 @@ export function NewWorkspaceScreen({
       clearDraft={handleClearDraft}
       autoFocus
       autoFocusKey={launchFocusKey}
-      commandDraft={composerState?.commandDraft}
+      commandDraft={chatCommandDraft}
+      autocompletePosition="below-input"
+      fillWidth
       agentControls={agentControlsWithDisabled}
     />
   );
@@ -1713,10 +1781,11 @@ export function NewWorkspaceScreen({
       <NewWorkspaceLayout
         isCompact={isCompact}
         fullscreen={isComposerFullscreen}
-        title={t("newWorkspace.title")}
+        title={screenTitle(selectedSourceDirectory, t("newWorkspace.title"))}
         formStack={formStack}
         onImportSession={importSession.open}
         onStartTicket={startTicket.open}
+        hideEntries={isPending}
       >
         {composer}
         <CreationProgressCaption progress={creationProgress} pending={isPending} />
@@ -1757,6 +1826,7 @@ function NewWorkspaceLayout({
   formStack,
   onImportSession,
   onStartTicket,
+  hideEntries,
   children,
 }: {
   isCompact: boolean;
@@ -1766,10 +1836,12 @@ function NewWorkspaceLayout({
   formStack: ReactNode;
   onImportSession: () => void;
   onStartTicket: () => void;
+  /** While a workspace is being created the page offers nothing else to start. */
+  hideEntries: boolean;
   children: ReactNode;
 }) {
   // In the header on compact layouts, under the composer otherwise; Start a ticket beside it.
-  const importSessionButton = (
+  const importSessionButton = hideEntries ? null : (
     <View style={isCompact ? styles.entriesCompact : styles.entries}>
       <ImportSessionButton compact={isCompact} onPress={onImportSession} />
       <StartTicketButton compact={isCompact} onPress={onStartTicket} />

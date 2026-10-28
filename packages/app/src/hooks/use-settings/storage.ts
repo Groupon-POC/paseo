@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a fresh install defaults to the Groupon dark theme.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a fresh install defaults to the Groupon dark theme. `sidebarNewWorkspaceRows`, the setting that hides the "New workspace" row under each project. `toolCallDescriptions` and `chatDisplayMode`.
 import { isSyntaxThemeId, type SyntaxThemeId } from "@getpaseo/highlight";
 import type { ActiveTurnBehavior } from "@getpaseo/protocol/messages";
 import type { QueryClient } from "@tanstack/react-query";
@@ -74,6 +74,8 @@ export { DEFAULT_CONTENT_MAX_WIDTH };
 export const MIN_CONTENT_MAX_WIDTH = 600;
 export const MAX_CONTENT_MAX_WIDTH = 4000;
 
+export type ChatDisplayMode = "all" | "fluent" | "output";
+
 export interface AppSettings {
   theme: ThemePreference;
   /** Which contributed theme `theme: "plugin"` selects. */
@@ -94,6 +96,8 @@ export interface AppSettings {
   sidebarWorkspaceTrailing: SidebarWorkspaceTrailing;
   sidebarRowItems: SidebarRowItems;
   sidebarChecksDisplay: SidebarChecksDisplay;
+  /** The "New workspace" row under every project in the sidebar. */
+  sidebarNewWorkspaceRows: boolean;
   /** Top-level sidebar rows in display order; empty means the default order, all visible. */
   sidebarNavItems: SidebarNavPreference[];
   /** Sidebar footer items in display order; empty means the default order, all visible. */
@@ -103,6 +107,10 @@ export interface AppSettings {
   autoExpandReasoning: boolean;
   toolCallDetailLevel: ToolCallDetailLevel;
   chatOutlineEnabled: boolean;
+  /** A shell call is titled by what the model said it does instead of its command. */
+  toolCallDescriptions: boolean;
+  /** Which stream rows the chat shows: all, the in-flight and failed calls, or messages only. */
+  chatDisplayMode: ChatDisplayMode;
   vimKeybindings: boolean;
   filePanelAssociations: Record<string, string>;
   /** Desktop-only preferences for implicit opens into the ordinary side pane. */
@@ -153,12 +161,15 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   sidebarWorkspaceTrailing: "timestamp",
   sidebarRowItems: DEFAULT_SIDEBAR_ROW_ITEMS,
   sidebarChecksDisplay: DEFAULT_SIDEBAR_CHECKS_DISPLAY,
+  sidebarNewWorkspaceRows: true,
   sidebarNavItems: [],
   sidebarFooterItems: [],
   usage: DEFAULT_USAGE_PREFERENCES,
   autoExpandReasoning: false,
   toolCallDetailLevel: "detailed",
   chatOutlineEnabled: true,
+  toolCallDescriptions: true,
+  chatDisplayMode: "all",
   vimKeybindings: false,
   filePanelAssociations: {},
   openInSidePane: DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES,
@@ -248,6 +259,7 @@ const StoredAppSettingsSchema = z
       .enum(["iconAndText", "icon", "none"])
       .optional()
       .catch(DEFAULT_SIDEBAR_CHECKS_DISPLAY),
+    sidebarNewWorkspaceRows: z.boolean().catch(true),
     sidebarNavItems: z.array(z.object({ key: z.string(), visible: z.boolean() })).catch([]),
     sidebarFooterItems: z.array(z.object({ key: z.string(), visible: z.boolean() })).catch([]),
     usage: UsagePreferencesSchema,
@@ -260,6 +272,8 @@ const StoredAppSettingsSchema = z
     // COMPAT(compactToolCalls): migrated in v0.1.105, remove after 2027-01-12.
     compactToolCalls: z.boolean().optional().catch(undefined),
     chatOutlineEnabled: z.boolean().catch(true),
+    toolCallDescriptions: z.boolean().catch(true),
+    chatDisplayMode: z.enum(["all", "fluent", "output"]).catch("all"),
     vimKeybindings: z.boolean().catch(false),
     filePanelAssociations: z.record(z.string(), z.string()).catch({}),
     openInSidePane: z

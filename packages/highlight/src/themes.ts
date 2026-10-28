@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Bearded Arc highlight theme.
 import { darkHighlightColors, lightHighlightColors } from "./colors.js";
 import type { HighlightStyle } from "./types.js";
 
@@ -15,7 +16,8 @@ export type SyntaxThemeId =
   | "one"
   | "nord"
   | "gruvbox"
-  | "solarized";
+  | "solarized"
+  | "bearded-arc";
 
 export const SYNTAX_THEME_IDS: readonly SyntaxThemeId[] = [
   "github",
@@ -26,6 +28,7 @@ export const SYNTAX_THEME_IDS: readonly SyntaxThemeId[] = [
   "nord",
   "gruvbox",
   "solarized",
+  "bearded-arc",
 ];
 
 export interface SyntaxThemeOption {
@@ -42,6 +45,7 @@ export const SYNTAX_THEME_OPTIONS: readonly SyntaxThemeOption[] = [
   { id: "nord", label: "Nord" },
   { id: "gruvbox", label: "Gruvbox" },
   { id: "solarized", label: "Solarized" },
+  { id: "bearded-arc", label: "Bearded Arc" },
 ];
 
 export type SyntaxColors = Record<HighlightStyle, string>;
@@ -258,6 +262,20 @@ const solarizedDark: RolePalette = {
   operator: "#859900",
 };
 
+// --- Bearded Arc (dark only; BeardedBear's VS Code theme, bearded-theme-arc.json) ---
+const beardedArc: RolePalette = {
+  base: "#d0d7e4",
+  keyword: "#B78AFF",
+  comment: "#4a5e84",
+  string: "#3CEC85",
+  number: "#FF955C",
+  function: "#69C3FF",
+  type: "#22ECDB",
+  tag: "#69C3FF",
+  attribute: "#EACD61",
+  operator: "#6f7889",
+};
+
 export function isSyntaxThemeId(value: string): value is SyntaxThemeId {
   return (SYNTAX_THEME_IDS as readonly string[]).includes(value);
 }
@@ -286,5 +304,7 @@ export function resolveSyntaxColors(
       return expandRolePalette(dark ? gruvboxDark : gruvboxLight);
     case "solarized":
       return expandRolePalette(dark ? solarizedDark : solarizedLight);
+    case "bearded-arc":
+      return expandRolePalette(beardedArc);
   }
 }

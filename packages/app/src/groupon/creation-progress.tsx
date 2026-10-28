@@ -52,6 +52,7 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
     paddingHorizontal: theme.spacing[4],
-    paddingTop: theme.spacing[2],
+    paddingTop: theme.spacing[3],
+    paddingBottom: theme.spacing[2],
   },
 }));

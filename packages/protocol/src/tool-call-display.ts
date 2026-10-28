@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shell call may be titled by its `description`; a question call (AskUserQuestion) is titled Question, with its questions' headers; a finished thought is titled "Thought for <n>s".
 import type { ToolCallTimelineItem } from "./agent-types.js";
 import {
   buildAgentMessageDisplay,
@@ -12,6 +13,8 @@ export type ToolCallDisplayInput = Pick<
   cwd?: string;
   /** Title of the agent a Paseo call targets, when the caller knows it. */
   targetAgentTitle?: string;
+  /** A shell call is titled by what the model said it does, when it said so. */
+  preferDescription?: boolean;
 };
 
 export interface ToolCallDisplayModel {
@@ -84,7 +87,8 @@ function buildCanonicalDetailDisplay(input: ToolCallDisplayInput): DetailDisplay
     case "shell":
       return {
         displayName: "Shell",
-        summary: input.detail.command,
+        summary:
+          (input.preferDescription ? input.detail.description : undefined) ?? input.detail.command,
       };
     case "read":
       return buildFilePathDisplay("Read", input.detail.filePath, input.cwd);
@@ -136,9 +140,7 @@ function buildUnknownDetailOverride(input: ToolCallDisplayInput): DetailDisplay 
     };
   }
   if (input.detail.type === "unknown" && lowerName === "thinking") {
-    return {
-      displayName: "Thinking",
-    };
+    return { displayName: thoughtTitle(input) };
   }
   if (lowerName === "terminal") {
     return {
@@ -146,7 +148,29 @@ function buildUnknownDetailOverride(input: ToolCallDisplayInput): DetailDisplay 
       summary: input.detail.type === "plain_text" ? readString(input.detail.label) : undefined,
     };
   }
+  if (lowerName === "askuserquestion") {
+    return { displayName: "Question", summary: questionHeaders(input.detail) };
+  }
   return {};
+}
+
+/** Groupon Desk: a finished thought says how long it took, when its chunks tell. */
+function thoughtTitle(input: ToolCallDisplayInput): string {
+  if (input.status !== "completed") return "Thinking";
+  const seconds = isRecord(input.metadata) ? input.metadata.thoughtSeconds : undefined;
+  return typeof seconds === "number" ? `Thought for ${seconds}s` : "Thought";
+}
+
+/** Groupon Desk: the headers of a question call's questions, "Scope · Commit". */
+function questionHeaders(detail: ToolCallDisplayInput["detail"]): string | undefined {
+  const questions =
+    detail.type === "unknown" && isRecord(detail.input) && Array.isArray(detail.input.questions)
+      ? detail.input.questions
+      : [];
+  const headers = questions
+    .map((question) => (isRecord(question) ? readString(question.header) : undefined))
+    .filter((header): header is string => Boolean(header));
+  return headers.length > 0 ? headers.join(" · ") : undefined;
 }
 
 export function buildToolCallDisplayModel(input: ToolCallDisplayInput): ToolCallDisplayModel {

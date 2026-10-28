@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message carries an optional author (send_agent_message, send_agent_message_request, the timeline's user_message); a creation snapshot names the step it is on (`step`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message carries an optional author (send_agent_message, send_agent_message_request, the timeline's user_message); a creation snapshot names the step it is on (`step`). A directory source may ask to stay in place on a shared trunk (`inPlaceOnTrunk`). A shell detail may carry its `description`.
 import { AgentMessageSchema } from "./agent-message.js";
 import {
   HostsListRequestSchema,
@@ -557,6 +557,7 @@ const ToolCallDetailPayloadSchema: z.ZodType<ToolCallDetail, unknown> = z.discri
       type: z.literal("shell"),
       command: z.string(),
       cwd: z.string().optional(),
+      description: z.string().optional(),
       output: z.string().optional(),
       exitCode: z.number().nullable().optional(),
     }),
@@ -2702,6 +2703,8 @@ export const WorkspaceCreateRequestSchema = z.object({
       // Path of the existing checkout/directory to back the workspace.
       path: z.string(),
       projectId: z.string().optional(),
+      // Groupon Desk: keep Local in the checkout even when it sits on a shared trunk.
+      inPlaceOnTrunk: z.boolean().optional(),
     }),
     z.object({
       kind: z.literal("worktree"),

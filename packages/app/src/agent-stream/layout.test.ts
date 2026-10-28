@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): two replies next to each other sit a short gap apart.
 import { describe, expect, it } from "vitest";
 import type { TurnTiming } from "@/timeline/turn-time";
 import type { StreamItem } from "@/types/stream";
@@ -327,7 +328,9 @@ describe("layoutStream", () => {
       timingIds: [historyBlock.id, headBlock.id],
     });
 
-    expect(findLayoutItem(layout, historyBlock.id).assistantSpacing).toBe("default");
+    // Groupon Desk: a reply right above another one gives up its bottom padding (spacing.ts).
+    expect(findLayoutItem(layout, historyBlock.id).assistantSpacing).toBe("compactBottom");
+    expect(findLayoutItem(layout, historyBlock.id).gapBelow).toBe(4);
     expect(findLayoutItem(layout, headBlock.id).assistantSpacing).toBe("compactBottom");
   });
 

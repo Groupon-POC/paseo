@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the "New workspace" rows under each project can be hidden.
 import type { WorkspaceSort } from "@/projects/workspace-structure";
 import { useCallback, useMemo } from "react";
 import {
@@ -19,6 +20,8 @@ export type SidebarTrailingChoice = Exclude<SidebarWorkspaceTrailing, "none">;
 export interface SidebarDisplayPreferences {
   showBackground: boolean;
   toggleBackground: () => void;
+  showNewWorkspaceRows: boolean;
+  toggleNewWorkspaceRows: () => void;
   grouping: SidebarGroupMode;
   workspaceSort: WorkspaceSort;
   setWorkspaceSort: (sort: WorkspaceSort) => void;
@@ -75,9 +78,14 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
       sidebarWorkspaceTrailing,
       sidebarRowItems,
       sidebarChecksDisplay,
+      sidebarNewWorkspaceRows,
     },
     updateSettings,
   } = useAppSettings();
+
+  const toggleNewWorkspaceRows = useCallback(() => {
+    void updateSettings({ sidebarNewWorkspaceRows: !sidebarNewWorkspaceRows });
+  }, [updateSettings, sidebarNewWorkspaceRows]);
 
   const setTitleSource = useCallback(
     (source: WorkspaceTitleSource) => {
@@ -115,6 +123,8 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
     () => ({
       showBackground,
       toggleBackground,
+      showNewWorkspaceRows: sidebarNewWorkspaceRows,
+      toggleNewWorkspaceRows,
       grouping,
       workspaceSort,
       setWorkspaceSort,
@@ -140,6 +150,8 @@ export function useSidebarDisplayPreferences(): SidebarDisplayPreferences {
     [
       showBackground,
       toggleBackground,
+      sidebarNewWorkspaceRows,
+      toggleNewWorkspaceRows,
       grouping,
       workspaceSort,
       setWorkspaceSort,

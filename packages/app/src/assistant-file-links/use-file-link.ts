@@ -1,8 +1,11 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a link to an agent (`groupon-desk://h/<server>/agent/<agent>`) opens its chat in this window.
 import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { parseAgentDeepLink } from "@getpaseo/protocol/agent-deep-link";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import type { OpenFileDisposition } from "@/workspace/file-open";
+import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { formatFileLinkTooltipPath } from "./tooltip-path";
 import type { InlinePathTarget } from "./parse";
@@ -333,6 +336,13 @@ async function dispatchExternalUrl(input: {
     current.serverId !== input.capturedServerId ||
     current.workspaceRoot !== input.capturedWorkspaceRoot
   ) {
+    return;
+  }
+  // An agent's link is this window's own address (the desktop app routes it the same way from
+  // macOS); `openExternalUrl` would drop it as not http.
+  const agent = parseAgentDeepLink(input.url);
+  if (agent) {
+    navigateToAgent(agent);
     return;
   }
   await openExternalUrl(input.url);

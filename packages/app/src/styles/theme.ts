@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme (Paseo's dark surfaces, the Groupon green as the accent), first in the picker; the colleague's message tint (colleagueMessage, colleagueMessageBorder) and the other-agent tint (agentMessage, agentMessageBorder).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme (Paseo's dark surfaces, the Groupon green as the accent), first in the picker; the colleague's message tint (colleagueMessage, colleagueMessageBorder) and the other-agent tint (agentMessage, agentMessageBorder). The Bearded Arc theme (BeardedBear's VS Code theme).
 import { withAlpha } from "@/groupon/message-author-model";
 import { Platform } from "react-native";
 import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
@@ -393,6 +393,10 @@ export interface DarkThemeConfig {
   terminalBrightBlack: string;
   foreground?: string;
   ring?: string;
+  /** A theme ported from an editor brings its own terminal palette. */
+  terminalAnsi?: Partial<Record<keyof typeof darkTerminalAnsi, string>>;
+  terminalBackground?: string;
+  terminalCursor?: string;
 }
 
 const darkTerminalAnsi = {
@@ -466,14 +470,15 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
     ...agentMessageColors("#9b8afb"),
 
     terminal: {
-      background: tint.surface0,
+      background: tint.terminalBackground ?? tint.surface0,
       foreground,
-      cursor: foreground,
+      cursor: tint.terminalCursor ?? foreground,
       cursorAccent: tint.surface0,
       selectionBackground: "rgba(255, 255, 255, 0.2)",
       selectionForeground: foreground,
       black: tint.terminalBlack,
-      ...darkTerminalAnsi,
+      ...(darkTerminalAnsi as Record<keyof typeof darkTerminalAnsi, string>),
+      ...tint.terminalAnsi,
       brightBlack: tint.terminalBrightBlack,
     },
   };
@@ -801,6 +806,53 @@ export const darkGrouponTheme = buildDarkTheme(grouponDarkColors);
 /** A brand name, shown as is in every language (GROUPON-FORK.md: Groupon screens are English). */
 export const GROUPON_DARK_THEME_LABEL = "Groupon dark";
 
+// Bearded Theme Arc (BeardedBear's VS Code theme, bearded-theme-arc.json): its editor and sidebar
+// blues, the blue-grey of its buttons and badges as the accent, and its terminal palette.
+const beardedArcColors = buildDarkSemanticColors({
+  surface0: "#1c2433",
+  surface1: "#212a3b",
+  surface2: "#253043",
+  surface3: "#3b4860",
+  surface4: "#4a5a78",
+  surfaceDiffEmpty: "#202838",
+  surfaceSidebar: "#181f2c",
+  foreground: "#d0d7e4",
+  foregroundMuted: "#afbbd2",
+  foregroundExtraMuted: "#6c7a96",
+  border: "#2a3446",
+  borderAccent: "#3b4860",
+  accent: "#8196b5",
+  accentBright: "#aebdd4",
+  accentForeground: "#131822",
+  destructive: "#E35535",
+  terminalBlack: "#1c2433",
+  terminalBrightBlack: "#3e4f71",
+  ring: "#405275",
+  terminalBackground: "#1a212f",
+  terminalCursor: "#EACD61",
+  terminalAnsi: {
+    red: "#E35535",
+    green: "#3CEC85",
+    yellow: "#EACD61",
+    blue: "#69C3FF",
+    magenta: "#F38CEC",
+    cyan: "#22ECDB",
+    white: "#d0d7e4",
+    brightRed: "#ff4319",
+    brightGreen: "#29ff82",
+    brightYellow: "#ffd94c",
+    brightBlue: "#69c3ff",
+    brightMagenta: "#ff80f6",
+    brightCyan: "#0fffeb",
+    brightWhite: "#ffffff",
+  },
+});
+
+export const darkBeardedArcTheme = buildDarkTheme(beardedArcColors);
+
+/** The VS Code theme's own name, shown as is in every language. */
+export const BEARDED_ARC_THEME_LABEL = "Bearded Arc";
+
 const lightShadow = {
   sm: {
     shadowColor: "rgba(0, 0, 0, 0.08)",
@@ -897,6 +949,13 @@ export const THEME_OPTIONS = [
     unistylesName: "darkPureBlack",
     theme: darkPureBlackTheme,
     swatch: "#000000",
+  },
+  {
+    name: "beardedArc",
+    group: "variant",
+    unistylesName: "darkBeardedArc",
+    theme: darkBeardedArcTheme,
+    swatch: "#8196b5",
   },
 ] as const;
 

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme's name in the theme picker.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon dark theme's name in the theme picker. Bearded Arc names itself.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -43,6 +43,7 @@ import {
   DEFAULT_MONO_FONT_STACK,
   DEFAULT_UI_FONT_STACK,
   GROUPON_DARK_THEME_LABEL,
+  BEARDED_ARC_THEME_LABEL,
   ICON_SIZE,
   PLUGIN_THEME_PREFERENCE,
   THEME_OPTIONS,
@@ -70,6 +71,7 @@ type BuiltInThemePreference = Exclude<AppSettings["theme"], typeof PLUGIN_THEME_
 
 function getThemeLabel(t: TFunction, value: BuiltInThemePreference): string {
   if (value === "grouponDark") return GROUPON_DARK_THEME_LABEL;
+  if (value === "beardedArc") return BEARDED_ARC_THEME_LABEL;
   return t(`settings.appearance.theme.options.${value}`);
 }
 

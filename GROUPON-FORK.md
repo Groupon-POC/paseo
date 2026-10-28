@@ -877,6 +877,11 @@ same files from HEAD to the working tree (`groupon-desk.session.changes` takes `
 `sessionDiffRange` in `packages/server/src/groupon/session-changes.ts`; the menu in
 `packages/app/src/git/diff-pane.tsx`). A daemon without the mode answers All.
 
+The composer's pill opens with the same menu, so its label says what it counts, and stays in every
+git workspace: a comparison with no changes reads "None" instead of hiding the pill. While a
+newly chosen comparison is read it shows no count, and switching never plays the growth burst
+(`packages/app/src/composer/diff-stat-pill.tsx`).
+
 ## One "Compacting" marker per compaction
 
 Claude Code repeats its "compacting" status while a compaction runs, and an interrupted turn

@@ -744,6 +744,7 @@ export const GROUPON_CHANGES_SCOPES = {
   all: "All",
   committed: "Committed",
   uncommitted: "Uncommitted",
+  none: "None",
   sessionAll: "Everything this workspace's sessions changed since they started, committed or not",
   sessionCommitted: "The sessions' own commits",
   sessionUncommitted: "What the sessions changed and have not committed yet",

@@ -24,16 +24,21 @@ export function countDiff(files: readonly DiffCount[]): DiffCount | null {
   return total.additions > 0 || total.deletions > 0 ? total : null;
 }
 
+interface ComparedStat {
+  stat: DiffCount | null;
+  loading: boolean;
+}
+
 /**
  * What the workspace's sessions changed in all, when its Changes views compare the session (the
  * default); undefined when they compare the checkout, or the Mac's daemon predates the session
  * comparison. The session is read only while `active`.
  */
-export function useWorkspaceSessionDiffStat(input: {
+function useWorkspaceSessionDiffStat(input: {
   serverId: string;
   workspaceId: string;
   active: boolean;
-}): DiffCount | null | undefined {
+}): ComparedStat | undefined {
   const { comparison } = useWorkingDiffComparison({
     serverId: input.serverId,
     workspaceId: input.workspaceId,
@@ -47,21 +52,25 @@ export function useWorkspaceSessionDiffStat(input: {
     enabled: input.active && isSession,
     mode: sessionMode ?? "all",
   });
-  const sessionStat = useMemo(() => countDiff(session.files), [session.files]);
-  return isSession && !session.unsupported ? sessionStat : undefined;
+  const stat = useMemo(() => countDiff(session.files), [session.files]);
+  return isSession && !session.unsupported ? { stat, loading: session.isLoading } : undefined;
 }
 
-/** The count to show for a workspace: the session's when compared, else the checkout's for the chosen part. */
+/**
+ * The count to show for a workspace: the session's when compared, else the checkout's for the
+ * chosen part; null when the comparison has no changes, undefined while it is still being read.
+ */
 export function useWorkspaceShownDiffStat(input: {
   serverId: string;
   workspaceId: string;
   checkoutStat: DiffCount | null;
   active: boolean;
-}): DiffCount | null {
-  const sessionStat = useWorkspaceSessionDiffStat(input);
-  const partStat = useWorktreePartDiffStat(input);
-  if (sessionStat !== undefined) return sessionStat;
-  return partStat === undefined ? input.checkoutStat : partStat;
+}): DiffCount | null | undefined {
+  const session = useWorkspaceSessionDiffStat(input);
+  const part = useWorktreePartDiffStat(input);
+  const shown = session ?? part;
+  if (shown === undefined) return input.checkoutStat;
+  return shown.loading ? undefined : shown.stat;
 }
 
 /** The worktree's committed or uncommitted count when one of them is compared; undefined for All. */
@@ -69,7 +78,7 @@ function useWorktreePartDiffStat(input: {
   serverId: string;
   workspaceId: string;
   active: boolean;
-}): DiffCount | null | undefined {
+}): ComparedStat | undefined {
   const { comparison } = useWorkingDiffComparison({
     serverId: input.serverId,
     workspaceId: input.workspaceId,
@@ -86,5 +95,5 @@ function useWorktreePartDiffStat(input: {
     enabled: input.active && part !== null && cwd.length > 0,
   });
   const stat = useMemo(() => countDiff(checkout.files), [checkout.files]);
-  return part === null ? undefined : stat;
+  return part === null ? undefined : { stat, loading: checkout.isLoading };
 }

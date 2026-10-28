@@ -383,11 +383,20 @@ export const GROUPON_REPOSITORY = {
 } as const;
 
 export const GROUPON_PREFERENCES = {
-  section: "Projects",
+  /** Settings > General: the section of Groupon Desk's own switches. */
+  section: "Groupon Desk",
   remindWorktreeScripts:
     "Remind me to set up worktree scripts for projects without a repository file",
   remindWorktreeScriptsHint:
     "Off by default. A repository's .groupon/desk.toml is everyone's setup; turn this on to see the reminder card for a project that has none.",
+  showMyTasks: "Show My tasks on New workspace",
+  showMyTasksHint: "Your Jira tasks under the composer, each with Take to development.",
+  changesSessionDefault: "Changes show the session's edits",
+  changesSessionDefaultHint:
+    "Changes opens on what this chat's sessions changed, per repository, instead of all the branch's changes.",
+  localInPlaceOnTrunk: "Keep Local in the checkout on a shared branch",
+  localInPlaceOnTrunkHint:
+    "Off by default: Local on staging, main or another shared branch becomes a worktree on a branch of its own. Turn this on to work in the checkout itself.",
 } as const;
 
 export const GROUPON_ENCORE = {
@@ -480,6 +489,8 @@ export const GROUPON_PRESENCE = {
 
 export const GROUPON_TASKS = {
   title: "My tasks",
+  /** Beside the title while a fresh read runs behind the rows kept on this device. */
+  updating: "Updating",
   caption:
     "From Jira, read by the platform for you. Every change to the filters or columns is kept as your default.",
   assigneeMine: "Current user",
@@ -691,4 +702,111 @@ export const GROUPON_MISSING_TOOLS = {
   },
   /** With several tools missing, each sentence starts with its tool. */
   fixOf: (tool: MissingTool, sentence: string) => `${tool}: ${sentence}`,
+} as const;
+
+export const GROUPON_CHATS = {
+  newChat: "New chat",
+  noProject: "No project",
+  moveToProject: "Move to project",
+  moving: "Moving…",
+  moveFailed: "The chat could not be moved",
+  startFailed: "The chat could not be started",
+  noHost: "No Mac is connected",
+} as const;
+
+export const GROUPON_CHAT_DISPLAY = {
+  label: "Show in chat",
+  options: {
+    all: "All",
+    live: "Live",
+    output: "Output only",
+  },
+  hint: "All shows every tool call and thought; Live only what runs now and what failed; Output only the agent's messages. History keeps every row.",
+  /** The warning sign beside Live in the composer's menu: Live keeps the failed tool calls while it is lit. */
+  showFailed: "Show failed tool calls in Live",
+  hideFailed: "Hide failed tool calls in Live",
+  descriptions: "Title shell calls by what they do",
+  descriptionsHint:
+    "A shell call shows the description the agent wrote instead of the raw command, as Claude Code in VS Code does.",
+} as const;
+
+export const GROUPON_SESSION_CHANGES = {
+  /** The Changes views' comparison of what the workspace's sessions changed. */
+  label: "Session",
+  description: "What this workspace's sessions changed",
+  empty: "The session has not changed any files yet",
+} as const;
+
+/** The Changes views' two scopes and their three parts, in the comparison menu. */
+export const GROUPON_CHANGES_SCOPES = {
+  session: "Session",
+  worktree: "Worktree",
+  all: "All",
+  committed: "Committed",
+  uncommitted: "Uncommitted",
+  none: "None",
+  sessionAll: "Everything this workspace's sessions changed since they started, committed or not",
+  sessionCommitted: "The sessions' own commits",
+  sessionUncommitted: "What the sessions changed and have not committed yet",
+  worktreeAll: "The branch against its base with what is not committed: what a pull request shows",
+  worktreeUncommitted: "Changes in the worktree that are not committed yet",
+} as const;
+
+export const GROUPON_DIFF_VIEWER = {
+  /** The button after a file's path in the diff viewer. */
+  openFile: "Open the whole file",
+  /** The diff tab's view mode, on the left of its toolbar: every changed file or the one picked in the panel. */
+  viewMode: "View mode",
+  allFiles: "All files",
+  selectedFile: "Selected file",
+  selectedFileOnly: "Selected file only",
+} as const;
+
+export const GROUPON_USAGE_LIMIT = {
+  title: (limit: string) => `You've hit your ${limit} limit`,
+  resetsIn: (left: string, at: string) => `Resets in ${left}, at ${at}.`,
+  resetsAt: (at: string) => `Resets at ${at}.`,
+  reset: (at: string) => `It reset at ${at}.`,
+} as const;
+
+export const GROUPON_MONITORS = {
+  /** The pill above the composer that counts the agent's Monitor watches. */
+  one: "monitor",
+  many: "monitors",
+  oneCommand: "command",
+  manyCommands: "commands",
+  panelTitle: "Running in the background",
+  runningFor: (time: string) => `running for ${time}`,
+  untilStopped: "until stopped",
+  minutesLeft: (minutes: number) => `${minutes} min left`,
+  secondsLeft: (seconds: number) => `${seconds} s left`,
+  stop: (name: string) => `Stop ${name}`,
+  stopTooltip: "Stop it",
+  notRunning: "That is no longer running on its Mac.",
+} as const;
+
+export const GROUPON_STREAM_WIDTH = {
+  /** The handles at the agent output's edges. */
+  handleLabel: "Drag to widen the agent's output; double-click for the default width",
+} as const;
+
+export const GROUPON_REVIEW_CARD = {
+  /** The card a review sent from the diff becomes in the chat. */
+  title: "Code review",
+  comments: (count: number) => (count === 1 ? "1 comment" : `${count} comments`),
+  session: "Session",
+  all: "All changes",
+  uncommitted: "Uncommitted",
+  committed: (baseRef: string | null) => (baseRef ? `Committed since ${baseRef}` : "Committed"),
+  oldLine: "old",
+  openHint: "Open the diff at this line",
+  more: (count: number) => `Show ${count} more`,
+  fewer: "Show fewer",
+} as const;
+
+export const GROUPON_SESSION_ID = {
+  /** A session's menu in the sidebar. */
+  copy: "Copy session ID",
+  copied: "Session ID",
+  copyFailed: "Could not copy the session ID",
 } as const;

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): renaming a host also names its Mac on the hub, which every Groupon screen reads.
 import { useCallback, useMemo, useState } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
@@ -18,6 +19,7 @@ import {
   type HostColor,
 } from "@/hosts/appearance";
 import { useLocalDaemonServerIdState } from "@/hooks/use-is-local-daemon";
+import { nameHubMac } from "@/groupon/hub-sync";
 import { useHostMutations } from "@/runtime/host-runtime";
 import { identityColor } from "@/styles/identity-colors";
 import { settingsStyles } from "@/styles/settings";
@@ -36,8 +38,9 @@ function HostRenameButton({ host }: { host: HostProfile }) {
   const handleSubmit = useCallback(
     async (value: string) => {
       const nextLabel = value.trim();
-      if (nextLabel === host.label.trim()) return;
-      await renameHost(host.serverId, nextLabel);
+      if (nextLabel !== host.label.trim()) await renameHost(host.serverId, nextLabel);
+      // Also when unchanged here: an earlier rename never reached the hub.
+      await nameHubMac(host.serverId, nextLabel);
     },
     [host.label, host.serverId, renameHost],
   );

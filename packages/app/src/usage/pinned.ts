@@ -1,4 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one sidebar row per account, with a short name, and accounts that cannot report usage kept as greyed rows with the reason.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one sidebar row per account, with a short name, and accounts that cannot report usage kept as greyed rows with the reason. A source that never reported (Cursor without a working sign-in) is left out (`isShownUsageReport`). Of the Claude subscriptions only the one in use shows (`inUseUsageReports`).
+import { inUseUsageReports, isShownUsageReport } from "@/groupon/usage-health";
 import type { TFunction } from "i18next";
 import { i18n } from "@/i18n/i18next";
 import { usageCopy } from "./copy";
@@ -108,39 +109,41 @@ export function resolvePinnedUsage(
   t: TFunction = i18n.t,
 ): PinnedUsageSource[] {
   const pins = effectiveUsagePins(preferences, reports);
-  const rows = groupBySource(reports).flatMap((entry): PinnedUsageSource[] => {
-    const name = shortAccountName(entry.account.label);
-    if (entry.report.status !== "available")
-      return [
-        {
-          key: entry.id,
-          icon: entry.icon ?? null,
-          name,
-          muted: true,
-          hint: hintOf(entry, t),
-          windows: [],
-        },
-      ];
-    const windows = entry.report.windows
-      .filter(
-        (window) =>
-          displayPercent(window, preferences.displayAs) !== null &&
-          pins.some((pin) => pin.sourceId === entry.sourceId && pin.windowId === window.id),
-      )
-      .map((window) => {
-        const percent = displayPercent(window, preferences.displayAs) ?? 0;
-        const percentText = formatPct(percent);
-        return {
-          key: `${entry.id}/${window.id}`,
-          label: `${describe(entry, formatProviderUsageLabel(window.id, window.label, t))} ${formatDisplayPct(percent, preferences.displayAs, undefined, t)}`,
-          shortLabel: window.shortLabel ?? formatProviderUsageLabel(window.id, window.label, t),
-          percent,
-          percentText,
-          tone: windowTone(window),
-        };
-      });
-    if (windows.length === 0) return [];
-    return [{ key: entry.id, icon: entry.icon ?? null, name, muted: false, hint: null, windows }];
-  });
+  const rows = groupBySource(inUseUsageReports(reports.filter(isShownUsageReport))).flatMap(
+    (entry): PinnedUsageSource[] => {
+      const name = shortAccountName(entry.account.label);
+      if (entry.report.status !== "available")
+        return [
+          {
+            key: entry.id,
+            icon: entry.icon ?? null,
+            name,
+            muted: true,
+            hint: hintOf(entry, t),
+            windows: [],
+          },
+        ];
+      const windows = entry.report.windows
+        .filter(
+          (window) =>
+            displayPercent(window, preferences.displayAs) !== null &&
+            pins.some((pin) => pin.sourceId === entry.sourceId && pin.windowId === window.id),
+        )
+        .map((window) => {
+          const percent = displayPercent(window, preferences.displayAs) ?? 0;
+          const percentText = formatPct(percent);
+          return {
+            key: `${entry.id}/${window.id}`,
+            label: `${describe(entry, formatProviderUsageLabel(window.id, window.label, t))} ${formatDisplayPct(percent, preferences.displayAs, undefined, t)}`,
+            shortLabel: window.shortLabel ?? formatProviderUsageLabel(window.id, window.label, t),
+            percent,
+            percentText,
+            tone: windowTone(window),
+          };
+        });
+      if (windows.length === 0) return [];
+      return [{ key: entry.id, icon: entry.icon ?? null, name, muted: false, hint: null, windows }];
+    },
+  );
   return rows.some((row) => !row.muted) ? rows : [];
 }

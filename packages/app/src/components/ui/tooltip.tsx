@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a tooltip closes when its panel is hidden or the pointer is anywhere but its trigger, so it never hangs over another tab.
 import {
   Children,
   cloneElement,
@@ -29,6 +30,7 @@ import { useIsCompactFormFactor } from "@/constants/layout";
 import { FloatingSurface } from "@/components/ui/floating";
 import { isNative, isWeb } from "@/constants/platform";
 import { getOverlayRoot, OVERLAY_Z } from "@/lib/overlay-root";
+import { useRetainedPanelActive } from "@/components/retained-panel";
 
 type Side = "top" | "bottom" | "left" | "right";
 type Align = "start" | "center" | "end";
@@ -232,6 +234,45 @@ function computePosition({
   return { x, y, actualSide };
 }
 
+/**
+ * Groupon Desk: on the web an open tooltip closes once the pointer moves or presses anywhere but
+ * over its trigger, and when the window loses focus. A trigger that went away under the pointer
+ * (hidden, moved, unmounted with its panel) never gets its pointer-leave, and the tooltip would
+ * otherwise stay on screen.
+ */
+function useCloseWhenPointerElsewhere(ctx: TooltipContextValue): void {
+  const { open, setOpen, triggerRef } = ctx;
+  useEffect(() => {
+    if (!isWeb || !open) return;
+    const overTrigger = (event: PointerEvent) => {
+      const trigger = triggerRef.current;
+      // Only a trigger known to be elsewhere closes it; one not seen as a DOM node keeps it.
+      if (!(trigger instanceof HTMLElement)) return true;
+      if (!trigger.isConnected) return false;
+      const box = trigger.getBoundingClientRect();
+      return (
+        box.width > 0 &&
+        event.clientX >= box.left &&
+        event.clientX <= box.right &&
+        event.clientY >= box.top &&
+        event.clientY <= box.bottom
+      );
+    };
+    const onPointer = (event: PointerEvent) => {
+      if (!overTrigger(event)) setOpen(false);
+    };
+    const onBlur = () => setOpen(false);
+    document.addEventListener("pointermove", onPointer, true);
+    document.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      document.removeEventListener("pointermove", onPointer, true);
+      document.removeEventListener("pointerdown", onPointer, true);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [open, setOpen, triggerRef]);
+}
+
 export function Tooltip({
   open,
   defaultOpen,
@@ -258,17 +299,24 @@ export function Tooltip({
   const isCompact = useIsCompactFormFactor();
   const opensOnPress = isNative || isCompact;
   const enabled = opensOnPress ? enabledOnMobile : enabledOnDesktop;
+  // Groupon Desk: a tooltip whose panel is hidden (another tab opened from it, a link to a file)
+  // closes; its trigger never sees the pointer leave, so it would hang over the new tab.
+  const panelActive = useRetainedPanelActive();
+  useEffect(() => {
+    if (!panelActive) setIsOpen(false);
+  }, [panelActive, setIsOpen]);
+  const shown = isOpen && panelActive;
 
   const value = useMemo<TooltipContextValue>(
     () => ({
-      open: isOpen,
+      open: shown,
       setOpen: setIsOpen,
       triggerRef,
       enabled,
       openOnPress: opensOnPress,
       delayDuration,
     }),
-    [isOpen, setIsOpen, enabled, opensOnPress, delayDuration],
+    [shown, setIsOpen, enabled, opensOnPress, delayDuration],
   );
 
   return <TooltipContext.Provider value={value}>{children}</TooltipContext.Provider>;
@@ -522,6 +570,7 @@ export function TooltipContent({
   const contentStyle = useMemo(() => [styles.content, style], [style]);
 
   const handleDismiss = useCallback(() => ctx.setOpen(false), [ctx]);
+  useCloseWhenPointerElsewhere(ctx);
 
   if (!ctx.open || !ctx.enabled) return null;
 

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no notification is shown while `notifications.enabled` is off.
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { app, BrowserWindow, Notification, ipcMain, nativeImage } from "electron";
@@ -93,10 +94,14 @@ export function registerNotificationHandlers(): void {
       return false;
     }
 
+    const settings = await getDesktopSettingsStore().get();
+    if (!settings.notifications.enabled) {
+      return false;
+    }
+
     const body = toTrimmedString(rawInput?.body) ?? undefined;
     const data = toRecord(rawInput?.data);
     const icon = getNotificationIcon();
-    const settings = await getDesktopSettingsStore().get();
     const notification = new Notification({
       title,
       ...(body ? { body } : {}),

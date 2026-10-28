@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a `position` prop opens the list below its anchor, sized by the room below.
 import {
   useCallback,
   useEffect,
@@ -13,6 +14,7 @@ import Animated, { useAnimatedReaction, useAnimatedStyle } from "react-native-re
 import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Autocomplete, type AutocompleteOption } from "@/components/ui/autocomplete";
+import type { AutocompleteOptionsPosition } from "@/components/ui/autocomplete-utils";
 import {
   measureFloatingPanelPortalHost,
   useFloatingPanelPortalHostName,
@@ -27,6 +29,7 @@ interface RelativeAnchorRect {
   x: number;
   y: number;
   width: number;
+  height: number;
   hostHeight: number;
 }
 
@@ -40,6 +43,7 @@ interface AutocompletePopoverProps {
   errorMessage?: string;
   loadingText?: string;
   emptyText?: string;
+  position?: AutocompleteOptionsPosition;
 }
 
 export function AutocompletePopover({
@@ -52,6 +56,7 @@ export function AutocompletePopover({
   errorMessage,
   loadingText,
   emptyText,
+  position = "above-input",
 }: AutocompletePopoverProps): ReactElement | null {
   "use no memo";
   // React Compiler memoizes effect captures by reading SharedValue.value during render.
@@ -81,6 +86,7 @@ export function AutocompletePopover({
         x: anchorRect.x - hostRect.x,
         y: anchorRect.y - hostRect.y,
         width: anchorRect.width,
+        height: anchorRect.height,
         hostHeight: hostRect.height,
       });
       return undefined;
@@ -117,24 +123,33 @@ export function AutocompletePopover({
   // it with the anchor. Height changes only at keyboard boundaries.
   const baseStyle = useMemo(() => {
     if (!relativeAnchorRect) return null;
+    const vertical =
+      position === "below-input"
+        ? { top: relativeAnchorRect.y + relativeAnchorRect.height + OFFSET_FROM_ANCHOR }
+        : { bottom: relativeAnchorRect.hostHeight - relativeAnchorRect.y + OFFSET_FROM_ANCHOR };
     return inlineUnistylesStyle({
       position: "absolute" as const,
       left: relativeAnchorRect.x,
       width: relativeAnchorRect.width,
-      bottom: relativeAnchorRect.hostHeight - relativeAnchorRect.y + OFFSET_FROM_ANCHOR,
+      ...vertical,
     });
-  }, [relativeAnchorRect]);
+  }, [position, relativeAnchorRect]);
 
   const anchorY = relativeAnchorRect?.y ?? 0;
+  const spaceBelow = relativeAnchorRect
+    ? relativeAnchorRect.hostHeight - relativeAnchorRect.y - relativeAnchorRect.height
+    : 0;
   const reservedLift = anchor.reservedLift;
   const heightStyle = useAnimatedStyle(
     () => ({
       maxHeight: Math.max(
         0,
-        anchorY - reservedLift.value - safeAreaInsets.top - OFFSET_FROM_ANCHOR * 2,
+        position === "below-input"
+          ? spaceBelow - safeAreaInsets.bottom - OFFSET_FROM_ANCHOR * 2
+          : anchorY - reservedLift.value - safeAreaInsets.top - OFFSET_FROM_ANCHOR * 2,
       ),
     }),
-    [anchorY, reservedLift, safeAreaInsets.top],
+    [anchorY, position, reservedLift, safeAreaInsets.bottom, safeAreaInsets.top, spaceBelow],
   );
 
   if (!visible || !relativeAnchorRect || !baseStyle) return null;
@@ -153,6 +168,7 @@ export function AutocompletePopover({
             errorMessage={errorMessage}
             loadingText={loadingText}
             emptyText={emptyText}
+            position={position}
           />
         </Animated.View>
       </KeyboardTranslateView>

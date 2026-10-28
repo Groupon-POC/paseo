@@ -246,6 +246,16 @@ export function fetchMachines(): Promise<{ machines: HubMachine[] }> {
   return grouponRequest("/user/groupon_desk/machines");
 }
 
+/** Names a Mac on every Mac; an empty alias goes back to the Mac's own name. */
+export function saveMachineAlias(
+  machine: string,
+  alias: string,
+): Promise<{ machines: HubMachine[] }> {
+  return grouponSend(`/user/groupon_desk/machines/${encodeURIComponent(machine)}/alias`, "PUT", {
+    alias,
+  });
+}
+
 export function fetchOverview(): Promise<HubOverview> {
   return grouponRequest("/user/groupon_desk/work/overview");
 }

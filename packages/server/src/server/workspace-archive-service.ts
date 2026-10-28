@@ -1,4 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): archiving a project-less chat removes its folder under the chats root.
 import { resolve } from "node:path";
+import { chatsRootOf, removeChatFolders } from "../groupon/project-less-chats.js";
 
 import type { Logger } from "pino";
 
@@ -174,6 +176,21 @@ async function archiveByScopeWithPriority(
         target,
         archivedWorkspaceIds,
       );
+    }
+    if (dependencies.paseoHome) {
+      // Groupon Desk: a project-less chat's own folder goes with it.
+      const archived = new Set(archivedWorkspaceIds);
+      await removeChatFolders(
+        chatsRootOf(dependencies.paseoHome),
+        target.teardownTargets
+          .filter((teardown) => teardown.workspaceId !== null && archived.has(teardown.workspaceId))
+          .map((teardown) => teardown.cwd),
+      ).catch((error: unknown) => {
+        dependencies.sessionLogger?.warn(
+          { err: error, requestId: request.requestId },
+          "Failed to remove a chat folder during archive",
+        );
+      });
     }
 
     return {

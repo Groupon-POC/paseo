@@ -410,8 +410,10 @@ every call it makes carries the origin `groupon-desk://app`: Core's CORS allowli
 daemon allows it (`packages/server/src/server/bootstrap.ts`), and the hand's relay door must admit
 it. The same scheme is the window's macOS URL scheme (`packages/desktop/electron-builder.yml`):
 `groupon-desk://h/<server>/agent/<agent>` opens an agent, built and read by
-`packages/protocol/src/agent-deep-link.ts` (`paseo agent open` hands it to the window). The
-menu-bar app keeps its own `groupondesk` scheme, so the two never claim the same links. There is
+`packages/protocol/src/agent-deep-link.ts` (`paseo agent open` hands it to the window). The same
+link in a chat opens that agent's chat in the window itself, on the desktop and on the web
+(`packages/app/src/assistant-file-links/use-file-link.ts`): an agent that hands work to a new chat
+(the door's `desk_start`, which answers the link) points the person at it. The menu-bar app keeps its own `groupondesk` scheme, so the two never claim the same links. There is
 no fallback: a `paseo://` page, origin or link is not served, allowed or read (owner, 2026-10-20:
 nobody used the old one). Moving the origin also moved the window's local storage, so a window
 built before the rename starts with empty settings once. Upstream's native mobile tests under
@@ -677,3 +679,221 @@ hash-only announcement (`ProviderSnapshotUpdates`, as the default client does), 
 `isProvidersSnapshotReference`, `packages/client/src/compat/normalize-provider-models.ts`). The
 window's own cache still reads the compact form; nothing the window shows changes. The test is
 `packages/client/src/plugin-provider-snapshot.test.ts`.
+
+## A chat moves into a worktree of its own repository
+
+A chat that started in a checkout often goes on in a worktree its agent made there (a new
+ticket's branch). The window's diff, terminal, pull request and archive follow a chat's workspace,
+so the chat follows the work: the Groupon Desk plugin's `groupon-desk.chats.relocate` (`{ agentId,
+path }`, `packages/server/src/groupon/chat-relocation.ts`) checks that the path is an existing
+folder of the same repository (the same main checkout root), finds or makes that folder's
+workspace, answers it at once, and once the agent's turn ends (a question waiting on the person is
+not its end) reloads the agent's session in the worktree under that workspace:
+`reloadAgentSession`'s `workspaceId` (`packages/server/src/server/agent/agent-manager.ts`). The
+chat keeps its id, so its link, its tab and the hub's record of it stay; the session is the same
+Claude Code session, resumed from the new folder. It waits for the turn because the agent asks
+from inside that turn (the door's `desk_move`), and a reload then would cut it. Another
+repository's work is never a move: the door's `desk_start` hands it to a new chat with the
+conversation. The test is `packages/server/src/groupon/chat-relocation.test.ts`.
+
+The chat also follows without being asked. A skill such as review-address picks or makes a
+worktree and works there while the chat stays on the checkout, so the window kept showing the
+checkout's diff and branch. When a turn ends and every file it edited (Edit, Write) in the chat's
+repository lies in one other worktree that is still there, the daemon moves the chat into it the
+same way (`packages/server/src/groupon/worktree-follow.ts`, wired in `session.ts`'s
+`subscribeToGrouponWorktreeFollow`). A worktree the turn only read, or removed before it ended, an
+edit in another repository, or edits in two worktrees move nothing. Every session hears the turn's
+events, so the first to claim one handles it, and a chat already waiting to move (the agent's own
+`desk_move`) is not moved twice.
+
+The chat takes a workspace of its own project on that folder that no chat is in, or a new one there
+under the chat's title (`relocationCandidatesOf`, used by `session.ts`'s `grouponWorktreeWorkspace`),
+and the workspace it left is archived once no chat is in it (the record only: its folder stays).
+Paseo's path lookup alone made a worktree outside its own worktrees folder (a skill's
+`.claude/worktrees/<name>`) a project of its own, and on a checkout, where every chat has a
+workspace of its own, put the chat into another chat's.
+
+## Changes shows what the session changed
+
+Paseo's Changes views compare a checkout: its uncommitted work, or its branch against a base. A
+Desk chat's work is often elsewhere (another repository it edited, a worktree it made), and a
+checkout's diff carries what other people and other chats changed there too. So the Changes
+views (the panel, the diff tab, the composer's pill and the sidebar's hover card) can compare the
+session: the comparison menu's first item, "Session", beside Uncommitted, Branch and All
+(`packages/app/src/git/working-diff-comparison/state.ts`). All changes stays the default, as in
+Paseo; Settings, "Changes show the session's edits", makes Session the default on this device
+(`changesDefaultComparison`, `groupon/preferences.ts`).
+
+The Groupon Desk plugin's `groupon-desk.session.changes` (`{ workspaceId }`,
+`packages/server/src/groupon/session-changes.ts`) reads the files the workspace's loaded chats
+edited or wrote (their timelines' finished edit and write tool calls), groups them by git
+repository, and diffs each repository's files from where its HEAD was at the session's first edit
+there (`resolveHeadAt` and `getPathsDiffSince`, `packages/server/src/utils/checkout-git.ts`), so a
+commit the session made still shows. The window reads it every four seconds while a view shows it
+(`packages/app/src/groupon/use-session-changes.ts`); with more than one repository each path sits
+under its repository's name, two worktrees of one repository told apart by branch
+(`session-changes-model.ts`). The branch switcher became the branch's name: a session's work is
+not switched from the Changes toolbar.
+
+A file a session edited in another repository opens from the chat and from Changes by its
+absolute path: the daemon's file explorer serves a path outside the workspace only when it lies
+in a repository the workspace's sessions edited, and reads only (`handleGrouponFileExplorerRequest`,
+`packages/server/src/server/session.ts`).
+
+## The diff viewer: every file or the selected one, and the tree follows the scroll
+
+The diff tab's toolbar says its view mode on the left ("View mode: All files" or "Selected file"),
+a menu between every changed file and only the one picked in the panel's tree, kept on this device (`diffSelectedFileOnly`, `packages/app/src/groupon/preferences.ts`). The
+panel's tree and the diff viewer agree on one file per workspace
+(`packages/app/src/groupon/diff-file-focus.ts`): a row picked in the tree, or the file the viewer
+scrolls to the top, which the tree then marks. Each file's header stands apart from the code
+under it (its own surface, a line above it, the name heavier than its folder,
+`git/diff-document/paint.web.ts` and `palette.ts`), and a button right after its path opens the
+whole file in a tab (`WebFileOpenButton`, `git/diff-document/surface.web.tsx`). The browser test is
+`packages/app/src/git/diff-document/surface.web.browser.test.tsx`.
+
+## What the agent runs in the background, beside Share
+
+Claude Code's Monitor tool starts a background watch that wakes the agent on each line of a
+command's output; nothing in Paseo showed one was running. A pill above the composer, on the row
+with Share and the subagents, counts them ("2 monitors") behind TARS's blob, without its word; pressing it
+opens the track panel the subagents use, each watch with its command and the time it has left, and
+a button that stops it (`packages/app/src/groupon/agent-monitors.tsx`). Stopping asks the daemon
+(`groupon-desk.agent.monitor.stop`), which finds the agent's Claude Code process by its
+`GROUPON_DESK_SESSION_ID` and ends the process group whose shell evaluates exactly the watch's
+command; Claude Code then tells the agent the watch ended. Shell commands the agent runs in the
+background (Bash with run_in_background) show in the same pill and panel ("1 monitor · 2
+commands"), each with how long it has been running, so work that goes on after the turn's
+"Worked for" is visible; the daemon keeps only tasks whose process group still runs under the
+agent's Claude Code process. The daemon reads them from the agent's
+whole timeline (`groupon-desk.agent.monitors`, `packages/server/src/groupon/agent-monitors.ts`): a
+completed Monitor call that names its task, until a TaskStop of it, a notification of it with an
+end status, its timeout, or a daemon restart (the watch lived in the agent's Claude Code process,
+a child of the daemon). The window reads them every 15 seconds and at once when the chat shows a
+new Monitor, TaskStop or task notification.
+
+## The agent output's width, dragged at its edges
+
+Two pale handles sit just outside the agent output's edges, centred in the pane
+(`packages/app/src/groupon/stream-width-handles.web.tsx`). Dragging one moves both edges and
+draws only two guide lines; the chat list does not change until the handle is let go, when the
+width is kept as a share of the pane, one for every chat on this device (`streamWidthShare`,
+`groupon/preferences.ts`). A double click returns to the content width, Escape cancels a drag.
+Each chat turns the share into pixels for its own pane, in 16px steps, never below the content
+width nor past the pane less a tenth on each side, and reads a resized pane again only once it
+rests (`groupon/stream-width.ts`, `groupon/use-stream-width.ts`). The pixels reach the rows
+through React (`StreamWidthProvider`, the strategy's `contentMaxWidth`), and the web list forgets
+the row heights it measured at another width (`agent-stream/strategy-web.tsx`); the composer keeps
+the content width.
+
+The first version, reverted in 8ef9ade58, changed the rows' width through a CSS variable the
+list's virtualizer never heard about: rows overlapped, a running chat scrolled without end, and
+React stopped with "Maximum update depth exceeded" (#185). The browser test
+`groupon/stream-width.browser.test.tsx` widens a 240-row virtualized chat while it streams and the
+reader scrolls up into it, and checks that no rows overlap, the list stops moving when the stream
+stops, and no update loop is reported.
+
+## A review sent from the diff, in the chat
+
+A review sent from the diff reaches the agent as Paseo's `review` attachment (the comparison, and
+each comment with its file, side, line and the code around it), and the chat showed it as one
+"Review" pill. It is now a card of its comments (`packages/app/src/groupon/review-attachment-card.tsx`):
+the comparison in words, then each comment's file and line, the commented code line as the diff
+shows it, and the comment. A click opens the agent's workspace's diff in the comparison the
+review was made on (`groupon-session` is the session's), scrolled to the line and with the line
+marked (`use-open-review-comment.ts`, the diff's `focusLine`, `git/diff-document/surface.web.tsx`);
+a line the old diff does not show yet is looked for in the next few diffs. The sent comments
+themselves leave the diff once sent, as in Paseo; the card keeps them.
+
+## Live never jumps
+
+In the Live display mode a running tool call and a streaming thought used to be rows that left the
+chat when they finished, so the whole list jumped each time. Live now keeps only the messages and the
+failed calls (and the questions the person answered) as rows; what runs now sits in a slot above
+the running turn's footer, drawn as the chat draws it (the same tool row, folded thinking), and
+the slot keeps one row's height between calls (`packages/app/src/agent-stream/display-mode.ts`,
+`liveItemOf`).
+
+The failed calls are the person's choice: the warning sign beside Live in the composer's display
+menu (the icon the chat draws on a failed call) keeps them while lit and drops them when not
+(`liveShowsFailedTools`, on by default; `packages/app/src/groupon/chat-display-mode-control.tsx`).
+
+## Every sidebar row can be hidden
+
+Settings > Sidebar already hid and ordered Paseo's own top rows and the plugins' (My bots among
+them); Groupon Desk's "New chat", which always leads, now has its switch at the top of that card
+(`sidebarNewChatRow`, on by default; `packages/app/src/groupon/new-chat-sidebar-setting.tsx`). It is
+never moved: hidden, the row's trailing control keeps the first line to itself
+(`packages/app/src/components/sidebar/sidebar-nav-rows.tsx`).
+
+## New workspace scrolls as a whole
+
+The centered New workspace form kept its title and setup fields (project, Mac, branch) in a
+scroll area of their own that shrank when the composer grew, so a pull request's card arriving
+after its fetch cut the fields off under the composer. The whole form scrolls now and neither part
+shrinks (`packages/app/src/composer/dock/index.tsx`, the centered branch; test
+`centered-dock.browser.test.tsx`).
+
+## Sent feedback returns to the chat
+
+Sending review feedback from the diff brings the recipient's chat tab forward once the message is
+sent, so the person sees the agent take it up; a failed send stays on the diff with its comments
+(`packages/app/src/review/feedback/index.ts`, the `reveal` port, wired in `use-feedback.ts` to
+`revealWorkspaceTab`).
+
+## A background task turns the sidebar row too
+
+A session whose turn ended while its Monitor watch or background command still runs shows the
+sidebar's busy ring in the status band's teal (`statusDotBackground`, hue 195 by the band's own
+rule; `StatusRing`'s `tone="background"`). The daemon answers `groupon-desk.workspaces.background`
+with the workspaces of loaded agents that have such a task alive, one process listing for all
+(`backgroundWorkspaceIdsOf` in `packages/server/src/groupon/agent-monitors.ts`); the window asks
+once per host every 15 s (`packages/app/src/groupon/background-workspaces.ts`).
+
+## A short tail fills the screen
+
+A long session opened after a restart shows its tail only, twenty rows to the last user message,
+which can stop half way up the screen; older rows waited for the person to scroll up, and their
+arrival then jumped the list. While the rows do not reach past the viewport's top by the history
+threshold, the history start pagination loads older rows by itself, page by page, until they do
+(`viewportUnfilled` in `packages/app/src/agent-stream/history-start-pagination.ts`, measured in
+`strategy-web.tsx`).
+
+## Usage limits stand out
+
+Claude Code's "You've hit your 5-hour limit · resets 7pm (Europe/Prague)" is a red notice in the
+chat with the time left until the reset, and its arrival reads the host's usage again at once
+(`groupon/usage-limit-model.ts`, `usage-limit-notice.tsx`). The sidebar reads usage every three
+minutes and its Usage icon turns from green to red as the fullest limit fills
+(`groupon/usage-health.ts`). A usage source that never reported, such as Cursor without a working
+sign-in, is left out; Claude subscriptions stay as greyed rows.
+
+## Changes has two scopes
+
+The comparison menu offers Session (what the workspace's sessions changed) and Worktree (the
+checkout itself), each as All, Committed and Uncommitted, every choice with a line saying what it
+reads. Session Committed is the sessions' files from their base to HEAD, Session Uncommitted the
+same files from HEAD to the working tree (`groupon-desk.session.changes` takes `mode`;
+`sessionDiffRange` in `packages/server/src/groupon/session-changes.ts`; the menu in
+`packages/app/src/git/diff-pane.tsx`). A daemon without the mode answers All.
+
+The composer's pill opens with the same menu, so its label says what it counts, and stays in every
+git workspace: a comparison with no changes reads "None" instead of hiding the pill. While a
+newly chosen comparison is read it shows no count, and switching never plays the growth burst
+(`packages/app/src/composer/diff-stat-pill.tsx`).
+
+## One "Compacting" marker per compaction
+
+Claude Code repeats its "compacting" status while a compaction runs, and an interrupted turn
+reopens the marker in the next one, so the chat drew a second spinner under the person's message
+and resolved only one of them. A new loading marker now replaces any older one, and the finished
+compaction resolves the newest (`reduceTimelineCompaction`, `packages/app/src/types/stream.ts`).
+
+## A hook's session title reaches the chat
+
+A title a `UserPromptSubmit` hook (`hookSpecificOutput.sessionTitle`) or `/rename` gives a running
+Claude session lands in its transcript as a `custom-title` record, which Paseo read only on import.
+At the end of each turn the daemon reads the transcript's last 512 KB, takes the last such title and,
+when it is new, makes it the chat's title and the title of a workspace holding only that chat; what
+it carried is kept in `<PASEO_HOME>/groupon/hook-titles.json`, so a restart never puts it back over
+the person's own rename (`packages/server/src/groupon/hook-title.ts`).

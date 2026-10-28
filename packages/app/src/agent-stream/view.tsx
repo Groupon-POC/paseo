@@ -1,6 +1,13 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Live, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time, and that wait is not counted afterwards (groupon/paused-turn-start.ts). The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width. In Live what runs now sits in a slot above the running turn's footer, drawn as the chat draws it, never a row, so the chat does not jump. A question waiting on the person sits the usual gap below the last row. Claude Code's limit message is a red notice with the time to its reset.
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { StreamWidthProvider, useStreamRowWidthStyle } from "@/groupon/stream-width";
+import { StreamWidthHandles } from "@/groupon/stream-width-handles";
+import { useStreamWidth } from "@/groupon/use-stream-width";
+import { usePausedTurnStart } from "@/groupon/paused-turn-start";
+import { parseUsageLimitMessage } from "@/groupon/usage-limit-model";
+import { UsageLimitNoticeRow } from "@/groupon/usage-limit-notice";
+import { liveItemOf } from "./display-mode";
 import React, {
   forwardRef,
   memo,
@@ -117,9 +124,9 @@ function renderLiveAuxiliaryNode(input: {
     <>
       {input.turnFooter}
       {input.pendingPermissions ? (
-        <View style={stylesheet.contentWrapper}>
+        <ContentWrapper>
           <View style={stylesheet.listHeaderContent}>{input.pendingPermissions}</View>
-        </View>
+        </ContentWrapper>
       ) : null}
       {input.bottomOverlayInset > 0 ? (
         <BottomOverlayInset height={input.bottomOverlayInset} />
@@ -335,14 +342,23 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const { t } = useTranslation();
     const autoExpandReasoning = useSettings((settings) => settings.autoExpandReasoning);
     const toolCallDetailLevel = useSettings((settings) => settings.toolCallDetailLevel);
+    const displayMode = useSettings((settings) => settings.chatDisplayMode);
+    const liveShowsFailedTools = useSettings((settings) => settings.liveShowsFailedTools);
     const chatOutlineEnabled = useSettings((settings) => settings.chatOutlineEnabled);
-    const contentMaxWidth = useSettings(resolveContentMaxWidth);
+    const settingsContentMaxWidth = useSettings(resolveContentMaxWidth);
     const viewportRef = useRef<StreamViewportHandle | null>(null);
     const pendingClientMessageIds = useMemo(
       () => new Set(pendingMessageSubmissions.map((submission) => submission.clientMessageId)),
       [pendingMessageSubmissions],
     );
     const isMobile = useIsCompactFormFactor();
+    // Groupon Desk: the output's width, a share of the pane its edge handles set; the composer
+    // keeps the content width.
+    const streamWidth = useStreamWidth({
+      contentMaxWidth: settingsContentMaxWidth,
+      compact: isMobile,
+    });
+    const contentMaxWidth = streamWidth.maxWidth;
     const streamRenderStrategy = useMemo(
       () =>
         resolveStreamRenderStrategy({
@@ -515,6 +531,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           transform: transformTimelineItem,
           level: toolCallDetailLevel,
           isTurnActive,
+          displayMode,
+          showFailed: liveShowsFailedTools,
         }),
       [
         presentStream,
@@ -523,6 +541,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         transformTimelineItem,
         toolCallDetailLevel,
         isTurnActive,
+        displayMode,
+        liveShowsFailedTools,
       ],
     );
     const {
@@ -692,6 +712,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
 
     const renderAssistantMessageItem = useCallback(
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "assistant_message" }>) => {
+        // Groupon Desk: Claude Code's "You've hit your limit" is a red notice with its reset.
+        const limit = parseUsageLimitMessage(item.text, item.timestamp);
+        if (limit)
+          return <UsageLimitNoticeRow notice={limit} serverId={resolvedServerId ?? null} />;
         return (
           <AssistantFileLinkResolverProvider
             client={client}
@@ -729,12 +753,29 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
             text={item.text}
             status={item.status}
+            seconds={thoughtSeconds(item)}
             isLastInSequence={layoutItem.isLastInToolSequence}
             defaultExpanded={autoExpandReasoning}
           />
         );
       },
       [autoExpandReasoning, setInlineDetailsExpanded],
+    );
+
+    // Groupon Desk: Live's slot draws a streaming thought as the chat does, folded.
+    const renderLiveThought = useCallback(
+      (item: Extract<StreamItem, { kind: "thought" }>) => (
+        <ThoughtSlot
+          itemId={item.id}
+          onInlineDetailsExpandedChangeByItemId={setInlineDetailsExpanded}
+          text={item.text}
+          status={item.status}
+          seconds={thoughtSeconds(item)}
+          isLastInSequence
+          defaultExpanded={false}
+        />
+      ),
+      [setInlineDetailsExpanded],
     );
 
     const renderSingleToolCallItem = useCallback(
@@ -922,12 +963,29 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         }),
       [client, pendingPermissionItems],
     );
+    // Groupon Desk: while the agent waits on the person (a question, a permission) the turn shows
+    // no loader and counts no time; the waiting card is what the person looks at.
+    const isWorking = isAgentWorking(isTurnActive, pendingPermissionItems.length);
+    // ...and the time it waited is not counted once the person answers.
+    const footerTurnStartedAt = usePausedTurnStart(
+      baseRenderModel.turnTiming.runningStartedAt,
+      pendingPermissionItems.length > 0,
+    );
+    const liveActivity = useLiveSlot({
+      isWorking,
+      displayMode,
+      tail: effectiveStreamItems,
+      head: effectiveStreamHead,
+      renderToolCall: renderSingleToolCallItem,
+      renderThought: renderLiveThought,
+    });
     const turnFooterNode = useMemo(
       () =>
-        isTurnActive || bottomTurnFooterHost ? (
+        isWorking || bottomTurnFooterHost ? (
           <TurnFooter
-            isRunning={isTurnActive}
-            inFlightTurnStartedAt={baseRenderModel.turnTiming.runningStartedAt}
+            isRunning={isWorking}
+            activity={liveActivity}
+            inFlightTurnStartedAt={footerTurnStartedAt}
             host={bottomTurnFooterHost}
             strategy={streamRenderStrategy}
             supportsTimelineCursor={supportsAgentForkContextCursor}
@@ -939,8 +997,9 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         handleForkAssistantTurn,
         handleForkInFlightTurn,
         readOnly,
-        isTurnActive,
-        baseRenderModel.turnTiming.runningStartedAt,
+        isWorking,
+        footerTurnStartedAt,
+        liveActivity,
         bottomTurnFooterHost,
         streamRenderStrategy,
         supportsAgentForkContextCursor,
@@ -1087,31 +1146,42 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       >
         <ToolCallSheetProvider>
           <AssistantSelectionCopySurface style={stylesheet.container}>
-            <MessageOuterSpacingProvider disableOuterSpacing>
-              {streamRenderStrategy.render({
-                agentId,
-                segments: renderModel.segments,
-                historyRowRevision,
-                liveHeadRowRevision: expandedToolCallGroupIds,
-                boundary,
-                renderers,
-                listEmptyComponent,
-                viewportRef,
-                routeBottomAnchorRequest,
-                isAuthoritativeHistoryReady,
-                onNearBottomChange: setIsNearBottom,
-                onReadingPositionChange: handleReadingPositionChange,
-                onNearHistoryStart: loadOlder,
-                isLoadingOlderHistory: isLoadingOlder,
-                hasOlderHistory: hasOlder,
-                olderHistoryProgressKey: progressKey,
-                scrollEnabled: streamScrollEnabled,
-                listStyle: stylesheet.list,
-                baseListContentContainerStyle: stylesheet.listContentContainer,
-                forwardListContentContainerStyle: stylesheet.forwardListContentContainer,
-                contentMaxWidth,
-              })}
-            </MessageOuterSpacingProvider>
+            <View
+              style={stylesheet.paneMeasure}
+              pointerEvents="none"
+              onLayout={streamWidth.onPaneLayout}
+            />
+            <StreamWidthProvider value={streamWidth.override}>
+              <MessageOuterSpacingProvider disableOuterSpacing>
+                {streamRenderStrategy.render({
+                  agentId,
+                  segments: renderModel.segments,
+                  historyRowRevision,
+                  liveHeadRowRevision: expandedToolCallGroupIds,
+                  boundary,
+                  renderers,
+                  listEmptyComponent,
+                  viewportRef,
+                  routeBottomAnchorRequest,
+                  isAuthoritativeHistoryReady,
+                  onNearBottomChange: setIsNearBottom,
+                  onReadingPositionChange: handleReadingPositionChange,
+                  onNearHistoryStart: loadOlder,
+                  isLoadingOlderHistory: isLoadingOlder,
+                  hasOlderHistory: hasOlder,
+                  olderHistoryProgressKey: progressKey,
+                  scrollEnabled: streamScrollEnabled,
+                  listStyle: stylesheet.list,
+                  baseListContentContainerStyle: stylesheet.listContentContainer,
+                  forwardListContentContainerStyle: stylesheet.forwardListContentContainer,
+                  contentMaxWidth,
+                })}
+              </MessageOuterSpacingProvider>
+            </StreamWidthProvider>
+            <GrouponStreamWidthHandles
+              state={streamWidth}
+              contentMaxWidth={settingsContentMaxWidth}
+            />
             <ChatOutlineRail
               prompts={chatOutline.prompts}
               activePrompt={chatOutline.activePrompt}
@@ -1281,8 +1351,57 @@ interface ThoughtSlotProps {
   onInlineDetailsExpandedChangeByItemId: (itemId: string, expanded: boolean) => void;
   text: string;
   status: Extract<StreamItem, { kind: "thought" }>["status"];
+  /** Groupon Desk: how long it took, once it is ready; null when not known. */
+  seconds: number | null;
   isLastInSequence: boolean;
   defaultExpanded: boolean;
+}
+
+/** Groupon Desk: the agent works while its turn is active and nothing waits on the person. */
+/**
+ * Groupon Desk: in Live, the slot above the running turn's footer that holds what runs now
+ * (`liveItemOf`), drawn as the chat draws it: what runs is never a row there, and the slot keeps
+ * its height between calls, so the chat does not jump.
+ */
+function useLiveSlot(input: {
+  isWorking: boolean;
+  displayMode: string;
+  tail: readonly StreamItem[];
+  head: readonly StreamItem[] | null | undefined;
+  renderToolCall: (item: Extract<StreamItem, { kind: "tool_call" }>, isLast: boolean) => ReactNode;
+  renderThought: (item: Extract<StreamItem, { kind: "thought" }>) => ReactNode;
+}): ReactNode {
+  const { tail, head, renderToolCall, renderThought } = input;
+  const enabled = input.isWorking && input.displayMode === "live";
+  const item = useMemo(
+    () => (enabled ? (liveItemOf(head ?? []) ?? liveItemOf(tail)) : null),
+    [enabled, head, tail],
+  );
+  return useMemo(() => {
+    if (!enabled) return null;
+    let content: ReactNode = null;
+    if (item?.kind === "tool_call") content = renderToolCall(item, true);
+    if (item?.kind === "thought") content = renderThought(item);
+    return (
+      <View style={stylesheet.liveSlot} testID="turn-live-slot">
+        {content}
+      </View>
+    );
+  }, [enabled, item, renderThought, renderToolCall]);
+}
+
+function isAgentWorking(isTurnActive: boolean, waitingOnPerson: number): boolean {
+  return isTurnActive && waitingOnPerson === 0;
+}
+
+/**
+ * Groupon Desk: whole seconds from a thought's first chunk to its last, at least 1; null when its
+ * chunks do not tell (no start, or one chunk, as a replayed history can carry it).
+ */
+function thoughtSeconds(item: Extract<StreamItem, { kind: "thought" }>): number | null {
+  if (!item.startedAt) return null;
+  const elapsed = item.timestamp.getTime() - item.startedAt.getTime();
+  return elapsed > 0 ? Math.max(1, Math.round(elapsed / 1000)) : null;
 }
 
 // Reasoning text is paced the same way assistant text is; see @/hooks/use-revealed-text.
@@ -1291,16 +1410,22 @@ function ThoughtSlot({
   onInlineDetailsExpandedChangeByItemId,
   text,
   status,
+  seconds,
   isLastInSequence,
   defaultExpanded,
 }: ThoughtSlotProps) {
   const revealedText = useRevealedText(text, status === "ready" ? "complete" : "streaming");
+  const metadata = useMemo(
+    () => (status === "ready" && seconds !== null ? { thoughtSeconds: seconds } : undefined),
+    [status, seconds],
+  );
   return (
     <ToolCallSlot
       itemId={itemId}
       onInlineDetailsExpandedChangeByItemId={onInlineDetailsExpandedChangeByItemId}
       toolName="thinking"
       args={revealedText}
+      metadata={metadata}
       status={status === "ready" ? "completed" : "executing"}
       isLastInSequence={isLastInSequence}
       defaultExpanded={defaultExpanded}
@@ -1613,6 +1738,13 @@ const stylesheet = StyleSheet.create((theme) => ({
     flex: 1,
     backgroundColor: theme.colors.surface0,
   },
+  paneMeasure: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   contentWrapper: {
     width: "100%",
     maxWidth: theme.contentMaxWidth,
@@ -1634,6 +1766,11 @@ const stylesheet = StyleSheet.create((theme) => ({
   list: {
     flex: 1,
   },
+  // Groupon Desk: Live's slot of what runs now keeps one collapsed row's height between calls.
+  liveSlot: {
+    minHeight: 40,
+    justifyContent: "center",
+  },
   streamItemWrapper: {
     width: "100%",
     maxWidth: theme.contentMaxWidth,
@@ -1651,6 +1788,9 @@ const stylesheet = StyleSheet.create((theme) => ({
   },
   listHeaderContent: {
     gap: theme.spacing[3],
+    // Groupon Desk: a question or permission waiting on the person sits the usual gap below the
+    // last row, as the answered question does; the last row itself has no gap below.
+    paddingTop: theme.spacing[4],
   },
   syncingIndicator: {
     flexDirection: "row",
@@ -1771,9 +1911,36 @@ interface StreamItemWrapperProps {
 }
 
 function StreamItemWrapper({ gapBelow, children }: StreamItemWrapperProps) {
+  const widthStyle = useStreamRowWidthStyle();
   const wrapperStyle = useMemo(
-    () => [stylesheet.streamItemWrapper, { marginBottom: gapBelow }],
-    [gapBelow],
+    () => [stylesheet.streamItemWrapper, widthStyle, { marginBottom: gapBelow }],
+    [gapBelow, widthStyle],
   );
   return <View style={wrapperStyle}>{children}</View>;
+}
+
+/** Groupon Desk: the list's header and footer content, as wide as the output. */
+function ContentWrapper({ children }: { children: ReactNode }) {
+  const widthStyle = useStreamRowWidthStyle();
+  const style = useMemo(() => [stylesheet.contentWrapper, widthStyle], [widthStyle]);
+  return <View style={style}>{children}</View>;
+}
+
+/** Groupon Desk: the output's edge handles, where the pane has room to widen it. */
+function GrouponStreamWidthHandles({
+  state,
+  contentMaxWidth,
+}: {
+  state: ReturnType<typeof useStreamWidth>;
+  contentMaxWidth: number;
+}) {
+  if (!state.canWiden) return null;
+  return (
+    <StreamWidthHandles
+      paneWidth={state.paneWidth}
+      streamWidth={state.maxWidth}
+      contentMaxWidth={contentMaxWidth}
+      onCommit={state.commit}
+    />
+  );
 }

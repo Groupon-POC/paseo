@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a diff can be limited to paths and taken from any commit (`getPathsDiffSince`), and HEAD can be read at a past moment (`resolveHeadAt`), for an agent session's own changes; `getWorktreeRoot` is exported.
 import { MAX_RELAY_WEBSOCKET_MESSAGE_BYTES } from "@getpaseo/protocol/websocket-message-limit";
 import { resolve, dirname, basename } from "path";
 import { existsSync, realpathSync } from "fs";
@@ -208,10 +209,17 @@ interface CheckoutDiffRefs {
   baseRef: string;
   targetRef?: string;
   includeUntracked: boolean;
+  /** Groupon Desk: only these paths, relative to the worktree root; every path when absent. */
+  paths?: readonly string[];
 }
 
 function getCheckoutDiffRefArgs(refs: CheckoutDiffRefs): string[] {
   return [refs.baseRef, ...(refs.targetRef ? [refs.targetRef] : [])];
+}
+
+/** Groupon Desk: the pathspec that limits a diff to `refs.paths`, or nothing. */
+function getCheckoutDiffPathArgs(refs: Pick<CheckoutDiffRefs, "paths">): string[] {
+  return refs.paths ? ["--", ...refs.paths.map((path) => `:(literal)${path}`)] : [];
 }
 
 function normalizeBranchSuggestionName(raw: string): string | null {
@@ -518,7 +526,12 @@ async function listCheckoutFileChanges(
   const { stdout: nameStatusOut } = await runGitCommand(
     buildGitDiffArgs({
       ignoreWhitespace,
-      extra: ["-z", "--name-status", ...getCheckoutDiffRefArgs(refs)],
+      extra: [
+        "-z",
+        "--name-status",
+        ...getCheckoutDiffRefArgs(refs),
+        ...getCheckoutDiffPathArgs(refs),
+      ],
     }),
     { cwd, envOverlay: { ...READ_ONLY_GIT_ENV, ...refs.indexEnv } },
   );
@@ -555,7 +568,7 @@ async function listCheckoutFileChanges(
 
   if (refs.includeUntracked) {
     const { stdout: untrackedOut } = await runGitCommand(
-      ["ls-files", "-z", "--others", "--exclude-standard"],
+      ["ls-files", "-z", "--others", "--exclude-standard", ...getCheckoutDiffPathArgs(refs)],
       {
         cwd,
         envOverlay: { ...READ_ONLY_GIT_ENV, ...refs.indexEnv },
@@ -669,7 +682,7 @@ async function getTrackedNumstatByPath(
   const result = await runGitCommand(
     buildGitDiffArgs({
       ignoreWhitespace,
-      extra: ["-z", "--numstat", ...getCheckoutDiffRefArgs(refs)],
+      extra: ["-z", "--numstat", ...getCheckoutDiffRefArgs(refs), ...getCheckoutDiffPathArgs(refs)],
     }),
     {
       cwd,
@@ -1066,7 +1079,10 @@ async function getRebaseHeadBranch(cwd: string, context?: CheckoutContext): Prom
   return results.find((result): result is string => result !== null) ?? null;
 }
 
-async function getWorktreeRoot(cwd: string, context?: CheckoutContext): Promise<string | null> {
+export async function getWorktreeRoot(
+  cwd: string,
+  context?: CheckoutContext,
+): Promise<string | null> {
   try {
     const { stdout } = await getRunGitCommand(context)(["rev-parse", "--show-toplevel"], {
       cwd,
@@ -3492,11 +3508,17 @@ async function resolveCheckoutDiffRefs(
 
 // Git's working-tree diff ignores files absent from the index, even when they
 // exist in the comparison tree. Restore those entries only in a private index.
-async function prepareAllChangesIndex(cwd: string, baseRef: string) {
-  const untracked = await runGitCommand(["ls-files", "-z", "--others", "--exclude-standard"], {
-    cwd,
-    envOverlay: READ_ONLY_GIT_ENV,
-  });
+async function prepareAllChangesIndex(cwd: string, baseRef: string, onlyPaths?: readonly string[]) {
+  const untracked = await runGitCommand(
+    [
+      "ls-files",
+      "-z",
+      "--others",
+      "--exclude-standard",
+      ...getCheckoutDiffPathArgs({ paths: onlyPaths }),
+    ],
+    { cwd, envOverlay: READ_ONLY_GIT_ENV },
+  );
   const paths = untracked.stdout.split("\0").filter(Boolean);
   if (paths.length === 0) return null;
   let entries = "";
@@ -3559,6 +3581,72 @@ export async function getCheckoutDiff(
   } finally {
     await index?.cleanup();
   }
+}
+
+/**
+ * Groupon Desk: the diff of some paths (relative to the worktree root) from a commit to the working
+ * tree, files never added included: what one agent session changed in this repository.
+ */
+export async function getPathsDiffSince(
+  cwd: string,
+  input: {
+    baseCommit: string;
+    paths: readonly string[];
+    ignoreWhitespace?: boolean;
+    /** Up to this commit (committed changes only) instead of the working tree. */
+    targetRef?: string;
+  },
+): Promise<CheckoutDiffResult> {
+  cwd = await requireGitWorktreeRoot(cwd);
+  if (input.paths.length === 0) return { diff: "", structured: [] };
+  if (input.targetRef) {
+    return readCheckoutDiff(
+      cwd,
+      { mode: "base", ignoreWhitespace: input.ignoreWhitespace, includeStructured: true },
+      {
+        baseRef: input.baseCommit,
+        targetRef: input.targetRef,
+        includeUntracked: false,
+        paths: input.paths,
+      },
+    );
+  }
+  const refs: CheckoutDiffRefs = {
+    baseRef: input.baseCommit,
+    includeUntracked: true,
+    paths: input.paths,
+  };
+  const index = await prepareAllChangesIndex(cwd, input.baseCommit, input.paths);
+  try {
+    return await readCheckoutDiff(
+      cwd,
+      { mode: "all", ignoreWhitespace: input.ignoreWhitespace, includeStructured: true },
+      { ...refs, indexEnv: index ? { GIT_INDEX_FILE: index.indexFile } : undefined },
+    );
+  } finally {
+    await index?.cleanup();
+  }
+}
+
+/**
+ * Groupon Desk: the commit HEAD pointed at a moment: the newest reflog entry not after it, else the
+ * first-parent history's newest commit not after it, else null.
+ */
+export async function resolveHeadAt(cwd: string, at: Date): Promise<string | null> {
+  const seconds = Math.floor(at.getTime() / 1000);
+  const reflog = await runGitCommand(
+    ["reflog", "show", "-n", "5000", "--date=unix", "--format=%H %gd", "HEAD"],
+    { cwd, envOverlay: READ_ONLY_GIT_ENV, acceptExitCodes: [0, 128] },
+  );
+  for (const line of reflog.stdout.split("\n")) {
+    const entry = /^([0-9a-f]{40}) HEAD@\{(\d+)\}$/.exec(line.trim());
+    if (entry?.[1] && Number(entry[2]) <= seconds) return entry[1];
+  }
+  const history = await runGitCommand(
+    ["rev-list", "-1", "--first-parent", `--before=${seconds}`, "HEAD"],
+    { cwd, envOverlay: READ_ONLY_GIT_ENV, acceptExitCodes: [0, 128] },
+  );
+  return history.stdout.trim() || null;
 }
 
 async function readCheckoutDiff(
@@ -4367,4 +4455,64 @@ function getUnavailablePullRequestStatus(
     return buildPullRequestStatusResult(null, "authenticated");
   }
   return null;
+}
+
+/**
+ * Groupon Desk: the files the person's own commits on HEAD's line since `since` changed, merges and
+ * the work a merge brought in left out, relative to the worktree root (what a session committed
+ * from a shell, `groupon/session-changes.ts`).
+ */
+export async function listFilesCommittedSince(cwd: string, since: Date): Promise<string[]> {
+  const seconds = Math.floor(since.getTime() / 1000);
+  // Only the person's own commits on this branch's line: a merge brings others' work in through
+  // its second parent (`--first-parent` stops there), and a rebase onto a shared branch puts
+  // others' commits on the line (the author filter leaves them out).
+  const email = (
+    await runGitCommand(["config", "--get", "user.email"], {
+      cwd,
+      envOverlay: READ_ONLY_GIT_ENV,
+      acceptExitCodes: [0, 1, 128],
+    })
+  ).stdout.trim();
+  const author = email ? ["--fixed-strings", `--author=<${email}>`] : [];
+  const log = await runGitCommand(
+    [
+      "log",
+      "--no-merges",
+      "--first-parent",
+      `--since=@${seconds}`,
+      ...author,
+      "--name-only",
+      "--format=",
+      "HEAD",
+    ],
+    { cwd, envOverlay: READ_ONLY_GIT_ENV, acceptExitCodes: [0, 128] },
+  );
+  return [
+    ...new Set(
+      log.stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+/** Groupon Desk: the worktree's uncommitted files, tracked or not, relative to its root. */
+export async function listUncommittedFiles(cwd: string): Promise<string[]> {
+  const status = await runGitCommand(["status", "--porcelain=v1", "-z", "--untracked-files=all"], {
+    cwd,
+    envOverlay: READ_ONLY_GIT_ENV,
+    acceptExitCodes: [0, 128],
+  });
+  const entries = status.stdout.split("\0");
+  const files: string[] = [];
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index] ?? "";
+    if (entry.length < 4) continue;
+    files.push(entry.slice(3));
+    // A rename or copy is followed by its old path.
+    if (entry[0] === "R" || entry[0] === "C") index += 1;
+  }
+  return files;
 }

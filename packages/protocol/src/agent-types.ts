@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message names its author (who wrote it, on which device) when a shared workspace has more than one writer.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message names its author (who wrote it, on which device) when a shared workspace has more than one writer. A shell detail may carry its `description`.
 import type { AgentMessage } from "./agent-message.js";
 import type { AgentAttachment } from "./messages.js";
 
@@ -218,6 +218,8 @@ export type ToolCallDetail =
       type: "shell";
       command: string;
       cwd?: string;
+      /** What the model says the command does (Claude's Bash `description`). */
+      description?: string;
       output?: string;
       exitCode?: number | null;
     }

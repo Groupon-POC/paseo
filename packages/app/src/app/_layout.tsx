@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in gate in front of the host runtime; the From GitHub sheet; no built-in daemon, the hand owns it; no Paseo update callout, updates arrive with Groupon Desk; the Improve this repository sheet; no built-in daemon, the hand owns it.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in gate in front of the host runtime; the From GitHub sheet; no built-in daemon, the hand owns it; no Paseo update callout, updates arrive with Groupon Desk; the Improve this repository sheet; no built-in daemon, the hand owns it; the "New chat" shortcut's handler.
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useIsExplorerSidebarOpen } from "@/workspace-tabs/explorer-sidebar";
@@ -47,6 +47,7 @@ import { WindowSidebarMenuToggle } from "@/components/headers/sidebar-menu-toggl
 import { DesktopWindowControls } from "@/components/desktop/window-controls";
 import { SidebarModelProvider } from "@/components/sidebar/sidebar-model";
 import { WorkspacePinShortcutHandler } from "@/components/workspace-pin-shortcut-handler";
+import { NewChatShortcutHandler } from "@/groupon/new-chat-shortcut-handler";
 import { WorkspaceRenameHost } from "@/components/workspace-rename-host";
 import { WorkspaceExplorerOpenGesture } from "@/mobile-panels/explorer-open-gesture";
 import { ProviderSettingsHost } from "@/components/provider-settings-host";
@@ -502,6 +503,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
         <CommandCenterWorkspaceActions />
         <PluginCommandCenterActions />
         <WorkspacePinShortcutHandler />
+        <NewChatShortcutHandler />
         <WorkspaceRenameHost />
         <CommandCenter />
         <AddProjectFlowHost />

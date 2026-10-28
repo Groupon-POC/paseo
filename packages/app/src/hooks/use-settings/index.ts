@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): exports `ChatDisplayMode`.
 import { useCallback, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
@@ -42,6 +43,7 @@ import {
   saveAppSettings as saveAppSettingsPure,
   type AppSettings,
   type AppSettingsUpdate,
+  type ChatDisplayMode,
   type OpenInSidePanePreferences,
   type PullRequestOpenLocation,
   type DesktopSettingsBridge,
@@ -85,6 +87,7 @@ export type {
   AppSettings,
   AppSettingsUpdate,
   AppLanguage,
+  ChatDisplayMode,
   OpenInSidePanePreferences,
   PullRequestOpenLocation,
   DesktopSettingsBridge,

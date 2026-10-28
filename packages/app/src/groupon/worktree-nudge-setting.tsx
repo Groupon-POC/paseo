@@ -1,5 +1,6 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the General settings switch for the worktree-scripts reminder.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the General settings switches for the worktree-scripts reminder and for Local on a shared branch. And for My tasks, and for what Changes compares by default.
 
+import { useCallback } from "react";
 import { Text, View } from "react-native";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { Switch } from "@/components/ui/switch";
@@ -11,6 +12,18 @@ import { GROUPON_PREFERENCES } from "./strings";
 export function WorktreeNudgeSetting() {
   const remind = useGrouponPreferences((state) => state.remindWorktreeScripts);
   const setRemind = useGrouponPreferences((state) => state.setRemindWorktreeScripts);
+  const inPlace = useGrouponPreferences((state) => state.localInPlaceOnTrunk ?? false);
+  const setInPlace = useGrouponPreferences((state) => state.setLocalInPlaceOnTrunk);
+  const showMyTasks = useGrouponPreferences((state) => state.showMyTasks ?? true);
+  const setShowMyTasks = useGrouponPreferences((state) => state.setShowMyTasks);
+  const sessionByDefault = useGrouponPreferences(
+    (state) => state.changesDefaultComparison === "session",
+  );
+  const setDefaultComparison = useGrouponPreferences((state) => state.setChangesDefaultComparison);
+  const setSessionByDefault = useCallback(
+    (value: boolean) => setDefaultComparison(value ? "session" : "all"),
+    [setDefaultComparison],
+  );
   return (
     <SettingsSection title={GROUPON_PREFERENCES.section}>
       <View style={settingsStyles.card}>
@@ -26,6 +39,55 @@ export function WorktreeNudgeSetting() {
             onValueChange={setRemind}
             accessibilityLabel={GROUPON_PREFERENCES.remindWorktreeScripts}
             testID="groupon-remind-worktree-scripts-switch"
+          />
+        </View>
+        <View
+          style={[settingsStyles.row, settingsStyles.rowBorder]}
+          testID="groupon-local-in-place-on-trunk-row"
+        >
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>{GROUPON_PREFERENCES.localInPlaceOnTrunk}</Text>
+            <Text style={settingsStyles.rowHint}>
+              {GROUPON_PREFERENCES.localInPlaceOnTrunkHint}
+            </Text>
+          </View>
+          <Switch
+            value={inPlace}
+            onValueChange={setInPlace}
+            accessibilityLabel={GROUPON_PREFERENCES.localInPlaceOnTrunk}
+            testID="groupon-local-in-place-on-trunk-switch"
+          />
+        </View>
+        <View
+          style={[settingsStyles.row, settingsStyles.rowBorder]}
+          testID="groupon-show-my-tasks-row"
+        >
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>{GROUPON_PREFERENCES.showMyTasks}</Text>
+            <Text style={settingsStyles.rowHint}>{GROUPON_PREFERENCES.showMyTasksHint}</Text>
+          </View>
+          <Switch
+            value={showMyTasks}
+            onValueChange={setShowMyTasks}
+            accessibilityLabel={GROUPON_PREFERENCES.showMyTasks}
+            testID="groupon-show-my-tasks-switch"
+          />
+        </View>
+        <View
+          style={[settingsStyles.row, settingsStyles.rowBorder]}
+          testID="groupon-changes-session-default-row"
+        >
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>{GROUPON_PREFERENCES.changesSessionDefault}</Text>
+            <Text style={settingsStyles.rowHint}>
+              {GROUPON_PREFERENCES.changesSessionDefaultHint}
+            </Text>
+          </View>
+          <Switch
+            value={sessionByDefault}
+            onValueChange={setSessionByDefault}
+            accessibilityLabel={GROUPON_PREFERENCES.changesSessionDefault}
+            testID="groupon-changes-session-default-switch"
           />
         </View>
       </View>

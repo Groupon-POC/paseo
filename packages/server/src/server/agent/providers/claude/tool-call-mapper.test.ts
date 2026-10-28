@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shell call keeps its `description`.
 import { describe, expect, it } from "vitest";
 
 import {
@@ -69,6 +70,23 @@ describe("claude tool-call mapper", () => {
       expect(item.detail.command).toBe("pwd");
       expect(item.detail.cwd).toBe("/tmp/repo");
     }
+  });
+
+  it("keeps the description Claude wrote for a shell call", () => {
+    const item = expectMapped(
+      mapClaudeRunningToolCall({
+        callId: "claude-call-described",
+        name: "Bash",
+        input: { command: "pnpm test", description: "Run the unit tests" },
+        output: null,
+      }),
+    );
+
+    expect(item.detail).toEqual({
+      type: "shell",
+      command: "pnpm test",
+      description: "Run the unit tests",
+    });
   });
 
   it("maps partial running input through the same canonical detail path", () => {

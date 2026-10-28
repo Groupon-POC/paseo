@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `notifications.enabled`, so a person can turn the window's desktop notifications off.
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -9,6 +10,7 @@ import type { AppReleaseChannel } from "../features/auto-updater.js";
 export interface DesktopSettings {
   releaseChannel: AppReleaseChannel;
   notifications: {
+    enabled: boolean;
     playSound: boolean;
   };
   daemon: {
@@ -32,6 +34,7 @@ export interface DesktopSettingsStore {
 export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   releaseChannel: "stable",
   notifications: {
+    enabled: true,
     playSound: true,
   },
   daemon: {
@@ -46,6 +49,7 @@ const ReleaseChannelSchema = z.enum(["stable", "beta"]);
 
 const NotificationsSchema = z
   .looseObject({
+    enabled: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.enabled),
     playSound: z.boolean().catch(DEFAULT_DESKTOP_SETTINGS.notifications.playSound),
   })
   .catch(() => ({ ...DEFAULT_DESKTOP_SETTINGS.notifications }));
@@ -125,7 +129,10 @@ function buildDefaultDocument(): PersistedDesktopSettingsDocument {
 function toDesktopSettings(stored: StoredDesktopSettings): DesktopSettings {
   return {
     releaseChannel: stored.releaseChannel,
-    notifications: { playSound: stored.notifications.playSound },
+    notifications: {
+      enabled: stored.notifications.enabled,
+      playSound: stored.notifications.playSound,
+    },
     daemon: {
       manageBuiltInDaemon: stored.daemon.manageBuiltInDaemon,
       keepRunningAfterQuit: stored.daemon.keepRunningAfterQuit,
@@ -145,9 +152,17 @@ function coerceDesktopSettingsPatch(input: unknown): DesktopSettingsPatch {
   }
 
   if (isRecord(input.notifications)) {
+    const notificationsPatch: Partial<DesktopSettings["notifications"]> = {};
+    const enabled = coerceBoolean(input.notifications.enabled);
+    if (enabled !== null) {
+      notificationsPatch.enabled = enabled;
+    }
     const playSound = coerceBoolean(input.notifications.playSound);
     if (playSound !== null) {
-      patch.notifications = { playSound };
+      notificationsPatch.playSound = playSound;
+    }
+    if (Object.keys(notificationsPatch).length > 0) {
+      patch.notifications = notificationsPatch;
     }
   }
 

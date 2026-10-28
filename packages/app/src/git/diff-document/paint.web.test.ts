@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { paintWebViewport } from "./paint.web";
+import { paintWebFileHeader, paintWebViewport, webFileHeaderOpenButtonLeft } from "./paint.web";
 import type { DiffCell, DiffDocumentModel, DiffLineRow, DiffPalette, DiffSelection } from "./types";
 
 describe("web diff text shaping", () => {
@@ -90,9 +90,70 @@ describe("web diff text shaping", () => {
     expect(labels.filter((label) => label.text !== "fi")).toEqual([
       { text: "+1", x: 142, y: 18, color: "success", font: "12px system-ui" },
       { text: "-0", x: 158, y: 18, color: "danger", font: "12px system-ui" },
-      { text: "a.ts", x: 12, y: 18, color: "foreground", font: "14px system-ui" },
+      { text: "a.ts", x: 12, y: 18, color: "foreground", font: "600 14px system-ui" },
       { text: "src", x: 40, y: 18, color: "muted", font: "14px system-ui" },
     ]);
+  });
+
+  // Groupon Desk: headers parted by a line, and the open button right after the painted path.
+  it("parts a later file's header from the file before it and places the open button after its path", () => {
+    const fills: Array<{ color: string; y: number; height: number }> = [];
+    let fillStyle = "";
+    const context = {
+      font: "",
+      fillRect(_x: number, y: number, _width: number, height: number) {
+        fills.push({ color: fillStyle, y, height });
+      },
+      measureText: (text: string) =>
+        ({
+          width: text.length * 6,
+          actualBoundingBoxAscent: 8,
+          actualBoundingBoxDescent: 2,
+        }) as TextMetrics,
+      fillText() {},
+      save() {},
+      restore() {},
+      beginPath() {},
+      rect() {},
+      clip() {},
+      moveTo() {},
+      lineTo() {},
+      stroke() {},
+      roundRect() {},
+      translate() {},
+      scale() {},
+      get fillStyle() {
+        return fillStyle;
+      },
+      set fillStyle(value: string) {
+        fillStyle = value;
+      },
+    } as unknown as CanvasRenderingContext2D;
+    const second = { ...model.files[0]!, fileIndex: 1 };
+
+    paintWebFileHeader({
+      context,
+      file: second,
+      palette,
+      typography: headerTypography,
+      viewportWidth: 200,
+      y: 100,
+      activePath: null,
+    });
+
+    expect(fills.filter((fill) => fill.color === "header-border")).toEqual([
+      { color: "header-border", y: 100, height: 1 },
+      { color: "header-border", y: 129, height: 1 },
+    ]);
+    // "a.ts" (24) + gap (4) + "src" (18) from the 12px rail, then a 4px gap.
+    expect(
+      webFileHeaderOpenButtonLeft({
+        context,
+        file: second,
+        typography: headerTypography,
+        viewportWidth: 200,
+      }),
+    ).toBe(62);
   });
 
   it("paints syntax colors by clipping the complete measured shaped fragment", () => {

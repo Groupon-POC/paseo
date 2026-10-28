@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a running turn shows TARS's blob and typed word (`groupon/whimsy-loader`). While it runs the time leads and no fork is offered; its row takes the agent output's width (groupon/stream-width.ts). In Live it carries the slot of what runs now, above its time and blob.
 import React, { memo, useCallback, useMemo, type ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -16,9 +17,10 @@ import {
   type AssistantForkTarget,
 } from "@/components/message";
 import type { TurnFooterHost } from "./layout";
-import { AssistantForkMenu } from "@/components/assistant-fork-menu";
 import { SyncedLoader } from "@/components/synced-loader";
 import { useRetainedPanelActive } from "@/components/retained-panel";
+import { WhimsyLoader } from "@/groupon/whimsy-loader";
+import { useStreamRowWidthStyle } from "@/groupon/stream-width";
 
 const ThemedSyncedLoader = withUnistyles(SyncedLoader);
 const workingIndicatorColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
@@ -43,6 +45,7 @@ export type InFlightTurnForkHandler = (target: AssistantForkTarget) => Promise<v
 
 export const TurnFooter = memo(function TurnFooter({
   isRunning,
+  activity = null,
   inFlightTurnStartedAt,
   host,
   strategy,
@@ -51,6 +54,8 @@ export const TurnFooter = memo(function TurnFooter({
   onForkInFlightTurn,
 }: {
   isRunning: boolean;
+  /** Groupon Desk: Live's slot of what the agent does now, above the time and the blob. */
+  activity?: ReactNode;
   inFlightTurnStartedAt: Date | null;
   host: TurnFooterHost | null;
   strategy: TurnContentStrategy;
@@ -62,6 +67,7 @@ export const TurnFooter = memo(function TurnFooter({
     return (
       <TurnFooterRow>
         <RunningTurnFooter
+          activity={activity}
           inFlightTurnStartedAt={inFlightTurnStartedAt}
           onForkInFlightTurn={onForkInFlightTurn}
         />
@@ -112,9 +118,12 @@ export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
   );
 });
 
+const workingFallback = <ThemedSyncedLoader size={14} uniProps={workingIndicatorColorMapping} />;
+
+// Groupon Desk: while the agent works the time leads, so the typed word moves nothing, and a turn
+// still running offers no fork.
 const WorkingIndicator = memo(function WorkingIndicator({
   inFlightTurnStartedAt = null,
-  onForkInFlightTurn,
 }: {
   inFlightTurnStartedAt?: Date | null;
   onForkInFlightTurn?: InFlightTurnForkHandler;
@@ -122,11 +131,6 @@ const WorkingIndicator = memo(function WorkingIndicator({
   const active = useRetainedPanelActive();
   return (
     <View style={stylesheet.turnFooterContent}>
-      <View style={stylesheet.workingLoader}>
-        <ThemedSyncedLoader size={14} uniProps={workingIndicatorColorMapping} />
-      </View>
-      {/* Match the completed-turn footer: actions precede timing metadata. */}
-      {onForkInFlightTurn ? <AssistantForkMenu onFork={onForkInFlightTurn} /> : null}
       {inFlightTurnStartedAt ? (
         <LiveElapsed
           startedAt={inFlightTurnStartedAt}
@@ -135,24 +139,33 @@ const WorkingIndicator = memo(function WorkingIndicator({
           testID="turn-working-elapsed"
         />
       ) : null}
+      <View style={stylesheet.workingLoader}>
+        <WhimsyLoader fallback={workingFallback} />
+      </View>
     </View>
   );
 });
 
 function RunningTurnFooter({
   inFlightTurnStartedAt,
+  activity,
   onForkInFlightTurn,
 }: {
   inFlightTurnStartedAt: Date | null;
+  activity: ReactNode;
   onForkInFlightTurn?: InFlightTurnForkHandler;
 }) {
+  // Groupon Desk: Live's slot has a line of its own above the time and the blob.
   return (
-    <View style={stylesheet.turnFooterSlot} testID="turn-working-indicator">
-      <WorkingIndicator
-        inFlightTurnStartedAt={inFlightTurnStartedAt}
-        onForkInFlightTurn={onForkInFlightTurn}
-      />
-    </View>
+    <>
+      {activity}
+      <View style={stylesheet.turnFooterSlot} testID="turn-working-indicator">
+        <WorkingIndicator
+          inFlightTurnStartedAt={inFlightTurnStartedAt}
+          onForkInFlightTurn={onForkInFlightTurn}
+        />
+      </View>
+    </>
   );
 }
 
@@ -207,7 +220,11 @@ function CompletedTurnFooter({
 }
 
 function TurnFooterRow({ children }: { children: ReactNode }) {
-  const rowStyle = useMemo(() => [stylesheet.streamItemWrapper, stylesheet.turnFooterRow], []);
+  const widthStyle = useStreamRowWidthStyle();
+  const rowStyle = useMemo(
+    () => [stylesheet.streamItemWrapper, widthStyle, stylesheet.turnFooterRow],
+    [widthStyle],
+  );
   return <View style={rowStyle}>{children}</View>;
 }
 

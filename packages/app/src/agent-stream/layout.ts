@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a reply knows the item below it, for its spacing.
 import type { TurnTiming } from "@/timeline/turn-time";
 import type { StreamItem } from "@/types/stream";
 import { getAssistantMessageSpacing, getGapBetweenStreamItems } from "./spacing";
@@ -314,6 +315,7 @@ function layoutSegmentItem(
   const assistantSpacing = getAssistantMessageSpacing({
     item,
     hasFooterBelow: completedFooter !== null || (input.hasAuxiliaryFooter && belowItem === null),
+    belowItem,
   });
 
   return shareLayoutItem({

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): only a worktree shows its diff stat.
 import equal from "fast-deep-equal";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
@@ -168,7 +169,8 @@ export function normalizeWorkspaceDescriptor(
     status: payload.status,
     statusEnteredAt,
     archivingAt: payload.archivingAt ?? null,
-    diffStat: payload.diffStat ?? null,
+    // A shared checkout's diff is every session's there and the person's own, never one session's.
+    diffStat: payload.workspaceKind === "worktree" ? (payload.diffStat ?? null) : null,
     scripts: (payload.scripts ?? []).map((s) => Object.assign({}, s)),
     gitRuntime: payload.gitRuntime,
     githubRuntime: payload.githubRuntime,

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "Share…" with a colleague, for a workspace on the hub (found by its daemon ids, else its folder).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "Share…" with a colleague, for a workspace on the hub (found by its daemon ids, else its folder). "Move to project", a submenu of projects, on a chat without a project. "Copy session ID" copies the id of the chat the row stands for.
 import { useMemo, type ComponentProps, type PropsWithChildren, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { type PressableStateCallbackType } from "react-native";
@@ -36,6 +36,8 @@ import {
 import { Shortcut } from "@/components/ui/shortcut";
 import { OpenInFileManagerMenuItem } from "@/workspace/open-in-file-manager/menu-item";
 import { ShareWorkspaceMenuItem } from "@/groupon/share-menu-item";
+import { CopySessionIdMenuItem } from "@/groupon/copy-session-id-menu-item";
+import { MoveChatMenuItem, useMoveChatMenuPages } from "@/groupon/move-chat-menu-item";
 import { resolveSidebarWorkspaceAccessibilityLabel } from "@/components/sidebar/sidebar-workspace-title";
 import {
   workspaceServiceLabelKey,
@@ -170,6 +172,12 @@ function SidebarWorkspaceMenuItems({
           {t("sidebar.workspace.actions.copyPath")}
         </WorkspaceMenuItem>
       ) : null}
+      <CopySessionIdMenuItem
+        surface={surface}
+        serverId={serverId}
+        workspaceId={workspaceId}
+        testID={`sidebar-workspace-menu-copy-session-id-${workspaceKey}`}
+      />
       {onCopyBranchName ? (
         <WorkspaceMenuItem
           surface={surface}
@@ -241,6 +249,12 @@ function SidebarWorkspaceMenuItems({
         path={openInFileManagerPath}
         testID={`sidebar-workspace-menu-share-${workspaceKey}`}
       />
+      <MoveChatMenuItem
+        serverId={serverId}
+        workspaceId={workspaceId}
+        path={openInFileManagerPath}
+        testID={`sidebar-workspace-menu-move-chat-${workspaceKey}`}
+      />
       {onArchive ? (
         <WorkspaceMenuItem
           surface={surface}
@@ -285,7 +299,9 @@ export function SidebarWorkspaceMenu({
       serverId && workspaceId ? { serverId, workspaceId, labels: workspaceLabels ?? [] } : null,
     [serverId, workspaceId, workspaceLabels],
   );
-  const pages = useWorkspaceLabelMenuPages(workspaceTarget);
+  const labelPages = useWorkspaceLabelMenuPages(workspaceTarget);
+  const movePages = useMoveChatMenuPages({ serverId, workspaceId, path: openInFileManagerPath });
+  const pages = useMemo(() => [...labelPages, ...movePages], [labelPages, movePages]);
   return (
     <DropdownMenu compactMode="sheet" open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger
@@ -399,7 +415,13 @@ export function SidebarWorkspaceContextMenu({
     }),
     [workspace],
   );
-  const pages = useWorkspaceLabelMenuPages(workspaceTarget);
+  const labelPages = useWorkspaceLabelMenuPages(workspaceTarget);
+  const movePages = useMoveChatMenuPages({
+    serverId: workspaceTarget.serverId,
+    workspaceId: workspaceTarget.workspaceId,
+    path: openInFileManagerPath,
+  });
+  const pages = useMemo(() => [...labelPages, ...movePages], [labelPages, movePages]);
 
   return (
     <ContextMenu open={contextMenuOpen} onOpenChange={onContextMenuOpenChange}>

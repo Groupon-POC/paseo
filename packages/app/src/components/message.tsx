@@ -1,6 +1,7 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague or another agent draws in its own tint with a name chip (groupon/message-author.tsx).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague or another agent draws in its own tint with a name chip (groupon/message-author.tsx). A tool call follows the Describe tool calls setting, its name set apart from its title by weight; a question call shows its answered form in the history, open until folded, and nothing while it waits (groupon/answered-questions.tsx). A review sent from the diff shows as a card of its comments, each opening the diff at its line (groupon/review-attachment-card.tsx).
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
+import { ReviewAttachmentCard } from "@/groupon/review-attachment-card";
 import { AssistantForkMenu, type AssistantForkTarget } from "@/components/assistant-fork-menu";
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import {
@@ -20,6 +21,7 @@ import { useRevealedText, type MarkdownPhase } from "@/hooks/use-revealed-text";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
 import { buildToolCallPresentation } from "@/tool-calls/presentation";
+import { useSettings } from "@/hooks/use-settings";
 import type { TaskActivity, TodoEntry, UserMessageImageAttachment } from "@/types/stream";
 import { setAssistantMessageHeight } from "@/utils/assistant-message-height-estimate";
 import { isRenderProfileEnabled } from "@/utils/render-profiler";
@@ -31,6 +33,7 @@ import { useTargetAgentTitle } from "@/tool-calls/use-target-agent-title";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { UserMessageAuthor } from "@getpaseo/protocol/agent-types";
 import { AuthorChip, authorStyles, useMessageLook } from "@/groupon/message-author";
+import { AnsweredQuestions } from "@/groupon/answered-questions";
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import type { AgentCapabilityFlags, ToolCallDetail } from "@getpaseo/protocol/agent-types";
 import type { AgentAttachment } from "@getpaseo/protocol/messages";
@@ -513,6 +516,17 @@ export const UserMessage = memo(function UserMessage({
           {hasAttachments ? (
             <View style={attachmentPreviewContainerStyle}>
               {attachments.map((attachment, index) => {
+                // Groupon Desk: a review from the diff shows its comments, each opening its line.
+                if (attachment.type === "review") {
+                  return (
+                    <ReviewAttachmentCard
+                      key={`review:${attachment.cwd}:${attachment.comments.length}`}
+                      attachment={attachment}
+                      serverId={serverId}
+                      agentId={agentId}
+                    />
+                  );
+                }
                 const content = getAgentAttachmentPillContent(attachment, t);
                 return (
                   <AttachmentFrame
@@ -929,10 +943,11 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
     marginRight: theme.spacing[1],
     backgroundColor: "transparent",
   },
+  // Groupon Desk: the tool's name is set apart from its title (a file, a command's description).
   label: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.normal,
+    fontWeight: theme.fontWeight.medium,
     flexShrink: 0,
   },
   labelActive: {
@@ -953,10 +968,9 @@ const expandableBadgeStylesheet = StyleSheet.create((theme) => ({
   secondaryLabelActive: {
     color: theme.colors.foreground,
   },
+  // Laid over a label or a title, whose own size and weight it keeps, so the shimmer lines up.
   shimmerText: {
     color: "transparent",
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.normal,
   },
   spacer: {
     flex: 1,
@@ -2273,7 +2287,9 @@ export const ToolCall = memo(function ToolCall({
   maxDetailHeight = 400,
 }: ToolCallProps) {
   const { openToolCall } = useToolCallSheet();
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? false);
+  // Groupon Desk: a question call shows its answered form open in the history, folded by a click.
+  const isQuestion = toolName.trim().toLowerCase() === "askuserquestion";
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded ?? isQuestion);
 
   const isMobile = useIsCompactFormFactor();
   const shouldRenderInline = !isMobile || forceInline;
@@ -2293,6 +2309,7 @@ export const ToolCall = memo(function ToolCall({
   }, [detail, args, result]);
 
   const targetAgentTitle = useTargetAgentTitle({ serverId, toolName, detail: effectiveDetail });
+  const preferDescription = useSettings((settings) => settings.toolCallDescriptions);
   const presentation = useMemo(
     () =>
       buildToolCallPresentation({
@@ -2304,9 +2321,20 @@ export const ToolCall = memo(function ToolCall({
         metadata,
         cwd,
         targetAgentTitle,
+        preferDescription,
         resolveIcon: resolveToolCallIcon,
       }),
-    [toolName, status, error, effectiveDetail, metadata, cwd, agentMessage, targetAgentTitle],
+    [
+      toolName,
+      status,
+      error,
+      effectiveDetail,
+      metadata,
+      cwd,
+      agentMessage,
+      targetAgentTitle,
+      preferDescription,
+    ],
   );
   const handleOpenFile = useMemo(() => {
     const openFilePath = presentation.openFilePath;
@@ -2372,6 +2400,9 @@ export const ToolCall = memo(function ToolCall({
   // Render inline details for desktop
   const renderDetails = useCallback(() => {
     if (!shouldRenderInline) return null;
+    if (isQuestion && effectiveDetail?.type === "unknown") {
+      return <AnsweredQuestions input={effectiveDetail.input} output={effectiveDetail.output} />;
+    }
     return (
       <ToolCallDetailsContent
         toolName={toolName}
@@ -2383,12 +2414,18 @@ export const ToolCall = memo(function ToolCall({
     );
   }, [
     shouldRenderInline,
+    isQuestion,
+    effectiveDetail,
     toolName,
     presentation.detail,
     presentation.errorText,
     presentation.isLoadingDetails,
     maxDetailHeight,
   ]);
+
+  // Groupon Desk: a question still waiting is the live form under the chat; the history shows it
+  // once answered, so the questions never appear twice.
+  if (isQuestion && (status === "running" || status === "executing")) return null;
 
   if (presentation.isPlan && effectiveDetail?.type === "plan") {
     return (

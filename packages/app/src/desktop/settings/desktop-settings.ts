@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `notifications.enabled`, the switch that turns the window's desktop notifications off.
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getIsElectron } from "@/constants/platform";
@@ -14,6 +15,7 @@ const DESKTOP_SETTINGS_QUERY_KEY = ["desktop-settings"] as const;
 export interface DesktopSettings {
   releaseChannel: ReleaseChannel;
   notifications: {
+    enabled: boolean;
     playSound: boolean;
   };
   daemon: {
@@ -31,6 +33,7 @@ export interface DesktopSettingsPatch {
 export const DEFAULT_DESKTOP_SETTINGS: DesktopSettings = {
   releaseChannel: "stable",
   notifications: {
+    enabled: true,
     playSound: true,
   },
   daemon: {
@@ -157,6 +160,10 @@ function parseDesktopSettings(raw: unknown): DesktopSettings {
   return {
     releaseChannel: record.releaseChannel === "beta" ? "beta" : "stable",
     notifications: {
+      enabled:
+        typeof notifications.enabled === "boolean"
+          ? notifications.enabled
+          : DEFAULT_DESKTOP_SETTINGS.notifications.enabled,
       playSound:
         typeof notifications.playSound === "boolean"
           ? notifications.playSound

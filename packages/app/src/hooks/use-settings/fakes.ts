@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the desktop settings carry `notifications.enabled`.
 import type { DesktopSettings } from "@/desktop/settings/desktop-settings";
 import type { DesktopSettingsBridge, KeyValueStorage, ReleaseChannel } from "./storage";
 
@@ -33,6 +34,7 @@ export interface FakeDesktopBridge extends DesktopSettingsBridge {
 const DEFAULT_DESKTOP: DesktopSettings = {
   releaseChannel: "stable",
   notifications: {
+    enabled: true,
     playSound: true,
   },
   daemon: {

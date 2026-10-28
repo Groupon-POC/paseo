@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the section is titled "Git projects" (owner, 2026-10-21) with an Add a project "+" in its header; "Shared with me" above the footer; "Connected computers" above the limits; the environment badge in the footer (wide) and the header (phone).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the section is titled "Git projects" (owner, 2026-10-21) with an Add a project "+" in its header; "Shared with me" above the footer; "Connected computers" above the limits; the environment badge in the footer (wide) and the header (phone). The Usage icon turns from green to red as the fullest limit fills.
 import { router } from "expo-router";
 import {
   CircleGauge,
@@ -36,6 +36,8 @@ import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
 import { GrouponEnvironmentBadge } from "@/groupon/environment-badge";
 import { ConnectedComputersSidebarSection } from "@/groupon/connected-computers";
+import type { UsageHealthColor } from "@/groupon/usage-health";
+import { useUsageHealthColor } from "@/groupon/use-usage-health-color";
 import { SharedWithMeSidebarSection } from "@/groupon/shared-sidebar";
 import { SidebarFooterIconHighlight } from "@/components/sidebar/sidebar-footer-icon-highlight";
 import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
@@ -297,11 +299,14 @@ function FooterIconButton({
   icon,
   iconSizeAdjustment = 0,
   shortcutKeys,
+  color,
 }: {
   onPress: () => void;
   testID: string;
   label: string;
   icon: LucideIcon;
+  /** Groupon Desk: a colour the icon keeps until hovered (the Usage icon's health). */
+  color?: UsageHealthColor | null;
   /** Only for a glyph that reads larger than the others at the same size. */
   iconSizeAdjustment?: number;
   shortcutKeys?: ReturnType<typeof useShortcutKeys>;
@@ -328,7 +333,7 @@ function FooterIconButton({
                 icon={icon}
                 size="md"
                 sizeAdjustment={iconSizeAdjustment}
-                color={hovered ? "foreground" : "foregroundMuted"}
+                color={hovered ? "foreground" : (color ?? "foregroundMuted")}
               />
             </>
           )}
@@ -471,12 +476,14 @@ function SidebarFooter({
 
 function SidebarUsageIcon({ label }: { label: string }) {
   const openUsage = useOpenSidebarUsage();
+  const color = useUsageHealthColor();
   return (
     <FooterIconButton
       onPress={openUsage}
       testID="sidebar-usage-icon"
       label={label}
       icon={CircleGauge}
+      color={color}
     />
   );
 }

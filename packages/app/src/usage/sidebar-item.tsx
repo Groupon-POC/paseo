@@ -321,6 +321,8 @@ const styles = StyleSheet.create((theme) => ({
   },
   foldedRow: {
     width: "100%",
+    // Set off from the folded Connected computers heading above, as the unfolded rows are.
+    marginTop: theme.spacing[2],
     minHeight: 24,
     justifyContent: "center",
     paddingVertical: theme.spacing[0.5],

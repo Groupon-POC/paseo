@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a thought keeps when it started; one compaction shows one marker.
 import assert from "node:assert/strict";
 import invariant from "tiny-invariant";
 import { describe, expect, it } from "vitest";
@@ -755,6 +756,20 @@ describe("stream reducer canonical tool calls", () => {
     assert.strictEqual(assistantMessage?.text, "Hello world");
   });
 
+  it("keeps when a thought started and when its last chunk came, so a finished one tells its length", () => {
+    const state = hydrateStreamState([
+      { event: reasoningTimeline("Weighing "), timestamp: new Date("2025-01-01T10:00:00Z") },
+      { event: reasoningTimeline("the options"), timestamp: new Date("2025-01-01T10:00:12Z") },
+    ]);
+
+    const thought = state.find((item) => item.kind === "thought");
+    expect(thought).toMatchObject({
+      text: "Weighing the options",
+      startedAt: new Date("2025-01-01T10:00:00Z"),
+      timestamp: new Date("2025-01-01T10:00:12Z"),
+    });
+  });
+
   it("keeps adjacent assistant timeline items separate when message ids differ", () => {
     const state = hydrateStreamState([
       {
@@ -1408,6 +1423,47 @@ describe("stream reducer canonical tool calls", () => {
     assert.strictEqual(
       state.some((item) => item.kind === "compaction" && item.status === "loading"),
       false,
+    );
+  });
+
+  it("keeps one compaction marker when a turn is interrupted mid-compaction", () => {
+    const state = hydrateStreamState([
+      {
+        event: compactionTimeline("loading", "auto"),
+        timestamp: new Date("2025-01-01T10:50:00Z"),
+      },
+      {
+        event: { type: "turn_canceled", provider: "claude", reason: "interrupted" },
+        timestamp: new Date("2025-01-01T10:50:01Z"),
+      },
+      {
+        event: {
+          type: "timeline",
+          provider: "claude",
+          item: { type: "user_message", text: "what is left?", messageId: "ask" },
+        },
+        timestamp: new Date("2025-01-01T10:50:02Z"),
+      },
+      {
+        event: compactionTimeline("loading", "auto"),
+        timestamp: new Date("2025-01-01T10:50:03Z"),
+      },
+    ]);
+    assert.deepStrictEqual(
+      state
+        .filter((item) => item.kind === "compaction" || item.kind === "user_message")
+        .map((item) => (item.kind === "compaction" ? `compaction:${item.status}` : item.kind)),
+      ["user_message", "compaction:loading"],
+    );
+
+    const done = hydrateStreamState([
+      { event: compactionTimeline("loading", "auto"), timestamp: new Date("2025-01-01T10:50:00Z") },
+      { event: compactionTimeline("loading", "auto"), timestamp: new Date("2025-01-01T10:50:03Z") },
+      { event: compactionTimeline("completed"), timestamp: new Date("2025-01-01T10:50:09Z") },
+    ]);
+    assert.deepStrictEqual(
+      done.filter((item) => item.kind === "compaction").map((item) => item.status),
+      ["completed"],
     );
   });
 

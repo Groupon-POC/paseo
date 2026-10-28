@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace whose agent runs a background task (a Monitor watch, a background command) turns in the status band's teal.
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
 import { Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -27,6 +28,7 @@ import {
 } from "@/utils/status-indicator-geometry";
 import { shouldRenderSyncedStatusLoader } from "@/utils/status-loader";
 import { StatusRing } from "@/components/status-ring";
+import { useWorkspaceRunsInBackground } from "@/groupon/background-workspaces";
 import { resolveSidebarWorkspacePrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
 import { DensityIcon } from "@/components/ui/density-icon";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
@@ -148,6 +150,8 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
           />
         ) : (
           <WorkspaceStatusIndicator
+            serverId={workspace.serverId}
+            workspaceId={workspace.workspaceId}
             bucket={workspace.statusBucket}
             workspaceKind={workspace.workspaceKind}
             loading={isLoading}
@@ -181,11 +185,15 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
 });
 
 function WorkspaceStatusIndicator({
+  serverId,
+  workspaceId,
   bucket,
   workspaceKind,
   loading = false,
   reserveIdleSpace = true,
 }: {
+  serverId: string;
+  workspaceId: string;
   bucket: SidebarWorkspaceEntry["statusBucket"];
   workspaceKind: SidebarWorkspaceEntry["workspaceKind"];
   loading?: boolean;
@@ -195,6 +203,7 @@ function WorkspaceStatusIndicator({
   // reason it is a dot elsewhere: every status in the sidebar sits in this one slot, so busy
   // has to fill it without displacing anything. A row starting up and a row working are both
   // busy, so they share the ring and differ only in testID.
+  const runsInBackground = useWorkspaceRunsInBackground(serverId, workspaceId);
   if (loading) {
     return (
       <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-loading">
@@ -215,6 +224,16 @@ function WorkspaceStatusIndicator({
     return (
       <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-needs_input">
         <ThemedCircleAlert size={STATUS_INDICATOR_ALERT_SIZE} uniProps={needsInputColorMapping} />
+      </View>
+    );
+  }
+
+  // Groupon Desk: a turn that ended while its Monitor watch or background command still runs
+  // turns too, in the status band's teal.
+  if (runsInBackground) {
+    return (
+      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-background">
+        <StatusRing tone="background" />
       </View>
     );
   }

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "New chat" binding (`chat.new`, no default key). Back and forward through a workspace's tabs: Cmd+Left/Right on a Mac, Alt+Left/Right elsewhere, never inside a text field.
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import type {
   KeyboardActionId,
@@ -162,6 +163,7 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "cycle-theme",
   ],
   workspaces: [
+    "new-chat",
     "new-agent",
     "new-workspace",
     "workspace-jump-index",
@@ -181,6 +183,8 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "workspace-tab-jump-index",
     "workspace-tab-prev",
     "workspace-tab-next",
+    "workspace-history-back",
+    "workspace-history-forward",
     "workspace-pane-split-right",
     "workspace-pane-split-down",
     "workspace-pane-focus-left",
@@ -358,6 +362,76 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
       id: "archive-workspace",
       section: "workspaces",
       label: "Archive workspace",
+    },
+  },
+
+  // --- New chat (Groupon Desk): no key by default, the person binds one in Settings ---
+  {
+    id: "chat-new-mac",
+    action: "chat.new",
+    combo: "",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "new-chat",
+      section: "workspaces",
+      label: "New chat",
+    },
+  },
+  {
+    id: "chat-new-non-mac",
+    action: "chat.new",
+    combo: "",
+    when: { mac: false, commandCenter: false, terminal: false },
+    help: {
+      id: "new-chat",
+      section: "workspaces",
+      label: "New chat",
+    },
+  },
+
+  // --- Back and forward through a workspace's tabs (Groupon Desk), never inside a text field ---
+  {
+    id: "workspace-history-back-cmd-left",
+    action: "workspace.history.back",
+    combo: "Cmd+ArrowLeft",
+    when: { mac: true, editable: false, terminal: false, commandCenter: false },
+    help: {
+      id: "workspace-history-back",
+      section: "tabs-panes",
+      label: "Back to the previous tab",
+    },
+  },
+  {
+    id: "workspace-history-forward-cmd-right",
+    action: "workspace.history.forward",
+    combo: "Cmd+ArrowRight",
+    when: { mac: true, editable: false, terminal: false, commandCenter: false },
+    help: {
+      id: "workspace-history-forward",
+      section: "tabs-panes",
+      label: "Forward to the next tab",
+    },
+  },
+  {
+    id: "workspace-history-back-alt-left",
+    action: "workspace.history.back",
+    combo: "Alt+ArrowLeft",
+    when: { mac: false, editable: false, terminal: false, commandCenter: false },
+    help: {
+      id: "workspace-history-back",
+      section: "tabs-panes",
+      label: "Back to the previous tab",
+    },
+  },
+  {
+    id: "workspace-history-forward-alt-right",
+    action: "workspace.history.forward",
+    combo: "Alt+ArrowRight",
+    when: { mac: false, editable: false, terminal: false, commandCenter: false },
+    help: {
+      id: "workspace-history-forward",
+      section: "tabs-panes",
+      label: "Forward to the next tab",
     },
   },
 

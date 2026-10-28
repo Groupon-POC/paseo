@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Changed for Groupon Desk (fork of Paseo, Apache-2.0): the installable web app: home-screen title, icon and standalone tags. -->
+<!-- Changed for Groupon Desk (fork of Paseo, Apache-2.0): the installable web app: home-screen title, icon and standalone tags. Grayscale text smoothing on Retina screens only. -->
 <html lang="%LANG_ISO_CODE%">
   <head>
     <meta charset="utf-8" />
@@ -29,10 +29,12 @@
         overflow: hidden;
         overscroll-behavior: none;
       }
-      /* These styles smooth text rendering in the app shell. */
-      body {
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
+      /* Grayscale smoothing thins text into visible pixels on a 1x external display. */
+      @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
+        body {
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+        }
       }
       /* Prevent white flash before React mounts */
       @media (prefers-color-scheme: dark) {

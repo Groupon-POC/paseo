@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a background tone, the same ring in the status band's teal for an agent's background task.
 import { memo } from "react";
 import { View } from "react-native";
 import {
@@ -13,13 +14,13 @@ import { useStatusRingAnimationRef } from "@/components/status-ring/clock.web";
  * drives the rotation from one absolute document-timeline epoch rather than from mount time — see
  * `clock.web.ts`.
  */
-export const StatusRing = memo(function StatusRing({ backdrop }: StatusRingProps) {
+export const StatusRing = memo(function StatusRing({ backdrop, tone }: StatusRingProps) {
   const rotatorRef = useStatusRingAnimationRef();
 
   return (
-    <StatusRingFrame backdrop={backdrop}>
+    <StatusRingFrame backdrop={backdrop} tone={tone}>
       <View ref={rotatorRef} style={rotatorStyles.rotator}>
-        <View style={styles.arc} />
+        <View style={tone === "background" ? styles.arcBackground : styles.arc} />
       </View>
     </StatusRingFrame>
   );

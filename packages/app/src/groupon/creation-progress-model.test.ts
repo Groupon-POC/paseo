@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   creationCaption,
+  creationStatus,
   formatElapsed,
   progressWithStep,
   startedProgress,
@@ -34,6 +35,17 @@ describe("creationCaption", () => {
   it("reads a step it does not know as a generic one", () => {
     const progress = progressWithStep(startedProgress(0), "warming_cache", 0);
     expect(creationCaption(progress, 3_000)).toBe("Preparing the workspace, 3 s");
+  });
+});
+
+describe("creationStatus", () => {
+  it("leads with the whole wait and adds the daemon's step once there is one", () => {
+    expect(creationStatus(startedProgress(1_000), 3_400)).toEqual({ elapsed: "2 s", step: null });
+    const progress = progressWithStep(startedProgress(0), "creating_worktree", 2_000);
+    expect(creationStatus(progress, 42_000)).toEqual({
+      elapsed: "42 s",
+      step: "Creating the worktree (git worktree add), 40 s",
+    });
   });
 });
 

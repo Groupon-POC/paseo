@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no Paseo credit, no What's new, no language row; About has no release channel or Check / Update, updates arrive with Groupon Desk; the Groupon section; the Standards section; the worktree-scripts reminder switch; Your phone in place of Pair device.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): no Paseo credit, no What's new, no language row; About has no release channel or Check / Update, updates arrive with Groupon Desk; the Groupon section; the Standards section; the worktree-scripts reminder switch; Your phone in place of Pair device. A section keeps its scroll position across a theme change.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import {
@@ -1434,6 +1434,9 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
     return null;
   })();
 
+  // Groupon Desk: a theme change remounts the page; it comes back where the person was.
+  const scrollMemoryKey = `settings:${JSON.stringify(view)}`;
+
   if (settingsLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -1498,7 +1501,11 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
   if (isCompactLayout) {
     return (
       <View style={styles.container}>
-        <PageLayout title={detailTitle} onBack={handleBackFromDetail}>
+        <PageLayout
+          title={detailTitle}
+          onBack={handleBackFromDetail}
+          scrollMemoryKey={scrollMemoryKey}
+        >
           {hostContext}
           {content}
         </PageLayout>
@@ -1527,7 +1534,11 @@ export default function SettingsScreen({ view, openAddHostIntent = null }: Setti
         </WindowChromeRegion>
         <WindowChromeRegion corners="top-right">
           <View style={desktopStyles.contentPane} testID="settings-detail-pane">
-            <PageLayout title={detailTitle} titleTestID="settings-detail-header-title">
+            <PageLayout
+              title={detailTitle}
+              titleTestID="settings-detail-header-title"
+              scrollMemoryKey={scrollMemoryKey}
+            >
               {hostContext}
               {content}
             </PageLayout>

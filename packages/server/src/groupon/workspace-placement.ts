@@ -6,7 +6,8 @@
  * capability, so Paseo's own clients and tests keep Paseo's behaviour):
  * - "Local" on a checkout that sits on a shared trunk (`staging`, the default branch, desk.toml's
  *   `target_branch`) becomes a worktree cut from that trunk, so the person's work never lands on
- *   the trunk and the release train's pull request is never taken for the workspace's own.
+ *   the trunk and the release train's pull request is never taken for the workspace's own; unless
+ *   the request says `inPlaceOnTrunk` (the person's own setting), when Local stays in place.
  * - A worktree that branches off without a name gets `<github login or unix user>/<slug of the
  *   first prompt, 40 characters>` (`workspace-branch.ts`), kept as named (Paseo's rename after the
  *   first message is skipped). A workspace started empty gets `<owner>/<worktree name>`, renamed
@@ -73,6 +74,7 @@ async function worktreeOffTrunk(
   source: Extract<WorkspaceCreateRequest["source"], { kind: "directory" }>,
   deps: WorkspacePlacementDeps,
 ): Promise<WorktreeSource | null> {
+  if (source.inPlaceOnTrunk) return null;
   const path = expandTilde(source.path);
   const facts = await readFactsOrNull(deps, path);
   if (!facts?.currentBranch) return null;

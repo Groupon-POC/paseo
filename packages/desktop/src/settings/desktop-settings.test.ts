@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `notifications.enabled`, on by default and kept once turned off.
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -81,7 +82,7 @@ describe("desktop-settings", () => {
 
     expect(settings).toEqual({
       releaseChannel: "stable",
-      notifications: { playSound: true },
+      notifications: { enabled: true, playSound: true },
       daemon: {
         manageBuiltInDaemon: true,
         keepRunningAfterQuit: false,
@@ -103,7 +104,7 @@ describe("desktop-settings", () => {
 
     expect(next).toEqual({
       releaseChannel: "beta",
-      notifications: { playSound: true },
+      notifications: { enabled: true, playSound: true },
       daemon: {
         manageBuiltInDaemon: true,
         keepRunningAfterQuit: false,
@@ -149,6 +150,22 @@ describe("desktop-settings", () => {
     const settings = await createDesktopSettingsStore({ userDataPath }).get();
 
     expect(settings.notifications.playSound).toBe(false);
+  });
+
+  it("defaults desktop notifications on, and keeps them off once turned off", async () => {
+    const userDataPath = await createTempUserDataDir();
+    directories.add(userDataPath);
+
+    expect((await createDesktopSettingsStore({ userDataPath }).get()).notifications.enabled).toBe(
+      true,
+    );
+    await createDesktopSettingsStore({ userDataPath }).patch({
+      notifications: { enabled: false },
+    });
+
+    const settings = await createDesktopSettingsStore({ userDataPath }).get();
+
+    expect(settings.notifications).toEqual({ enabled: false, playSound: true });
   });
 
   it("does not let stale legacy renderer settings override an explicit desktop patch", async () => {
@@ -270,7 +287,7 @@ describe("desktop-settings", () => {
 
     expect(migrated).toEqual({
       releaseChannel: "beta",
-      notifications: { playSound: true },
+      notifications: { enabled: true, playSound: true },
       daemon: {
         manageBuiltInDaemon: false,
         keepRunningAfterQuit: false,
@@ -315,7 +332,7 @@ describe("desktop-settings", () => {
     expect(persisted.settings.releaseChannel).toBe("beta");
     expect(next).toEqual({
       releaseChannel: "beta",
-      notifications: { playSound: false },
+      notifications: { enabled: true, playSound: false },
       daemon: { manageBuiltInDaemon: true, keepRunningAfterQuit: false },
     });
   });

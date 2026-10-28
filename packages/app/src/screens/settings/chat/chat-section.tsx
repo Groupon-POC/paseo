@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the chat's display mode and shell call titles.
 import { useCallback, useMemo } from "react";
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -9,6 +10,12 @@ import {
 } from "@/components/settings";
 import { isNative } from "@/constants/platform";
 import { useAppSettings, type AppSettings } from "@/hooks/use-settings";
+import { GROUPON_CHAT_DISPLAY } from "@/groupon/strings";
+
+const DISPLAY_MODE_OPTIONS = (["all", "live", "output"] as const).map((value) => ({
+  value,
+  label: GROUPON_CHAT_DISPLAY.options[value],
+}));
 
 const TOOL_CALL_DETAIL_LEVELS: readonly AppSettings["toolCallDetailLevel"][] = [
   "detailed",
@@ -41,6 +48,14 @@ export function ChatSection() {
     (chatOutlineEnabled: boolean) => void updateSettings({ chatOutlineEnabled }),
     [updateSettings],
   );
+  const changeDisplayMode = useCallback(
+    (chatDisplayMode: AppSettings["chatDisplayMode"]) => void updateSettings({ chatDisplayMode }),
+    [updateSettings],
+  );
+  const changeToolCallDescriptions = useCallback(
+    (toolCallDescriptions: boolean) => void updateSettings({ toolCallDescriptions }),
+    [updateSettings],
+  );
 
   return (
     <View>
@@ -51,6 +66,19 @@ export function ChatSection() {
             hint={t("settings.general.autoExpandReasoning.description")}
             value={settings.autoExpandReasoning}
             onValueChange={changeAutoExpandReasoning}
+          />
+          <SettingsSelect
+            label={GROUPON_CHAT_DISPLAY.label}
+            hint={GROUPON_CHAT_DISPLAY.hint}
+            value={settings.chatDisplayMode}
+            options={DISPLAY_MODE_OPTIONS}
+            onValueChange={changeDisplayMode}
+          />
+          <SettingsSwitch
+            label={GROUPON_CHAT_DISPLAY.descriptions}
+            hint={GROUPON_CHAT_DISPLAY.descriptionsHint}
+            value={settings.toolCallDescriptions}
+            onValueChange={changeToolCallDescriptions}
           />
           <SettingsSelect
             label={t("settings.general.toolCallDetail.label")}

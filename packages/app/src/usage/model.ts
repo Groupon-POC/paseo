@@ -1,3 +1,5 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): A source that never reported is left out of the host's list (`isShownUsageReport`).
+import { isShownUsageReport } from "@/groupon/usage-health";
 import type { TFunction } from "i18next";
 import { i18n } from "@/i18n/i18next";
 import { usageCopy } from "./copy";
@@ -126,7 +128,11 @@ export function resolveUsageView(
     };
   }
   if (query?.data) {
-    return { kind: "ready", reports: query.data, isRefreshing: query.isFetching };
+    return {
+      kind: "ready",
+      reports: query.data.filter(isShownUsageReport),
+      isRefreshing: query.isFetching,
+    };
   }
   if (query?.error) {
     return {

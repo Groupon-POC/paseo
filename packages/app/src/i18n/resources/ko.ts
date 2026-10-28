@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name where Paseo's stood, and the project config's file name (owner, 2026-10-20: no trace of Paseo a person meets).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name where Paseo's stood, and the project config's file name (owner, 2026-10-20: no trace of Paseo a person meets). The desktop notifications switch (`settings.notifications.enabled`, `enabledHint`). The sidebar's Show New workspace toggle (`sidebar.display.showNewWorkspaceRows`).
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -1172,6 +1172,7 @@ export const ko: TranslationResources = {
     },
     display: {
       showBackground: "백그라운드 표시",
+      showNewWorkspaceRows: "'New workspace' 표시",
       trigger: "표시 설정",
       heading: "표시",
       sort: {
@@ -2205,6 +2206,8 @@ export const ko: TranslationResources = {
       title: "알림",
       permission: "알림 권한",
       refreshAccessibility: "알림 권한 새로 고침",
+      enabled: "데스크톱 알림",
+      enabledHint: "에이전트가 작업을 마치거나 응답이 필요할 때 알림을 표시합니다",
       playSound: "소리 재생",
       playSoundHint: "데스크톱 알림이 도착하면 소리를 재생합니다",
       test: "알림 테스트",

@@ -119,6 +119,9 @@ function AlertDismissButton({
   const [hovered, setHovered] = useState(false);
   const handleHoverIn = useCallback(() => setHovered(true), []);
   const handleHoverOut = useCallback(() => setHovered(false), []);
+  // Built here, not at module scope: a style read before the persisted theme loads is frozen in
+  // the default theme (`unistyles-module-scope.test.ts`).
+  const hoveredStyle = useMemo(() => [styles.dismiss, styles.dismissHovered], []);
   return (
     <Pressable
       onPress={onDismiss}
@@ -128,7 +131,7 @@ function AlertDismissButton({
       accessibilityLabel={label}
       hitSlop={8}
       testID={alertTestID ? `${alertTestID}-dismiss` : undefined}
-      style={hovered ? DISMISS_HOVERED_STYLE : styles.dismiss}
+      style={hovered ? hoveredStyle : styles.dismiss}
     >
       <X size={size} color={hovered ? theme.colors.foreground : theme.colors.foregroundMuted} />
     </Pressable>
@@ -252,5 +255,3 @@ const styles = StyleSheet.create((theme) => {
     },
   };
 });
-
-const DISMISS_HOVERED_STYLE = [styles.dismiss, styles.dismissHovered];

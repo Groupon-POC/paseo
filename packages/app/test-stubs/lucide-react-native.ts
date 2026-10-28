@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the icons the fork's sidebar and 0.13's plugin UI reach in browser tests.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the icons the fork's sidebar, 0.13's plugin UI and the diff viewer's browser test reach.
 import type { ComponentType } from "react";
 
 export type LucideIcon = ComponentType<{
@@ -17,6 +17,7 @@ export const ArrowDownUp = StubIcon;
 export const ArrowLeft = StubIcon;
 export const ArrowLeftToLine = StubIcon;
 export const ArrowRight = StubIcon;
+export const ArrowRightToLine = StubIcon;
 export const ArrowUp = StubIcon;
 export const ArrowUpRight = StubIcon;
 export const AudioLines = StubIcon;
@@ -37,6 +38,7 @@ export const CircleX = StubIcon;
 export const ClipboardPaste = StubIcon;
 export const Code = StubIcon;
 export const Copy = StubIcon;
+export const CopyPlus = StubIcon;
 export const CornerDownLeft = StubIcon;
 export const Cpu = StubIcon;
 export const Download = StubIcon;
@@ -44,8 +46,11 @@ export const ExternalLink = StubIcon;
 export const Eye = StubIcon;
 export const EyeOff = StubIcon;
 export const File = StubIcon;
+export const FilePlus = StubIcon;
 export const FileText = StubIcon;
 export const Folder = StubIcon;
+export const FolderMinus = StubIcon;
+export const FolderOpen = StubIcon;
 export const FolderPlus = StubIcon;
 export const FolderTree = StubIcon;
 export const Gift = StubIcon;
@@ -105,7 +110,10 @@ export const ShieldQuestionMark = StubIcon;
 export const Smartphone = StubIcon;
 export const Split = StubIcon;
 export const Square = StubIcon;
+export const SquareDot = StubIcon;
+export const SquareMinus = StubIcon;
 export const SquarePen = StubIcon;
+export const SquarePlus = StubIcon;
 export const SquareTerminal = StubIcon;
 export const Star = StubIcon;
 export const Sun = StubIcon;

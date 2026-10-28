@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): Groupon Desk's own app preferences on this device. And whether My tasks shows under the New workspace composer.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): Groupon Desk's own app preferences on this device. And whether My tasks shows under the New workspace composer, whether the diff viewer shows only the selected file, the agent output's width, and what Changes compares by default.
 
 /**
  * Preferences the fork adds, kept on this device beside Paseo's own: whether to be reminded to
@@ -41,6 +41,12 @@ const GrouponPreferencesSchema = z.object({
   localInPlaceOnTrunk: z.boolean().optional(),
   /** My tasks under the New workspace composer (on by default). */
   showMyTasks: z.boolean().optional(),
+  /** The diff viewer shows only the file picked in the Changes panel (off by default: every file). */
+  diffSelectedFileOnly: z.boolean().optional(),
+  /** The agent output's width as a share of its pane, for every chat (`stream-width.ts`); null: the content width. */
+  streamWidthShare: z.number().min(0).max(1).nullable().optional(),
+  /** What the Changes views compare by default: All changes (as Paseo), or what the session changed. */
+  changesDefaultComparison: z.enum(["all", "session"]).optional(),
 });
 
 type GrouponPreferences = z.infer<typeof GrouponPreferencesSchema>;
@@ -49,6 +55,9 @@ interface GrouponPreferencesState extends GrouponPreferences {
   setRemindWorktreeScripts: (value: boolean) => void;
   setLocalInPlaceOnTrunk: (value: boolean) => void;
   setShowMyTasks: (value: boolean) => void;
+  setDiffSelectedFileOnly: (value: boolean) => void;
+  setStreamWidthShare: (value: number | null) => void;
+  setChangesDefaultComparison: (value: "all" | "session") => void;
   rememberGithubHost: (host: string) => void;
   rememberGithubPlace: (host: string, organisation: string, team: string) => void;
   rememberStandardsPlace: (serverId: string, repoRoot: string) => void;
@@ -66,6 +75,9 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
       setRemindWorktreeScripts: (value) => set({ remindWorktreeScripts: value }),
       setLocalInPlaceOnTrunk: (value) => set({ localInPlaceOnTrunk: value }),
       setShowMyTasks: (value) => set({ showMyTasks: value }),
+      setDiffSelectedFileOnly: (value) => set({ diffSelectedFileOnly: value }),
+      setStreamWidthShare: (value) => set({ streamWidthShare: value }),
+      setChangesDefaultComparison: (value) => set({ changesDefaultComparison: value }),
       rememberGithubHost: (host) => set({ githubHost: host }),
       rememberGithubPlace: (host, organisation, team) =>
         set((state) => ({
@@ -92,6 +104,9 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
         footerPanelCollapsed: state.footerPanelCollapsed ?? false,
         localInPlaceOnTrunk: state.localInPlaceOnTrunk ?? false,
         showMyTasks: state.showMyTasks ?? true,
+        diffSelectedFileOnly: state.diffSelectedFileOnly ?? false,
+        streamWidthShare: state.streamWidthShare ?? null,
+        changesDefaultComparison: state.changesDefaultComparison ?? "all",
       }),
       version: 1,
     },

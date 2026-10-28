@@ -32,6 +32,17 @@ const WHIMSY = [
   "Bamboozling",
   "Unspooling",
   "Fermenting",
+  "Grouponing",
+  "Couponing",
+  "Haggling",
+  "Dealmaking",
+  "Bargain-hunting",
+  "Gallivanting",
+  "Caramelizing",
+  "Spelunking",
+  "Finagling",
+  "Kerfuffling",
+  "Discombobulating",
 ];
 
 const VIEW = 50;

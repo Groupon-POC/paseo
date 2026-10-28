@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): rows measured at another output width are measured again (the agent output's width handles, groupon/stream-width.ts).
 import React, {
   type CSSProperties,
   useCallback,
@@ -462,6 +463,14 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     overscan: 8,
   });
   rowVirtualizerRef.current = rowVirtualizer;
+  // Groupon Desk: rows measured at another output width are measured again, not reused by estimate.
+  const measuredAtWidthRef = useRef(contentMaxWidth);
+  useLayoutEffect(() => {
+    if (measuredAtWidthRef.current === contentMaxWidth) return;
+    measuredAtWidthRef.current = contentMaxWidth;
+    measuredRowHeights.current.clear();
+    rowVirtualizerRef.current?.measure();
+  }, [contentMaxWidth]);
   // Scroll correction belongs to the viewport's committed layout. The virtualizer
   // otherwise writes scrollTop before React applies its new row positions.
   rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false;

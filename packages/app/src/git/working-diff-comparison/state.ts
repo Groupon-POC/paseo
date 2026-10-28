@@ -1,4 +1,6 @@
-export type WorkingDiffComparison = "uncommitted" | "base" | "all";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "session" comparison (what the workspace's sessions changed), and a default the person may set to it.
+/** Groupon Desk: "session", what the workspace's sessions changed; a person may make it the default. */
+export type WorkingDiffComparison = "session" | "uncommitted" | "base" | "all";
 
 export interface WorkingDiffComparisonOverride {
   comparison: WorkingDiffComparison;
@@ -46,6 +48,8 @@ export function selectWorkingDiffComparisonInState(
 export function resolveWorkingDiffComparisonFromState(
   state: WorkingDiffComparisonState,
   input: WorkingDiffCheckoutIdentity,
+  // Groupon Desk: the default is the person's (`changesDefaultComparison`), All changes unless set.
+  fallback: WorkingDiffComparison = "all",
 ): WorkingDiffComparison {
-  return state.overrides[workingDiffComparisonKey(input)]?.comparison ?? "all";
+  return state.overrides[workingDiffComparisonKey(input)]?.comparison ?? fallback;
 }

@@ -1,4 +1,9 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "Session" comparison (what the workspace's sessions changed, the default), the branch named in the toolbar instead of switched, and a view mode (every file or the selected one) on the diff tab's toolbar with the tree marking the file in view.
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { WorkingDiffComparison } from "@/git/working-diff-comparison/state";
+import { useDiffFileFocus } from "@/groupon/diff-file-focus";
+import { GROUPON_DIFF_VIEWER, GROUPON_SESSION_CHANGES } from "@/groupon/strings";
+import { useSessionFileOpener } from "@/groupon/use-compared-diff";
 import { floatingActionsClearance } from "@/components/ui/floating-action-button";
 import { useState, useCallback, useMemo, type ReactElement, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,6 +27,7 @@ import {
   ChevronDown,
   Columns2,
   ExternalLink,
+  File as FileIcon,
   ListChevronsDownUp,
   ListChevronsUpDown,
   Maximize,
@@ -59,7 +65,6 @@ import { buildAbsoluteExplorerPath } from "@/utils/explorer-paths";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { GitActionsSplitButton } from "@/git/actions-split-button";
 import type { GitActions } from "@/git/policy";
-import { BranchSwitcher } from "@/components/branch-switcher";
 import { useGitActions } from "@/git/use-actions";
 import { GIT_ACTION_ICONS } from "@/git/action-icons";
 import { buildForgeSignInCommand, getForgePresentation, type Forge } from "@/git/forge";
@@ -133,7 +138,7 @@ function useDiscardChangesAction({
 }: {
   serverId: string;
   cwd: string;
-  diffMode: "uncommitted" | "base" | "all";
+  diffMode: WorkingDiffComparison;
 }): ((path: string, oldPath?: string) => void) | undefined {
   const { t } = useTranslation();
   const toast = useToast();
@@ -211,6 +216,10 @@ const noopStateChange = () => {};
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedMoreHorizontal = withUnistyles(MoreHorizontal);
 const ThemedExternalLink = withUnistyles(ExternalLink);
+const ThemedFileIcon = withUnistyles(FileIcon);
+const DIFF_OPTIONS_SELECTED_FILE_ICON = (
+  <ThemedFileIcon size={14} uniProps={foregroundMutedIconColorMapping} />
+);
 const DIFF_OPTIONS_WHITESPACE_ICON = (
   <ThemedPilcrow size={14} uniProps={foregroundMutedIconColorMapping} />
 );
@@ -281,12 +290,14 @@ export function DiffLayoutToggle({
 }
 
 interface DiffModeMenuProps {
-  diffMode: "uncommitted" | "base" | "all";
+  diffMode: WorkingDiffComparison;
   committedDescription?: string;
   testIDPrefix?: string;
   onSelectUncommitted: () => void;
   onSelectBase: () => void;
   onSelectAll: () => void;
+  /** Groupon Desk: what the workspace's sessions changed; the menu offers it when given. */
+  onSelectSession?: () => void;
 }
 
 export function DiffModeMenu({
@@ -296,6 +307,7 @@ export function DiffModeMenu({
   onSelectUncommitted,
   onSelectBase,
   onSelectAll,
+  onSelectSession,
 }: DiffModeMenuProps) {
   const { t } = useTranslation();
   const uncommittedLabel = t("workspace.git.diff.uncommitted");
@@ -314,7 +326,14 @@ export function DiffModeMenu({
           return (
             <>
               <Text style={toolbarLabelTriggerTextStyle(highlighted)} numberOfLines={1}>
-                {{ all: allLabel, uncommitted: uncommittedLabel, base: committedLabel }[diffMode]}
+                {
+                  {
+                    session: GROUPON_SESSION_CHANGES.label,
+                    all: allLabel,
+                    uncommitted: uncommittedLabel,
+                    base: committedLabel,
+                  }[diffMode]
+                }
               </Text>
               <ToolbarLabelTriggerIcon>
                 <ThemedChevronDown size={12} uniProps={extraMutedIconColorMapping} />
@@ -324,6 +343,19 @@ export function DiffModeMenu({
         }}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" width={260} testID={`${testIDPrefix}-status-menu`}>
+        {onSelectSession ? (
+          <>
+            <DropdownMenuItem
+              testID={`${testIDPrefix}-mode-session`}
+              selected={diffMode === "session"}
+              description={GROUPON_SESSION_CHANGES.description}
+              onSelect={onSelectSession}
+            >
+              {GROUPON_SESSION_CHANGES.label}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        ) : null}
         <DropdownMenuItem
           testID={`${testIDPrefix}-mode-all`}
           selected={diffMode === "all"}
@@ -347,6 +379,56 @@ export function DiffModeMenu({
           onSelect={onSelectBase}
         >
           {committedLabel}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Groupon Desk: the diff tab's view mode, every changed file or only the one picked in the panel. */
+function DiffViewModeMenu({ toggle }: { toggle: ChangesToolbarToggle }) {
+  const { value, onToggle } = toggle;
+  const showAll = useCallback(() => {
+    if (value) onToggle();
+  }, [onToggle, value]);
+  const showSelected = useCallback(() => {
+    if (!value) onToggle();
+  }, [onToggle, value]);
+  const label = `${GROUPON_DIFF_VIEWER.viewMode}: ${
+    value ? GROUPON_DIFF_VIEWER.selectedFile : GROUPON_DIFF_VIEWER.allFiles
+  }`;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        testID="changes-view-mode-trigger"
+        style={toolbarLabelTriggerStyle}
+        accessibilityRole="button"
+        accessibilityLabel={GROUPON_DIFF_VIEWER.viewMode}
+      >
+        {(state) => (
+          <>
+            <Text
+              style={toolbarLabelTriggerTextStyle(isToolbarLabelTriggerHighlighted(state))}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+            <ToolbarLabelTriggerIcon>
+              <ThemedChevronDown size={12} uniProps={extraMutedIconColorMapping} />
+            </ToolbarLabelTriggerIcon>
+          </>
+        )}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" width={200} testID="changes-view-mode-menu">
+        <DropdownMenuItem testID="changes-view-mode-all" selected={!value} onSelect={showAll}>
+          {GROUPON_DIFF_VIEWER.allFiles}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          testID="changes-view-mode-selected"
+          selected={value}
+          onSelect={showSelected}
+        >
+          {GROUPON_DIFF_VIEWER.selectedFile}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -379,6 +461,13 @@ interface ChangesToolbarDiffOptions {
   wrapLines: boolean;
   onToggleHideWhitespace: () => void;
   onToggleWrapLines: () => void;
+  /** Groupon Desk: every changed file, or only the one picked in the panel. */
+  selectedFileOnly: ChangesToolbarToggle | null;
+}
+
+interface ChangesToolbarToggle {
+  value: boolean;
+  onToggle: () => void;
 }
 
 type ChangesToolbarMode =
@@ -422,6 +511,7 @@ function buildChangesToolbarMode(input: {
   onToggleHideWhitespace: () => void;
   onToggleWrapLines: () => void;
   onToggleTree: () => void;
+  selectedFileOnly: ChangesToolbarToggle;
 }): ChangesToolbarMode {
   const refresh = input.refreshSupported
     ? { isRefreshing: input.isRefreshing, onRefresh: input.onRefresh }
@@ -449,6 +539,7 @@ function buildChangesToolbarMode(input: {
     wrapLines: input.wrapLines,
     onToggleHideWhitespace: input.onToggleHideWhitespace,
     onToggleWrapLines: input.onToggleWrapLines,
+    selectedFileOnly: input.hasChanges ? input.selectedFileOnly : null,
   };
   if (input.presentation === "diff") {
     return { kind: "diff", options, refresh };
@@ -480,12 +571,13 @@ interface ChangesRepositoryToolbarModel {
 
 interface ChangesComparisonToolbarModel {
   committedDescription?: string;
-  diffMode: "uncommitted" | "base" | "all";
+  diffMode: WorkingDiffComparison;
   mode: ChangesToolbarMode;
   selectedDiffStat: { additions: number; deletions: number } | null;
   onSelectBase: () => void;
   onSelectAll: () => void;
   onSelectUncommitted: () => void;
+  onSelectSession?: () => void;
 }
 
 interface ChangesHeaderProps {
@@ -500,13 +592,14 @@ interface BuildChangesHeaderModelInput {
   committedDescription?: string;
   compact: boolean;
   cwd: string;
-  diffMode: "uncommitted" | "base" | "all";
+  diffMode: WorkingDiffComparison;
   gitActions: GitActions;
   mode: ChangesToolbarMode;
   onOpenPullRequest: () => void;
   onSelectBase: () => void;
   onSelectAll: () => void;
   onSelectUncommitted: () => void;
+  onSelectSession?: () => void;
   pullRequest: PrHint | null;
   selectedDiffStat: { additions: number; deletions: number } | null;
   serverId: string;
@@ -536,6 +629,7 @@ function buildChangesHeaderModel(input: BuildChangesHeaderModelInput): {
       onSelectBase: input.onSelectBase,
       onSelectAll: input.onSelectAll,
       onSelectUncommitted: input.onSelectUncommitted,
+      onSelectSession: input.onSelectSession,
     },
   };
 }
@@ -584,7 +678,11 @@ function ChangesDiffOnlyToolbar({
       testID="changes-header"
       trailing="glyph"
     >
-      <ChangesToolbarLeading />
+      <ChangesToolbarLeading>
+        {mode.options.selectedFileOnly ? (
+          <DiffViewModeMenu toggle={mode.options.selectedFileOnly} />
+        ) : null}
+      </ChangesToolbarLeading>
       <ChangesToolbarTrailing>
         <ChangesToolbarActions mode={mode} compact={compact} />
       </ChangesToolbarTrailing>
@@ -646,14 +744,16 @@ function ChangesRepositoryToolbar({
       trailing={model.gitActions ? "framed" : "glyph"}
     >
       <ChangesToolbarLeading>
-        <BranchSwitcher
-          currentBranchName={model.branchName}
-          serverId={model.serverId}
-          workspaceId={model.workspaceId ?? model.cwd}
-          workspaceDirectory={model.cwd}
-          isGitCheckout
-          testID="changes-branch-switcher"
-        />
+        {/* Groupon Desk: the branch is said, not switched here. */}
+        {model.branchName ? (
+          <Text
+            style={toolbarLabelTriggerTextStyle(false)}
+            numberOfLines={1}
+            testID="changes-branch-name"
+          >
+            {model.branchName}
+          </Text>
+        ) : null}
       </ChangesToolbarLeading>
       <ChangesToolbarTrailing>
         {model.pullRequest ? (
@@ -752,6 +852,7 @@ function ChangesComparisonToolbar({
           onSelectUncommitted={model.onSelectUncommitted}
           onSelectBase={model.onSelectBase}
           onSelectAll={model.onSelectAll}
+          onSelectSession={model.onSelectSession}
         />
         {model.selectedDiffStat ? (
           <DiffStat
@@ -1053,6 +1154,16 @@ function ChangesDiffOptions({ options }: { options: ChangesToolbarDiffOptions })
       >
         {wrapLinesLabel}
       </DropdownMenuItem>
+      {options.selectedFileOnly ? (
+        <DropdownMenuItem
+          leading={DIFF_OPTIONS_SELECTED_FILE_ICON}
+          selected={options.selectedFileOnly.value}
+          testID="changes-toggle-selected-file-only"
+          onSelect={options.selectedFileOnly.onToggle}
+        >
+          {GROUPON_DIFF_VIEWER.selectedFileOnly}
+        </DropdownMenuItem>
+      ) : null}
     </>
   );
 }
@@ -1163,6 +1274,20 @@ function computeCommittedDiffDescription(
   return branchLabel === baseRefLabel ? undefined : `${branchLabel} -> ${baseRefLabel}`;
 }
 
+/** Groupon Desk: the session comparison refreshes its own read, not the checkout. */
+function changesRefresh(
+  isSession: boolean,
+  refetchSession: () => unknown,
+  refreshCheckout: () => void,
+): () => void {
+  return isSession ? () => void refetchSession() : refreshCheckout;
+}
+
+/** Groupon Desk: what an empty Changes view says for the session comparison. */
+function changesEmptyMessage(isSession: boolean, checkoutEmpty: string): string {
+  return isSession ? GROUPON_SESSION_CHANGES.empty : checkoutEmpty;
+}
+
 interface ChangesEmptyAction {
   label: string;
   onPress: () => void;
@@ -1170,7 +1295,7 @@ interface ChangesEmptyAction {
 
 function computeChangesEmptyAction(input: {
   hideWhitespace: boolean;
-  diffMode: "uncommitted" | "base" | "all";
+  diffMode: WorkingDiffComparison;
   status: CheckoutStatusPayload | null;
   seeUncommittedLabel: string;
   seeCommittedLabel: string;
@@ -1293,6 +1418,7 @@ function ChangesTreeRail({
   onTreeWidthChange,
   collapsedFolderPaths,
   onCollapsedFolderPathsChange,
+  activePath,
 }: {
   shown: boolean;
   children: ReactElement;
@@ -1303,6 +1429,7 @@ function ChangesTreeRail({
   onTreeWidthChange: (width: number) => void;
   collapsedFolderPaths: string[];
   onCollapsedFolderPathsChange: (paths: string[]) => void;
+  activePath: string | null;
 }) {
   if (!shown) return children;
   return (
@@ -1314,6 +1441,7 @@ function ChangesTreeRail({
         onSelectFile={onSelectFile}
         collapsedFolderPaths={collapsedFolderPaths}
         onCollapsedFolderPathsChange={onCollapsedFolderPathsChange}
+        activePath={activePath}
       />
     </TreeRail>
   );
@@ -1331,6 +1459,7 @@ function ChangesBody({
   onTreeWidthChange,
   collapsedFolderPaths,
   onCollapsedFolderPathsChange,
+  activePath,
 }: {
   presentation: ChangesPresentation;
   children: ReactElement;
@@ -1343,6 +1472,7 @@ function ChangesBody({
   onTreeWidthChange: (width: number) => void;
   collapsedFolderPaths: string[];
   onCollapsedFolderPathsChange: (paths: string[]) => void;
+  activePath: string | null;
 }) {
   if (presentation === "tree") {
     if (files.length === 0) return children;
@@ -1353,6 +1483,7 @@ function ChangesBody({
         onSelectFile={onSelectFile}
         collapsedFolderPaths={collapsedFolderPaths}
         onCollapsedFolderPathsChange={onCollapsedFolderPathsChange}
+        activePath={activePath}
       />
     );
   }
@@ -1367,6 +1498,7 @@ function ChangesBody({
       onTreeWidthChange={onTreeWidthChange}
       collapsedFolderPaths={collapsedFolderPaths}
       onCollapsedFolderPathsChange={onCollapsedFolderPathsChange}
+      activePath={activePath}
     >
       {children}
     </ChangesTreeRail>
@@ -1557,6 +1689,10 @@ export function ChangesSurface({
     baseRef,
     currentBranchName,
     diffMode,
+    isSession,
+    sessionRepos,
+    refetchSession,
+    selectSession: handleSelectSession,
     selectUncommitted: handleSelectUncommitted,
     selectBase: handleSelectBase,
     selectAll: handleSelectAll,
@@ -1698,8 +1834,19 @@ export function ChangesSurface({
     (!externalFocusRequest || localFocusRequest.revision >= externalFocusRequest.revision)
       ? localFocusRequest
       : externalFocusRequest;
+  // Groupon Desk: the file the panel's tree and the diff viewer agree on, and the viewer's
+  // "selected file only" switch.
+  const fileFocus = useDiffFileFocus({
+    serverId,
+    workspaceId,
+    cwd,
+    files,
+    request: documentFocusRequest,
+  });
+  const focusFilePath = fileFocus.focusPath;
   const handleSelectTreeFile = useCallback(
     (path: string) => {
+      focusFilePath(path);
       if (presentation === "tree" && onSelectDiffFile) {
         onSelectDiffFile(path);
         return;
@@ -1709,8 +1856,21 @@ export function ChangesSurface({
         revision: Math.max(Date.now(), (current?.revision ?? 0) + 1),
       }));
     },
-    [onSelectDiffFile, presentation],
+    [focusFilePath, onSelectDiffFile, presentation],
   );
+  // Groupon Desk: a session's file in another repository opens by its own path.
+  const openFile = useSessionFileOpener({
+    open: onOpenFile,
+    isSession,
+    repos: sessionRepos,
+    workspaceRoot: cwd,
+  });
+  const openToSide = useSessionFileOpener({
+    open: onOpenToSide,
+    isSession,
+    repos: sessionRepos,
+    workspaceRoot: cwd,
+  });
   const workingMode = useMemo(
     () => ({
       kind: "working" as const,
@@ -1718,8 +1878,8 @@ export function ChangesSurface({
       focusPath: documentFocusRequest?.path,
       focusRequestId: documentFocusRequest?.revision,
       workspaceFileDragScope: workspaceId ? { serverId, workspaceId } : undefined,
-      onOpenFile,
-      onOpenToSide,
+      onOpenFile: openFile,
+      onOpenToSide: openToSide,
       onAddToChat,
       onCopyPath: handleCopyPath,
       onCopyRelativePath: handleCopyRelativePath,
@@ -1728,15 +1888,17 @@ export function ChangesSurface({
       onDownload: handleDownloadPath,
       onDuplicate: fsEntryDuplicateEnabled ? handleDuplicatePath : undefined,
       onRevert: onRevertPath,
+      onVisibleFileChange: focusFilePath,
     }),
     [
+      focusFilePath,
       reviewActions,
       documentFocusRequest?.path,
       documentFocusRequest?.revision,
       serverId,
       workspaceId,
-      onOpenFile,
-      onOpenToSide,
+      openFile,
+      openToSide,
       onAddToChat,
       handleCopyPath,
       handleCopyRelativePath,
@@ -1787,7 +1949,7 @@ export function ChangesSurface({
     () => computeCommittedDiffDescription(branchLabel, baseRefLabel),
     [baseRefLabel, branchLabel],
   );
-  const emptyMessage = t("diffViewer.empty");
+  const emptyMessage = changesEmptyMessage(isSession, t("diffViewer.empty"));
   const emptyAction = computeChangesEmptyAction({
     hideWhitespace: preferences.hideWhitespace,
     diffMode,
@@ -1814,7 +1976,7 @@ export function ChangesSurface({
         notRepositoryLabel={t("workspace.git.diff.notRepository")}
       >
         <DiffDocument
-          files={files}
+          files={fileFocus.shownFiles}
           contentInsetBottom={floatingActionsClearance(
             [jumpToFileInset, reviewFeedback.clearance],
             bottomInset,
@@ -1847,6 +2009,7 @@ export function ChangesSurface({
       onTreeWidthChange={handleChangesTreeWidth}
       collapsedFolderPaths={instanceState.collapsedFolderPaths}
       onCollapsedFolderPathsChange={updateCollapsedFolderPaths}
+      activePath={fileFocus.activePath}
     >
       {diffContent}
     </ChangesBody>
@@ -1868,7 +2031,7 @@ export function ChangesSurface({
         inlineDiff: !isMobile
           ? { value: preferences.inlineDiff, onToggle: handleToggleInlineDiff }
           : null,
-        onRefresh: handleRefresh,
+        onRefresh: changesRefresh(isSession, refetchSession, handleRefresh),
         onCollapseAll: handleCollapseAllFiles,
         onExpandAll: handleExpandAllFiles,
         allFilesCollapsed,
@@ -1876,8 +2039,14 @@ export function ChangesSurface({
         onToggleHideWhitespace: handleToggleHideWhitespace,
         onToggleWrapLines: handleToggleWrapLines,
         onToggleTree: handleToggleDesktopTree,
+        selectedFileOnly: {
+          value: fileFocus.onlySelected,
+          onToggle: fileFocus.toggleOnlySelected,
+        },
       }),
     [
+      fileFocus.onlySelected,
+      fileFocus.toggleOnlySelected,
       allFilesCollapsed,
       canUseSplitLayout,
       desktopTreeVisible,
@@ -1886,6 +2055,8 @@ export function ChangesSurface({
       handleOpenDiff,
       handleToggleInlineDiff,
       handleRefresh,
+      isSession,
+      refetchSession,
       handleToggleDesktopTree,
       handleToggleHideWhitespace,
       handleToggleLayout,
@@ -1915,12 +2086,14 @@ export function ChangesSurface({
         onSelectBase: handleSelectBase,
         onSelectAll: handleSelectAll,
         onSelectUncommitted: handleSelectUncommitted,
+        onSelectSession: handleSelectSession,
         pullRequest: selectPrHintFromStatus(pullRequestStatus, forge),
         selectedDiffStat,
         serverId,
         workspaceId,
       }),
     [
+      handleSelectSession,
       committedDiffDescription,
       currentBranchName,
       cwd,

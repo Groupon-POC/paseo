@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the marked row follows the file the diff viewer is on.
 import { useCallback, useMemo, useState } from "react";
 import { StyleSheet } from "react-native-unistyles";
 // The sheet-aware list: inside a bottom sheet the tree scrolls with the sheet
@@ -21,6 +22,8 @@ export interface ChangedFilesTreeProps {
   onSelectFile: (path: string) => void;
   collapsedFolderPaths: string[];
   onCollapsedFolderPathsChange: (paths: string[]) => void;
+  /** Groupon Desk: the file the workspace's Changes views are on (`groupon/diff-file-focus.ts`). */
+  activePath?: string | null;
 }
 
 /** The changed-files tree shared by the desktop Changes rail and the compact Jump to file sheet. */
@@ -30,8 +33,15 @@ export function ChangedFilesTree({
   onSelectFile,
   collapsedFolderPaths,
   onCollapsedFolderPathsChange,
+  activePath = null,
 }: ChangedFilesTreeProps) {
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selectedPath, setSelectedPath] = useState<string | null>(activePath);
+  // Groupon Desk: the mark follows the file the diff viewer scrolls to, until a row is picked here.
+  const [followedPath, setFollowedPath] = useState(activePath);
+  if (activePath !== followedPath) {
+    setFollowedPath(activePath);
+    if (activePath) setSelectedPath(activePath);
+  }
   const compressedTree = useMemo(() => compressSingleChildChains(buildDiffTree(files)), [files]);
   const allFolderPaths = useMemo(() => collectDirPaths(compressedTree), [compressedTree]);
   const collapsedFolders = useMemo(() => new Set(collapsedFolderPaths), [collapsedFolderPaths]);

@@ -1,6 +1,9 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message passes its author to the bubble. The chat's display mode (All, Fluent, Output only) filters the rows A finished thought says how long it took ("Thought for 12s") While the agent waits on the person the turn footer shows no loader and no time. The agent output's width is a share of the pane its edge handles set (groupon/stream-width.ts), given to the rows through React; the composer keeps the content width.
 import { ChatFind, ChatFindExpansion } from "@/agent-stream/chat-find";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { StreamWidthProvider, useStreamRowWidthStyle } from "@/groupon/stream-width";
+import { StreamWidthHandles } from "@/groupon/stream-width-handles";
+import { useStreamWidth } from "@/groupon/use-stream-width";
 import React, {
   forwardRef,
   memo,
@@ -117,9 +120,9 @@ function renderLiveAuxiliaryNode(input: {
     <>
       {input.turnFooter}
       {input.pendingPermissions ? (
-        <View style={stylesheet.contentWrapper}>
+        <ContentWrapper>
           <View style={stylesheet.listHeaderContent}>{input.pendingPermissions}</View>
-        </View>
+        </ContentWrapper>
       ) : null}
       {input.bottomOverlayInset > 0 ? (
         <BottomOverlayInset height={input.bottomOverlayInset} />
@@ -337,13 +340,20 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const toolCallDetailLevel = useSettings((settings) => settings.toolCallDetailLevel);
     const displayMode = useSettings((settings) => settings.chatDisplayMode);
     const chatOutlineEnabled = useSettings((settings) => settings.chatOutlineEnabled);
-    const contentMaxWidth = useSettings(resolveContentMaxWidth);
+    const settingsContentMaxWidth = useSettings(resolveContentMaxWidth);
     const viewportRef = useRef<StreamViewportHandle | null>(null);
     const pendingClientMessageIds = useMemo(
       () => new Set(pendingMessageSubmissions.map((submission) => submission.clientMessageId)),
       [pendingMessageSubmissions],
     );
     const isMobile = useIsCompactFormFactor();
+    // Groupon Desk: the output's width, a share of the pane its edge handles set; the composer
+    // keeps the content width.
+    const streamWidth = useStreamWidth({
+      contentMaxWidth: settingsContentMaxWidth,
+      compact: isMobile,
+    });
+    const contentMaxWidth = streamWidth.maxWidth;
     const streamRenderStrategy = useMemo(
       () =>
         resolveStreamRenderStrategy({
@@ -1094,31 +1104,42 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       >
         <ToolCallSheetProvider>
           <AssistantSelectionCopySurface style={stylesheet.container}>
-            <MessageOuterSpacingProvider disableOuterSpacing>
-              {streamRenderStrategy.render({
-                agentId,
-                segments: renderModel.segments,
-                historyRowRevision,
-                liveHeadRowRevision: expandedToolCallGroupIds,
-                boundary,
-                renderers,
-                listEmptyComponent,
-                viewportRef,
-                routeBottomAnchorRequest,
-                isAuthoritativeHistoryReady,
-                onNearBottomChange: setIsNearBottom,
-                onReadingPositionChange: handleReadingPositionChange,
-                onNearHistoryStart: loadOlder,
-                isLoadingOlderHistory: isLoadingOlder,
-                hasOlderHistory: hasOlder,
-                olderHistoryProgressKey: progressKey,
-                scrollEnabled: streamScrollEnabled,
-                listStyle: stylesheet.list,
-                baseListContentContainerStyle: stylesheet.listContentContainer,
-                forwardListContentContainerStyle: stylesheet.forwardListContentContainer,
-                contentMaxWidth,
-              })}
-            </MessageOuterSpacingProvider>
+            <View
+              style={stylesheet.paneMeasure}
+              pointerEvents="none"
+              onLayout={streamWidth.onPaneLayout}
+            />
+            <StreamWidthProvider value={streamWidth.override}>
+              <MessageOuterSpacingProvider disableOuterSpacing>
+                {streamRenderStrategy.render({
+                  agentId,
+                  segments: renderModel.segments,
+                  historyRowRevision,
+                  liveHeadRowRevision: expandedToolCallGroupIds,
+                  boundary,
+                  renderers,
+                  listEmptyComponent,
+                  viewportRef,
+                  routeBottomAnchorRequest,
+                  isAuthoritativeHistoryReady,
+                  onNearBottomChange: setIsNearBottom,
+                  onReadingPositionChange: handleReadingPositionChange,
+                  onNearHistoryStart: loadOlder,
+                  isLoadingOlderHistory: isLoadingOlder,
+                  hasOlderHistory: hasOlder,
+                  olderHistoryProgressKey: progressKey,
+                  scrollEnabled: streamScrollEnabled,
+                  listStyle: stylesheet.list,
+                  baseListContentContainerStyle: stylesheet.listContentContainer,
+                  forwardListContentContainerStyle: stylesheet.forwardListContentContainer,
+                  contentMaxWidth,
+                })}
+              </MessageOuterSpacingProvider>
+            </StreamWidthProvider>
+            <GrouponStreamWidthHandles
+              state={streamWidth}
+              contentMaxWidth={settingsContentMaxWidth}
+            />
             <ChatOutlineRail
               prompts={chatOutline.prompts}
               activePrompt={chatOutline.activePrompt}
@@ -1643,6 +1664,13 @@ const stylesheet = StyleSheet.create((theme) => ({
     flex: 1,
     backgroundColor: theme.colors.surface0,
   },
+  paneMeasure: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   contentWrapper: {
     width: "100%",
     maxWidth: theme.contentMaxWidth,
@@ -1801,9 +1829,36 @@ interface StreamItemWrapperProps {
 }
 
 function StreamItemWrapper({ gapBelow, children }: StreamItemWrapperProps) {
+  const widthStyle = useStreamRowWidthStyle();
   const wrapperStyle = useMemo(
-    () => [stylesheet.streamItemWrapper, { marginBottom: gapBelow }],
-    [gapBelow],
+    () => [stylesheet.streamItemWrapper, widthStyle, { marginBottom: gapBelow }],
+    [gapBelow, widthStyle],
   );
   return <View style={wrapperStyle}>{children}</View>;
+}
+
+/** Groupon Desk: the list's header and footer content, as wide as the output. */
+function ContentWrapper({ children }: { children: ReactNode }) {
+  const widthStyle = useStreamRowWidthStyle();
+  const style = useMemo(() => [stylesheet.contentWrapper, widthStyle], [widthStyle]);
+  return <View style={style}>{children}</View>;
+}
+
+/** Groupon Desk: the output's edge handles, where the pane has room to widen it. */
+function GrouponStreamWidthHandles({
+  state,
+  contentMaxWidth,
+}: {
+  state: ReturnType<typeof useStreamWidth>;
+  contentMaxWidth: number;
+}) {
+  if (!state.canWiden) return null;
+  return (
+    <StreamWidthHandles
+      paneWidth={state.paneWidth}
+      streamWidth={state.maxWidth}
+      contentMaxWidth={contentMaxWidth}
+      onCommit={state.commit}
+    />
+  );
 }

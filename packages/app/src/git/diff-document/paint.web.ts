@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a file header parted from the file before it, its name heavier, and room after its path for the open button.
 import { selectionRectangles } from "./hit-testing";
 import {
   DIFF_BODY_BORDER_HEIGHT,
@@ -136,53 +137,117 @@ export function paintWebFileHeader(input: {
     input.activePath === file.path ? palette.headerActiveSurface : palette.headerSurface;
   context.fillRect(0, y, viewportWidth, DIFF_FILE_HEADER_HEIGHT);
   context.fillStyle = palette.headerBorder;
+  // Groupon Desk: a line above each header but the first parts one file from the one before.
+  if (file.fileIndex > 0) context.fillRect(0, y, viewportWidth, 1);
   context.fillRect(0, y + DIFF_FILE_HEADER_HEIGHT - 1, viewportWidth, 1);
 
-  const iconX = viewportWidth - DIFF_FILE_HEADER_RIGHT - DIFF_FILE_HEADER_ICON_SIZE;
-  const statLabels = [
-    `+${formatDiffCount(file.file.additions)}`,
-    `-${formatDiffCount(file.file.deletions)}`,
-  ];
+  const layout = layoutWebFileHeader({ context, file, typography, viewportWidth });
   context.font = `${typography.statSize}px ${typography.family}`;
-  const statWidths = statLabels.map((label) => context.measureText(label).width);
-  const statWidth = statWidths[0]! + 4 + statWidths[1]!;
-  const statX = iconX - 8 - statWidth;
   const statBaseline = centeredTextBaseline(context, y + DIFF_FILE_HEADER_CONTENT_HEIGHT / 2);
   context.fillStyle = palette.statusSuccess;
-  context.fillText(statLabels[0]!, statX, statBaseline);
+  context.fillText(layout.statLabels[0], layout.statX, statBaseline);
   context.fillStyle = palette.statusDanger;
-  context.fillText(statLabels[1]!, statX + statWidths[0]! + 4, statBaseline);
+  context.fillText(layout.statLabels[1], layout.statX + layout.additionsWidth + 4, statBaseline);
   paintChangeIcon(
     context,
     file,
-    iconX,
+    layout.iconX,
     y + (DIFF_FILE_HEADER_CONTENT_HEIGHT - DIFF_FILE_HEADER_ICON_SIZE) / 2,
     palette,
   );
 
-  context.font = `${typography.size}px ${typography.family}`;
+  context.font = headerNameFont(typography);
   const textBaseline = centeredTextBaseline(context, y + DIFF_FILE_HEADER_CONTENT_HEIGHT / 2);
-  const available = Math.max(0, statX - DIFF_FILE_HEADER_LEFT);
-  const name = fileNameForPath(file.path);
-  // React Native Web collapses the leading separator space at the start of the
-  // directory Text node. Canvas does not, so paint only the visible glyphs.
-  const directory = directorySuffix(file.path).trimStart();
-  const fitted = fitHeaderText(context, name, directory, available);
   context.save();
   context.beginPath();
-  context.rect(DIFF_FILE_HEADER_LEFT, y, available, DIFF_FILE_HEADER_CONTENT_HEIGHT);
+  context.rect(DIFF_FILE_HEADER_LEFT, y, layout.available, DIFF_FILE_HEADER_CONTENT_HEIGHT);
   context.clip();
   context.fillStyle = palette.foreground;
-  context.fillText(fitted.name, DIFF_FILE_HEADER_LEFT, textBaseline);
-  if (fitted.directory) {
+  context.fillText(layout.name, DIFF_FILE_HEADER_LEFT, textBaseline);
+  if (layout.directory) {
+    context.font = headerDirectoryFont(typography);
     context.fillStyle = palette.foregroundMuted;
     context.fillText(
-      fitted.directory,
-      DIFF_FILE_HEADER_LEFT + context.measureText(fitted.name).width + DIFF_FILE_HEADER_TEXT_GAP,
+      layout.directory,
+      DIFF_FILE_HEADER_LEFT + layout.nameWidth + DIFF_FILE_HEADER_TEXT_GAP,
       textBaseline,
     );
   }
   context.restore();
+}
+
+/** Groupon Desk: the room kept after a header's path for the button that opens the whole file. */
+export const DIFF_FILE_HEADER_OPEN_BUTTON_SIZE = 20;
+const DIFF_FILE_HEADER_OPEN_BUTTON_ROOM = DIFF_FILE_HEADER_OPEN_BUTTON_SIZE + 4;
+
+// Groupon Desk: the file's name is painted heavier than its folder, so a header reads at a glance.
+function headerNameFont(typography: DiffHeaderTypography): string {
+  return `600 ${typography.size}px ${typography.family}`;
+}
+
+function headerDirectoryFont(typography: DiffHeaderTypography): string {
+  return `${typography.size}px ${typography.family}`;
+}
+
+interface WebFileHeaderLayout {
+  iconX: number;
+  statX: number;
+  statLabels: [string, string];
+  additionsWidth: number;
+  available: number;
+  name: string;
+  nameWidth: number;
+  directory: string;
+  /** Where the painted path ends. */
+  textEnd: number;
+}
+
+function layoutWebFileHeader(input: {
+  context: CanvasRenderingContext2D;
+  file: DiffFileSection;
+  typography: DiffHeaderTypography;
+  viewportWidth: number;
+}): WebFileHeaderLayout {
+  const { context, file, typography } = input;
+  const iconX = input.viewportWidth - DIFF_FILE_HEADER_RIGHT - DIFF_FILE_HEADER_ICON_SIZE;
+  const statLabels: [string, string] = [
+    `+${formatDiffCount(file.file.additions)}`,
+    `-${formatDiffCount(file.file.deletions)}`,
+  ];
+  context.font = `${typography.statSize}px ${typography.family}`;
+  const additionsWidth = context.measureText(statLabels[0]).width;
+  const statWidth = additionsWidth + 4 + context.measureText(statLabels[1]).width;
+  const statX = iconX - 8 - statWidth;
+  const available = Math.max(0, statX - DIFF_FILE_HEADER_LEFT - DIFF_FILE_HEADER_OPEN_BUTTON_ROOM);
+  // React Native Web collapses the leading separator space at the start of the
+  // directory Text node. Canvas does not, so paint only the visible glyphs.
+  const fitted = fitHeaderText(
+    context,
+    typography,
+    fileNameForPath(file.path),
+    directorySuffix(file.path).trimStart(),
+    available,
+  );
+  const textEnd =
+    DIFF_FILE_HEADER_LEFT +
+    Math.min(
+      available,
+      fitted.nameWidth + (fitted.directory ? DIFF_FILE_HEADER_TEXT_GAP + fitted.directoryWidth : 0),
+    );
+  return { iconX, statX, statLabels, additionsWidth, available, ...fitted, textEnd };
+}
+
+/**
+ * Groupon Desk: where the button that opens the whole file sits in a file's header, just after
+ * the painted path; measured with the fonts `paintWebFileHeader` paints with.
+ */
+export function webFileHeaderOpenButtonLeft(input: {
+  context: CanvasRenderingContext2D;
+  file: DiffFileSection;
+  typography: DiffHeaderTypography;
+  viewportWidth: number;
+}): number {
+  return layoutWebFileHeader(input).textEnd + 4;
 }
 
 function centeredTextBaseline(context: CanvasRenderingContext2D, centerY: number): number {
@@ -192,17 +257,33 @@ function centeredTextBaseline(context: CanvasRenderingContext2D, centerY: number
 
 function fitHeaderText(
   context: CanvasRenderingContext2D,
-  name: string,
-  directory: string,
+  typography: DiffHeaderTypography,
+  fullName: string,
+  fullDirectory: string,
   available: number,
-): { name: string; directory: string } {
-  const nameWidth = context.measureText(name).width;
-  const directoryWidth = context.measureText(directory).width;
-  if (nameWidth + (directory ? 4 + directoryWidth : 0) <= available) return { name, directory };
+): { name: string; nameWidth: number; directory: string; directoryWidth: number } {
+  const measure = (text: string, font: string) => {
+    context.font = font;
+    return context.measureText(text).width;
+  };
+  const nameFont = headerNameFont(typography);
+  const directoryFont = headerDirectoryFont(typography);
+  const nameWidth = measure(fullName, nameFont);
+  const directoryWidth = measure(fullDirectory, directoryFont);
+  if (nameWidth + (fullDirectory ? DIFF_FILE_HEADER_TEXT_GAP + directoryWidth : 0) <= available) {
+    return { name: fullName, nameWidth, directory: fullDirectory, directoryWidth };
+  }
   const widths = allocateDiffHeaderTextWidths({ available, nameWidth, directoryWidth });
+  context.font = nameFont;
+  const name = truncateCanvasText(context, fullName, widths.name);
+  const fittedNameWidth = context.measureText(name).width;
+  context.font = directoryFont;
+  const directory = truncateCanvasText(context, fullDirectory, widths.directory);
   return {
-    name: truncateCanvasText(context, name, widths.name),
-    directory: truncateCanvasText(context, directory, widths.directory),
+    name,
+    nameWidth: fittedNameWidth,
+    directory,
+    directoryWidth: context.measureText(directory).width,
   };
 }
 

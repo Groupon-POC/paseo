@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the transcript makes room for the presence row and the worktree's setup line above the composer (`groupon/presence-row.tsx`, `groupon/worktree-setup-line.tsx`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the transcript makes room for the presence row, the worktree's setup line and the agent's Monitor watches above the composer (`groupon/presence-row.tsx`, `groupon/worktree-setup-line.tsx`, `groupon/agent-monitors.tsx`).
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import { Button } from "@/components/ui/button";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -83,6 +83,7 @@ import { WorkspaceDraftAgentTab } from "@/composer/draft/workspace-tab";
 import { AgentTracks, hasAgentTracks } from "@/panels/agent-tracks";
 import { presenceVisible, usePaseoWorkspacePresence } from "@/groupon/presence-row";
 import { useWorktreeSetupLine } from "@/groupon/worktree-setup-line";
+import { useAgentMonitors } from "@/groupon/agent-monitors";
 import { useCreateFlowStore } from "@/stores/create-flow-store";
 import { buildDraftStoreKey, generateDraftId } from "@/stores/draft-keys";
 import {
@@ -1114,6 +1115,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
   const hasActiveComposer = !agentState.archivedAt && !isArchivingCurrentAgent;
   const grouponPresence = usePaseoWorkspacePresence(serverId, workspaceId);
   const grouponSetupLine = useWorktreeSetupLine(serverId, workspaceId);
+  const grouponMonitors = useAgentMonitors(serverId, agentId);
   const hasVisibleAgentTracks = hasAgentTracks({
     subagentRows,
     tasks,
@@ -1121,6 +1123,7 @@ const ChatAgentReadyContent = memo(function ChatAgentReadyContent({
     hasPluginComposerPills,
     hasGrouponPresence: presenceVisible(grouponPresence.view),
     hasGrouponWorktreeSetup: grouponSetupLine !== null,
+    hasGrouponMonitors: grouponMonitors.length > 0,
   });
   const rawAgentInputDraft = useAgentInputDraft({
     draftKey: buildDraftStoreKey({

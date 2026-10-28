@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the working diff reports the file in view.
 import type { ParsedDiffFile } from "@getpaseo/protocol/messages";
 import type { InlineReviewActions } from "@/review";
 import type { ReviewableDiffTarget } from "@/utils/diff-layout";
@@ -31,6 +32,8 @@ export interface WorkingDiffMode {
   onDownload?: (path: string) => void;
   onDuplicate?: (path: string) => void;
   onRevert?: (path: string, oldPath?: string) => void;
+  /** Groupon Desk: the file at the top of the viewport, each time another one gets there. */
+  onVisibleFileChange?: (path: string) => void;
 }
 
 export type DiffDocumentProps = DiffDocumentBaseProps &

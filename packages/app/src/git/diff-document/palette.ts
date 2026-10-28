@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a file header on a surface of its own, apart from the code under it.
 import type { Theme } from "@/styles/theme";
 import { hexColorWithAlpha } from "@/utils/color";
 import type { DiffCell, DiffPalette } from "./types";
@@ -5,7 +6,8 @@ import type { DiffCell, DiffPalette } from "./types";
 export function createDiffPalette(theme: Theme): DiffPalette {
   return {
     surface: theme.colors.surface0,
-    headerSurface: theme.colors.surface0,
+    // Groupon Desk: a header stands apart from the code under it.
+    headerSurface: theme.colors.surface1,
     border: theme.colors.border,
     foreground: theme.colors.foreground,
     foregroundMuted: theme.colors.foregroundMuted,
@@ -15,7 +17,7 @@ export function createDiffPalette(theme: Theme): DiffPalette {
     deletionBackground: hexColorWithAlpha(theme.colors.statusDanger, 0.1),
     emptyBackground: theme.colors.surface0,
     selection: theme.colors.terminal.blue,
-    headerActiveSurface: theme.colors.surface1,
+    headerActiveSurface: theme.colors.surface2,
     headerBorder: theme.colors.borderAccent,
     statusSuccess: theme.colors.statusSuccess,
     statusDanger: theme.colors.statusDanger,

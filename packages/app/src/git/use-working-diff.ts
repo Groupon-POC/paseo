@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the "session" comparison reads what the workspace's sessions changed (groupon/use-compared-diff.ts).
 import { useCallback, useEffect, useMemo } from "react";
 import {
   buildWorkspaceAttachmentScopeKey,
@@ -9,9 +10,9 @@ import {
   useReviewAttachmentSnapshot,
   useReviewFeedback,
 } from "@/review";
-import { useCheckoutDiffQuery } from "@/git/use-diff-query";
 import { useCheckoutStatusQuery } from "@/git/use-status-query";
 import { useWorkingDiffComparison } from "@/git/working-diff-comparison";
+import { useComparedDiff } from "@/groupon/use-compared-diff";
 
 interface UseWorkingDiffOptions {
   serverId: string;
@@ -56,19 +57,27 @@ export function useWorkingDiff({
   const selectUncommitted = useCallback(() => selectComparison("uncommitted"), [selectComparison]);
   const selectAll = useCallback(() => selectComparison("all"), [selectComparison]);
   const selectBase = useCallback(() => selectComparison("base"), [selectComparison]);
-
+  const selectSession = useCallback(() => selectComparison("session"), [selectComparison]);
+  // Groupon Desk: the session comparison reads the workspace's own edits, not the checkout's diff.
   const {
     files,
     payloadError: diffPayloadError,
     diffTooLarge,
     isLoading: isDiffLoading,
-  } = useCheckoutDiffQuery({
+    isSession,
+    checkoutMode,
+    reviewBaseRef,
+    sessionRepos,
+    refetchSession,
+  } = useComparedDiff({
     serverId,
+    workspaceId,
     cwd,
-    mode: diffMode,
+    comparison: diffMode,
     baseRef,
     ignoreWhitespace,
-    enabled: enabled && isGit,
+    enabled,
+    isGit,
     queryScope,
   });
   const reviewDraftKey = useMemo(
@@ -77,19 +86,19 @@ export function useWorkingDiff({
         serverId,
         workspaceId,
         cwd,
-        mode: diffMode,
-        baseRef,
+        mode: checkoutMode,
+        baseRef: reviewBaseRef,
         ignoreWhitespace,
       }),
-    [baseRef, cwd, diffMode, ignoreWhitespace, serverId, workspaceId],
+    [reviewBaseRef, cwd, checkoutMode, ignoreWhitespace, serverId, workspaceId],
   );
   const reviewActions = useInlineReviewController({ reviewDraftKey, presentation });
   const reviewAttachment = useReviewAttachmentSnapshot({
     key: reviewDraftKey,
     diffFiles: files,
     cwd,
-    mode: diffMode,
-    baseRef,
+    mode: checkoutMode,
+    baseRef: reviewBaseRef,
   });
 
   const reviewFeedback = useReviewFeedback({
@@ -108,6 +117,10 @@ export function useWorkingDiff({
     baseRef,
     currentBranchName,
     diffMode,
+    isSession,
+    sessionRepos,
+    refetchSession,
+    selectSession: workspaceId ? selectSession : undefined,
     selectUncommitted,
     selectBase,
     selectAll,

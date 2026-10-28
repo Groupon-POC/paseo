@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository.
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory } from "./agent/directory.js";
@@ -204,10 +204,22 @@ import {
 import type { ServiceProxySubsystem } from "./service-proxy.js";
 import {
   getCheckoutSnapshotFacts,
+  getCurrentBranch,
   getMainRepoRoot,
+  getPathsDiffSince,
+  getWorktreeRoot,
   renameCurrentBranch as renameCurrentBranchDefault,
+  resolveHeadAt,
 } from "../utils/checkout-git.js";
 import { CHAT_RELOCATE_RPC, scheduleChatRelocation } from "../groupon/chat-relocation.js";
+import {
+  readSessionChanges,
+  SESSION_CHANGES_RPC,
+  sessionEditsOf,
+  sessionRootHolding,
+  type SessionEdit,
+} from "../groupon/session-changes.js";
+import { AGENT_MONITORS_RPC, activeMonitorsOf } from "../groupon/agent-monitors.js";
 import { placeTicketlessWorkspace } from "../groupon/workspace-placement.js";
 import { nameWorkspaceBranch } from "../groupon/workspace-branch.js";
 import {
@@ -2660,8 +2672,7 @@ export class Session {
 
   private async invokeGrouponDeskRpc(method: string, input: unknown): Promise<unknown> {
     if (method === LIST_DIRECTORY_METHOD) {
-      const path = typeof input === "object" && input !== null ? Reflect.get(input, "path") : null;
-      return listDirectory({ path });
+      return listDirectory({ path: grouponRpcField(input, "path") });
     }
     if (method === GROUPON_DESK_RPC.trainArchivedWorkspaces) {
       const workspaces = await listTrainArchivedWorkspaces({
@@ -2677,31 +2688,97 @@ export class Session {
       return await this.ensureChatsProject();
     }
     if (method === GROUPON_CHATS_RPC.place) {
-      const prompt =
-        typeof input === "object" && input !== null ? Reflect.get(input, "prompt") : "";
+      const prompt = grouponRpcField(input, "prompt");
       return { placement: await this.placeGrouponChat(typeof prompt === "string" ? prompt : "") };
     }
     if (method === GROUPON_CHATS_RPC.move) {
-      const read = (key: string) =>
-        typeof input === "object" && input !== null ? Reflect.get(input, key) : null;
-      const agentId = read("agentId");
-      const targetWorkspaceId = read("targetWorkspaceId");
-      if (typeof agentId !== "string" || typeof targetWorkspaceId !== "string") {
-        throw new Error("agentId and targetWorkspaceId are required");
-      }
-      return await this.moveGrouponChat(agentId, targetWorkspaceId);
+      return await this.moveGrouponChat(
+        requiredGrouponRpcString(input, "agentId"),
+        requiredGrouponRpcString(input, "targetWorkspaceId"),
+      );
     }
     if (method === CHAT_RELOCATE_RPC) {
-      const read = (key: string) =>
-        typeof input === "object" && input !== null ? Reflect.get(input, key) : null;
-      const agentId = read("agentId");
-      const path = read("path");
-      if (typeof agentId !== "string" || typeof path !== "string") {
-        throw new Error("agentId and path are required");
-      }
-      return await this.relocateGrouponChat(agentId, path);
+      return await this.relocateGrouponChat(
+        requiredGrouponRpcString(input, "agentId"),
+        requiredGrouponRpcString(input, "path"),
+      );
+    }
+    if (method === SESSION_CHANGES_RPC) {
+      return await this.readGrouponSessionChanges(requiredGrouponRpcString(input, "workspaceId"));
+    }
+    if (method === AGENT_MONITORS_RPC) {
+      const agentId = requiredGrouponRpcString(input, "agentId");
+      return { monitors: await this.readGrouponAgentMonitors(agentId) };
     }
     throw new Error(`Unknown Groupon Desk method: ${method}`);
+  }
+
+  /**
+   * The Monitor watches an agent has running; none for an agent this daemon has not loaded. The
+   * watches live in the agent's Claude Code process, a child of this daemon, so a watch started
+   * before this daemon process did is gone.
+   */
+  private async readGrouponAgentMonitors(agentId: string) {
+    if (!this.agentManager.getAgent(agentId)) return [];
+    const daemonStartedAt = new Date(Date.now() - process.uptime() * 1000);
+    return activeMonitorsOf(
+      await this.agentManager.getTimelineRows(agentId),
+      new Date(),
+      daemonStartedAt,
+    );
+  }
+
+  /** The edits of a workspace's sessions this daemon has loaded (a session not loaded keeps no timeline here). */
+  private async grouponSessionEdits(workspaceId: string): Promise<SessionEdit[]> {
+    const edits: SessionEdit[] = [];
+    for (const record of await this.agentStorage.listByWorkspace(workspaceId)) {
+      if (!this.agentManager.getAgent(record.id)) continue;
+      edits.push(...sessionEditsOf(await this.agentManager.getTimelineRows(record.id), record.cwd));
+    }
+    return edits;
+  }
+
+  /**
+   * A read of the workspace's files, or of a file a session of it edited in another repository:
+   * an absolute path outside the workspace is served from that repository's root when one of its
+   * sessions edited there, and refused as before otherwise. Only reads (list, file) come here.
+   */
+  private async handleGrouponFileExplorerRequest(
+    msg: Extract<SessionInboundMessage, { type: "file_explorer_request" }>,
+    source?: object,
+  ): Promise<void> {
+    const requested = msg.path ?? ".";
+    const cwd = msg.cwd.trim();
+    const outside =
+      cwd !== "" &&
+      isAbsolute(requested) &&
+      (relative(cwd, requested).startsWith(`..${sep}`) || isAbsolute(relative(cwd, requested)));
+    if (!outside) return this.workspaceFilesSession.handleFileExplorerRequest(msg, source);
+    const workspace = (await this.workspaceRegistry.list()).find((record) => record.cwd === cwd);
+    const root = workspace
+      ? await sessionRootHolding(
+          await this.grouponSessionEdits(workspace.workspaceId),
+          requested,
+          (dir) => getWorktreeRoot(dir),
+        )
+      : null;
+    if (!root) return this.workspaceFilesSession.handleFileExplorerRequest(msg, source);
+    return this.workspaceFilesSession.handleFileExplorerRequest(
+      { ...msg, cwd: root, path: relative(root, requested) },
+      source,
+    );
+  }
+
+  /** What the workspace's sessions changed, per repository (`session-changes.ts`). */
+  private async readGrouponSessionChanges(workspaceId: string) {
+    const edits = await this.grouponSessionEdits(workspaceId);
+    return readSessionChanges(edits, {
+      worktreeRootOf: (dir) => getWorktreeRoot(dir),
+      nameOf: async (root) => basename(await getMainRepoRoot(root).catch(() => root)),
+      branchOf: (root) => getCurrentBranch(root),
+      headAt: resolveHeadAt,
+      diffSince: (root, baseCommit, paths) => getPathsDiffSince(root, { baseCommit, paths }),
+    });
   }
 
   /** A chat moves into another worktree of its repository once its turn ends (`chat-relocation.ts`). */
@@ -3313,7 +3390,7 @@ export class Session {
   ): Promise<void> | undefined {
     switch (msg.type) {
       case "file_explorer_request":
-        return this.workspaceFilesSession.handleFileExplorerRequest(msg, source);
+        return this.handleGrouponFileExplorerRequest(msg, source);
       case "fs.file.subscribe.request":
         return this.workspaceFilesSession.handleFileSubscribeRequest(msg, this.delivery);
       case "fs.file.unsubscribe.request":
@@ -9193,4 +9270,15 @@ function createHostSession(options: SessionOptions, session: Session): Connected
 
 function hostSource(options: SessionOptions): string {
   return options.sourceId ?? "owner";
+}
+
+/** Groupon Desk: one field of a plugin RPC's input, which crosses a process boundary unchecked. */
+function grouponRpcField(input: unknown, key: string): unknown {
+  return typeof input === "object" && input !== null ? Reflect.get(input, key) : null;
+}
+
+function requiredGrouponRpcString(input: unknown, key: string): string {
+  const value = grouponRpcField(input, key);
+  if (typeof value !== "string") throw new Error(`${key} is required`);
+  return value;
 }

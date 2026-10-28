@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a running turn shows TARS's blob and typed word (`groupon/whimsy-loader`). While it runs the time leads and no fork is offered.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a running turn shows TARS's blob and typed word (`groupon/whimsy-loader`). While it runs the time leads and no fork is offered; its row takes the agent output's width (groupon/stream-width.ts).
 import React, { memo, useCallback, useMemo, type ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -20,6 +20,7 @@ import type { TurnFooterHost } from "./layout";
 import { SyncedLoader } from "@/components/synced-loader";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { WhimsyLoader } from "@/groupon/whimsy-loader";
+import { useStreamRowWidthStyle } from "@/groupon/stream-width";
 
 const ThemedSyncedLoader = withUnistyles(SyncedLoader);
 const workingIndicatorColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
@@ -209,7 +210,11 @@ function CompletedTurnFooter({
 }
 
 function TurnFooterRow({ children }: { children: ReactNode }) {
-  const rowStyle = useMemo(() => [stylesheet.streamItemWrapper, stylesheet.turnFooterRow], []);
+  const widthStyle = useStreamRowWidthStyle();
+  const rowStyle = useMemo(
+    () => [stylesheet.streamItemWrapper, widthStyle, stylesheet.turnFooterRow],
+    [widthStyle],
+  );
   return <View style={rowStyle}>{children}</View>;
 }
 

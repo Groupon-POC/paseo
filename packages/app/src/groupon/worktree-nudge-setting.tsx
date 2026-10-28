@@ -1,5 +1,6 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the General settings switches for the worktree-scripts reminder and for Local on a shared branch. And for My tasks.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the General settings switches for the worktree-scripts reminder and for Local on a shared branch. And for My tasks, and for what Changes compares by default.
 
+import { useCallback } from "react";
 import { Text, View } from "react-native";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { Switch } from "@/components/ui/switch";
@@ -15,6 +16,14 @@ export function WorktreeNudgeSetting() {
   const setInPlace = useGrouponPreferences((state) => state.setLocalInPlaceOnTrunk);
   const showMyTasks = useGrouponPreferences((state) => state.showMyTasks ?? true);
   const setShowMyTasks = useGrouponPreferences((state) => state.setShowMyTasks);
+  const sessionByDefault = useGrouponPreferences(
+    (state) => state.changesDefaultComparison === "session",
+  );
+  const setDefaultComparison = useGrouponPreferences((state) => state.setChangesDefaultComparison);
+  const setSessionByDefault = useCallback(
+    (value: boolean) => setDefaultComparison(value ? "session" : "all"),
+    [setDefaultComparison],
+  );
   return (
     <SettingsSection title={GROUPON_PREFERENCES.section}>
       <View style={settingsStyles.card}>
@@ -62,6 +71,23 @@ export function WorktreeNudgeSetting() {
             onValueChange={setShowMyTasks}
             accessibilityLabel={GROUPON_PREFERENCES.showMyTasks}
             testID="groupon-show-my-tasks-switch"
+          />
+        </View>
+        <View
+          style={[settingsStyles.row, settingsStyles.rowBorder]}
+          testID="groupon-changes-session-default-row"
+        >
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>{GROUPON_PREFERENCES.changesSessionDefault}</Text>
+            <Text style={settingsStyles.rowHint}>
+              {GROUPON_PREFERENCES.changesSessionDefaultHint}
+            </Text>
+          </View>
+          <Switch
+            value={sessionByDefault}
+            onValueChange={setSessionByDefault}
+            accessibilityLabel={GROUPON_PREFERENCES.changesSessionDefault}
+            testID="groupon-changes-session-default-switch"
           />
         </View>
       </View>

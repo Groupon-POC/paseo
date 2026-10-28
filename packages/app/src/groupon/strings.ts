@@ -390,6 +390,9 @@ export const GROUPON_PREFERENCES = {
     "Off by default. A repository's .groupon/desk.toml is everyone's setup; turn this on to see the reminder card for a project that has none.",
   showMyTasks: "Show My tasks on New workspace",
   showMyTasksHint: "Your Jira tasks under the composer, each with Take to development.",
+  changesSessionDefault: "Changes show the session's edits",
+  changesSessionDefaultHint:
+    "Changes opens on what this chat's sessions changed, per repository, instead of all the branch's changes.",
   localInPlaceOnTrunk: "Keep Local in the checkout on a shared branch",
   localInPlaceOnTrunkHint:
     "Off by default: Local on staging, main or another shared branch becomes a worktree on a branch of its own. Turn this on to work in the checkout itself.",
@@ -719,4 +722,35 @@ export const GROUPON_CHAT_DISPLAY = {
   descriptions: "Title shell calls by what they do",
   descriptionsHint:
     "A shell call shows the description the agent wrote instead of the raw command, as Claude Code in VS Code does.",
+} as const;
+
+export const GROUPON_SESSION_CHANGES = {
+  /** The Changes views' comparison of what the workspace's sessions changed. */
+  label: "Session",
+  description: "What this workspace's sessions changed",
+  empty: "The session has not changed any files yet",
+} as const;
+
+export const GROUPON_DIFF_VIEWER = {
+  /** The button after a file's path in the diff viewer. */
+  openFile: "Open the whole file",
+  /** The diff tab's view mode, on the left of its toolbar: every changed file or the one picked in the panel. */
+  viewMode: "View mode",
+  allFiles: "All files",
+  selectedFile: "Selected file",
+  selectedFileOnly: "Selected file only",
+} as const;
+
+export const GROUPON_MONITORS = {
+  /** The pill above the composer that counts the agent's Monitor watches. */
+  one: "monitor",
+  many: "monitors",
+  tooltipTitle: "Watches this agent has running",
+  untilStopped: "until stopped",
+  minutesLeft: (minutes: number) => `${minutes} min left`,
+} as const;
+
+export const GROUPON_STREAM_WIDTH = {
+  /** The handles at the agent output's edges. */
+  handleLabel: "Drag to widen the agent's output; double-click for the default width",
 } as const;

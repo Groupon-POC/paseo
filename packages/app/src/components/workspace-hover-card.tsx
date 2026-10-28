@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): its count is what the sessions changed when the Changes compare the session.
 import {
   useCallback,
   useState,
@@ -20,6 +21,7 @@ import {
 import { getForgePresentation, normalizeForge } from "@/git/forge";
 import { ForgeBrandIcon } from "@/git/forge-icon";
 import type { Theme } from "@/styles/theme";
+import { useWorkspaceShownDiffStat } from "@/groupon/use-session-diff-stat";
 import { DiffStat } from "@/components/diff-stat";
 import { Pressable } from "react-native";
 import type { GestureResponderEvent } from "react-native";
@@ -87,6 +89,13 @@ function WorkspaceHoverCardContent({
   prHint: PrHint | null;
 }): ReactElement {
   const { t } = useTranslation();
+  // Groupon Desk: what the sessions changed, read while the card is open.
+  const diffStat = useWorkspaceShownDiffStat({
+    serverId: workspace.serverId,
+    workspaceId: workspace.workspaceId,
+    checkoutStat: workspace.diffStat,
+    active: true,
+  });
   return (
     <>
       <View style={styles.cardHeader}>
@@ -95,13 +104,10 @@ function WorkspaceHoverCardContent({
         </Text>
       </View>
       {prHint ? <PrBadge hint={prHint} style={styles.cardInfoRow} /> : null}
-      {workspace.diffStat ? (
+      {diffStat ? (
         <View style={styles.cardInfoRow}>
           <ThemedFileDiff size={12} uniProps={foregroundMutedColorMapping} />
-          <DiffStat
-            additions={workspace.diffStat.additions}
-            deletions={workspace.diffStat.deletions}
-          />
+          <DiffStat additions={diffStat.additions} deletions={diffStat.deletions} />
         </View>
       ) : null}
       <HostRow serverId={workspace.serverId} />

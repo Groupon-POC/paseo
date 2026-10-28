@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the session comparison, and a default the person may set to it.
 import { describe, expect, it } from "vitest";
 import {
   resolveWorkingDiffComparisonFromState,
@@ -30,7 +31,14 @@ describe("working diff comparison", () => {
     expect(resolveWorkingDiffComparisonFromState(emptyState(), status)).toBe("all");
   });
 
-  it.each(["all", "base", "uncommitted"] as const)(
+  // Groupon Desk: a person who made the session comparison their default gets it.
+  it("defaults to the person's own default when they set one", () => {
+    expect(resolveWorkingDiffComparisonFromState(emptyState(), checkout, "session")).toBe(
+      "session",
+    );
+  });
+
+  it.each(["session", "all", "base", "uncommitted"] as const)(
     "keeps the selected %s comparison",
     (comparison) => {
       const selected = selectWorkingDiffComparisonInState(emptyState(), {

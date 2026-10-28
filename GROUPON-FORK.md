@@ -695,3 +695,75 @@ Claude Code session, resumed from the new folder. It waits for the turn because 
 from inside that turn (the door's `desk_move`), and a reload then would cut it. Another
 repository's work is never a move: the door's `desk_start` hands it to a new chat with the
 conversation. The test is `packages/server/src/groupon/chat-relocation.test.ts`.
+
+## Changes shows what the session changed
+
+Paseo's Changes views compare a checkout: its uncommitted work, or its branch against a base. A
+Desk chat's work is often elsewhere (another repository it edited, a worktree it made), and a
+checkout's diff carries what other people and other chats changed there too. So the Changes
+views (the panel, the diff tab, the composer's pill and the sidebar's hover card) can compare the
+session: the comparison menu's first item, "Session", beside Uncommitted, Branch and All
+(`packages/app/src/git/working-diff-comparison/state.ts`). All changes stays the default, as in
+Paseo; Settings, "Changes show the session's edits", makes Session the default on this device
+(`changesDefaultComparison`, `groupon/preferences.ts`).
+
+The Groupon Desk plugin's `groupon-desk.session.changes` (`{ workspaceId }`,
+`packages/server/src/groupon/session-changes.ts`) reads the files the workspace's loaded chats
+edited or wrote (their timelines' finished edit and write tool calls), groups them by git
+repository, and diffs each repository's files from where its HEAD was at the session's first edit
+there (`resolveHeadAt` and `getPathsDiffSince`, `packages/server/src/utils/checkout-git.ts`), so a
+commit the session made still shows. The window reads it every four seconds while a view shows it
+(`packages/app/src/groupon/use-session-changes.ts`); with more than one repository each path sits
+under its repository's name, two worktrees of one repository told apart by branch
+(`session-changes-model.ts`). The branch switcher became the branch's name: a session's work is
+not switched from the Changes toolbar.
+
+A file a session edited in another repository opens from the chat and from Changes by its
+absolute path: the daemon's file explorer serves a path outside the workspace only when it lies
+in a repository the workspace's sessions edited, and reads only (`handleGrouponFileExplorerRequest`,
+`packages/server/src/server/session.ts`).
+
+## The diff viewer: every file or the selected one, and the tree follows the scroll
+
+The diff tab's toolbar says its view mode on the left ("View mode: All files" or "Selected file"),
+a menu between every changed file and only the one picked in the panel's tree, kept on this device (`diffSelectedFileOnly`, `packages/app/src/groupon/preferences.ts`). The
+panel's tree and the diff viewer agree on one file per workspace
+(`packages/app/src/groupon/diff-file-focus.ts`): a row picked in the tree, or the file the viewer
+scrolls to the top, which the tree then marks. Each file's header stands apart from the code
+under it (its own surface, a line above it, the name heavier than its folder,
+`git/diff-document/paint.web.ts` and `palette.ts`), and a button right after its path opens the
+whole file in a tab (`WebFileOpenButton`, `git/diff-document/surface.web.tsx`). The browser test is
+`packages/app/src/git/diff-document/surface.web.browser.test.tsx`.
+
+## The agent's Monitor watches, beside Share
+
+Claude Code's Monitor tool starts a background watch that wakes the agent on each line of a
+command's output; nothing in Paseo showed one was running. A pill above the composer, on the row
+with Share and the subagents, counts them ("2 monitors"), and its tooltip names each with the time
+it has left (`packages/app/src/groupon/agent-monitors.tsx`). The daemon reads them from the agent's
+whole timeline (`groupon-desk.agent.monitors`, `packages/server/src/groupon/agent-monitors.ts`): a
+completed Monitor call that names its task, until a TaskStop of it, a notification of it with an
+end status, its timeout, or a daemon restart (the watch lived in the agent's Claude Code process,
+a child of the daemon). The window reads them every 15 seconds and at once when the chat shows a
+new Monitor, TaskStop or task notification.
+
+## The agent output's width, dragged at its edges
+
+Two pale handles sit just outside the agent output's edges, centred in the pane
+(`packages/app/src/groupon/stream-width-handles.web.tsx`). Dragging one moves both edges and
+draws only two guide lines; the chat list does not change until the handle is let go, when the
+width is kept as a share of the pane, one for every chat on this device (`streamWidthShare`,
+`groupon/preferences.ts`). A double click returns to the content width, Escape cancels a drag.
+Each chat turns the share into pixels for its own pane, in 16px steps, never below the content
+width nor past the pane less a tenth on each side, and reads a resized pane again only once it
+rests (`groupon/stream-width.ts`, `groupon/use-stream-width.ts`). The pixels reach the rows
+through React (`StreamWidthProvider`, the strategy's `contentMaxWidth`), and the web list forgets
+the row heights it measured at another width (`agent-stream/strategy-web.tsx`); the composer keeps
+the content width.
+
+The first version, reverted in 8ef9ade58, changed the rows' width through a CSS variable the
+list's virtualizer never heard about: rows overlapped, a running chat scrolled without end, and
+React stopped with "Maximum update depth exceeded" (#185). The browser test
+`groupon/stream-width.browser.test.tsx` widens a 240-row virtualized chat while it streams and the
+reader scrolls up into it, and checks that no rows overlap, the list stops moving when the stream
+stops, and no update loop is reported.

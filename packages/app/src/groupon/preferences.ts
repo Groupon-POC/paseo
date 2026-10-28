@@ -5,7 +5,7 @@
  * set up worktree scripts for a project without a repository file (off by default: the owner
  * wants no such card for anyone unless they ask for it, 2026-10-19), and where From GitHub opens:
  * the GitHub host last switched to, and on each host the organisation and team last picked; and
- * the repository the Standards page read last; and the repository New workspace was last on; and whether the add-to-home-screen card was dismissed.
+ * the repository the Standards page read last; and the repository New workspace was last on; whether the add-to-home-screen card was dismissed; and whether the sidebar's computers and limits are folded to two lines.
  */
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -34,6 +34,8 @@ const GrouponPreferencesSchema = z.object({
   lastRepositoryId: z.string().nullable().optional(),
   /** "Not now" on the add-to-home-screen card (`install-card.tsx`), kept on this device. */
   installCardDismissed: z.boolean().optional(),
+  /** The sidebar's Connected computers and limits folded to two lines (owner, 2026-10-28). */
+  footerPanelCollapsed: z.boolean().optional(),
 });
 
 type GrouponPreferences = z.infer<typeof GrouponPreferencesSchema>;
@@ -45,6 +47,7 @@ interface GrouponPreferencesState extends GrouponPreferences {
   rememberStandardsPlace: (serverId: string, repoRoot: string) => void;
   rememberRepository: (repositoryId: string) => void;
   dismissInstallCard: () => void;
+  setFooterPanelCollapsed: (value: boolean) => void;
 }
 
 export const DEFAULT_GROUPON_PREFERENCES: GrouponPreferences = { remindWorktreeScripts: false };
@@ -63,6 +66,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
         set({ standardsPlace: { serverId, repoRoot } }),
       rememberRepository: (repositoryId) => set({ lastRepositoryId: repositoryId }),
       dismissInstallCard: () => set({ installCardDismissed: true }),
+      setFooterPanelCollapsed: (value) => set({ footerPanelCollapsed: value }),
     }),
     {
       name: "groupon-desk-preferences",
@@ -76,6 +80,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
         standardsPlace: state.standardsPlace ?? null,
         lastRepositoryId: state.lastRepositoryId ?? null,
         installCardDismissed: state.installCardDismissed ?? false,
+        footerPanelCollapsed: state.footerPanelCollapsed ?? false,
       }),
       version: 1,
     },

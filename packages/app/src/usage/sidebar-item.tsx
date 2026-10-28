@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one row per account in the sidebar's usage summary, a greyed row with a tooltip for an account that reports no usage.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one row per account in the sidebar's usage summary, a greyed row with a tooltip for an account that reports no usage; folded with Connected computers, one line of each account's fullest limit that unfolds them.
 import {
   createContext,
   Fragment,
@@ -33,6 +33,8 @@ import {
   type PinnedUsageSource,
 } from "./pinned";
 import { UsageModal } from "./usage-modal";
+import { useGrouponPreferences } from "@/groupon/preferences";
+import { foldedUsageLine } from "@/groupon/sidebar-fold-model";
 
 /** Each summary window with data on the usage host, under its source; empty while none has. */
 function useUsageSummary(): readonly PinnedUsageSource[] {
@@ -57,8 +59,41 @@ export function UsageSidebarItem() {
   const label = t(builtinSidebarNavLabelKey("usage"));
   const openUsage = useOpenSidebarUsage();
   const sources = useUsageSummary();
+  const folded = useGrouponPreferences((state) => state.footerPanelCollapsed === true);
+  const setFolded = useGrouponPreferences((state) => state.setFooterPanelCollapsed);
+  const unfold = useCallback(() => setFolded(false), [setFolded]);
   if (sources.length === 0) return null;
+  if (folded) return <FoldedUsageLine label={label} sources={sources} onPress={unfold} />;
   return <PinnedUsageTrigger label={label} sources={sources} onPress={openUsage} />;
+}
+
+/** Folded with Connected computers: one line of each account's fullest limit; pressing it unfolds both. */
+function FoldedUsageLine({
+  label,
+  sources,
+  onPress,
+}: {
+  label: string;
+  sources: readonly PinnedUsageSource[];
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={foldedLineStyle}
+      testID="sidebar-usage-folded"
+    >
+      <Text style={styles.foldedLine} numberOfLines={1}>
+        {foldedUsageLine(sources)}
+      </Text>
+    </Pressable>
+  );
+}
+
+function foldedLineStyle({ hovered }: PressableStateCallbackType & { hovered?: boolean }) {
+  return hovered ? [styles.foldedRow, styles.foldedRowHovered] : styles.foldedRow;
 }
 
 const OpenSidebarUsageContext = createContext<(() => void) | null>(null);
@@ -283,6 +318,21 @@ function PinnedUsageLine({
 const styles = StyleSheet.create((theme) => ({
   rows: {
     width: "100%",
+  },
+  foldedRow: {
+    width: "100%",
+    minHeight: 24,
+    justifyContent: "center",
+    paddingVertical: theme.spacing[0.5],
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.lg,
+  },
+  foldedRowHovered: {
+    backgroundColor: theme.colors.surfaceSidebarHover,
+  },
+  foldedLine: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
   },
   trigger: {
     width: "100%",

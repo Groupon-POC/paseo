@@ -18,6 +18,11 @@
  *   it uses Codex) carries small amber labels ("gh missing") and, on expanding, one sentence on how
  *   to install it (`missing-tools-model.ts`)
  *
+ * - the heading folds this section and the limits below it to two lines (owner, 2026-10-28):
+ *   "Connected computers · 3 online", then one line of the accounts' fullest limits
+ *   (`UsageSidebarItem`'s folded line); pressing either unfolds them, and the choice is kept on
+ *   this device (`useGrouponPreferences().footerPanelCollapsed`)
+ *
  * Constraints:
  * - Nothing at all while the person is signed out or the hub knows no Mac of theirs
  */
@@ -42,6 +47,8 @@ import { useHubMachinesStore, useOnlineServerIds } from "./hub-sync";
 import { recordSamples } from "./machine-load-model";
 import { MissingToolLabels } from "./missing-tool-labels";
 import { useGrouponStore } from "./session";
+import { useGrouponPreferences } from "./preferences";
+import { onlineCounts } from "./sidebar-fold-model";
 import { GROUPON_COMPUTERS } from "./strings";
 
 const ThemedChevronDown = withUnistyles(ChevronDown);
@@ -52,6 +59,9 @@ const NO_HISTORY: readonly HubMachineLoad[] = [];
 const COLLAPSED = { expanded: false } as const;
 
 export function ConnectedComputersSidebarSection() {
+  const folded = useGrouponPreferences((state) => state.footerPanelCollapsed === true);
+  const setFolded = useGrouponPreferences((state) => state.setFooterPanelCollapsed);
+  const toggleFolded = useCallback(() => setFolded(!folded), [folded, setFolded]);
   const ready = useGrouponStore((state) => state.status === "ready");
   const visible = useAppVisible();
   const views = useHubMachinesStore((state) => state.machines);
@@ -91,7 +101,7 @@ export function ConnectedComputersSidebarSection() {
     });
   }, [views, online, now, freshLoads, codexServerIds]);
 
-  const anyOpen = expanded.size > 0;
+  const anyOpen = !folded && expanded.size > 0;
   useEffect(() => {
     if (!ready || !visible) return;
     let cancelled = false;
@@ -126,18 +136,59 @@ export function ConnectedComputersSidebarSection() {
   if (!ready || rows.length === 0) return null;
   return (
     <View style={styles.section} testID="sidebar-connected-computers">
-      <Text style={styles.heading}>{GROUPON_COMPUTERS.heading}</Text>
-      {rows.map((row) => (
-        <ComputerRow
-          key={row.id}
-          row={row}
-          open={expanded.has(row.id)}
-          history={histories.get(row.id) ?? NO_HISTORY}
-          onToggle={toggle}
-        />
-      ))}
+      <FoldHeading folded={folded} rows={rows} onPress={toggleFolded} />
+      {folded
+        ? null
+        : rows.map((row) => (
+            <ComputerRow
+              key={row.id}
+              row={row}
+              open={expanded.has(row.id)}
+              history={histories.get(row.id) ?? NO_HISTORY}
+              onToggle={toggle}
+            />
+          ))}
     </View>
   );
+}
+
+/** The heading, which folds the section and the limits below it; folded, it counts the Macs online. */
+function FoldHeading({
+  folded,
+  rows,
+  onPress,
+}: {
+  folded: boolean;
+  rows: readonly ConnectedComputerRow[];
+  onPress: () => void;
+}) {
+  const { online, offline } = onlineCounts(rows);
+  const Chevron = folded ? ThemedChevronRight : ThemedChevronDown;
+  return (
+    <PressHighlight
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={folded ? COLLAPSED : EXPANDED}
+      accessibilityLabel={folded ? GROUPON_COMPUTERS.unfoldPanel : GROUPON_COMPUTERS.foldPanel}
+      style={headingStyle}
+      testID="sidebar-computers-fold"
+    >
+      <Text style={styles.heading} numberOfLines={1}>
+        {GROUPON_COMPUTERS.heading}
+      </Text>
+      {folded ? (
+        <Text style={styles.headingCount} numberOfLines={1} testID="sidebar-computers-count">
+          {GROUPON_COMPUTERS.onlineCount(online, offline)}
+        </Text>
+      ) : null}
+      <View style={styles.spacer} />
+      <Chevron size={12} uniProps={mutedColor} />
+    </PressHighlight>
+  );
+}
+
+function headingStyle({ hovered }: PressableStateCallbackType & { hovered?: boolean }) {
+  return hovered ? [styles.headingRow, styles.rowHovered] : styles.headingRow;
 }
 
 function ComputerRow({
@@ -247,12 +298,27 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[2],
     paddingBottom: theme.spacing[1.5],
   },
+  headingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
+    minHeight: 24,
+    marginTop: theme.spacing[1],
+    paddingVertical: theme.spacing[0.5],
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.lg,
+  },
   heading: {
+    flexShrink: 0,
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
     fontWeight: theme.fontWeight.medium,
-    paddingHorizontal: theme.spacing[2],
-    paddingTop: theme.spacing[2],
+  },
+  headingCount: {
+    flexShrink: 1,
+    minWidth: 0,
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
   },
   row: {
     flexDirection: "row",

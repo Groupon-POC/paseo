@@ -581,6 +581,11 @@ The idea and the look come from host-monitor in
 speed in four characters. No code was copied; the fork's components, its sampler (in the hand,
 monorepo `packages/groupon-cli/src/hand/machine-load.ts`) and its wording are its own.
 
+The heading folds the section and the limits below it to two lines (owner, 2026-10-28):
+"Connected computers · 3 online", then one line naming each account with its fullest limit
+("zaruba 90% · info3 85%"). Pressing either line unfolds both; the choice is kept on the device
+(`footerPanelCollapsed` in `groupon/preferences.ts`; the lines in `groupon/sidebar-fold-model.ts`).
+
 ## Improve this repository
 
 The owner's word of 2026-10-20: "a solution for 'How to improve my repository', where a prompt

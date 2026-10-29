@@ -1,4 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "New chat" leads the sidebar header rows, set off by a line, unless the person hid it in Settings > Sidebar.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "New chat" leads the sidebar header rows, set off by a line, unless the person hid it in Settings > Sidebar; New workspace never opens on a project-less chat's "No project".
+import { isChatsProjectRoot } from "@/groupon/project-less-chats";
 import { router, usePathname } from "expo-router";
 import { CalendarClock, History, Plus, Search } from "lucide-react-native";
 import { memo, useCallback, useMemo, useRef, type ComponentType, type ReactNode } from "react";
@@ -96,8 +97,10 @@ const SidebarNewWorkspaceRow = memo(function SidebarNewWorkspaceRow({
     activeWorkspaceServerId,
     "workspaceMultiplicity",
   );
+  // Groupon Desk: a chat without a project lends New workspace no project: "No project" is New chat's.
   const canUseActiveWorkspaceContext = Boolean(
     activeWorkspace &&
+    !isChatsProjectRoot(activeWorkspace.projectRootPath) &&
     (supportsWorkspaceMultiplicity || canCreateWorktreeForProjectKind(activeWorkspace.projectKind)),
   );
 

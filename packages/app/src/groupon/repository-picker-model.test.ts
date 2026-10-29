@@ -214,6 +214,36 @@ describe("repositoryEntries", () => {
 });
 
 describe("preselectedRepositoryId", () => {
+  it('never opens New workspace on New chat\'s "No project" unless the route names it', () => {
+    const chats = project("No project", null, [
+      { serverId: "srv_mini", projectId: "p_chats", path: "/Users/t/.groupon/paseo/chats" },
+    ]);
+    const entries = repositoryEntries({
+      projects: [MONOREPO, chats],
+      hubRepositories: HUB_REPOSITORIES,
+      hubCheckouts: HUB_CHECKOUTS,
+      macs: MACS,
+    });
+    const chatsId = `folder:${chats.viewKey}`;
+
+    expect(
+      preselectedRepositoryId({
+        entries,
+        routeProject: null,
+        lastActiveProject: chats,
+        lastRepositoryId: chatsId,
+      }),
+    ).toBeNull();
+    expect(
+      preselectedRepositoryId({
+        entries,
+        routeProject: chats,
+        lastActiveProject: null,
+        lastRepositoryId: null,
+      }),
+    ).toBe(chatsId);
+  });
+
   it("opens on the repository of the group New workspace was pressed in", () => {
     const routeProject = project("monorepo-development", null, [
       { serverId: "srv_mini", projectId: "p_mono_mini", path: "/x" },

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace a relaunch reopened that is gone leaves for the home page (useLeaveGoneRestoredWorkspace); the computer notice sits inset and closes with its X (WorkspaceComputerNotice). Back and forward through the tabs it showed (useWorkspaceTabHistory).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace a relaunch reopened that is gone leaves for the home page (useLeaveGoneRestoredWorkspace); the computer notice sits inset, closes with its X and says in plain words that the computer is not connected (WorkspaceComputerNotice). Back and forward through the tabs it showed (useWorkspaceTabHistory).
 import { useWorkspaceTabHistory } from "@/groupon/use-workspace-tab-history";
 import { useHostFeature } from "@/runtime/host-features";
 import {
@@ -17,6 +17,9 @@ import {
   useComposerTabFullscreen,
 } from "@/composer/editing-session";
 import { Alert } from "@/components/ui/alert";
+import { computerNameOf } from "@/groupon/your-macs-model";
+import { useHubMachinesStore } from "@/groupon/hub-sync";
+import { GROUPON_COMPUTER_NOTICE } from "@/groupon/strings";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { SheetHostScope } from "@/components/ui/isolated-bottom-sheet-modal";
 import type { JsonValue } from "@getpaseo/protocol/agent-types";
@@ -762,11 +765,14 @@ function WorkspaceComputerNotice({
   const hosts = useHosts();
   const connected = useHostRuntimeIsConnected(serverId);
   const host = hosts.find((entry) => entry.serverId === serverId);
-  const name = getHostDisplayName(host ?? null, serverId);
+  const hubViews = useHubMachinesStore((state) => state.machines);
+  const name = computerNameOf(hubViews, serverId) ?? getHostDisplayName(host ?? null, serverId);
   const [dismissedKey, setDismissedKey] = useState<string | null>(null);
   const shown = !connected || Boolean(error);
-  const title = connected ? `Terminal on ${name}` : `Waiting for ${name}`;
-  const description = `${directory ?? "This workspace"} · ${error ?? "Terminal and agents run on this computer. Open Groupon Desk on it and keep it awake, or choose an online computer in New workspace."}`;
+  const title = connected ? `Terminal on ${name}` : GROUPON_COMPUTER_NOTICE.title(name);
+  const description = connected
+    ? `${directory ?? "This workspace"} · ${error ?? ""}`
+    : GROUPON_COMPUTER_NOTICE.description(name);
   const noticeKey = `${serverId}\n${title}\n${description}`;
   useEffect(() => {
     // Back online: the next time the computer goes away, the notice shows again.

@@ -18,10 +18,9 @@
  *   it uses Codex) carries small amber labels ("gh missing") and, on expanding, one sentence on how
  *   to install it (`missing-tools-model.ts`)
  *
- * - the heading folds this section and the limits below it to two lines (owner, 2026-10-28):
- *   "Connected computers · 3 online", then one line of the accounts' fullest limits
- *   (`UsageSidebarItem`'s folded line); pressing either unfolds them, and the choice is kept on
- *   this device (`useGrouponPreferences().footerPanelCollapsed`)
+ * - the heading folds this section to one line, "Connected computers · 3 online" (owner,
+ *   2026-10-28); the subscriptions below fold on their own (owner, 2026-10-29), and each choice is
+ *   kept on this device (`useGrouponPreferences().footerPanelCollapsed`)
  *
  * Constraints:
  * - Nothing at all while the person is signed out or the hub knows no Mac of theirs

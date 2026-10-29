@@ -200,3 +200,8 @@ export function updatedAt(lastSyncAt: string | null): string | null {
   const hhmm = `${String(at.getHours()).padStart(2, "0")}:${String(at.getMinutes()).padStart(2, "0")}`;
   return GROUPON_YOUR_MACS.updated(hhmm);
 }
+
+/** The name the person gave the Mac whose daemon is `serverId` (its hub label); null for a daemon the hub does not know. */
+export function computerNameOf(views: readonly HubMachineView[], serverId: string): string | null {
+  return uniqueMacViews(views).find((view) => view.serverId === serverId)?.label ?? null;
+}

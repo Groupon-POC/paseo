@@ -679,12 +679,36 @@ export const GROUPON_COMPUTERS = {
   noLoad: "Online; no CPU and RAM reading yet (an older hand sends none: groupon update).",
   expand: (name: string) => `Show the load of ${name}`,
   collapse: (name: string) => `Hide the load of ${name}`,
-  /** The heading folds the computers and the limits to two lines, and unfolds them (owner, 2026-10-28). */
-  foldPanel: "Fold the computers and limits to two lines",
-  unfoldPanel: "Show the computers and limits",
+  /** The heading folds the computers to one line, and unfolds them (owner, 2026-10-28). */
+  foldPanel: "Fold the computers to one line",
+  unfoldPanel: "Show the computers",
   /** The folded first line: "3 online", "2 online, 1 offline". */
   onlineCount: (online: number, offline: number) =>
     offline > 0 ? `${online} online, ${offline} offline` : `${online} online`,
+} as const;
+
+/**
+ * A workspace whose computer is not connected (owner, 2026-10-29: "say the computer is not
+ * connected to the server", not a host name and a folder path).
+ */
+export const GROUPON_COMPUTER_NOTICE = {
+  title: (name: string) => `${name} is not connected`,
+  description: (name: string) =>
+    `This workspace runs on ${name}, which is not connected to Groupon Desk right now: it may be asleep, offline, or Groupon Desk is not running on it. It reconnects by itself; to keep working now, start a new workspace on a connected computer.`,
+} as const;
+
+/** The sidebar's subscriptions, folded on their own (owner, 2026-10-29). */
+export const GROUPON_USAGE_FOLD = {
+  heading: "Subscriptions",
+  fold: "Fold the subscriptions to one line",
+  unfold: "Show every subscription",
+} as const;
+
+/** The sidebar's update row, above Connected computers (owner, 2026-10-29). */
+export const GROUPON_DESK_UPDATE = {
+  available: (what: string) => `Update available: ${what}`,
+  action: "Download and update",
+  starting: "Updating: Groupon Desk restarts when the new version is in place.",
 } as const;
 
 /** The tools a Mac's hand looks for (the hub's `missingTools`), and what the window says when one is not found. */

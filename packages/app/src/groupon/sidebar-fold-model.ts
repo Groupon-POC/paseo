@@ -2,8 +2,8 @@
 
 /**
  * What the sidebar's Connected computers and limits say when folded to two lines (owner,
- * 2026-10-28): the first line counts the Macs online and offline, the second names each account
- * with its fullest limit ("info3 85%"), the one that runs out first.
+ * 2026-10-28): the computers' line counts the Macs online and offline; the subscriptions' line names
+ * each account with its fullest limit ("info3 85%"), the one that runs out first.
  */
 
 import type { PinnedUsageSource } from "@/usage/pinned";
@@ -16,13 +16,13 @@ export function onlineCounts(rows: readonly { online: boolean }[]): {
   return { online, offline: rows.length - online };
 }
 
-/** "zarubto 62% · zaruba 90% · info 100%": accounts that report nothing are left out. */
+/** "zarubto 62% · zaruba 90% · c_tzaruba –": every account, its fullest limit, a dash for one that reports none. */
 export function foldedUsageLine(sources: readonly PinnedUsageSource[]): string {
   return sources
-    .filter((source) => !source.muted && source.windows.length > 0)
     .map((source) => {
-      const fullest = Math.max(...source.windows.map((window) => window.percent));
-      return `${source.name ?? "account"} ${Math.round(fullest)}%`;
+      const name = source.name ?? "account";
+      if (source.muted || source.windows.length === 0) return `${name} –`;
+      return `${name} ${Math.round(Math.max(...source.windows.map((window) => window.percent)))}%`;
     })
     .join(" · ");
 }

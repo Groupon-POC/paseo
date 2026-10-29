@@ -27,13 +27,13 @@ describe("the folded sidebar", () => {
     });
   });
 
-  it("names each account with its fullest limit and leaves out one that reports nothing", () => {
+  it("names every account with its fullest limit, a dash for one that reports nothing", () => {
     const line = foldedUsageLine([
       source("zaruba", [90, 49, 41]),
       source("info3", [0, 85.4]),
       source("c_tzaruba", [], true),
     ]);
 
-    expect(line).toBe("zaruba 90% · info3 85%");
+    expect(line).toBe("zaruba 90% · info3 85% · c_tzaruba –");
   });
 });

@@ -1,5 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the checks list grows with its block; the pane's checks block scrolls (`groupon/pr-pane-split.tsx`), so the list no longer scrolls inside a fixed 268 px.
 import { useCallback, useMemo } from "react";
-import { Pressable, ScrollView, Text, View, type GestureResponderEvent } from "react-native";
+import { Pressable, Text, View, type GestureResponderEvent } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, MessageSquarePlus } from "lucide-react-native";
@@ -22,7 +23,6 @@ const ThemedChevronRight = withUnistyles(ChevronRight);
  * Roughly eight rows. A repo with thirty checks would otherwise push the activity
  * timeline off the pane entirely, so past this height the list scrolls in place.
  */
-const LIST_MAX_HEIGHT = 268;
 
 /**
  * The three statuses the pane has always labelled for tests. Skipped has no id because
@@ -112,11 +112,7 @@ export function ChecksSection({
       </Pressable>
 
       {open && summary.groups.length > 0 ? (
-        <ScrollView
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          nestedScrollEnabled
-        >
+        <View style={styles.listContent}>
           {summary.groups.map((group) => (
             <CheckGroup
               key={group.status}
@@ -128,7 +124,7 @@ export function ChecksSection({
               onAddLogsToChat={onAddLogsToChat}
             />
           ))}
-        </ScrollView>
+        </View>
       ) : null}
     </View>
   );
@@ -261,9 +257,6 @@ const styles = StyleSheet.create((theme) => ({
   detail: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.foregroundMuted,
-  },
-  list: {
-    maxHeight: LIST_MAX_HEIGHT,
   },
   listContent: {
     paddingBottom: theme.spacing[2],

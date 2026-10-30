@@ -1007,3 +1007,5 @@ scrolling on its own (`packages/app/src/groupon/pr-pane-split.tsx`, wired in
 take the rest, and with both open Paseo's `ResizeHandle` between them sets the checks' height.
 Until the handle is dragged the checks are as tall as their content, at most half the pane; the
 dragged share is kept on the device (`groupon-desk-pr-pane-split`), each block keeping a tenth.
+The checks list itself no longer scrolls inside a fixed 268 px (`checks-section.tsx`): the block
+scrolls, so a taller block shows more checks.

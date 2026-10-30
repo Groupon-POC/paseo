@@ -308,6 +308,14 @@ name>` until its first message renames it to `<login>/<slug of that message>`. S
   named `feat/x` or `feature/x` is renamed by Paseo's generated name (`workspace-auto-title-flow`),
   never to `feat/<slug of the prompt>` (the fork's rule once read any prefix as an owner; measured
   on 2026-10-21 by three failing `create_agent` tests in `mcp-server.test.ts`).
+- **A base given by a bare name is origin's branch, never the local copy.** The trunk a worktree
+  is cut from above, the repository's default branch and a hub execution's `base` arrive as a bare
+  name (`staging`); `utils/worktree.ts`'s `resolveBaseBranchForWorktree` takes
+  `refs/remotes/origin/<name>` before `refs/heads/<name>`, and the creation fetches that one ref
+  first (15 s cap, the cached ref when the remote does not answer). An exact ref the branch picker
+  sends (`refs/heads/main`, the "(local)" row) is still taken as asked. Measured on 2026-10-30: a
+  New workspace in groupon-monorepo was cut from a local `staging` 7,208 commits behind origin, and
+  its setup failed at once (`pnpm checkout:prepare`: the script did not exist yet at that commit).
 
 A pull request from a `<login>/<slug>` branch is renamed through `groupon ticket name` before it
 opens: the company's branch standard is `<tribe>/<INITIATIVE-KEY>/<TICKET-KEY>-<slug>`, and the

@@ -382,6 +382,37 @@ describe("paseo worktree manager", () => {
       expect(git(["config", "--get-all", "remote.origin.fetch"], repoDir)).toBe(fetchRefspecs);
     });
 
+    it("branches a bare base name off origin's tip, not a stale local branch", async () => {
+      const remoteTip = pushPastCachedRemoteRef("origin");
+      const staleLocal = git(["rev-parse", "refs/heads/main"], repoDir);
+
+      const created = await createLegacyWorktreeForTest({
+        branchName: "from-bare-name",
+        cwd: repoDir,
+        baseBranch: "main",
+        worktreeSlug: "from-bare-name",
+        paseoHome,
+      });
+
+      expect(staleLocal).not.toBe(remoteTip);
+      expect(git(["rev-parse", "HEAD"], created.worktreePath)).toBe(remoteTip);
+    });
+
+    it("keeps an exact local base ref even when origin is ahead", async () => {
+      pushPastCachedRemoteRef("origin");
+      const localTip = git(["rev-parse", "refs/heads/main"], repoDir);
+
+      const created = await createLegacyWorktreeForTest({
+        branchName: "from-local-ref",
+        cwd: repoDir,
+        baseBranch: "refs/heads/main",
+        worktreeSlug: "from-local-ref",
+        paseoHome,
+      });
+
+      expect(git(["rev-parse", "HEAD"], created.worktreePath)).toBe(localTip);
+    });
+
     it("refreshes a base on a remote other than origin", async () => {
       const remoteTip = pushPastCachedRemoteRef("team/upstream");
 

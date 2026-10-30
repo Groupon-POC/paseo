@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the project config is read from .groupon/desk.toml, never paseo.json; `git worktree add` checks files out in parallel (`checkout.workers=0`) and reports its step to a running creation.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the project config is read from .groupon/desk.toml, never paseo.json; `git worktree add` checks files out in parallel (`checkout.workers=0`) and reports its step to a running creation; a bare base name branches off origin's ref, never a stale local copy.
 import { reportCreationStep } from "../groupon/creation-steps.js";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -1696,13 +1696,14 @@ async function resolveBaseBranchForWorktree(
     }
   }
 
-  const candidates = [`refs/heads/${requested}`, `refs/remotes/origin/${requested}`, requested];
+  // A bare name takes origin's ref, refreshed before the cut, since the local copy may be weeks behind.
+  const candidates = [`refs/remotes/origin/${requested}`, `refs/heads/${requested}`, requested];
   for (const candidate of candidates) {
     try {
       await runGitCommand(["rev-parse", "--verify", candidate], { cwd });
       return candidate;
     } catch {
-      // Try the next unambiguous local, remote, or legacy ref candidate.
+      // Try the next unambiguous remote, local, or legacy ref candidate.
     }
   }
   throw new Error(`Base branch not found: ${normalized}`);

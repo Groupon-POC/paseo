@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): an agent's commits and pushes as nodes on a rail in the chat, instead of a shell row with the command as text.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): an agent's commits and pushes as nodes on a rail in the chat, instead of a shell row with the command as text; each node opens on its own details.
 
 import type { ToolCallDetail } from "@getpaseo/protocol/agent-types";
 import { ArrowUp, ChevronDown, ChevronRight } from "lucide-react-native";
@@ -10,7 +10,8 @@ import { PressHighlight } from "@/components/ui/press-highlight";
 import { formatDiffCount } from "@/git/file-header-presentation";
 import { useWorkspacePrHint } from "@/git/use-pr-status-query";
 import type { Theme } from "@/styles/theme";
-import { GitEventDetailsList } from "./git-event-details";
+import { useResolvedGitEvents } from "./background-git-events";
+import { GitEventDetails } from "./git-event-details";
 import type { GitCommitEvent, GitEvent, GitPushEvent } from "./git-events-model";
 import { GROUPON_GIT_TIMELINE } from "./strings";
 
@@ -21,7 +22,7 @@ const mutedColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 const onAccentColor = (theme: Theme) => ({ color: theme.colors.surface0 });
 
 export function GitTimeline({
-  events,
+  events: callEvents,
   detail,
   serverId,
   cwd,
@@ -31,38 +32,71 @@ export function GitTimeline({
   serverId: string;
   cwd: string;
 }): ReactElement {
+  const { events, output } = useResolvedGitEvents({ events: callEvents, detail, serverId });
+  return (
+    <View style={styles.rail} testID="git-timeline">
+      <View style={styles.line} />
+      {events.map((event, index) => (
+        <GitRow
+          // oxlint-disable-next-line react/no-array-index-key -- a call's events never reorder
+          key={index}
+          event={event}
+          detail={detail}
+          output={output}
+          serverId={serverId}
+          cwd={cwd}
+        />
+      ))}
+    </View>
+  );
+}
+
+function GitRow({
+  event,
+  detail,
+  output,
+  serverId,
+  cwd,
+}: {
+  event: GitEvent;
+  detail: ToolCallDetail;
+  output: string;
+  serverId: string;
+  cwd: string;
+}): ReactElement {
   const [open, setOpen] = useState(false);
   const toggle = useCallback(() => setOpen((value) => !value), []);
   const accessibilityState = useMemo(() => ({ expanded: open }), [open]);
   const Chevron = open ? ThemedChevronDown : ThemedChevronRight;
   return (
-    <View style={styles.rail} testID="git-timeline">
-      <View style={styles.line} />
-      {events.map((event, index) => (
-        <PressHighlight
-          // oxlint-disable-next-line react/no-array-index-key -- a call's events never reorder
-          key={index}
-          onPress={toggle}
-          style={rowStyle}
-          accessibilityRole="button"
-          accessibilityState={accessibilityState}
-          testID={`git-timeline-${event.kind}`}
-        >
-          <GitNode event={event} />
-          {event.kind === "commit" ? (
-            <CommitLine event={event} />
-          ) : (
-            <PushLine event={event} serverId={serverId} cwd={cwd} />
-          )}
-          {index === 0 ? <Chevron size={12} uniProps={mutedColor} /> : null}
-        </PressHighlight>
-      ))}
+    <>
+      <PressHighlight
+        onPress={toggle}
+        style={rowStyle}
+        accessibilityRole="button"
+        accessibilityState={accessibilityState}
+        testID={`git-timeline-${event.kind}`}
+      >
+        <GitNode event={event} />
+        {event.kind === "commit" ? (
+          <CommitLine event={event} />
+        ) : (
+          <PushLine event={event} serverId={serverId} cwd={cwd} />
+        )}
+        <Chevron size={12} uniProps={mutedColor} />
+      </PressHighlight>
       {open ? (
         <View style={styles.details}>
-          <GitEventDetailsList events={events} detail={detail} serverId={serverId} cwd={cwd} />
+          <GitEventDetails
+            event={event}
+            detail={detail}
+            output={output}
+            serverId={serverId}
+            cwd={cwd}
+          />
         </View>
       ) : null}
-    </View>
+    </>
   );
 }
 

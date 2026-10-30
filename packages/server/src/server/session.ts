@@ -228,6 +228,11 @@ import {
   gitDetailsRequestOf,
 } from "../groupon/git-details.js";
 import {
+  BACKGROUND_OUTPUT_RPC,
+  backgroundOutputRequestOf,
+  readBackgroundOutput,
+} from "../groupon/background-output.js";
+import {
   type CompareRequest,
   compareRequestOf,
   WORKSPACE_COMPARE_RPC,
@@ -2870,6 +2875,9 @@ export class Session {
           continueWith: optionalGrouponRpcText(input, "continueWith"),
         },
       );
+    }
+    if (method === BACKGROUND_OUTPUT_RPC) {
+      return await readBackgroundOutput(backgroundOutputRequestOf(input).path);
     }
     if (method === GIT_DETAILS_RPC) {
       const request = gitDetailsRequestOf(input);

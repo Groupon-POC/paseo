@@ -919,7 +919,14 @@ went, its range and the checkout's pull request; a failed one in red with git's 
 and push are read from the command and its output (`packages/app/src/groupon/git-events-model.ts`,
 with the folder git ran in from `git -C` or `cd`): a commit git printed nothing for (`-q`) takes
 its sha and subject from a `git log -1` after it in the same call, else its subject from `-m` or a
-heredoc, with no sha. Pressing a node opens what happened rather than the command: a commit's
+heredoc, with no sha; the message is the one on the commit's own line, never another command's
+heredoc. A call run in the background printed only where its output goes: the daemon reads that
+file (`groupon-desk.shell.output`, a Claude Code task output of the daemon's own user only,
+`packages/server/src/groupon/background-output.ts`) and the node reads git from it, running until
+it says how the call exited (`packages/app/src/groupon/background-git-events.ts`). Each push of a
+call takes its own ref line, and a push git refused stays refused when a pipe cut its ref line and
+took its exit code. Each node opens on its own details, under it. Pressing a node opens what
+happened rather than the command: a commit's
 message and its files with their counts, the commits a push carried, the lines of git's output that
 say why a call failed (`packages/app/src/groupon/git-event-details.tsx`); the command is one more
 press away. The daemon reads a commit or a range with `git log --numstat`
@@ -989,3 +996,16 @@ none has (`packages/app/src/groupon/worked-workspaces.ts`). A worktree's pull re
 A moved chat's workspace takes the chat's title once the move is done, when the chat is alone in
 it: the workspace is made when the move is asked, inside the turn, and a hook's title applied at
 that turn's end went to the workspace the chat left (`titleGrouponWorkspaceAfterChat`).
+
+## The pull request pane's checks and activity share its height
+
+The pull request pane scrolled the header, the checks and the activity as one column, so a long
+activity pushed the checks out of view and a folded activity left its header in the middle of the
+pane. The header now stays at the top and the checks and the activity are two blocks, each
+scrolling on its own (`packages/app/src/groupon/pr-pane-split.tsx`, wired in
+`git/pull-request-panel/pane.tsx`): a folded activity sits at the pane's foot under checks that
+take the rest, and with both open Paseo's `ResizeHandle` between them sets the checks' height.
+Until the handle is dragged the checks are as tall as their content, at most half the pane; the
+dragged share is kept on the device (`groupon-desk-pr-pane-split`), each block keeping a tenth.
+The checks list itself no longer scrolls inside a fixed 268 px (`checks-section.tsx`): the block
+scrolls, so a taller block shows more checks.

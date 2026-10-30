@@ -1,5 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the checks and the activity are two blocks under the header (`groupon/pr-pane-split.tsx`): a folded activity sits at the pane's foot, and a handle between them sets the checks' height.
 import { useCallback, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, Text, View, type ViewStyle } from "react-native";
+import { Image, Pressable, Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
   CircleCheck,
@@ -46,6 +47,7 @@ import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { getForgePresentation } from "@/git/forge";
 import { CLIENT_FORGE_VIEW_MODULES } from "@/git/forges/view";
 import type { PaneNativeContribution } from "@/git/client-forge-module";
+import { PrPaneSplit } from "@/groupon/pr-pane-split";
 import { PrActivitySkeleton } from "./activity-skeleton";
 import {
   collapseActivity,
@@ -479,7 +481,7 @@ export function PullRequestPane({
 
   return (
     <View style={styles.root} testID="pr-pane">
-      <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+      <View>
         <PaneContentToolbar style={styles.toolbar} testID="pr-pane-toolbar">
           <View style={styles.toolbarActions}>
             <Button
@@ -553,7 +555,9 @@ export function PullRequestPane({
             </>
           )}
         </Pressable>
+      </View>
 
+      <PrPaneSplit checksOpen={checksOpen} activityOpen={activityOpen}>
         {nativeChecksSection ?? (
           <ChecksSection
             checks={data.checks}
@@ -564,9 +568,6 @@ export function PullRequestPane({
             onAddLogsToChat={handleAddCheckLogsToChat}
           />
         )}
-
-        <View style={styles.divider} />
-
         <Section
           title={t("workspace.git.pr.sections.activity")}
           open={activityOpen}
@@ -616,7 +617,7 @@ export function PullRequestPane({
               ))
             : null}
         </Section>
-      </ScrollView>
+      </PrPaneSplit>
     </View>
   );
 }
@@ -1197,10 +1198,6 @@ const styles = StyleSheet.create((theme) => ({
     minHeight: 0,
     backgroundColor: theme.colors.surfaceSidebar,
   },
-  scroll: {
-    flex: 1,
-    minHeight: 0,
-  },
   invisible: {
     opacity: 0,
   },
@@ -1260,10 +1257,6 @@ const styles = StyleSheet.create((theme) => ({
   headerLinkIconHidden: {
     marginLeft: theme.spacing[1],
     opacity: 0,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.border,
   },
   toolbar: {
     flexDirection: "row",

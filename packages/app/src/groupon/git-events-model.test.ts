@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { StreamItem } from "@/types/stream";
-import { gitEventsOf } from "./git-events-model";
+import { backgroundOutputPathOf, gitEventsOf, gitEventsOfShell } from "./git-events-model";
 
 function shell(
   command: string,
@@ -131,6 +131,96 @@ describe("gitEventsOf", () => {
     expect(
       gitEventsOf(shell("git log --oneline -1; git commit -q --no-edit", "1a2b3c4 Before"))[0],
     ).toMatchObject({ sha: null, subject: null });
+  });
+
+  it("takes the subject from the commit's own message, never from another command's heredoc", () => {
+    const command = [
+      "python3 - <<'EOF'",
+      'p = "README.md"',
+      "s = 'git commit -m nope'",
+      "EOF",
+      'git add README.md && git commit -q -m "Leave the probes out" -m "Body" && git push origin main 2>&1 | tail -5',
+    ].join("\n");
+    expect(gitEventsOf(shell(command, "")).map((event) => event.kind)).toEqual(["commit", "push"]);
+    expect(gitEventsOf(shell(command, ""))[0]).toMatchObject({ subject: "Leave the probes out" });
+  });
+
+  it("names a quiet commit from any counted git log of HEAD after it, not of another branch", () => {
+    const heredoc =
+      "git commit -q -F - <<'EOF'\nQuiet repeated alerts\n\nWhy.\nEOF\ngit log --oneline -2 && git status --short";
+    expect(
+      gitEventsOf(shell(heredoc, "e29b449 Quiet repeated alerts\n6f319d6 Skip the warning"))[0],
+    ).toMatchObject({ sha: "e29b449", subject: "Quiet repeated alerts" });
+    expect(
+      gitEventsOf(
+        shell("git commit -q -m 'Mine'; git log --oneline -3 origin/groupon", "1a2b3c4 Theirs"),
+      )[0],
+    ).toMatchObject({ sha: null, subject: "Mine" });
+  });
+
+  it("reads a call run in the background from its output file once there is one", () => {
+    const output =
+      "Command running in background with ID: by4e81z01. Output is being written to: /private/tmp/claude-501/-x/s/tasks/by4e81z01.output. You will be notified when it completes.";
+    expect(backgroundOutputPathOf(output)).toBe(
+      "/private/tmp/claude-501/-x/s/tasks/by4e81z01.output",
+    );
+    expect(backgroundOutputPathOf("To x\n   1..2  main -> main")).toBeNull();
+    expect(
+      gitEventsOfShell(
+        "git push origin main 2>&1 | tail -5",
+        "To https://github.com/groupon/iq-automation.git\n   6f319d6..e29b449  main -> main\n",
+        "done",
+      )[0],
+    ).toMatchObject({
+      kind: "push",
+      status: "done",
+      range: "6f319d6..e29b449",
+      target: "origin/main",
+    });
+  });
+
+  it("pairs each push of a call with its own ref line", () => {
+    const output = [
+      "To https://github.com/groupon2/engineering-development",
+      " * [new branch]            b2b/x -> b2b/x",
+      "To https://github.com/groupon-poc/paseo.git",
+      "   9a62e3e6f..735da4921  desk/y -> desk/y",
+    ].join("\n");
+    const [first, second] = gitEventsOfShell(
+      "git push origin b2b/x 2>&1 | tail -2; cd ~/p && git push origin desk/y 2>&1 | tail -2",
+      output,
+      "done",
+    );
+    expect(first).toMatchObject({ newBranch: true, range: null, target: "origin/b2b/x" });
+    expect(second).toMatchObject({ newBranch: false, range: "9a62e3e6f..735da4921", dir: "~/p" });
+  });
+
+  it("marks a push refused even when a pipe cut its ref line and took its exit code", () => {
+    expect(
+      gitEventsOfShell(
+        "git push origin desk/y 2>&1 | tail -1",
+        "hint: See the 'Note about fast-forwards' in 'git push --help' for details.",
+        "done",
+      )[0],
+    ).toMatchObject({ status: "failed", problem: "not a fast-forward" });
+    expect(
+      gitEventsOfShell(
+        "git push origin HEAD:refs/heads/b2b/x",
+        " * [new branch]  HEAD -> b2b/x",
+        "done",
+      )[0],
+    ).toMatchObject({ target: "origin/b2b/x", newBranch: true });
+  });
+
+  it("names a quiet commit from git -C's log too", () => {
+    expect(
+      gitEventsOf(
+        shell(
+          'git -C $WT commit -q -m "Fix" && git -C $WT status --porcelain && git -C $WT log --oneline -1',
+          "dc64f3d3ab Fix",
+        ),
+      )[0],
+    ).toMatchObject({ sha: "dc64f3d3ab", dir: "$WT" });
   });
 
   it("reads a commit and a push of one call in order, and nothing from other git verbs", () => {

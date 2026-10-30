@@ -80,3 +80,18 @@ export function problemLinesOf(output: string, limit = 8): string[] {
     .filter((line) => /\b(error|fatal|rejected|hint)\b|✗/i.test(line))
     .slice(0, limit);
 }
+
+const BACKGROUND_OUTPUT_RPC = "groupon-desk.shell.output";
+
+/** What a call run in the background printed so far, and its exit code once it finished. */
+export async function readBackgroundOutput(
+  client: Pick<DaemonClient, "invokePluginRpc">,
+  path: string,
+): Promise<{ output: string; exitCode: number | null }> {
+  const answer = await client.invokePluginRpc(GROUPON_DESK_RPC_PLUGIN_ID, BACKGROUND_OUTPUT_RPC, {
+    path,
+  });
+  const fields =
+    typeof answer === "object" && answer !== null ? (answer as Record<string, unknown>) : {};
+  return { output: text(fields.output), exitCode: count(fields.exitCode) };
+}

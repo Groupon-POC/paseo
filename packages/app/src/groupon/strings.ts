@@ -851,8 +851,10 @@ export const GROUPON_GIT_TIMELINE = {
   hideCommand: "Hide the command",
   reading: "Reading from git…",
   unreadable: "Could not read this from git",
-  noSha: "Git printed no commit for this call",
-  nothingPushed: "No new commits went out",
+  noSha: "Git's output here does not name the commit",
+  nothingPushed: "Git's output here does not list the pushed commits",
+  stillRunning: "Still running in the background",
+  newBranchPushed: "A new branch on the remote; git lists no commits for it",
   failedNoReason: "Git gave no reason",
   binary: "binary",
   commitsPushed: (count: number) =>

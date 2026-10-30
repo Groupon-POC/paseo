@@ -23,36 +23,34 @@ import { GROUPON_GIT_TIMELINE } from "./strings";
 const SHOWN_FILES = 12;
 const DETAILS_STALE_MS = 10 * 60_000;
 
-export function GitEventDetailsList({
-  events,
+/** What one opened node shows, with the call's command one more press away. */
+export function GitEventDetails({
+  event,
   detail,
+  output,
   serverId,
   cwd,
 }: {
-  events: readonly GitEvent[];
+  event: GitEvent;
   detail: ToolCallDetail;
+  output: string;
   serverId: string;
   cwd: string;
 }): ReactElement {
-  const output = detail.type === "shell" ? (detail.output ?? "") : "";
   return (
     <View style={styles.list}>
-      {events.map((event, index) => (
-        <GitEventDetails
-          // oxlint-disable-next-line react/no-array-index-key -- a call's events never reorder
-          key={index}
-          event={event}
-          serverId={serverId}
-          cwd={repositoryFolderOf(cwd, event.dir)}
-          output={output}
-        />
-      ))}
+      <EventSummary
+        event={event}
+        output={output}
+        serverId={serverId}
+        cwd={repositoryFolderOf(cwd, event.dir)}
+      />
       <RawCommand detail={detail} />
     </View>
   );
 }
 
-function GitEventDetails({
+function EventSummary({
   event,
   serverId,
   cwd,
@@ -64,12 +62,10 @@ function GitEventDetails({
   output: string;
 }): ReactElement {
   if (event.status === "failed") return <FailureLines problem={event.problem} output={output} />;
+  if (event.status === "running")
+    return <Text style={styles.note}>{GROUPON_GIT_TIMELINE.stillRunning}</Text>;
   const revision = event.kind === "commit" ? event.sha : event.range;
-  if (!revision) {
-    const note =
-      event.kind === "push" ? GROUPON_GIT_TIMELINE.nothingPushed : GROUPON_GIT_TIMELINE.noSha;
-    return <Text style={styles.note}>{note}</Text>;
-  }
+  if (!revision) return <Text style={styles.note}>{missingRevisionNote(event)}</Text>;
   return (
     <CommittedDetails
       serverId={serverId}
@@ -78,6 +74,14 @@ function GitEventDetails({
       push={event.kind === "push"}
     />
   );
+}
+
+function missingRevisionNote(event: GitEvent): string {
+  if (event.kind === "commit") return GROUPON_GIT_TIMELINE.noSha;
+  if (event.upToDate) return GROUPON_GIT_TIMELINE.upToDate(event.target);
+  return event.newBranch
+    ? GROUPON_GIT_TIMELINE.newBranchPushed
+    : GROUPON_GIT_TIMELINE.nothingPushed;
 }
 
 function CommittedDetails({

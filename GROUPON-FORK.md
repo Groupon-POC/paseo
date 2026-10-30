@@ -919,7 +919,14 @@ went, its range and the checkout's pull request; a failed one in red with git's 
 and push are read from the command and its output (`packages/app/src/groupon/git-events-model.ts`,
 with the folder git ran in from `git -C` or `cd`): a commit git printed nothing for (`-q`) takes
 its sha and subject from a `git log -1` after it in the same call, else its subject from `-m` or a
-heredoc, with no sha. Pressing a node opens what happened rather than the command: a commit's
+heredoc, with no sha; the message is the one on the commit's own line, never another command's
+heredoc. A call run in the background printed only where its output goes: the daemon reads that
+file (`groupon-desk.shell.output`, a Claude Code task output of the daemon's own user only,
+`packages/server/src/groupon/background-output.ts`) and the node reads git from it, running until
+it says how the call exited (`packages/app/src/groupon/background-git-events.ts`). Each push of a
+call takes its own ref line, and a push git refused stays refused when a pipe cut its ref line and
+took its exit code. Each node opens on its own details, under it. Pressing a node opens what
+happened rather than the command: a commit's
 message and its files with their counts, the commits a push carried, the lines of git's output that
 say why a call failed (`packages/app/src/groupon/git-event-details.tsx`); the command is one more
 press away. The daemon reads a commit or a range with `git log --numstat`

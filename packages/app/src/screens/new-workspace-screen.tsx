@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`). The composers follow the screen's focus, so a list left open does not float over another page; slash commands open below the input, and the Claude Code profile lists them from the chat's Claude draft. Local stays in the checkout on a shared branch when the person's Groupon setting says so. New workspace on "No project" is a chat: the daemon places it by its first message. Import session and Start a ticket step aside while a workspace is created. The composer takes the dock's width, which widens with a wide window.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`). The composers follow the screen's focus, so a list left open does not float over another page; slash commands open below the input, and the Claude Code profile lists them from the chat's Claude draft. Local stays in the checkout on a shared branch when the person's Groupon setting says so. New workspace on "No project" is a chat: the daemon places it by its first message. Import session and Start a ticket step aside while a workspace is created. The composer takes the dock's width, which widens with a wide window. The page keeps its title and its fields in place while the chosen repository resolves, so it does not jump on opening.
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -124,6 +124,7 @@ import { useGrouponPreferences } from "@/groupon/preferences";
 import { GROUPON_CHATS } from "@/groupon/strings";
 import {
   chatCreationTarget,
+  isChatsProject,
   isChatsProjectRoot,
   placeChat,
   withAgentCwd,
@@ -962,8 +963,20 @@ function useNewWorkspaceInitialContext({
   };
 }
 
-function screenTitle(sourceDirectory: string | null | undefined, workspaceTitle: string): string {
-  return isChatsProjectRoot(sourceDirectory) ? GROUPON_CHATS.newChat : workspaceTitle;
+// While a chosen repository's project resolves, its fields keep their place instead of popping in a frame later.
+function pendingWorktreeSupport(entry: RepositoryEntry | undefined): "unknown" | "unsupported" {
+  return entry && !isChatsProject(entry.project) ? "unknown" : "unsupported";
+}
+
+// The route's folder titles the page until the chosen repository resolves, so New chat never opens as New workspace.
+function screenTitle(
+  selectedDirectory: string | null,
+  routeDirectory: string | undefined,
+  workspaceTitle: string,
+): string {
+  return isChatsProjectRoot(selectedDirectory ?? routeDirectory)
+    ? GROUPON_CHATS.newChat
+    : workspaceTitle;
 }
 
 // Claude Code runs a slash command given as its prompt; the list needs the chat's Claude model to ask for it.
@@ -1182,7 +1195,7 @@ export function NewWorkspaceScreen({
 
   const worktreeSupport = selectedProject
     ? getWorktreeSupportForHostProject({ project: selectedProject, serverId: selectedServerId })
-    : "unsupported";
+    : pendingWorktreeSupport(repositoryChoice.entryById.get(repositoryChoice.entryId));
   const isPending = isNewWorkspacePending({ pendingAction, isDraftHandoffActive });
   const { effectiveIsolation, setIsolation, canCreateWorktree, showRefPicker } =
     useWorkspaceIsolation({
@@ -1781,7 +1794,7 @@ export function NewWorkspaceScreen({
       <NewWorkspaceLayout
         isCompact={isCompact}
         fullscreen={isComposerFullscreen}
-        title={screenTitle(selectedSourceDirectory, t("newWorkspace.title"))}
+        title={screenTitle(selectedSourceDirectory, sourceDirectoryProp, t("newWorkspace.title"))}
         formStack={formStack}
         onImportSession={importSession.open}
         onStartTicket={startTicket.open}

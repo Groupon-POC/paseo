@@ -685,7 +685,7 @@ window's own cache still reads the compact form; nothing the window shows change
 A chat that started in a checkout often goes on in a worktree its agent made there (a new
 ticket's branch). The window's diff, terminal, pull request and archive follow a chat's workspace,
 so the chat follows the work: the Groupon Desk plugin's `groupon-desk.chats.relocate` (`{ agentId,
-path }`, `packages/server/src/groupon/chat-relocation.ts`) checks that the path is an existing
+path, compare?, continueWith? }`, `packages/server/src/groupon/chat-relocation.ts`) checks that the path is an existing
 folder of the same repository (the same main checkout root), finds or makes that folder's
 workspace, answers it at once, and once the agent's turn ends (a question waiting on the person is
 not its end) reloads the agent's session in the worktree under that workspace:
@@ -939,6 +939,13 @@ name, an id, or null for a folder of its own under "No project") finds the proje
 (`packages/server/src/groupon/chat-project.ts`), takes a workspace of that project no chat is in or
 makes one, and moves the chat once its turn ends, as a move into a worktree does: same agent, same
 session, the whole conversation (`scheduleChatProjectMove`).
+
+Both moves answer `{ workspaceId, cwd, continueWith, compare }`: `continueWith` true when the
+message will start the next turn there, `compare` the comparison the window is asked to show, both
+as this move carries them out (a second ask of a move already waiting answers the first). The door
+(`groupon-cli`'s `desk_move`, `desk_project`) tells the agent its message starts the next turn only
+on that echo, so a daemon older than the follow-up, which answers the workspace alone, never has a
+dropped message promised.
 
 ## A session's shell changes are its own
 

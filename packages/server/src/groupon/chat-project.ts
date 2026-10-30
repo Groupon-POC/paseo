@@ -1,6 +1,9 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the project an agent asks to move its own chat into, by name or id.
 
-/** The Groupon Desk plugin RPC the agents' door calls: `{ agentId, project, continueWith? }`, `project` null for no project. */
+/**
+ * The Groupon Desk plugin RPC the agents' door calls: `{ agentId, project, continueWith? }`, `project`
+ * null for no project; answered as a `ScheduledMove` (`chat-relocation.ts`).
+ */
 export const CHAT_PROJECT_RPC = "groupon-desk.chats.project";
 
 export interface ProjectChoice {

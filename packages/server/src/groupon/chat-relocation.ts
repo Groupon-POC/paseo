@@ -24,9 +24,47 @@
 
 import { isAbsolute } from "node:path";
 import { areEquivalentPaths } from "../utils/path.js";
+import type { CompareRequest } from "./workspace-compare.js";
 
-/** The Groupon Desk plugin RPC the agents' door calls: `{ agentId, path }`, answered `{ workspaceId, cwd }`. */
+/**
+ * The Groupon Desk plugin RPC the agents' door calls: `{ agentId, path, compare?, continueWith? }`,
+ * answered as a `ScheduledMove`.
+ */
 export const CHAT_RELOCATE_RPC = "groupon-desk.chats.relocate";
+
+/** What follows a move once the chat is there: the comparison the window shows, the message that starts the next turn. */
+export interface MoveFollowUp {
+  compare: CompareRequest | null;
+  continueWith: string | null;
+}
+
+/**
+ * A scheduled move as the door is answered: the workspace, and the follow-up this move carries out
+ * (`continueWith` true when its message starts the next turn, `compare` the comparison asked). The
+ * door reports a follow-up only as echoed here: a daemon older than the follow-up answered the
+ * workspace alone, and the door must not promise the agent a turn that never starts.
+ */
+export interface ScheduledMove {
+  workspaceId: string;
+  cwd: string;
+  continueWith: boolean;
+  compare: { comparison: CompareRequest["comparison"]; baseRef: string | null } | null;
+}
+
+function scheduledMoveOf(
+  workspaceId: string,
+  cwd: string,
+  after: MoveFollowUp | undefined,
+): ScheduledMove {
+  return {
+    workspaceId,
+    cwd,
+    continueWith: Boolean(after?.continueWith),
+    compare: after?.compare
+      ? { comparison: after.compare.comparison, baseRef: after.compare.baseRef }
+      : null,
+  };
+}
 
 export interface RelocatedChat {
   cwd: string;
@@ -48,16 +86,17 @@ export interface ChatRelocationDeps {
 }
 
 /** Moves asked for and not yet done, by agent: the agent's desk_move and the follow of its edits may ask for the same turn. */
-const SCHEDULED = new Map<string, { workspaceId: string; cwd: string }>();
+const SCHEDULED = new Map<string, ScheduledMove>();
 
 /**
  * Checks the move, makes the workspace, and moves the chat when its turn ends; answers the
- * workspace now. A chat already waiting to move answers that move's workspace and is not moved twice.
+ * workspace now, with the follow-up `after` the caller's `deps` carry out. A chat already waiting to
+ * move answers that move, its follow-up included, and is not moved twice.
  */
 export async function scheduleChatRelocation(
-  input: { agentId: string; path: string },
+  input: { agentId: string; path: string; after?: MoveFollowUp },
   deps: ChatRelocationDeps,
-): Promise<{ workspaceId: string; cwd: string }> {
+): Promise<ScheduledMove> {
   const scheduled = SCHEDULED.get(input.agentId);
   if (scheduled) return scheduled;
   if (!isAbsolute(input.path)) throw new Error("The worktree's path must be absolute");
@@ -75,7 +114,7 @@ export async function scheduleChatRelocation(
     );
   }
   const { workspaceId } = await deps.workspaceFor(cwd);
-  const answer = { workspaceId, cwd };
+  const answer = scheduledMoveOf(workspaceId, cwd, input.after);
   SCHEDULED.set(input.agentId, answer);
   void deps
     .waitForTurnEnd(input.agentId)
@@ -91,12 +130,12 @@ export async function scheduleChatRelocation(
  * has chosen the folder and its workspace; this only waits for the turn and moves, once.
  */
 export function scheduleChatProjectMove(
-  input: { agentId: string; cwd: string; workspaceId: string },
+  input: { agentId: string; cwd: string; workspaceId: string; after?: MoveFollowUp },
   deps: Pick<ChatRelocationDeps, "waitForTurnEnd" | "relocate" | "onFailure">,
-): { workspaceId: string; cwd: string } {
+): ScheduledMove {
   const scheduled = SCHEDULED.get(input.agentId);
   if (scheduled) return scheduled;
-  const answer = { workspaceId: input.workspaceId, cwd: input.cwd };
+  const answer = scheduledMoveOf(input.workspaceId, input.cwd, input.after);
   SCHEDULED.set(input.agentId, answer);
   void deps
     .waitForTurnEnd(input.agentId)

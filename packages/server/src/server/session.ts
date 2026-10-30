@@ -3039,7 +3039,7 @@ export class Session {
     after: { compare: CompareRequest | null; continueWith: string | null },
   ) {
     return scheduleChatRelocation(
-      { agentId, path },
+      { agentId, path, after },
       {
         getChat: async (id) => {
           const record = await this.agentStorage.get(id);
@@ -3141,7 +3141,10 @@ export class Session {
       ).workspaceId;
     }
     await this.emitWorkspaceUpdateForWorkspaceId(workspaceId);
-    return scheduleChatProjectMove({ agentId, cwd: to, workspaceId }, this.grouponMoveDeps(after));
+    return scheduleChatProjectMove(
+      { agentId, cwd: to, workspaceId, after },
+      this.grouponMoveDeps(after),
+    );
   }
 
   private async grouponChatFolder(title: string) {

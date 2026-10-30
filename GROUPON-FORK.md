@@ -922,3 +922,15 @@ The window reads the requests (`groupon-desk.workspaces.compare`, every 5 s whil
 switches the workspace's Changes to the asked comparison once per request, so the person's own
 pick afterwards stays, and diffs the base comparison and the pill's count against the asked base
 (`packages/app/src/groupon/requested-compare.ts`).
+
+## An agent picks its chat's project
+
+New chat's classifier counts a project only when the agent will read or change its files or run
+its tools there; a project the first message merely mentions does not count, and management work
+with no code (Tempo, Jira, planning, reports, messages) goes to a project named "management" when
+the Mac has one. When the placement is still wrong, the agent moves its own chat with the door's
+`desk_project`: `groupon-desk.chats.project` (`{ agentId, project, continueWith? }`, `project` a
+name, an id, or null for a folder of its own under "No project") finds the project
+(`packages/server/src/groupon/chat-project.ts`), takes a workspace of that project no chat is in or
+makes one, and moves the chat once its turn ends, as a move into a worktree does: same agent, same
+session, the whole conversation (`scheduleChatProjectMove`).

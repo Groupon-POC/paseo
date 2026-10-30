@@ -171,6 +171,15 @@ describe("what the classifier reads about a project", () => {
   });
 });
 
+test("tells the classifier a mentioned project is not the work, and where management work goes", () => {
+  const prompt = buildClassificationPrompt("заполни tempo за неделю, без задач по groupon desk", [
+    MONOREPO,
+  ]);
+
+  expect(prompt).toContain("a project the message merely mentions");
+  expect(prompt).toContain('goes to a project named "management" when there is one, else null');
+});
+
 describe("moving a chat into a project", () => {
   test("drops the chat's agent and continues its session in the project's workspace", async () => {
     const { deps, calls } = moveDeps(chatsRoot());

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository. A title a hook or /rename gives a Claude session becomes its chat's at the end of a turn (`groupon/hook-title.ts`); a moved chat carries the Changes comparison its agent asked for, and a message that starts its next turn.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository. A title a hook or /rename gives a Claude session becomes its chat's at the end of a turn (`groupon/hook-title.ts`); a moved chat carries the Changes comparison its agent asked for, and a message that starts its next turn; an agent moves its own chat into another project, or out of every project (`desk_project`).
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory } from "./agent/directory.js";
@@ -215,9 +215,12 @@ import {
 } from "../utils/checkout-git.js";
 import {
   CHAT_RELOCATE_RPC,
+  type ChatRelocationDeps,
   relocationCandidatesOf,
+  scheduleChatProjectMove,
   scheduleChatRelocation,
 } from "../groupon/chat-relocation.js";
+import { CHAT_PROJECT_RPC, projectNamed } from "../groupon/chat-project.js";
 import {
   type CompareRequest,
   compareRequestOf,
@@ -272,6 +275,7 @@ import {
   ChatClassificationSchema,
   GROUPON_CHATS_RPC,
   buildClassificationPrompt,
+  chatFolderName,
   chatsRootOf,
   describeProject,
   moveChatAgent,
@@ -2841,6 +2845,19 @@ export class Session {
         },
       );
     }
+    if (method === CHAT_PROJECT_RPC) {
+      const project = grouponRpcField(input, "project");
+      if (project !== null && typeof project !== "string")
+        throw new Error("project is a name, an id or null");
+      return await this.moveGrouponChatToProject(
+        requiredGrouponRpcString(input, "agentId"),
+        project,
+        {
+          compare: null,
+          continueWith: optionalGrouponRpcText(input, "continueWith"),
+        },
+      );
+    }
     if (method === WORKSPACE_COMPARE_RPC) {
       return { requests: await workspaceCompareLedger(this.paseoHome).all() };
     }
@@ -3003,27 +3020,94 @@ export class Session {
           await this.emitWorkspaceUpdateForWorkspaceId(workspace.workspaceId);
           return { workspaceId: workspace.workspaceId };
         },
-        waitForTurnEnd: async (id) => {
-          // A question the agent waits on is not the end of its turn: look again a little later.
-          while ((await this.agentManager.waitForAgentEvent(id)).permission) await delay(2_000);
-        },
-        relocate: async (id, cwd, workspaceId) => {
-          const left = (await this.agentStorage.get(id))?.workspaceId ?? null;
-          const snapshot = await this.agentManager.reloadAgentSession(id, { cwd }, { workspaceId });
-          await this.agentUpdates.forwardLiveAgent(snapshot);
-          if (left && left !== workspaceId) await this.archiveGrouponWorkspaceIfEmpty(left);
-          if (after.compare) {
-            await workspaceCompareLedger(this.paseoHome).remember(workspaceId, after.compare);
-          }
-          if (after.continueWith) await this.handleSendAgentMessage(id, after.continueWith);
-        },
-        onFailure: (id, error) =>
-          this.sessionLogger.error(
-            { err: error, agentId: id },
-            "A chat's move into a worktree failed",
-          ),
+        ...this.grouponMoveDeps(after),
       },
     );
+  }
+
+  /** How a chat moves once its turn ends, and what follows: the window's comparison there, a message that goes on. */
+  private grouponMoveDeps(after: {
+    compare: CompareRequest | null;
+    continueWith: string | null;
+  }): Pick<ChatRelocationDeps, "waitForTurnEnd" | "relocate" | "onFailure"> {
+    return {
+      waitForTurnEnd: async (id) => {
+        // A question the agent waits on is not the end of its turn: look again a little later.
+        while ((await this.agentManager.waitForAgentEvent(id)).permission) await delay(2_000);
+      },
+      relocate: async (id, cwd, workspaceId) => {
+        const left = (await this.agentStorage.get(id))?.workspaceId ?? null;
+        const snapshot = await this.agentManager.reloadAgentSession(id, { cwd }, { workspaceId });
+        await this.agentUpdates.forwardLiveAgent(snapshot);
+        if (left && left !== workspaceId) await this.archiveGrouponWorkspaceIfEmpty(left);
+        if (after.compare) {
+          await workspaceCompareLedger(this.paseoHome).remember(workspaceId, after.compare);
+        }
+        if (after.continueWith) await this.handleSendAgentMessage(id, after.continueWith);
+      },
+      onFailure: (id, error) =>
+        this.sessionLogger.error({ err: error, agentId: id }, "A chat's move failed"),
+    };
+  }
+
+  /**
+   * The door's `desk_project`: the chat moves into another project of this Mac (its checkout, in a
+   * workspace of its own there) or into a folder of its own under "No project", once its turn ends.
+   */
+  private async moveGrouponChatToProject(
+    agentId: string,
+    project: string | null,
+    after: { compare: CompareRequest | null; continueWith: string | null },
+  ) {
+    const record = await this.agentStorage.get(agentId);
+    if (!record) throw new Error(`Agent not found: ${agentId}`);
+    if (!record.persistence) throw new Error("The chat has no session to continue yet");
+    const title = record.title ?? "Chat";
+    const target =
+      project === null
+        ? await this.grouponChatFolder(title)
+        : await this.grouponProjectRoot(project);
+    const [from, to] = await Promise.all([
+      realpath(record.cwd).catch(() => record.cwd),
+      realpath(target.cwd),
+    ]);
+    if (from === to) throw new Error(`The chat already runs in ${to}`);
+    const candidates = relocationCandidatesOf(
+      await this.workspaceRegistry.list(),
+      target.projectId,
+      to,
+    );
+    let workspaceId: string | null = null;
+    for (const candidate of candidates) {
+      if (!(await this.grouponWorkspaceHasChats(candidate.workspaceId)))
+        workspaceId = candidate.workspaceId;
+    }
+    if (!workspaceId) {
+      workspaceId = (
+        await this.workspaceProvisioning.createWorkspaceForDirectory(to, title, target.projectId)
+      ).workspaceId;
+    }
+    await this.emitWorkspaceUpdateForWorkspaceId(workspaceId);
+    return scheduleChatProjectMove({ agentId, cwd: to, workspaceId }, this.grouponMoveDeps(after));
+  }
+
+  private async grouponChatFolder(title: string) {
+    const chats = await this.ensureChatsProject();
+    const cwd = join(chats.rootPath, chatFolderName(new Date(), title));
+    await mkdir(cwd, { recursive: true });
+    return { cwd, projectId: chats.projectId };
+  }
+
+  private async grouponProjectRoot(asked: string) {
+    const projects = (await this.projectRegistry.list())
+      .filter((row) => !row.archivedAt && row.rootPath !== chatsRootOf(this.paseoHome))
+      .map((row) => ({
+        projectId: row.projectId,
+        name: row.customName ?? row.displayName,
+        rootPath: row.rootPath,
+      }));
+    const chosen = projectNamed(projects, asked);
+    return { cwd: chosen.rootPath, projectId: chosen.projectId };
   }
 
   /**

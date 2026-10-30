@@ -86,6 +86,27 @@ export async function scheduleChatRelocation(
 }
 
 /**
+ * A chat moves into a folder of another project once its turn ends (the door's `desk_project`),
+ * the same way as into a worktree: same agent, same session, its whole conversation. The caller
+ * has chosen the folder and its workspace; this only waits for the turn and moves, once.
+ */
+export function scheduleChatProjectMove(
+  input: { agentId: string; cwd: string; workspaceId: string },
+  deps: Pick<ChatRelocationDeps, "waitForTurnEnd" | "relocate" | "onFailure">,
+): { workspaceId: string; cwd: string } {
+  const scheduled = SCHEDULED.get(input.agentId);
+  if (scheduled) return scheduled;
+  const answer = { workspaceId: input.workspaceId, cwd: input.cwd };
+  SCHEDULED.set(input.agentId, answer);
+  void deps
+    .waitForTurnEnd(input.agentId)
+    .then(() => deps.relocate(input.agentId, input.cwd, input.workspaceId))
+    .catch((error: unknown) => deps.onFailure(input.agentId, error))
+    .finally(() => SCHEDULED.delete(input.agentId));
+  return answer;
+}
+
+/**
  * The workspaces a moved chat may take in its folder: the chat's own project's, active, on that
  * folder. Looking a folder up by its path alone made a worktree outside Paseo's own worktrees
  * folder (a skill's `.claude/worktrees/<name>`) a project of its own, and put the chat into

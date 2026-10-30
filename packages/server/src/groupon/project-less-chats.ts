@@ -152,6 +152,10 @@ export function buildClassificationPrompt(prompt: string, candidates: ProjectCan
     "",
     "Answer projectId with the id of the one project whose work the message is about, or null",
     "only when it belongs to none of them (a general question, the Mac itself, another system).",
+    "A project counts only when the agent will read or change its files or run its tools there;",
+    "a project the message merely mentions (to leave it out, or as background) does not count.",
+    "Management work with no code (logging time in Tempo or Jira, planning, status reports,",
+    'messages to colleagues) goes to a project named "management" when there is one, else null.',
     'Answer isolation "worktree" when the agent will change, write or commit files in that project,',
     'and "local" when it will only read, run or analyse. With projectId null, answer "local".',
     "Give a short reason.",
@@ -163,7 +167,7 @@ export function buildClassificationPrompt(prompt: string, candidates: ProjectCan
   ].join("\n");
 }
 
-function chatFolderName(now: Date, prompt: string): string {
+export function chatFolderName(now: Date, prompt: string): string {
   const stamp = now.toISOString().slice(0, 16).replace(/[-:T]/g, "");
   const slug = prompt
     .toLowerCase()

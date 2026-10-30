@@ -77,7 +77,6 @@ import { respondToAgentPermission } from "./agent/permission-response.js";
 import type { VoiceCallerContext, VoiceSpeakHandler } from "./voice-types.js";
 import type { ScriptHealthState } from "./script-health-monitor.js";
 import { spawnWorkspaceScript } from "./worktree-bootstrap.js";
-import { reportCreationStep } from "../groupon/creation-steps.js";
 import type { WorkspaceScriptRuntimeStore } from "./workspace-script-runtime-store.js";
 import {
   createWorkspaceScriptsService,
@@ -7584,7 +7583,6 @@ export class Session {
     // Groupon Desk: a ticketless workspace from the work window gets its own branch, never the trunk.
     let keepBranchName = false;
     if (grouponPlacement) {
-      reportCreationStep("naming_branch");
       const placementStarted = Date.now();
       const placement = await placeTicketlessWorkspace(creationRequest, {
         readFacts: (cwd) => getCheckoutSnapshotFacts(cwd, { paseoHome: this.paseoHome }),

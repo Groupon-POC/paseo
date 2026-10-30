@@ -344,9 +344,12 @@ out after 30000ms: git status --porcelain".
 - **The steps are on the screen.** The daemon reports each step of a creation
   (`naming_branch`, `fetching_base`, `creating_worktree`, `registering_workspace`) on the creation
   snapshot it already streams (`step`, `packages/server/src/groupon/creation-steps.ts`, reported
-  from `utils/worktree.ts`, `paseo-worktree-service.ts` and `session.ts`), never persisted on its
-  own. New workspace shows it under the composer with the step's time and the whole wait
-  (`groupon/creation-progress.tsx`); the composer is muted only until the workspace exists.
+  from `utils/worktree.ts`, `paseo-worktree-service.ts` and `groupon/workspace-placement.ts`, the
+  branch's naming only when a branch is named, so New chat in a checkout shows no step), never
+  persisted on its own. New workspace shows it under the composer as a chat's feed shows a running
+  step (`ExpandableBadge`), and below it, on a line of its own, the whole wait and TARS's blob as a
+  running turn shows them (`WorkingIndicator`, `groupon/creation-progress.tsx`); the composer is
+  muted only until the workspace exists.
 - **`git worktree add` checks out in parallel** (`-c checkout.workers=0`): 2.9 s instead of 5.3 s
   for the same tree on the Air, warm cache.
 - **No `git status` on a creation's path.** `getCheckout` answers the checkout's identity from

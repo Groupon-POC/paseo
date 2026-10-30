@@ -1,11 +1,12 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): what New workspace says while a workspace is being created, instead of a bare spinner.
 
 /**
- * The loader row under New workspace's composer from Enter until the workspace opens (TARS's blob,
- * as a running turn shows it), with the time and the step the
- * daemon reports (`CreationSnapshot.step`, `packages/server/src/groupon/creation-steps.ts`) and how
- * long it has run. Measured on the owner's MacBook Air (2026-10-21, ledger WW-86): the composer was
- * muted for 45.6 s with no word on what was happening; `git worktree add` was most of it.
+ * What shows under New workspace's composer from Enter until the workspace opens: the step the
+ * daemon reports (`CreationSnapshot.step`, `packages/server/src/groupon/creation-steps.ts`) as a
+ * running step of a chat's feed, above the time and TARS's blob as a running turn shows them; the
+ * screen reader hears the step with its own time. Measured on the owner's MacBook Air (2026-10-21,
+ * ledger WW-86): the composer was muted for 45.6 s with no word on what was happening;
+ * `git worktree add` was most of it.
  *
  * Constraints:
  * - Times are this window's clock (when it saw the step), never the daemon's: the Mac may be another
@@ -22,12 +23,20 @@ export interface CreationProgress {
   stepSeenAt: number | null;
 }
 
-const STEP_LABELS: Record<string, string> = {
-  naming_branch: "Naming the branch",
-  fetching_base: "Fetching the base branch",
-  creating_worktree: "Creating the worktree (git worktree add)",
-  registering_workspace: "Opening the workspace",
+/** A step as a feed row: its name, and the git command behind it when there is one. */
+export interface CreationStep {
+  id: string;
+  label: string;
+  command: string | null;
+}
+
+const STEPS: Record<string, Omit<CreationStep, "id">> = {
+  naming_branch: { label: "Naming the branch", command: null },
+  fetching_base: { label: "Fetching the base branch", command: "git fetch" },
+  creating_worktree: { label: "Creating the worktree", command: "git worktree add" },
+  registering_workspace: { label: "Opening the workspace", command: null },
 };
+const UNKNOWN_STEP = { label: "Preparing the workspace", command: null };
 
 /** The progress once Enter is pressed: no step yet. */
 export function startedProgress(now: number): CreationProgress {
@@ -52,18 +61,15 @@ export function formatElapsed(ms: number): string {
   return `${minutes} min ${String(seconds % 60).padStart(2, "0")} s`;
 }
 
-/**
- * What the loader row shows: the whole wait leading, as the turn footer's time leads its loader,
- * then the step the daemon reported with its own time; no step before the daemon reports one.
- */
-export function creationStatus(
-  progress: CreationProgress,
-  now: number,
-): { elapsed: string; step: string | null } {
-  const elapsed = formatElapsed(now - progress.submittedAt);
-  if (!progress.stepId || progress.stepSeenAt === null) return { elapsed, step: null };
-  const label = STEP_LABELS[progress.stepId] ?? "Preparing the workspace";
-  return { elapsed, step: `${label}, ${formatElapsed(now - progress.stepSeenAt)}` };
+/** The step the daemon reported, none before it reports one. */
+export function creationStep(progress: CreationProgress): CreationStep | null {
+  if (!progress.stepId) return null;
+  return { id: progress.stepId, ...(STEPS[progress.stepId] ?? UNKNOWN_STEP) };
+}
+
+function spokenLabel(stepId: string): string {
+  const step = STEPS[stepId] ?? UNKNOWN_STEP;
+  return step.command ? `${step.label} (${step.command})` : step.label;
 }
 
 /**
@@ -75,7 +81,7 @@ export function creationCaption(progress: CreationProgress, now: number): string
   if (!progress.stepId || progress.stepSeenAt === null) {
     return `Starting the workspace, ${formatElapsed(total)}`;
   }
-  const label = STEP_LABELS[progress.stepId] ?? "Preparing the workspace";
+  const label = spokenLabel(progress.stepId);
   const step = now - progress.stepSeenAt;
   const stepText = formatElapsed(step);
   const totalText = formatElapsed(total);

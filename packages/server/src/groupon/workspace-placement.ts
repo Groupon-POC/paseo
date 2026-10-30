@@ -24,6 +24,7 @@ import { createNameId } from "mnemonic-id";
 import type { SessionInboundMessage } from "@getpaseo/protocol/messages";
 import type { CheckoutSnapshotFacts } from "../utils/checkout-git.js";
 import { expandTilde } from "../utils/path.js";
+import { reportCreationStep } from "./creation-steps.js";
 import { isSharedTrunkBranch, repositoryTrunksOf } from "./shared-trunk.js";
 import type { WorkspaceBranchInput } from "./workspace-branch.js";
 
@@ -127,6 +128,7 @@ export async function placeTicketlessWorkspace(
   const placed = source === request.source ? request : { ...request, source };
   if (!branchesOffWithoutName(source)) return { request: placed, keepBranchName: false };
 
+  reportCreationStep("naming_branch");
   const named = await nameForWorktree(request, source, deps);
   if (!named) return { request: placed, keepBranchName: false };
   return {

@@ -1,5 +1,6 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the pill counts what the workspace's sessions changed when its Changes compare the session (the default), and stays in every git workspace.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the pill counts what the workspace's sessions changed when its Changes compare the session (the default), and stays in every git workspace; the comparison an agent asked for applies, with its base.
 import { useRetainedPanelActive } from "@/components/retained-panel";
+import { useRequestedCompare } from "@/groupon/requested-compare";
 import { useWorkspaceShownDiffStat } from "@/groupon/use-session-diff-stat";
 import type { WorkspaceDescriptor } from "@/stores/session-store";
 import { useWorkspaceFields } from "@/stores/session-store-hooks";
@@ -13,11 +14,13 @@ export function useVisibleWorkspaceDiffStat(
 ): DiffStat | null | undefined {
   const diffStat = useWorkspaceFields(serverId, workspaceId, (workspace) => workspace.diffStat);
   const active = useRetainedPanelActive();
+  const requested = useRequestedCompare(serverId, workspaceId);
   return useWorkspaceShownDiffStat({
     serverId,
     workspaceId,
     checkoutStat: hasDiffStatChanges(diffStat) ? diffStat : null,
     active,
+    baseRef: requested?.baseRef ?? null,
   });
 }
 

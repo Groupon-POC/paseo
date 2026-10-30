@@ -1,4 +1,5 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the "session" comparison reads what the workspace's sessions changed (groupon/use-compared-diff.ts). The session comparison has three parts: all, committed, uncommitted.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the "session" comparison reads what the workspace's sessions changed (groupon/use-compared-diff.ts). The session comparison has three parts: all, committed, uncommitted; the base an agent asked for its workspace (a pull request's) is the one the Changes compare against.
+import { useRequestedCompare } from "@/groupon/requested-compare";
 import { useCallback, useEffect, useMemo } from "react";
 import {
   buildWorkspaceAttachmentScopeKey,
@@ -46,7 +47,9 @@ export function useWorkingDiff({
   const statusErrorMessage =
     status?.error?.message ??
     (isStatusError && statusError instanceof Error ? statusError.message : null);
-  const baseRef = gitStatus?.baseRef ?? undefined;
+  // Groupon Desk: a base the workspace's agent asked for (a pull request's) beats the checkout's own.
+  const requested = useRequestedCompare(serverId, workspaceId);
+  const baseRef = requested?.baseRef ?? gitStatus?.baseRef ?? undefined;
   const currentBranchName =
     gitStatus?.currentBranch && gitStatus.currentBranch !== "HEAD" ? gitStatus.currentBranch : null;
 

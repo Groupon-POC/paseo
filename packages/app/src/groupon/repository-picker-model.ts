@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): New workspace's Repository field, one repository on every Mac.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): New workspace's Repository field, one repository on every Mac; "No project" is never preselected on New workspace.
 
 /**
  * What New workspace's Repository field lists and which Mac it starts on. A project is a
@@ -25,6 +25,7 @@
  *   hub's checkouts), never by a label
  */
 
+import { isChatsProject } from "./project-less-chats";
 import { getHostProjectId, type HostProjectListItem } from "@/projects/host-project-model";
 import type { HubCheckout, HubRepository } from "./hub";
 import type { MacPickerOption } from "./mac-picker-model";
@@ -254,6 +255,20 @@ export function entryOfProject(
  * a group or inside a workspace), else of the last workspace the person was in, else the
  * repository chosen last time; null with none of these (nothing to guess from).
  */
+/** The entry of Paseo's own pick when nothing else chose one; never New chat's "No project". */
+export function keptEntry(
+  entries: readonly RepositoryEntry[],
+  project: HostProjectListItem | null,
+): RepositoryEntry | null {
+  const entry = entryOfProject(entries, project);
+  return entry && !isChatsProject(entry.project) ? entry : null;
+}
+
+/** The repository New workspace remembers as the last one chosen; "" for New chat's "No project". */
+export function rememberedEntryId(entry: RepositoryEntry | null): string {
+  return entry && !isChatsProject(entry.project) ? entry.id : "";
+}
+
 export function preselectedRepositoryId(input: {
   entries: readonly RepositoryEntry[];
   routeProject: HostProjectListItem | null;
@@ -261,11 +276,13 @@ export function preselectedRepositoryId(input: {
   lastRepositoryId: string | null;
 }): string | null {
   for (const project of [input.routeProject, input.lastActiveProject]) {
+    // "No project" is New chat's: only a route that names it opens it.
+    if (project !== input.routeProject && isChatsProject(project)) continue;
     const entry = entryOfProject(input.entries, project);
     if (entry) return entry.id;
   }
   const last = input.entries.find((entry) => entry.id === input.lastRepositoryId);
-  return last?.id ?? null;
+  return last && !isChatsProject(last.project) ? last.id : null;
 }
 
 /** The checkout of the repository on the Mac picker's option, if that Mac holds one. */

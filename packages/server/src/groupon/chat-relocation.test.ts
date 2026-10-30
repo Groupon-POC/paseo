@@ -3,6 +3,7 @@
 import { describe, expect, test } from "vitest";
 import {
   type ChatRelocationDeps,
+  scheduleChatProjectMove,
   scheduleChatRelocation,
   relocationCandidatesOf,
 } from "./chat-relocation.js";
@@ -51,7 +52,12 @@ describe("a chat's move into a worktree of its repository", () => {
     const answer = await scheduleChatRelocation({ agentId: "agent-1", path: WORKTREE }, w.deps);
     await settle();
 
-    expect(answer).toEqual({ workspaceId: "ws-worktree", cwd: WORKTREE });
+    expect(answer).toEqual({
+      workspaceId: "ws-worktree",
+      cwd: WORKTREE,
+      continueWith: false,
+      compare: null,
+    });
     expect(w.workspaces).toEqual([WORKTREE]);
     expect(w.relocated).toEqual([]);
 
@@ -103,6 +109,60 @@ describe("a chat's move into a worktree of its repository", () => {
     expect(second).toEqual(first);
     expect(w.workspaces).toEqual([WORKTREE]);
     expect(w.relocated).toHaveLength(1);
+  });
+
+  test("answers the follow-up it carries out, so the door promises no turn an older daemon would drop", async () => {
+    const w = world();
+    const after = {
+      compare: {
+        comparison: "all" as const,
+        baseRef: "origin/staging",
+        requestedAt: "2026-10-30T12:00:00Z",
+      },
+      continueWith: "Continue the review here.",
+    };
+
+    const first = await scheduleChatRelocation(
+      { agentId: "agent-1", path: WORKTREE, after },
+      w.deps,
+    );
+    const again = await scheduleChatRelocation({ agentId: "agent-1", path: WORKTREE }, w.deps);
+    w.turn.resolve();
+    await settle();
+
+    expect(first).toEqual({
+      workspaceId: "ws-worktree",
+      cwd: WORKTREE,
+      continueWith: true,
+      compare: { comparison: "all", baseRef: "origin/staging" },
+    });
+    expect(again).toEqual(first);
+  });
+
+  test("answers a move into another project with its follow-up the same way", async () => {
+    const w = world();
+
+    const answer = scheduleChatProjectMove(
+      {
+        agentId: "agent-2",
+        cwd: "/Users/n/projects/management",
+        workspaceId: "ws-management",
+        after: { compare: null, continueWith: "Fill Tempo." },
+      },
+      w.deps,
+    );
+    w.turn.resolve();
+    await settle();
+
+    expect(answer).toEqual({
+      workspaceId: "ws-management",
+      cwd: "/Users/n/projects/management",
+      continueWith: true,
+      compare: null,
+    });
+    expect(w.relocated).toEqual([
+      { agentId: "agent-2", cwd: "/Users/n/projects/management", workspaceId: "ws-management" },
+    ]);
   });
 
   test("reports a move that fails after the turn, instead of losing it", async () => {

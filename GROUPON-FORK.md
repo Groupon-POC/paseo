@@ -344,9 +344,12 @@ out after 30000ms: git status --porcelain".
 - **The steps are on the screen.** The daemon reports each step of a creation
   (`naming_branch`, `fetching_base`, `creating_worktree`, `registering_workspace`) on the creation
   snapshot it already streams (`step`, `packages/server/src/groupon/creation-steps.ts`, reported
-  from `utils/worktree.ts`, `paseo-worktree-service.ts` and `session.ts`), never persisted on its
-  own. New workspace shows it under the composer with the step's time and the whole wait
-  (`groupon/creation-progress.tsx`); the composer is muted only until the workspace exists.
+  from `utils/worktree.ts`, `paseo-worktree-service.ts` and `groupon/workspace-placement.ts`, the
+  branch's naming only when a branch is named, so New chat in a checkout shows no step), never
+  persisted on its own. New workspace shows it under the composer as a chat's feed shows a running
+  step (`ExpandableBadge`), and below it, on a line of its own, the whole wait and TARS's blob as a
+  running turn shows them (`WorkingIndicator`, `groupon/creation-progress.tsx`); the composer is
+  muted only until the workspace exists.
 - **`git worktree add` checks out in parallel** (`-c checkout.workers=0`): 2.9 s instead of 5.3 s
   for the same tree on the Air, warm cache.
 - **No `git status` on a creation's path.** `getCheckout` answers the checkout's identity from
@@ -685,7 +688,7 @@ window's own cache still reads the compact form; nothing the window shows change
 A chat that started in a checkout often goes on in a worktree its agent made there (a new
 ticket's branch). The window's diff, terminal, pull request and archive follow a chat's workspace,
 so the chat follows the work: the Groupon Desk plugin's `groupon-desk.chats.relocate` (`{ agentId,
-path }`, `packages/server/src/groupon/chat-relocation.ts`) checks that the path is an existing
+path, compare?, continueWith? }`, `packages/server/src/groupon/chat-relocation.ts`) checks that the path is an existing
 folder of the same repository (the same main checkout root), finds or makes that folder's
 workspace, answers it at once, and once the agent's turn ends (a question waiting on the person is
 not its end) reloads the agent's session in the worktree under that workspace:
@@ -902,10 +905,79 @@ the person's own rename (`packages/server/src/groupon/hook-title.ts`).
 ## Commits and pushes on a git timeline in the chat
 
 An agent's `git commit` and `git push` were shell rows with the command as text. A shell call that
-commits or pushes is now drawn as nodes on a rail (the person's pick of 2026-10-28, variant C):
-a commit with its short sha, subject and counts, a push in green with where it went, its range and
-the checkout's pull request; a failed one in red with git's reason. Pressing a node opens the
-call's output. The commit and push are read from the command and its output
-(`packages/app/src/groupon/git-events-model.ts`): a quiet commit takes its subject from `-m` or a
-heredoc and has no sha. Such a call never folds into a run of calls (`isGroupableToolCall`), and
+commits or pushes is now drawn as nodes on a rail (the person's pick of 2026-10-28, variant C),
+in muted text: a commit with its subject, counts and short sha last, a push in green with where it
+went, its range and the checkout's pull request; a failed one in red with git's reason. The commit
+and push are read from the command and its output (`packages/app/src/groupon/git-events-model.ts`,
+with the folder git ran in from `git -C` or `cd`): a commit git printed nothing for (`-q`) takes
+its sha and subject from a `git log -1` after it in the same call, else its subject from `-m` or a
+heredoc, with no sha. Pressing a node opens what happened rather than the command: a commit's
+message and its files with their counts, the commits a push carried, the lines of git's output that
+say why a call failed (`packages/app/src/groupon/git-event-details.tsx`); the command is one more
+press away. The daemon reads a commit or a range with `git log --numstat`
+(`groupon-desk.git.details`, `{ cwd, revision }`, a sha or `a..b` only,
+`packages/server/src/groupon/git-details.ts`); a merge opens on what it brought into the branch
+(`--diff-merges=first-parent`). Such a call never folds into a run of calls (`isGroupableToolCall`), and
 Live keeps it once it finished (`agent-stream/display-mode.ts`).
+
+## A moved chat brings its comparison and goes on by itself
+
+An agent that reviews a pull request in a worktree of its own (the principal gate) moves its chat
+there with the door's `desk_move` and asks how the Changes compare: `groupon-desk.chats.relocate`
+takes `compare` (a comparison, and `baseRef`, the pull request's base) and `continueWith` (a
+message). After the move the daemon keeps the request for the new workspace
+(`<PASEO_HOME>/groupon/workspace-compare.json`, `packages/server/src/groupon/workspace-compare.ts`)
+and sends the message, which starts the next turn in the worktree without waiting for the person.
+The window reads the requests (`groupon-desk.workspaces.compare`, every 5 s while a chat is open),
+switches the workspace's Changes to the asked comparison once per request, so the person's own
+pick afterwards stays, and diffs the base comparison and the pill's count against the asked base
+(`packages/app/src/groupon/requested-compare.ts`).
+
+## An agent picks its chat's project
+
+New chat's classifier counts a project only when the agent will read or change its files or run
+its tools there; a project the first message merely mentions does not count, and management work
+with no code (Tempo, Jira, planning, reports, messages) goes to a project named "management" when
+the Mac has one. When the placement is still wrong, the agent moves its own chat with the door's
+`desk_project`: `groupon-desk.chats.project` (`{ agentId, project, continueWith? }`, `project` a
+name, an id, or null for a folder of its own under "No project") finds the project
+(`packages/server/src/groupon/chat-project.ts`), takes a workspace of that project no chat is in or
+makes one, and moves the chat once its turn ends, as a move into a worktree does: same agent, same
+session, the whole conversation (`scheduleChatProjectMove`).
+
+Both moves answer `{ workspaceId, cwd, continueWith, compare }`: `continueWith` true when the
+message will start the next turn there, `compare` the comparison the window is asked to show, both
+as this move carries them out (a second ask of a move already waiting answers the first). The door
+(`groupon-cli`'s `desk_move`, `desk_project`) tells the agent its message starts the next turn only
+on that echo, so a daemon older than the follow-up, which answers the workspace alone, never has a
+dropped message promised.
+
+## A session's shell changes are its own
+
+What a session changed from a shell (a script, `sed`, `git commit`) was every commit on HEAD and
+every uncommitted file changed after it started there, so two chats in one checkout counted each
+other's work. Now a commit counts only when its time falls inside one of the session's own shell
+calls, and an uncommitted file only when it changed then (`shellWindowsOf`, `shellEditsOf` in
+`packages/server/src/groupon/session-changes.ts`): a call runs from the row before it in the
+agent's timeline, when the agent issued it, to its end and 5 s more; a running call up to now.
+
+## The Changes comparison survives a restart
+
+A workspace's comparison (Session or Worktree, All, Committed, Uncommitted) lived only in the
+window's memory, so every restart of Groupon Desk put each workspace back on the default. It is
+now kept on the device per workspace, the 300 newest (`groupon-desk-diff-comparisons`,
+`packages/app/src/git/working-diff-comparison/index.ts`), with the agent requests already taken, so
+an agent's request applies once and a later pick of the person's stays across restarts.
+
+## A shared checkout's pull request shows on the chats that worked on it
+
+Paseo reads a pull request per checkout, so every chat on one checkout showed it, a Tempo chat
+beside the chat that opened the PR included. The daemon answers which workspaces' loaded chats
+worked on their checkout's branch (`groupon-desk.workspaces.worked`: an edit in it, or a commit, a
+push or `gh pr create` from it; `packages/server/src/groupon/worked-workspaces.ts`), and a sidebar
+row on a shared checkout shows the pull request only when its chat did, or on all of them while
+none has (`packages/app/src/groupon/worked-workspaces.ts`). A worktree's pull request stays its own.
+
+A moved chat's workspace takes the chat's title once the move is done, when the chat is alone in
+it: the workspace is made when the move is asked, inside the turn, and a hook's title applied at
+that turn's end went to the workspace the chat left (`titleGrouponWorkspaceAfterChat`).

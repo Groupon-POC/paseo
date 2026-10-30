@@ -6,6 +6,8 @@ export type GitEventStatus = "running" | "done" | "failed";
 
 export interface GitCommitEvent {
   kind: "commit";
+  /** The folder the command ran git in (`git -C`, or a `cd` before it), as written; null for the call's own. */
+  dir: string | null;
   status: GitEventStatus;
   sha: string | null;
   subject: string | null;
@@ -17,6 +19,7 @@ export interface GitCommitEvent {
 
 export interface GitPushEvent {
   kind: "push";
+  dir: string | null;
   status: GitEventStatus;
   /** `origin/branch` as the command named it, or as git reported it. */
   target: string | null;
@@ -32,6 +35,10 @@ const SEGMENT_SPLIT = /&&|\|\||;|\n|\|/;
 const GIT_VERB =
   /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git((?:\s+-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+))*)\s+(commit|push)\b(.*)$/s;
 const COMMIT_LINE = /^\[([^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.+)$/m;
+/** A later `git log -1` or `git rev-parse HEAD` in the same call, which names a quiet commit. */
+const READS_HEAD =
+  /\bgit\s+(?:log\b[^\n]*?(?:\s-1\b|\s-n\s*1\b|--max-count=1\b)|rev-parse\s+(?:--short\s+)?HEAD\b)/;
+const LOGGED_COMMIT = /^([0-9a-f]{7,40})(?: (.+))?$/m;
 const COMMIT_STATS =
   /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
 const PUSH_REF =
@@ -45,14 +52,20 @@ export function gitEventsOf(item: StreamItem): GitEvent[] {
   const eventStatus = callStatusOf(status, detail.exitCode);
   const output = detail.output ?? "";
   const events: GitEvent[] = [];
-  for (const segment of commandSegments(detail.command)) {
+  let cd: string | null = null;
+  const segments = commandSegments(detail.command);
+  for (const [index, segment] of segments.entries()) {
+    const moved = CD.exec(segment);
+    if (moved) cd = unquote(moved[1] ?? "");
     const verb = GIT_VERB.exec(segment);
     if (!verb) continue;
     const rest = verb[3] ?? "";
+    const dir = folderOf(verb[1] ?? "") ?? cd;
     if (verb[2] === "commit" && !/--dry-run\b/.test(rest)) {
-      events.push(commitEvent(detail.command, output, eventStatus));
+      const later = segments.slice(index + 1).join("\n");
+      events.push({ ...commitEvent(detail.command, later, output, eventStatus), dir });
     } else if (verb[2] === "push" && !/--dry-run\b/.test(rest)) {
-      events.push(pushEvent(rest, output, eventStatus));
+      events.push({ ...pushEvent(rest, output, eventStatus), dir });
     }
   }
   return events;
@@ -67,20 +80,36 @@ function callStatusOf(status: string, exitCode: number | null | undefined): GitE
   return status === "failed" || (exitCode ?? 0) !== 0 ? "failed" : "done";
 }
 
+const CD = /^\s*cd\s+("[^"]+"|'[^']+'|\S+)\s*$/;
+
+const unquote = (text: string) => text.replace(/^(["'])(.*)\1$/, "$2");
+
+/** The folder of `git -C <path>` among git's options; null without one. */
+function folderOf(options: string): string | null {
+  const found = /-C\s+("[^"]+"|'[^']+'|\S+)/.exec(options);
+  return found?.[1] ? unquote(found[1]) : null;
+}
+
 function commandSegments(command: string): string[] {
   // A heredoc body is a message, not commands: keep it whole with its `git commit`.
   return command.replace(/<<-?\s*'?(\w+)'?\n[\s\S]*?\n\s*\1\b/g, "").split(SEGMENT_SPLIT);
 }
 
-function commitEvent(command: string, output: string, status: GitEventStatus): GitCommitEvent {
+function commitEvent(
+  command: string,
+  later: string,
+  output: string,
+  status: GitEventStatus,
+): Omit<GitCommitEvent, "dir"> {
   const line = COMMIT_LINE.exec(output);
+  const named = namedCommit(line, later, output);
   const stats = COMMIT_STATS.exec(output);
   return {
     kind: "commit",
     // A commit git reported went through, whatever a later command in the same call did.
     status: line && status === "failed" ? "done" : status,
-    sha: line?.[2] ?? null,
-    subject: line?.[3]?.trim() ?? messageOf(command),
+    sha: named.sha,
+    subject: named.subject ?? messageOf(command),
     files: numberOr(stats?.[1]),
     additions: stats ? (numberOr(stats[2]) ?? 0) : null,
     deletions: stats ? (numberOr(stats[3]) ?? 0) : null,
@@ -88,7 +117,22 @@ function commitEvent(command: string, output: string, status: GitEventStatus): G
   };
 }
 
-function pushEvent(rest: string, output: string, status: GitEventStatus): GitPushEvent {
+/** The commit git printed; for `git commit -q`, which prints nothing, a `git log -1` after it. */
+function namedCommit(
+  line: RegExpExecArray | null,
+  later: string,
+  output: string,
+): { sha: string | null; subject: string | null } {
+  if (line) return { sha: line[2] ?? null, subject: line[3]?.trim() ?? null };
+  const logged = READS_HEAD.test(later) ? LOGGED_COMMIT.exec(output) : null;
+  return { sha: logged?.[1] ?? null, subject: logged?.[2]?.trim() ?? null };
+}
+
+function pushEvent(
+  rest: string,
+  output: string,
+  status: GitEventStatus,
+): Omit<GitPushEvent, "dir"> {
   const ref = PUSH_REF.exec(output);
   const rejected = ref?.[1] === "[rejected]" || ref?.[1] === "[remote rejected]";
   const upToDate = /Everything up-to-date/.test(output);

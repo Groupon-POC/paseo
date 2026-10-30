@@ -2,6 +2,7 @@
 
 import { describe, expect, test, vi } from "vitest";
 import type { CheckoutSnapshotFacts } from "../utils/checkout-git.js";
+import { runWithCreationSteps } from "./creation-steps.js";
 import {
   placeTicketlessWorkspace,
   type WorkspaceCreateRequest,
@@ -120,5 +121,18 @@ describe("a workspace started without a ticket", () => {
       expect((await placeTicketlessWorkspace(original, d)).request).toBe(original);
     }
     expect(d.nameBranch).not.toHaveBeenCalled();
+  });
+
+  test("names the branch as a step only when it names one", async () => {
+    const steps: string[] = [];
+    const place = (source: WorkspaceCreateRequest["source"], branch: string) =>
+      runWithCreationSteps(
+        (id) => steps.push(id),
+        () => placeTicketlessWorkspace(request(source), deps(branch)),
+      );
+    await place({ kind: "directory", path: REPO }, "ctzaruba/own");
+    expect(steps).toEqual([]);
+    await place({ kind: "directory", path: REPO }, "staging");
+    expect(steps).toEqual(["naming_branch"]);
   });
 });

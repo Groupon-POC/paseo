@@ -43,6 +43,20 @@ export function isChatsProjectRoot(path: string | null | undefined): boolean {
   return Boolean(path && CHATS_ROOT_PATTERN.test(path));
 }
 
+/** The "No project" project, which only New chat opens: never a default or a remembered pick of New workspace. */
+export function isChatsProject(
+  project:
+    | { iconWorkingDir: string; hosts: readonly { iconWorkingDir: string }[] }
+    | null
+    | undefined,
+): boolean {
+  if (!project) return false;
+  return (
+    isChatsProjectRoot(project.iconWorkingDir) ||
+    project.hosts.some((host) => isChatsProjectRoot(host.iconWorkingDir))
+  );
+}
+
 /** A workspace that runs in a chat's own folder: a chat that has no project yet. */
 export function isProjectLessChatDirectory(path: string | null | undefined): boolean {
   return Boolean(path && CHAT_FOLDER_PATTERN.test(path));

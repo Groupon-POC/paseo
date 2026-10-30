@@ -101,10 +101,55 @@ export function sessionEditsOf(
   return edits;
 }
 
+/** When one of the session's shell calls ran: from the row before it (the agent issued it) to its end. */
+export interface ShellWindow {
+  from: Date;
+  to: Date;
+}
+
+/** Slack after a call's end for a file's write and a commit's time to land. */
+const WINDOW_SLACK_MS = 5_000;
+/** A first call with no row before it reaches back this far. */
+const FIRST_WINDOW_MS = 10 * 60_000;
+
+/** The windows the session's own shell calls ran in, a running call's up to `now`. */
+export function shellWindowsOf(
+  rows: readonly { timestamp: string; item: unknown }[],
+  now: Date,
+): ShellWindow[] {
+  const windows: ShellWindow[] = [];
+  let previous: Date | null = null;
+  for (const row of rows) {
+    const at = new Date(row.timestamp);
+    if (Number.isNaN(at.getTime())) continue;
+    const item = row.item;
+    const shell =
+      isRecord(item) &&
+      item.type === "tool_call" &&
+      isRecord(item.detail) &&
+      item.detail.type === "shell";
+    if (
+      shell &&
+      (item.status === "completed" || item.status === "failed" || item.status === "running")
+    ) {
+      const end = item.status === "running" ? now : at;
+      windows.push({
+        from: previous ?? new Date(at.getTime() - FIRST_WINDOW_MS),
+        to: new Date(end.getTime() + WINDOW_SLACK_MS),
+      });
+    }
+    previous = at;
+  }
+  return windows;
+}
+
+const within = (at: Date, windows: readonly ShellWindow[]) =>
+  windows.some((window) => at >= window.from && at <= window.to);
+
 export interface ShellChangeDeps {
   worktreeRootOf(dir: string): Promise<string | null>;
-  /** Files the commits on HEAD since then changed, merges left out, relative to the root. */
-  committedSince(root: string, since: Date): Promise<string[]>;
+  /** The commits on HEAD since then, merges left out, each with its time and files relative to the root. */
+  commitsSince(root: string, since: Date): Promise<{ at: Date; files: string[] }[]>;
   /** The worktree's uncommitted files, relative to the root. */
   uncommitted(root: string): Promise<string[]>;
   /** When a file last changed; null when it is gone. */
@@ -116,14 +161,20 @@ const UNCOMMITTED_LIMIT = 400;
 
 /**
  * The files a session changed without Edit or Write (a script, `sed`, `git commit` from a shell),
- * in the repositories it edited and the folders it runs in: what the commits on HEAD since it
- * started there changed, and the uncommitted files that changed after that. Each counts from that
- * start, as an Edit there would.
+ * in the repositories it edited and the folders it runs in: what the commits on HEAD made while
+ * one of its own shell calls ran changed, and the uncommitted files that changed then. Another
+ * session working in the same checkout at other times is never counted as this one. Each file
+ * counts from the session's start there, as an Edit there would.
  */
 export async function shellEditsOf(
-  input: { edits: readonly SessionEdit[]; startedIn: readonly { dir: string; at: Date }[] },
+  input: {
+    edits: readonly SessionEdit[];
+    startedIn: readonly { dir: string; at: Date }[];
+    windows: readonly ShellWindow[];
+  },
   deps: ShellChangeDeps,
 ): Promise<SessionEdit[]> {
+  if (input.windows.length === 0) return [];
   const sinceByRoot = new Map<string, Date>();
   const starts = [
     ...input.edits.map((edit) => ({ dir: dirname(edit.path), at: edit.at })),
@@ -137,14 +188,17 @@ export async function shellEditsOf(
   }
   const found = await Promise.all(
     [...sinceByRoot.entries()].map(async ([root, since]) => {
-      const [committed, uncommitted] = await Promise.all([
-        deps.committedSince(root, since).catch(() => []),
+      const [commits, uncommitted] = await Promise.all([
+        deps.commitsSince(root, since).catch(() => []),
         deps.uncommitted(root).catch(() => []),
       ]);
+      const committed = commits
+        .filter((commit) => within(commit.at, input.windows))
+        .flatMap((commit) => commit.files);
       const changedSince = await Promise.all(
         uncommitted.slice(0, UNCOMMITTED_LIMIT).map(async (file) => {
           const at = await deps.modifiedAt(resolve(root, file)).catch(() => null);
-          return at && at >= since ? file : null;
+          return at && at >= since && within(at, input.windows) ? file : null;
         }),
       );
       const files = new Set([...committed, ...changedSince.filter((file) => file !== null)]);

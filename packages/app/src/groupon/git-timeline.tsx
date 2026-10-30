@@ -6,11 +6,11 @@ import { useCallback, useMemo, useState, type ReactElement } from "react";
 import { Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { PrBadge } from "@/components/sidebar-workspace-list";
-import { ToolCallDetailsContent } from "@/components/tool-call-details";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { formatDiffCount } from "@/git/file-header-presentation";
 import { useWorkspacePrHint } from "@/git/use-pr-status-query";
 import type { Theme } from "@/styles/theme";
+import { GitEventDetailsList } from "./git-event-details";
 import type { GitCommitEvent, GitEvent, GitPushEvent } from "./git-events-model";
 import { GROUPON_GIT_TIMELINE } from "./strings";
 
@@ -59,7 +59,7 @@ export function GitTimeline({
       ))}
       {open ? (
         <View style={styles.details}>
-          <ToolCallDetailsContent detail={detail} maxHeight={200} />
+          <GitEventDetailsList events={events} detail={detail} serverId={serverId} cwd={cwd} />
         </View>
       ) : null}
     </View>
@@ -95,11 +95,6 @@ function CommitLine({ event }: { event: GitCommitEvent }): ReactElement {
   }
   return (
     <>
-      {event.sha ? (
-        <Text style={styles.sha} selectable>
-          {event.sha.slice(0, 7)}
-        </Text>
-      ) : null}
       <Text style={styles.what} numberOfLines={1}>
         {event.status === "running"
           ? GROUPON_GIT_TIMELINE.committing(event.subject)
@@ -113,6 +108,11 @@ function CommitLine({ event }: { event: GitCommitEvent }): ReactElement {
       ) : null}
       {event.files !== null ? (
         <Text style={styles.muted}>{GROUPON_GIT_TIMELINE.files(event.files)}</Text>
+      ) : null}
+      {event.sha ? (
+        <Text style={styles.sha} selectable>
+          {event.sha.slice(0, 7)}
+        </Text>
       ) : null}
     </>
   );
@@ -208,13 +208,13 @@ const styles = StyleSheet.create((theme) => ({
   sha: {
     fontFamily: theme.fontFamily.mono,
     fontSize: theme.fontSize.code,
-    color: theme.colors.statusDotRunning,
+    color: theme.colors.foregroundMuted,
   },
   what: {
     flexShrink: 1,
     minWidth: 0,
     fontSize: theme.fontSize.sm,
-    color: theme.colors.foreground,
+    color: theme.colors.foregroundMuted,
   },
   failed: {
     color: theme.colors.statusDanger,

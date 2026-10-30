@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   creationCaption,
-  creationStatus,
+  creationStep,
   formatElapsed,
   progressWithStep,
   startedProgress,
@@ -38,13 +38,18 @@ describe("creationCaption", () => {
   });
 });
 
-describe("creationStatus", () => {
-  it("leads with the whole wait and adds the daemon's step once there is one", () => {
-    expect(creationStatus(startedProgress(1_000), 3_400)).toEqual({ elapsed: "2 s", step: null });
-    const progress = progressWithStep(startedProgress(0), "creating_worktree", 2_000);
-    expect(creationStatus(progress, 42_000)).toEqual({
-      elapsed: "42 s",
-      step: "Creating the worktree (git worktree add), 40 s",
+describe("creationStep", () => {
+  it("is the daemon's step as a feed row, none before the daemon reports one", () => {
+    expect(creationStep(startedProgress(1_000))).toBeNull();
+    expect(creationStep(progressWithStep(startedProgress(0), "creating_worktree", 2_000))).toEqual({
+      id: "creating_worktree",
+      label: "Creating the worktree",
+      command: "git worktree add",
+    });
+    expect(creationStep(progressWithStep(startedProgress(0), "warming_cache", 0))).toEqual({
+      id: "warming_cache",
+      label: "Preparing the workspace",
+      command: null,
     });
   });
 });

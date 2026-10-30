@@ -121,8 +121,8 @@ export const CompletedTurnFooterRow = memo(function CompletedTurnFooterRow({
 const workingFallback = <ThemedSyncedLoader size={14} uniProps={workingIndicatorColorMapping} />;
 
 // Groupon Desk: while the agent works the time leads, so the typed word moves nothing, and a turn
-// still running offers no fork.
-const WorkingIndicator = memo(function WorkingIndicator({
+// still running offers no fork. New workspace shows the same line while it creates a workspace.
+export const WorkingIndicator = memo(function WorkingIndicator({
   inFlightTurnStartedAt = null,
 }: {
   inFlightTurnStartedAt?: Date | null;

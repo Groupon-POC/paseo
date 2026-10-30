@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): New workspace's Repository field, one repository on every Mac.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): New workspace's Repository field, one repository on every Mac; New chat's "No project" is never remembered as the last repository, nor kept from Paseo's pick; a pick holds only on the page it was made on.
 
 /**
  * New workspace's Repository field: the repositories of all the person's Macs, each once, and the
@@ -38,17 +38,18 @@ import type { MacPickerOption } from "./mac-picker-model";
 import { useGrouponPreferences } from "./preferences";
 import {
   checkoutOnServer,
-  paseoPick,
-  repositoryState,
-  type RepositoryState,
   cloneTargetOf,
   defaultMacForRepository,
-  entryOfProject,
+  keptEntry,
   macRepositoryNote,
+  paseoPick,
+  rememberedEntryId,
   repositoryDescription,
   repositoryEntries,
-  shortPath,
   type RepositoryEntry,
+  repositoryState,
+  type RepositoryState,
+  shortPath,
 } from "./repository-picker-model";
 import { useGrouponStore } from "./session";
 import { GROUPON_MAC_PICKER, GROUPON_REPOSITORY_PICKER } from "./strings";
@@ -206,14 +207,24 @@ function useRepositoryActions(
   return { choose, macChosen, clone, pickExisting };
 }
 
+/** A repository the person picked, held only on the page it was picked on: New chat and New workspace share one screen. */
+function usePagePick(preselectedId: string | null): [string | null, (id: string) => void] {
+  const [picked, setPicked] = useState<{ id: string; on: string | null } | null>(null);
+  const setPickedId = useCallback(
+    (id: string) => setPicked({ id, on: preselectedId }),
+    [preselectedId],
+  );
+  return [picked !== null && picked.on === preselectedId ? picked.id : null, setPickedId];
+}
+
 export function useRepositoryChoice(input: RepositoryChoiceInput): RepositoryChoice {
   const { entries, preselectedId, macOptions, selectedServerId, selectPaseoProject } = input;
-  const [pickedId, setPickedId] = useState<string | null>(null);
+  const [pickedId, setPickedId] = usePagePick(preselectedId);
   const rememberRepository = useGrouponPreferences((state) => state.rememberRepository);
 
   const entryById = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries]);
   const intended = entryById.get(pickedId ?? preselectedId ?? "") ?? null;
-  const entry = intended ?? entryOfProject(entries, input.paseoSelectedProject);
+  const entry = intended ?? keptEntry(entries, input.paseoSelectedProject);
   const checkout = entry ? checkoutOnServer(entry, selectedServerId, macOptions) : null;
 
   // Keep Paseo's pick on the repository's project on this Mac.
@@ -240,9 +251,10 @@ export function useRepositoryChoice(input: RepositoryChoiceInput): RepositoryCho
   );
 
   const entryId = entry?.id ?? "";
+  const remembered = rememberedEntryId(entry);
   useEffect(() => {
-    if (entryId) rememberRepository(entryId);
-  }, [entryId, rememberRepository]);
+    if (remembered) rememberRepository(remembered);
+  }, [remembered, rememberRepository]);
 
   const options = useMemo<ComboboxOption[]>(
     () =>

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace whose agent runs a background task (a Monitor watch, a background command) breathes in the status band's teal.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace whose agent runs a background task (a Monitor watch, a background command) breathes in the status band's teal; a pull request shows only on the chats that worked on a shared checkout's branch.
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
 import { Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -30,6 +30,7 @@ import { shouldRenderSyncedStatusLoader } from "@/utils/status-loader";
 import { StatusRing } from "@/components/status-ring";
 import { BackgroundPulse } from "@/groupon/background-pulse";
 import { useWorkspaceRunsInBackground } from "@/groupon/background-workspaces";
+import { useShownPrHint } from "@/groupon/worked-workspaces";
 import { resolveSidebarWorkspacePrimaryLabel } from "@/components/sidebar/sidebar-workspace-title";
 import { DensityIcon } from "@/components/ui/density-icon";
 import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
@@ -62,6 +63,7 @@ export function SidebarWorkspaceRowFrame({
     if (!contextMenuOpen) setIsHovered(true);
   }, [contextMenuOpen]);
   const handlePointerLeave = useCallback(() => setIsHovered(false), []);
+  const prHint = useShownPrHint(workspace);
   const handleContextMenuOpenChange = useCallback((open: boolean) => {
     setContextMenuOpen(open);
     if (open) setIsHovered(false);
@@ -74,7 +76,7 @@ export function SidebarWorkspaceRowFrame({
   return (
     <WorkspaceHoverCard
       workspace={workspace}
-      prHint={workspace.prHint}
+      prHint={prHint}
       isDragging={isDragging}
       disabled={contextMenuOpen}
     >
@@ -127,6 +129,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   // The workspace carries label names; their colors live in its host's catalog, so the row is
   // where the two meet — the meta line is handed finished definitions.
   const labels = useWorkspaceLabelDefinitions(workspace.serverId, workspace.labels);
+  const prHint = useShownPrHint(workspace);
   const workspaceBranchTextStyle = useMemo(
     () => [
       styles.workspaceBranchText,
@@ -170,7 +173,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
             currentBranch={workspace.currentBranch}
             projectName={leadingProjectName}
             hostBadge={hostBadge ?? null}
-            prHint={workspace.prHint}
+            prHint={prHint}
             serviceSummary={serviceSummary}
             labels={labels}
           />

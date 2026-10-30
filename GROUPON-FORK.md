@@ -951,3 +951,12 @@ window's memory, so every restart of Groupon Desk put each workspace back on the
 now kept on the device per workspace, the 300 newest (`groupon-desk-diff-comparisons`,
 `packages/app/src/git/working-diff-comparison/index.ts`), with the agent requests already taken, so
 an agent's request applies once and a later pick of the person's stays across restarts.
+
+## A shared checkout's pull request shows on the chats that worked on it
+
+Paseo reads a pull request per checkout, so every chat on one checkout showed it, a Tempo chat
+beside the chat that opened the PR included. The daemon answers which workspaces' loaded chats
+worked on their checkout's branch (`groupon-desk.workspaces.worked`: an edit in it, or a commit, a
+push or `gh pr create` from it; `packages/server/src/groupon/worked-workspaces.ts`), and a sidebar
+row on a shared checkout shows the pull request only when its chat did, or on all of them while
+none has (`packages/app/src/groupon/worked-workspaces.ts`). A worktree's pull request stays its own.

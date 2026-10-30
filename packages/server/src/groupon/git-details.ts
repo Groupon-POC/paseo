@@ -47,7 +47,7 @@ export function gitDetailsRequestOf(input: unknown): { cwd: string; revision: st
   return { cwd, revision };
 }
 
-/** `git log` arguments for one commit, or for the commits of a range. */
+/** `git log` arguments for one commit, or for the commits of a range; a merge shows what it brought in. */
 export function gitDetailsArgs(revision: string): string[] {
   const commits = RANGE.test(revision)
     ? [`--max-count=${MAX_COMMITS}`, revision]
@@ -56,6 +56,7 @@ export function gitDetailsArgs(revision: string): string[] {
     "log",
     "--no-color",
     "--numstat",
+    "--diff-merges=first-parent",
     "--format=%x1e%H%x1f%s%x1f%b%x1f%an%x1f%aI%x1f",
     ...commits,
   ];

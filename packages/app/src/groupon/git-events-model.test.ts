@@ -117,6 +117,22 @@ describe("gitEventsOf", () => {
     expect(gitEventsOf(shell('git -C "/r/wt" push', ""))[0]?.dir).toBe("/r/wt");
   });
 
+  it("names a quiet commit from the git log -1 after it, never from one before it", () => {
+    const merge = gitEventsOf(
+      shell(
+        "git add x; git commit -q --no-edit 2>&1 | tail -2; git log --format='%h %s' -1 | cut -c1-120; git log --oneline origin/staging..HEAD | wc -l",
+        "0874e1d7f6 Merge remote-tracking branch 'origin/staging' into b2b/x\n       4",
+      ),
+    )[0];
+    expect(merge).toMatchObject({
+      sha: "0874e1d7f6",
+      subject: "Merge remote-tracking branch 'origin/staging' into b2b/x",
+    });
+    expect(
+      gitEventsOf(shell("git log --oneline -1; git commit -q --no-edit", "1a2b3c4 Before"))[0],
+    ).toMatchObject({ sha: null, subject: null });
+  });
+
   it("reads a commit and a push of one call in order, and nothing from other git verbs", () => {
     const output =
       "[main 1a2b3c4] Tidy\n 1 file changed, 1 insertion(+)\nTo x\n   1111111..1a2b3c4  main -> main";

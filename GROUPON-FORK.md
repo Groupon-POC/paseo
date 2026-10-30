@@ -909,13 +909,15 @@ commits or pushes is now drawn as nodes on a rail (the person's pick of 2026-10-
 in muted text: a commit with its subject, counts and short sha last, a push in green with where it
 went, its range and the checkout's pull request; a failed one in red with git's reason. The commit
 and push are read from the command and its output (`packages/app/src/groupon/git-events-model.ts`,
-with the folder git ran in from `git -C` or `cd`): a quiet commit takes its subject from `-m` or a
-heredoc and has no sha. Pressing a node opens what happened rather than the command: a commit's
+with the folder git ran in from `git -C` or `cd`): a commit git printed nothing for (`-q`) takes
+its sha and subject from a `git log -1` after it in the same call, else its subject from `-m` or a
+heredoc, with no sha. Pressing a node opens what happened rather than the command: a commit's
 message and its files with their counts, the commits a push carried, the lines of git's output that
 say why a call failed (`packages/app/src/groupon/git-event-details.tsx`); the command is one more
 press away. The daemon reads a commit or a range with `git log --numstat`
 (`groupon-desk.git.details`, `{ cwd, revision }`, a sha or `a..b` only,
-`packages/server/src/groupon/git-details.ts`). Such a call never folds into a run of calls (`isGroupableToolCall`), and
+`packages/server/src/groupon/git-details.ts`); a merge opens on what it brought into the branch
+(`--diff-merges=first-parent`). Such a call never folds into a run of calls (`isGroupableToolCall`), and
 Live keeps it once it finished (`agent-stream/display-mode.ts`).
 
 ## A moved chat brings its comparison and goes on by itself

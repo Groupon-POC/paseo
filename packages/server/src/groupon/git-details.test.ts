@@ -57,6 +57,16 @@ describe("gitDetailsOf", () => {
       git(root, gitDetailsArgs(`${first.slice(0, 9)}..${sha.slice(0, 9)}`)),
     );
     expect(pushed.map((row) => row.subject)).toEqual(["Tidy the cart"]);
+
+    git(root, ["checkout", "-q", "-b", "side", first]);
+    writeFileSync(join(root, "c.ts"), "side\n");
+    git(root, ["add", "c.ts"]);
+    git(root, ["commit", "-q", "-m", "Side"]);
+    git(root, ["merge", "-q", "--no-ff", "--no-edit", sha]);
+    const [merge] = gitDetailsOf(
+      git(root, gitDetailsArgs(git(root, ["rev-parse", "HEAD"]).trim())),
+    );
+    expect(merge?.files.map((file) => file.path)).toEqual(["a.ts", "b.ts"]);
   });
 });
 

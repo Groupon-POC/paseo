@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "session" comparisons (what the workspace's sessions changed: all, committed, uncommitted), and a default the person may set to it.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "session" comparisons (what the workspace's sessions changed: all, committed, uncommitted), and a default the person may set to it; the latest pick goes last, so a kept list keeps the newest.
 /** Groupon Desk: the "session" three read what the workspace's sessions changed; a person may make "session" the default. */
 export type WorkingDiffComparison =
   | "session"
@@ -64,14 +64,10 @@ export function selectWorkingDiffComparisonInState(
     comparison: WorkingDiffComparison;
   },
 ): WorkingDiffComparisonState {
-  return {
-    overrides: {
-      ...state.overrides,
-      [workingDiffComparisonKey(input)]: {
-        comparison: input.comparison,
-      },
-    },
-  };
+  // The latest pick goes last, so the persisted store keeps the most recent ones.
+  const key = workingDiffComparisonKey(input);
+  const { [key]: _previous, ...others } = state.overrides;
+  return { overrides: { ...others, [key]: { comparison: input.comparison } } };
 }
 
 export function resolveWorkingDiffComparisonFromState(

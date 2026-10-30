@@ -943,3 +943,11 @@ other's work. Now a commit counts only when its time falls inside one of the ses
 calls, and an uncommitted file only when it changed then (`shellWindowsOf`, `shellEditsOf` in
 `packages/server/src/groupon/session-changes.ts`): a call runs from the row before it in the
 agent's timeline, when the agent issued it, to its end and 5 s more; a running call up to now.
+
+## The Changes comparison survives a restart
+
+A workspace's comparison (Session or Worktree, All, Committed, Uncommitted) lived only in the
+window's memory, so every restart of Groupon Desk put each workspace back on the default. It is
+now kept on the device per workspace, the 300 newest (`groupon-desk-diff-comparisons`,
+`packages/app/src/git/working-diff-comparison/index.ts`), with the agent requests already taken, so
+an agent's request applies once and a later pick of the person's stays across restarts.

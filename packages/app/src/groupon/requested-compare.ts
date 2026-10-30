@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useFetchQuery } from "@/data/query";
-import { selectWorkingDiffComparison } from "@/git/working-diff-comparison";
+import { applyRequestedComparison } from "@/git/working-diff-comparison";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import {
   readRequestedCompares,
@@ -11,8 +11,6 @@ import {
 } from "./requested-compare-model";
 
 const NONE: Record<string, RequestedCompare> = {};
-/** The request each workspace last took, so a person's own pick afterwards stays. */
-const APPLIED = new Map<string, string>();
 
 /** The comparison the workspace's agent asked for, applied to the Changes once per request. */
 export function useRequestedCompare(
@@ -32,12 +30,11 @@ export function useRequestedCompare(
     refetchInterval: active ? REQUESTED_COMPARE_REFRESH_MS : false,
   });
   const request = workspaceId ? ((query.data ?? NONE)[workspaceId] ?? null) : null;
+  const comparison = request?.comparison;
+  const requestedAt = request?.requestedAt;
   useEffect(() => {
-    if (!request || !workspaceId) return;
-    const key = `${serverId}:${workspaceId}`;
-    if (APPLIED.get(key) === request.requestedAt) return;
-    APPLIED.set(key, request.requestedAt);
-    selectWorkingDiffComparison({ serverId, workspaceId, cwd: "", comparison: request.comparison });
-  }, [request, serverId, workspaceId]);
+    if (!comparison || !requestedAt || !workspaceId) return;
+    applyRequestedComparison({ serverId, workspaceId, cwd: "", comparison, requestedAt });
+  }, [comparison, requestedAt, serverId, workspaceId]);
   return request;
 }

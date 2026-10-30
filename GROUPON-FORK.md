@@ -960,3 +960,7 @@ worked on their checkout's branch (`groupon-desk.workspaces.worked`: an edit in 
 push or `gh pr create` from it; `packages/server/src/groupon/worked-workspaces.ts`), and a sidebar
 row on a shared checkout shows the pull request only when its chat did, or on all of them while
 none has (`packages/app/src/groupon/worked-workspaces.ts`). A worktree's pull request stays its own.
+
+A moved chat's workspace takes the chat's title once the move is done, when the chat is alone in
+it: the workspace is made when the move is asked, inside the turn, and a hook's title applied at
+that turn's end went to the workspace the chat left (`titleGrouponWorkspaceAfterChat`).

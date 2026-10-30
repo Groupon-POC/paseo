@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository. A title a hook or /rename gives a Claude session becomes its chat's at the end of a turn (`groupon/hook-title.ts`); a moved chat carries the Changes comparison its agent asked for, and a message that starts its next turn; an agent moves its own chat into another project, or out of every project (`desk_project`); the window learns which workspaces worked on their checkout's branch.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository. A title a hook or /rename gives a Claude session becomes its chat's at the end of a turn (`groupon/hook-title.ts`); a moved chat carries the Changes comparison its agent asked for, and a message that starts its next turn; an agent moves its own chat into another project, or out of every project (`desk_project`); the window learns which workspaces worked on their checkout's branch; a moved chat's workspace takes the chat's title.
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory } from "./agent/directory.js";
@@ -2251,12 +2251,17 @@ export class Session {
     if (!title || (await ledger.applied(agentId)) === title) return;
     await this.agentManager.updateAgentMetadata(agentId, { title });
     await ledger.remember(agentId, title);
-    const workspaceId = record.workspaceId;
-    if (!workspaceId) return;
+    if (record.workspaceId) await this.titleGrouponWorkspaceAfterChat(record.workspaceId, title);
+  }
+
+  /** A workspace holding only one chat carries that chat's title, as the sidebar names it. */
+  private async titleGrouponWorkspaceAfterChat(workspaceId: string, title: string): Promise<void> {
     const chats = (await this.agentStorage.listByWorkspace(workspaceId)).filter(
       (row) => !row.archivedAt,
     );
     if (chats.length !== 1) return;
+    const workspace = await this.workspaceRegistry.get(workspaceId);
+    if (!workspace || workspace.title === title) return;
     await this.workspaceRegistry.update(workspaceId, (existing) => ({
       ...existing,
       title,
@@ -3070,6 +3075,9 @@ export class Session {
         const snapshot = await this.agentManager.reloadAgentSession(id, { cwd }, { workspaceId });
         await this.agentUpdates.forwardLiveAgent(snapshot);
         if (left && left !== workspaceId) await this.archiveGrouponWorkspaceIfEmpty(left);
+        // The workspace was made when the move was asked; the chat may have been named since.
+        const title = (await this.agentStorage.get(id))?.title;
+        if (title) await this.titleGrouponWorkspaceAfterChat(workspaceId, title);
         if (after.compare) {
           await workspaceCompareLedger(this.paseoHome).remember(workspaceId, after.compare);
         }

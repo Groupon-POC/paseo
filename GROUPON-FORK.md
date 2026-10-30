@@ -989,3 +989,14 @@ none has (`packages/app/src/groupon/worked-workspaces.ts`). A worktree's pull re
 A moved chat's workspace takes the chat's title once the move is done, when the chat is alone in
 it: the workspace is made when the move is asked, inside the turn, and a hook's title applied at
 that turn's end went to the workspace the chat left (`titleGrouponWorkspaceAfterChat`).
+
+## The pull request pane's checks and activity share its height
+
+The pull request pane scrolled the header, the checks and the activity as one column, so a long
+activity pushed the checks out of view and a folded activity left its header in the middle of the
+pane. The header now stays at the top and the checks and the activity are two blocks, each
+scrolling on its own (`packages/app/src/groupon/pr-pane-split.tsx`, wired in
+`git/pull-request-panel/pane.tsx`): a folded activity sits at the pane's foot under checks that
+take the rest, and with both open Paseo's `ResizeHandle` between them sets the checks' height.
+Until the handle is dragged the checks are as tall as their content, at most half the pane; the
+dragged share is kept on the device (`groupon-desk-pr-pane-split`), each block keeping a tenth.

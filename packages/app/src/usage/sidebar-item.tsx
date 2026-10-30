@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one row per account in the sidebar's usage summary, a greyed row with a tooltip for an account that reports no usage; folded with Connected computers, one line of each account's fullest limit that unfolds them.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one row per account in the sidebar's usage summary, a greyed row with a tooltip for an account that reports no usage; its own fold to one line of every account's fullest limit, apart from Connected computers.
 import {
   createContext,
   Fragment,
@@ -16,7 +16,7 @@ import {
   type LayoutChangeEvent,
   type PressableStateCallbackType,
 } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { builtinSidebarNavLabelKey } from "@/sidebar-nav/model";
 import { useUsagePreferences } from "./display";
 import { useUsageHostId } from "./hosts";
@@ -35,6 +35,8 @@ import {
 import { UsageModal } from "./usage-modal";
 import { useGrouponPreferences } from "@/groupon/preferences";
 import { foldedUsageLine } from "@/groupon/sidebar-fold-model";
+import { GROUPON_USAGE_FOLD } from "@/groupon/strings";
+import { ChevronDown, ChevronRight } from "lucide-react-native";
 
 /** Each summary window with data on the usage host, under its source; empty while none has. */
 function useUsageSummary(): readonly PinnedUsageSource[] {
@@ -59,15 +61,48 @@ export function UsageSidebarItem() {
   const label = t(builtinSidebarNavLabelKey("usage"));
   const openUsage = useOpenSidebarUsage();
   const sources = useUsageSummary();
-  const folded = useGrouponPreferences((state) => state.footerPanelCollapsed === true);
-  const setFolded = useGrouponPreferences((state) => state.setFooterPanelCollapsed);
+  const folded = useGrouponPreferences((state) => state.usagePanelCollapsed === true);
+  const setFolded = useGrouponPreferences((state) => state.setUsagePanelCollapsed);
   const unfold = useCallback(() => setFolded(false), [setFolded]);
+  const toggle = useCallback(() => setFolded(!folded), [folded, setFolded]);
   if (sources.length === 0) return null;
-  if (folded) return <FoldedUsageLine label={label} sources={sources} onPress={unfold} />;
-  return <PinnedUsageTrigger label={label} sources={sources} onPress={openUsage} />;
+  return (
+    <View>
+      <UsageFoldHeading folded={folded} onPress={toggle} />
+      {folded ? (
+        <FoldedUsageLine label={label} sources={sources} onPress={unfold} />
+      ) : (
+        <PinnedUsageTrigger label={label} sources={sources} onPress={openUsage} />
+      )}
+    </View>
+  );
 }
 
-/** Folded with Connected computers: one line of each account's fullest limit; pressing it unfolds both. */
+/** "Subscriptions" and a chevron: folds the list to one line and back, apart from the computers above. */
+function UsageFoldHeading({ folded, onPress }: { folded: boolean; onPress: () => void }) {
+  const { theme } = useUnistyles();
+  const Chevron = folded ? ChevronRight : ChevronDown;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={folded ? FOLDED : UNFOLDED}
+      accessibilityLabel={folded ? GROUPON_USAGE_FOLD.unfold : GROUPON_USAGE_FOLD.fold}
+      style={foldedLineStyle}
+      testID="sidebar-usage-fold"
+    >
+      <View style={styles.foldHeading}>
+        <Text style={styles.foldHeadingText}>{GROUPON_USAGE_FOLD.heading}</Text>
+        <Chevron size={12} color={theme.colors.foregroundMuted} />
+      </View>
+    </Pressable>
+  );
+}
+
+const FOLDED = { expanded: false } as const;
+const UNFOLDED = { expanded: true } as const;
+
+/** Folded: one line of every account's fullest limit; pressing it unfolds the list. */
 function FoldedUsageLine({
   label,
   sources,
@@ -335,6 +370,16 @@ const styles = StyleSheet.create((theme) => ({
   foldedLine: {
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
+  },
+  foldHeading: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  foldHeadingText: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.medium,
   },
   trigger: {
     width: "100%",

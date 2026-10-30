@@ -306,6 +306,7 @@ describe("the Groupon plugin's RPCs", () => {
       jiraSavedView: "groupon.jira-saved-view",
       encoreApps: "groupon.encore-apps",
       standards: "groupon.standards",
+      deskUpdate: "groupon.desk-update",
     });
   });
 

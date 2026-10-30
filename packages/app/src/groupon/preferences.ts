@@ -35,8 +35,10 @@ const GrouponPreferencesSchema = z.object({
   lastRepositoryId: z.string().nullable().optional(),
   /** "Not now" on the add-to-home-screen card (`install-card.tsx`), kept on this device. */
   installCardDismissed: z.boolean().optional(),
-  /** The sidebar's Connected computers and limits folded to two lines (owner, 2026-10-28). */
+  /** The sidebar's Connected computers folded to one line (owner, 2026-10-28). */
   footerPanelCollapsed: z.boolean().optional(),
+  /** The sidebar's subscriptions folded to one line, apart from the computers (owner, 2026-10-29). */
+  usagePanelCollapsed: z.boolean().optional(),
   /** Local stays in the checkout even on a shared trunk, instead of becoming a worktree. */
   localInPlaceOnTrunk: z.boolean().optional(),
   /** My tasks under the New workspace composer (on by default). */
@@ -64,6 +66,7 @@ interface GrouponPreferencesState extends GrouponPreferences {
   rememberRepository: (repositoryId: string) => void;
   dismissInstallCard: () => void;
   setFooterPanelCollapsed: (value: boolean) => void;
+  setUsagePanelCollapsed: (value: boolean) => void;
 }
 
 export const DEFAULT_GROUPON_PREFERENCES: GrouponPreferences = { remindWorktreeScripts: false };
@@ -88,6 +91,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
       rememberRepository: (repositoryId) => set({ lastRepositoryId: repositoryId }),
       dismissInstallCard: () => set({ installCardDismissed: true }),
       setFooterPanelCollapsed: (value) => set({ footerPanelCollapsed: value }),
+      setUsagePanelCollapsed: (value) => set({ usagePanelCollapsed: value }),
     }),
     {
       name: "groupon-desk-preferences",
@@ -102,6 +106,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
         lastRepositoryId: state.lastRepositoryId ?? null,
         installCardDismissed: state.installCardDismissed ?? false,
         footerPanelCollapsed: state.footerPanelCollapsed ?? false,
+        usagePanelCollapsed: state.usagePanelCollapsed ?? false,
         localInPlaceOnTrunk: state.localInPlaceOnTrunk ?? false,
         showMyTasks: state.showMyTasks ?? true,
         diffSelectedFileOnly: state.diffSelectedFileOnly ?? false,

@@ -30,6 +30,7 @@ export const GROUPON_RPC = {
   jiraSavedView: "groupon.jira-saved-view",
   encoreApps: "groupon.encore-apps",
   standards: "groupon.standards",
+  deskUpdate: "groupon.desk-update",
 } as const;
 
 export type PluginRpcClient = Pick<DaemonClient, "invokePluginRpc">;
@@ -645,4 +646,46 @@ export async function followJob(
     if (job.status !== "running") return job;
     await sleep(JOB_POLL_MS);
   }
+}
+
+/** One side of `groupon.desk-update`: the installed version, the shelf's, and whether the shelf's is newer. */
+export interface DeskVersionPair {
+  installed: string | null;
+  latest: string | null;
+  updateAvailable: boolean;
+}
+
+/** This Mac's CLI and Groupon Desk against the company's shelf (`groupon update --check`). */
+export interface DeskUpdateAnswer {
+  cli: DeskVersionPair;
+  desk: DeskVersionPair;
+  problem: string | null;
+  install: { started: boolean; message: string } | null;
+}
+
+function versionPairOf(value: unknown): DeskVersionPair {
+  if (!isRecord(value)) return { installed: null, latest: null, updateAvailable: false };
+  return {
+    installed: typeof value.installed === "string" ? value.installed : null,
+    latest: typeof value.latest === "string" ? value.latest : null,
+    updateAvailable: value.updateAvailable === true,
+  };
+}
+
+/** `check` (kept ten minutes on the daemon unless `refresh`) or `install` (`groupon update`, started at once). */
+export async function readDeskUpdate(
+  client: PluginRpcClient,
+  action: "check" | "install",
+  refresh = false,
+): Promise<DeskUpdateAnswer> {
+  const output = await call(client, GROUPON_RPC.deskUpdate, { action, refresh });
+  const install = isRecord(output.install)
+    ? { started: output.install.started === true, message: String(output.install.message ?? "") }
+    : null;
+  return {
+    cli: versionPairOf(output.cli),
+    desk: versionPairOf(output.desk),
+    problem: typeof output.problem === "string" ? output.problem : null,
+    install,
+  };
 }

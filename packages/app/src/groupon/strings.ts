@@ -850,7 +850,7 @@ export const GROUPON_GIT_TIMELINE = {
   showCommand: "Show the command",
   hideCommand: "Hide the command",
   reading: "Reading from git…",
-  unreadable: "Git no longer has this commit here",
+  unreadable: "Could not read this from git",
   noSha: "Git printed no commit for this call",
   nothingPushed: "No new commits went out",
   failedNoReason: "Git gave no reason",

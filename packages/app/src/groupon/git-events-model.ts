@@ -6,6 +6,8 @@ export type GitEventStatus = "running" | "done" | "failed";
 
 export interface GitCommitEvent {
   kind: "commit";
+  /** The folder the command ran git in (`git -C`, or a `cd` before it), as written; null for the call's own. */
+  dir: string | null;
   status: GitEventStatus;
   sha: string | null;
   subject: string | null;
@@ -17,6 +19,7 @@ export interface GitCommitEvent {
 
 export interface GitPushEvent {
   kind: "push";
+  dir: string | null;
   status: GitEventStatus;
   /** `origin/branch` as the command named it, or as git reported it. */
   target: string | null;
@@ -45,14 +48,18 @@ export function gitEventsOf(item: StreamItem): GitEvent[] {
   const eventStatus = callStatusOf(status, detail.exitCode);
   const output = detail.output ?? "";
   const events: GitEvent[] = [];
+  let cd: string | null = null;
   for (const segment of commandSegments(detail.command)) {
+    const moved = CD.exec(segment);
+    if (moved) cd = unquote(moved[1] ?? "");
     const verb = GIT_VERB.exec(segment);
     if (!verb) continue;
     const rest = verb[3] ?? "";
+    const dir = folderOf(verb[1] ?? "") ?? cd;
     if (verb[2] === "commit" && !/--dry-run\b/.test(rest)) {
-      events.push(commitEvent(detail.command, output, eventStatus));
+      events.push({ ...commitEvent(detail.command, output, eventStatus), dir });
     } else if (verb[2] === "push" && !/--dry-run\b/.test(rest)) {
-      events.push(pushEvent(rest, output, eventStatus));
+      events.push({ ...pushEvent(rest, output, eventStatus), dir });
     }
   }
   return events;
@@ -67,12 +74,26 @@ function callStatusOf(status: string, exitCode: number | null | undefined): GitE
   return status === "failed" || (exitCode ?? 0) !== 0 ? "failed" : "done";
 }
 
+const CD = /^\s*cd\s+("[^"]+"|'[^']+'|\S+)\s*$/;
+
+const unquote = (text: string) => text.replace(/^(["'])(.*)\1$/, "$2");
+
+/** The folder of `git -C <path>` among git's options; null without one. */
+function folderOf(options: string): string | null {
+  const found = /-C\s+("[^"]+"|'[^']+'|\S+)/.exec(options);
+  return found?.[1] ? unquote(found[1]) : null;
+}
+
 function commandSegments(command: string): string[] {
   // A heredoc body is a message, not commands: keep it whole with its `git commit`.
   return command.replace(/<<-?\s*'?(\w+)'?\n[\s\S]*?\n\s*\1\b/g, "").split(SEGMENT_SPLIT);
 }
 
-function commitEvent(command: string, output: string, status: GitEventStatus): GitCommitEvent {
+function commitEvent(
+  command: string,
+  output: string,
+  status: GitEventStatus,
+): Omit<GitCommitEvent, "dir"> {
   const line = COMMIT_LINE.exec(output);
   const stats = COMMIT_STATS.exec(output);
   return {
@@ -88,7 +109,11 @@ function commitEvent(command: string, output: string, status: GitEventStatus): G
   };
 }
 
-function pushEvent(rest: string, output: string, status: GitEventStatus): GitPushEvent {
+function pushEvent(
+  rest: string,
+  output: string,
+  status: GitEventStatus,
+): Omit<GitPushEvent, "dir"> {
   const ref = PUSH_REF.exec(output);
   const rejected = ref?.[1] === "[rejected]" || ref?.[1] === "[remote rejected]";
   const upToDate = /Everything up-to-date/.test(output);

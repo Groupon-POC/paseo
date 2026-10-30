@@ -40,6 +40,7 @@ describe("gitEventsOf", () => {
     ).toEqual([
       {
         kind: "commit",
+        dir: null,
         status: "done",
         sha: "426a79da0",
         subject: "[ENC-10997] Desk: a session breathes",
@@ -80,6 +81,7 @@ describe("gitEventsOf", () => {
     expect(gitEventsOf(shell("git push origin desk/x 2>&1 | tail -2", pushed))).toEqual([
       {
         kind: "push",
+        dir: null,
         status: "done",
         target: "origin/desk/x",
         range: "35d847269..aef9adf08",
@@ -106,6 +108,13 @@ describe("gitEventsOf", () => {
       upToDate: true,
       status: "done",
     });
+  });
+
+  it("knows the folder git ran in, from git -C or a cd before it", () => {
+    expect(gitEventsOf(shell("cd ~/projects/paseo && git commit -q -m 'x'", ""))[0]?.dir).toBe(
+      "~/projects/paseo",
+    );
+    expect(gitEventsOf(shell('git -C "/r/wt" push', ""))[0]?.dir).toBe("/r/wt");
   });
 
   it("reads a commit and a push of one call in order, and nothing from other git verbs", () => {

@@ -847,4 +847,15 @@ export const GROUPON_GIT_TIMELINE = {
   upToDate: (target: string | null) => (target ? `${target} is up to date` : "Nothing to push"),
   pushFailed: (problem: string | null) => (problem ? `Push failed: ${problem}` : "Push failed"),
   newBranch: "new branch",
+  showCommand: "Show the command",
+  hideCommand: "Hide the command",
+  reading: "Reading from git…",
+  unreadable: "Git no longer has this commit here",
+  noSha: "Git printed no commit for this call",
+  nothingPushed: "No new commits went out",
+  failedNoReason: "Git gave no reason",
+  binary: "binary",
+  commitsPushed: (count: number) =>
+    count === 1 ? "1 commit went out" : `${count} commits went out`,
+  moreFiles: (count: number) => (count === 1 ? "and 1 more file" : `and ${count} more files`),
 } as const;

@@ -934,3 +934,12 @@ name, an id, or null for a folder of its own under "No project") finds the proje
 (`packages/server/src/groupon/chat-project.ts`), takes a workspace of that project no chat is in or
 makes one, and moves the chat once its turn ends, as a move into a worktree does: same agent, same
 session, the whole conversation (`scheduleChatProjectMove`).
+
+## A session's shell changes are its own
+
+What a session changed from a shell (a script, `sed`, `git commit`) was every commit on HEAD and
+every uncommitted file changed after it started there, so two chats in one checkout counted each
+other's work. Now a commit counts only when its time falls inside one of the session's own shell
+calls, and an uncommitted file only when it changed then (`shellWindowsOf`, `shellEditsOf` in
+`packages/server/src/groupon/session-changes.ts`): a call runs from the row before it in the
+agent's timeline, when the agent issued it, to its end and 5 s more; a running call up to now.

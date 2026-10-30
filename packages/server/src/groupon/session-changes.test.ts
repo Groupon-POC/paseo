@@ -15,7 +15,7 @@ import { basename, join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import {
   getPathsDiffSince,
-  listFilesCommittedSince,
+  listCommitsSince,
   listUncommittedFiles,
   resolveHeadAt,
 } from "../utils/checkout-git.js";
@@ -26,6 +26,7 @@ import {
   sessionDiffRange,
   sessionRootHolding,
   shellEditsOf,
+  shellWindowsOf,
   type SessionChangesDeps,
 } from "./session-changes.js";
 
@@ -188,11 +189,20 @@ describe("changes a session made from a shell", () => {
     git(root, ["commit", "-q", "-am", "by the session"], "2026-01-01T12:00:00Z");
     writeFileSync(join(root, "b.ts"), "new\n");
 
+    const now = Date.now();
     const edits = await shellEditsOf(
-      { edits: [], startedIn: [{ dir: root, at: new Date("2026-01-01T11:00:00Z") }] },
+      {
+        edits: [],
+        startedIn: [{ dir: root, at: new Date("2026-01-01T11:00:00Z") }],
+        // The session's shell calls: the commit at 12:00, the edit of b.ts just now.
+        windows: [
+          { from: new Date("2026-01-01T11:59:00Z"), to: new Date("2026-01-01T12:01:00Z") },
+          { from: new Date(now - 60_000), to: new Date(now + 60_000) },
+        ],
+      },
       {
         worktreeRootOf: deps.worktreeRootOf,
-        committedSince: listFilesCommittedSince,
+        commitsSince: listCommitsSince,
         uncommitted: listUncommittedFiles,
         modifiedAt: async (path) => statSync(path).mtime,
       },
@@ -205,6 +215,58 @@ describe("changes a session made from a shell", () => {
     expect(new Set(edits.map((found) => found.at.toISOString()))).toEqual(
       new Set(["2026-01-01T11:00:00.000Z"]),
     );
+  });
+});
+
+describe("another session in the same checkout", () => {
+  test("its commits and edits, made while none of this session's shell calls ran, stay its own", async () => {
+    const { root } = repo("shared");
+    writeFileSync(join(root, "a.ts"), "two\n");
+    git(root, ["commit", "-q", "-am", "by this session"], "2026-01-01T12:00:00Z");
+    writeFileSync(join(root, "theirs.ts"), "x\n");
+    git(root, ["add", "theirs.ts"], "2026-01-01T12:30:00Z");
+    git(root, ["commit", "-q", "-m", "by the other session"], "2026-01-01T12:30:00Z");
+    writeFileSync(join(root, "a.ts"), "their edit\n");
+    utimesSync(
+      join(root, "a.ts"),
+      new Date("2026-01-01T12:40:00Z"),
+      new Date("2026-01-01T12:40:00Z"),
+    );
+
+    const edits = await shellEditsOf(
+      {
+        edits: [],
+        startedIn: [{ dir: root, at: new Date("2026-01-01T11:00:00Z") }],
+        windows: [{ from: new Date("2026-01-01T11:59:00Z"), to: new Date("2026-01-01T12:01:00Z") }],
+      },
+      {
+        worktreeRootOf: deps.worktreeRootOf,
+        commitsSince: listCommitsSince,
+        uncommitted: listUncommittedFiles,
+        modifiedAt: async (path) => statSync(path).mtime,
+      },
+    );
+
+    expect(edits.map((found) => found.path.slice(root.length + 1))).toEqual(["a.ts"]);
+  });
+
+  test("a session's shell calls run from the row before each to its end, a running one to now", () => {
+    const shell = (status: string) => ({
+      type: "tool_call",
+      status,
+      detail: { type: "shell", command: "x" },
+    });
+    const rows = [
+      { timestamp: "2026-01-01T12:00:00Z", item: { type: "assistant_message", text: "on it" } },
+      { timestamp: "2026-01-01T12:00:30Z", item: shell("completed") },
+      { timestamp: "2026-01-01T12:05:00Z", item: shell("running") },
+    ];
+
+    expect(shellWindowsOf(rows, new Date("2026-01-01T12:06:00Z"))).toEqual([
+      { from: new Date("2026-01-01T12:00:00Z"), to: new Date("2026-01-01T12:00:35Z") },
+      { from: new Date("2026-01-01T12:00:30Z"), to: new Date("2026-01-01T12:06:05Z") },
+    ]);
+    expect(shellWindowsOf([], new Date())).toEqual([]);
   });
 });
 
@@ -240,7 +302,8 @@ describe("commits that are not the session's", () => {
     // A rebase onto a shared branch puts somebody else's commit on the line itself.
     commitAs(root, "o@example.com", "rebased.ts", "2026-01-01T12:45:00Z");
 
-    expect(await listFilesCommittedSince(root, new Date("2026-01-01T11:00:00Z"))).toEqual(["a.ts"]);
+    const commits = await listCommitsSince(root, new Date("2026-01-01T11:00:00Z"));
+    expect(commits.flatMap((commit) => commit.files)).toEqual(["a.ts"]);
   });
 });
 

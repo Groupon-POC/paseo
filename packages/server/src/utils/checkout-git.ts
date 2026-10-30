@@ -4462,11 +4462,12 @@ function getUnavailablePullRequestStatus(
  * the work a merge brought in left out, relative to the worktree root (what a session committed
  * from a shell, `groupon/session-changes.ts`).
  */
-export async function listFilesCommittedSince(cwd: string, since: Date): Promise<string[]> {
+/** The person's own commits on HEAD's line since then, merges left out, each with its commit time and files. */
+export async function listCommitsSince(
+  cwd: string,
+  since: Date,
+): Promise<{ at: Date; files: string[] }[]> {
   const seconds = Math.floor(since.getTime() / 1000);
-  // Only the person's own commits on this branch's line: a merge brings others' work in through
-  // its second parent (`--first-parent` stops there), and a rebase onto a shared branch puts
-  // others' commits on the line (the author filter leaves them out).
   const email = (
     await runGitCommand(["config", "--get", "user.email"], {
       cwd,
@@ -4483,19 +4484,18 @@ export async function listFilesCommittedSince(cwd: string, since: Date): Promise
       `--since=@${seconds}`,
       ...author,
       "--name-only",
-      "--format=",
+      "--format=@@%ct",
       "HEAD",
     ],
     { cwd, envOverlay: READ_ONLY_GIT_ENV, acceptExitCodes: [0, 128] },
   );
-  return [
-    ...new Set(
-      log.stdout
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean),
-    ),
-  ];
+  const commits: { at: Date; files: string[] }[] = [];
+  for (const line of log.stdout.split("\n").map((text) => text.trim())) {
+    if (line.startsWith("@@"))
+      commits.push({ at: new Date(Number(line.slice(2)) * 1000), files: [] });
+    else if (line && commits.length > 0) commits.at(-1)?.files.push(line);
+  }
+  return commits;
 }
 
 /** Groupon Desk: the worktree's uncommitted files, tracked or not, relative to its root. */

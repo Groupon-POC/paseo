@@ -209,7 +209,7 @@ import {
   getPathsDiffSince,
   getWorktreeRoot,
   renameCurrentBranch as renameCurrentBranchDefault,
-  listFilesCommittedSince,
+  listCommitsSince,
   listUncommittedFiles,
   resolveHeadAt,
 } from "../utils/checkout-git.js";
@@ -249,6 +249,8 @@ import {
   type SessionChangesMode,
   sessionRootHolding,
   shellEditsOf,
+  type ShellWindow,
+  shellWindowsOf,
   type SessionEdit,
 } from "../groupon/session-changes.js";
 import {
@@ -2971,16 +2973,23 @@ export class Session {
   private async readGrouponSessionChanges(workspaceId: string, mode: SessionChangesMode = "all") {
     const edits = await this.grouponSessionEdits(workspaceId);
     // Groupon Desk: what the sessions changed from a shell too (scripts, `git commit`), in the
-    // repositories they edited and the folders they run in.
-    const startedIn = (await this.agentStorage.listByWorkspace(workspaceId))
-      .filter((record) => this.agentManager.getAgent(record.id))
+    // repositories they edited and the folders they run in, while their own shell calls ran.
+    const agents = (await this.agentStorage.listByWorkspace(workspaceId)).filter((record) =>
+      this.agentManager.getAgent(record.id),
+    );
+    const startedIn = agents
       .map((record) => ({ dir: record.cwd, at: new Date(record.createdAt) }))
       .filter((start) => !Number.isNaN(start.at.getTime()));
+    const now = new Date();
+    const windows: ShellWindow[] = [];
+    for (const record of agents) {
+      windows.push(...shellWindowsOf(await this.agentManager.getTimelineRows(record.id), now));
+    }
     const shellEdits = await shellEditsOf(
-      { edits, startedIn },
+      { edits, startedIn, windows },
       {
         worktreeRootOf: (dir) => getWorktreeRoot(dir),
-        committedSince: listFilesCommittedSince,
+        commitsSince: listCommitsSince,
         uncommitted: listUncommittedFiles,
         modifiedAt: async (path) => (await stat(path).catch(() => null))?.mtime ?? null,
       },

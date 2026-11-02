@@ -1,5 +1,6 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shell call may be titled by its `description`; a question call (AskUserQuestion) is titled Question, with its questions' headers; a finished thought is titled "Thought for <n>s".
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shell call may be titled by its `description`; a question call (AskUserQuestion) is titled Question, with its questions' headers; a finished thought is titled "Thought for <n>s"; an MCP call outside Paseo's tools reads as a name and its main argument.
 import type { ToolCallTimelineItem } from "./agent-types.js";
+import { buildGrouponMcpToolDisplay } from "./groupon-mcp-tool-display.js";
 import {
   buildAgentMessageDisplay,
   buildPaseoToolDisplay,
@@ -177,11 +178,11 @@ export function buildToolCallDisplayModel(input: ToolCallDisplayInput): ToolCall
   const errorText = input.status === "failed" ? formatErrorText(input.error) : undefined;
   const paseoDisplay = input.agentMessage
     ? buildAgentMessageDisplay(input.agentMessage)
-    : buildPaseoToolDisplay({
+    : (buildPaseoToolDisplay({
         toolName: input.name,
         detail: input.detail,
         targetAgentTitle: input.targetAgentTitle,
-      });
+      }) ?? buildGrouponMcpToolDisplay({ toolName: input.name, detail: input.detail }));
   if (paseoDisplay) {
     return {
       displayName: paseoDisplay.displayName,

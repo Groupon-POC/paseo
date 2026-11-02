@@ -1009,3 +1009,18 @@ Until the handle is dragged the checks are as tall as their content, at most hal
 dragged share is kept on the device (`groupon-desk-pr-pane-split`), each block keeping a tenth.
 The checks list itself no longer scrolls inside a fixed 268 px (`checks-section.tsx`): the block
 scrolls, so a taller block shows more checks.
+
+## An MCP call reads as a name, not an id
+
+Paseo names only its own MCP tools; any other MCP call showed in the chat as its raw id
+(`mcp__groupon-desk__desk_start`) with no summary. `packages/protocol/src/groupon-mcp-tool-display.ts`,
+asked by `buildToolCallDisplayModel` after Paseo's catalog, splits the name on the double
+underscore (the second part is the server, which may hold single underscores, the rest the tool)
+and titles the row with the tool's name in words (`getJiraIssue` reads "Get jira issue"). The
+summary is the call's main argument: a field that names what the call acts on (a session, a path,
+a project, a query, a key, a title, a name, a URL), else the first short string, clipped like
+Paseo's summaries, never a field whose name says token, secret, password or key of an API; with no
+such string the summary is the server's name. The Groupon Desk door's tools (server
+`groupon-desk`) have a table of their own in the shape of Paseo's catalog: Start task with its
+`name` or `repository`, Read session with its `session`, Move chat with its `path`, Chat settings
+with its model and effort, and so on. A failed call keeps its error text.

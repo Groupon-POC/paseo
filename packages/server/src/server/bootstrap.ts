@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app; a workspace on a shared trunk is matched to no pull request.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app; a workspace on a shared trunk is matched to no pull request; the reader of MCP tool titles starts and stops with the daemon.
 import {
   createFinishSubscriptions,
   createFinishObservation,
@@ -166,6 +166,7 @@ import { BrowserToolsBroker } from "./browser-tools/broker.js";
 import { DaemonConfigBrowserToolsPolicy } from "./browser-tools/policy.js";
 import { WorkspaceGitServiceImpl } from "./workspace-git-service.js";
 import { isWorkspaceOnSharedTrunk } from "../groupon/shared-trunk.js";
+import { startMcpToolTitles, stopMcpToolTitles } from "../groupon/mcp-tool-titles.js";
 import { resolveWorkspaceIdForPath } from "./resolve-workspace-id-for-path.js";
 import {
   archiveByScope,
@@ -609,6 +610,11 @@ export async function createPaseoDaemon(
       { err: error, path: obsoleteTimelineDirectory },
       "Failed to remove obsolete agent timeline data",
     );
+  });
+  startMcpToolTitles({
+    paseoHome: config.paseoHome,
+    onError: (server, error) =>
+      logger.debug({ err: error, server }, "groupon.mcp_tool_titles.read_failed"),
   });
   const bootstrapStart = performance.now();
   const elapsed = () => `${(performance.now() - bootstrapStart).toFixed(0)}ms`;
@@ -1900,6 +1906,7 @@ export async function createPaseoDaemon(
   };
 
   const stop = async () => {
+    stopMcpToolTitles();
     localCredential = null;
     await deleteLocalCredential(config.paseoHome);
     // Stop tracking plugin provider registrations before anything tears plugins

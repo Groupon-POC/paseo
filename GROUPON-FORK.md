@@ -1053,12 +1053,30 @@ scrolls, so a taller block shows more checks.
 Paseo names only its own MCP tools; any other MCP call showed in the chat as its raw id
 (`mcp__groupon-desk__desk_start`) with no summary. `packages/protocol/src/groupon-mcp-tool-display.ts`,
 asked by `buildToolCallDisplayModel` after Paseo's catalog, splits the name on the double
-underscore (the second part is the server, which may hold single underscores, the rest the tool)
-and titles the row with the tool's name in words (`getJiraIssue` reads "Get jira issue"). The
-summary is the call's main argument: a field that names what the call acts on (a session, a path,
-a project, a query, a key, a title, a name, a URL), else the first short string, clipped like
-Paseo's summaries, never a field whose name says token, secret, password or key of an API; with no
-such string the summary is the server's name. The Groupon Desk door's tools (server
-`groupon-desk`) have a table of their own in the shape of Paseo's catalog: Start task with its
-`name` or `repository`, Read session with its `session`, Move chat with its `path`, Chat settings
-with its model and effort, and so on. A failed call keeps its error text.
+underscore (the second part is the server, which may hold single underscores, the rest the tool).
+The row's title is, in this order: the Groupon Desk door's own short label (server `groupon-desk`,
+a table in the shape of Paseo's catalog: Start task, Read session, Move chat, Chat settings), the
+title the tool's server gives it, else the tool's name in words (`getJiraIssue` reads "Get jira
+issue"). The door's own titles ("Change a session's model, effort or permission mode") are
+sentences, too long for a row. The summary is the call's main argument: a field that names what
+the call acts on (a session, a path, a project, a query, a key, a title, a name, a URL), else the
+first short string, clipped like Paseo's summaries, never a field whose name says token, secret,
+password or key of an API; with no such string the summary is the server's name. A failed call
+keeps its error text.
+
+Claude Code reads every server's titles but hands none of them on: a tool call carries only its
+name, and the SDK's `mcpServerStatus()` gives each server's tools by name only. So the daemon reads
+them itself (`packages/server/src/groupon/mcp-tool-titles.ts`). After a Claude process's first
+turn, the agent asks `mcpServerStatus()` once for its servers; each connected one the daemon can
+open (stdio, HTTP, SSE; never `paseo`, nor a claude.ai connector, which only Claude Code reaches)
+is connected to, its `tools/list` read (a tool's `title`, else its `annotations.title`), and closed
+again, one server at a time. The status leaves a stdio server's env out, so the env is the one the
+daemon gave the agent (the door's), else the one Claude Code reads: the folder's entry in
+`~/.claude.json`, the folder's `.mcp.json`, the user's scope. What was read is kept in
+`$PASEO_HOME/groupon/mcp-tool-titles.json` by server, with a fingerprint of its command and
+arguments or URL (never its env or headers) and when it was read; a server is read again when its
+fingerprint changes or after 12 hours, and every server seen since the daemon started is read again
+on that beat. The window reads the titles with the plugin RPC `groupon-desk.mcp.tool-titles`, once
+per host every 5 minutes and only while an MCP row is on screen
+(`packages/app/src/groupon/mcp-tool-titles.ts`); a host that predates the RPC answers nothing and its
+rows keep the name in words.

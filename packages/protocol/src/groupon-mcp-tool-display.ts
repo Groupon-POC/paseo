@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): an MCP call outside Paseo's own tools reads as a name and its main argument, not as `mcp__<server>__<tool>`.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): an MCP call outside Paseo's own tools reads as its server's title for the tool, else a name, and its main argument, not as `mcp__<server>__<tool>`.
 import type { ToolCallDetail } from "./agent-types.js";
 import { toSummaryText } from "./paseo-tool-presentation/summary-text.js";
 
@@ -109,6 +109,8 @@ export function mainArgument(input: ToolInput): string | undefined {
 export function buildGrouponMcpToolDisplay(input: {
   toolName: string;
   detail: ToolCallDetail;
+  /** The tool's title as its server gives it; the door's own short labels still win. */
+  serverTitle?: string;
 }): GrouponMcpToolDisplay | null {
   const name = parseMcpToolName(input.toolName);
   if (!name) return null;
@@ -119,7 +121,7 @@ export function buildGrouponMcpToolDisplay(input: {
       : undefined;
   const context = entry ? entry.context?.(toolInput) : mainArgument(toolInput);
   return {
-    displayName: entry?.label ?? toolNameInWords(name.tool),
+    displayName: entry?.label ?? readString(input.serverTitle) ?? toolNameInWords(name.tool),
     summary: (context ? toSummaryText(context) : undefined) ?? name.server,
   };
 }

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shell call may be titled by its `description`.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shell call may be titled by its `description`; an MCP call by its server's title for the tool.
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import { buildAgentMessageDisplay } from "@getpaseo/protocol/paseo-tool-presentation/index";
 import type { PlanOutcome } from "@/components/plan-card";
@@ -25,6 +25,7 @@ interface BuildToolCallPresentationInput {
   metadata?: Record<string, unknown>;
   targetAgentTitle?: string;
   preferDescription?: boolean;
+  mcpToolTitle?: string;
   resolveIcon: ToolCallIconResolver;
 }
 
@@ -73,6 +74,7 @@ export function buildToolCallPresentation(
     cwd: input.cwd,
     targetAgentTitle: input.targetAgentTitle,
     preferDescription: input.preferDescription,
+    mcpToolTitle: input.mcpToolTitle,
   });
   const isLoadingDetails = isPendingToolCallDetail({
     detail,

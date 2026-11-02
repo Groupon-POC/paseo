@@ -98,6 +98,44 @@ describe("Groupon Desk MCP tool display", () => {
     expect(call("mcp__groupon-desk__constructor", {})?.displayName).toBe("Constructor");
   });
 
+  it("titles a call by its server's title for the tool, the door's own labels first", () => {
+    const detail = {
+      type: "unknown" as const,
+      input: { url: "https://groupon.com" },
+      output: null,
+    };
+    expect(
+      buildGrouponMcpToolDisplay({
+        toolName: "mcp__playwright-headless__browser_navigate",
+        detail,
+        serverTitle: "Navigate to a URL",
+      }),
+    ).toEqual({ displayName: "Navigate to a URL", summary: "https://groupon.com" });
+    expect(
+      buildGrouponMcpToolDisplay({
+        toolName: "mcp__playwright-headless__browser_navigate",
+        detail,
+        serverTitle: " ",
+      })?.displayName,
+    ).toBe("Browser navigate");
+    expect(
+      buildGrouponMcpToolDisplay({
+        toolName: "mcp__groupon-desk__desk_start",
+        detail: { type: "unknown", input: { repository: "paseo" }, output: null },
+        serverTitle: "Start a task on a Mac",
+      })?.displayName,
+    ).toBe("Start task");
+    expect(
+      buildToolCallDisplayModel({
+        name: "mcp__grafana__query_prometheus",
+        status: "completed",
+        error: null,
+        detail: { type: "unknown", input: { expr: "up" }, output: null },
+        mcpToolTitle: "Query Prometheus metrics",
+      }),
+    ).toEqual({ displayName: "Query Prometheus metrics", summary: "up" });
+  });
+
   it("feeds the chat row, and a failed call keeps its error text", () => {
     expect(
       buildToolCallDisplayModel({

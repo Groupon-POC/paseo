@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague or another agent draws in its own tint with a name chip (groupon/message-author.tsx). A tool call follows the Describe tool calls setting, its name set apart from its title by weight; a question call shows its answered form in the history, open until folded, and nothing while it waits (groupon/answered-questions.tsx). A review sent from the diff shows as a card of its comments, each opening the diff at its line (groupon/review-attachment-card.tsx).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a user message by a colleague or another agent draws in its own tint with a name chip (groupon/message-author.tsx). A tool call follows the Describe tool calls setting, its name set apart from its title by weight; an MCP call is titled as its server titles the tool (groupon/mcp-tool-titles.ts); a question call shows its answered form in the history, open until folded, and nothing while it waits (groupon/answered-questions.tsx). A review sent from the diff shows as a card of its comments, each opening the diff at its line (groupon/review-attachment-card.tsx).
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
 import { ReviewAttachmentCard } from "@/groupon/review-attachment-card";
@@ -30,6 +30,7 @@ import { getDefaultMarkdownClipboardEnvironment } from "@/utils/rich-clipboard-d
 import { formatDuration, formatMessageTimestamp } from "@/utils/time";
 import { resolveToolCallIcon } from "@/utils/tool-call-icon";
 import { useTargetAgentTitle } from "@/tool-calls/use-target-agent-title";
+import { useMcpToolTitle } from "@/groupon/mcp-tool-titles";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { UserMessageAuthor } from "@getpaseo/protocol/agent-types";
 import { AuthorChip, authorStyles, useMessageLook } from "@/groupon/message-author";
@@ -2309,6 +2310,7 @@ export const ToolCall = memo(function ToolCall({
   }, [detail, args, result]);
 
   const targetAgentTitle = useTargetAgentTitle({ serverId, toolName, detail: effectiveDetail });
+  const mcpToolTitle = useMcpToolTitle({ serverId, toolName });
   const preferDescription = useSettings((settings) => settings.toolCallDescriptions);
   const presentation = useMemo(
     () =>
@@ -2322,6 +2324,7 @@ export const ToolCall = memo(function ToolCall({
         cwd,
         targetAgentTitle,
         preferDescription,
+        mcpToolTitle,
         resolveIcon: resolveToolCallIcon,
       }),
     [
@@ -2334,6 +2337,7 @@ export const ToolCall = memo(function ToolCall({
       agentMessage,
       targetAgentTitle,
       preferDescription,
+      mcpToolTitle,
     ],
   );
   const handleOpenFile = useMemo(() => {

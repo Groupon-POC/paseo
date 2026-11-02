@@ -1,7 +1,7 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): the pull request pane's checks and activity as two blocks, each scrolling on its own; a folded activity sits at the pane's foot, and a handle between them sets the checks' height, kept on the device.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): the pull request pane's checks and activity as two blocks, each scrolling its own body under a header that stays; a folded activity sits at the pane's foot, and a handle between them sets the checks' height, kept on the device.
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useState, type ReactElement, type ReactNode } from "react";
-import { ScrollView, View, type LayoutChangeEvent } from "react-native";
+import { View, type LayoutChangeEvent } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { z } from "zod";
 import { create } from "zustand";
@@ -32,7 +32,7 @@ const usePrPaneSplitStore = create<{
 
 const SPLIT_GROUP = "groupon-pr-pane";
 
-/** Its two children are the checks block and the activity block, in that order. */
+/** Its two children are the checks and the activity, in that order; each scrolls its own body. */
 export function PrPaneSplit({
   children: [checks, activity],
   checksOpen,
@@ -78,9 +78,7 @@ export function PrPaneSplit({
   return (
     <View style={styles.pane} onLayout={onPaneLayout} testID="pr-pane-split">
       <View style={blockStyle(layout.checks)} onLayout={onChecksLayout}>
-        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {checks}
-        </ScrollView>
+        {checks}
       </View>
       {layout.handle ? (
         <ResizeHandle
@@ -97,9 +95,7 @@ export function PrPaneSplit({
         <View style={styles.divider} />
       )}
       <View style={blockStyle(layout.activity)} testID="pr-pane-activity-block">
-        <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
-          {activity}
-        </ScrollView>
+        {activity}
       </View>
     </View>
   );
@@ -123,11 +119,6 @@ function blockStyle(block: PrPaneBlock) {
 const styles = StyleSheet.create((theme) => ({
   pane: {
     flex: 1,
-    minHeight: 0,
-  },
-  scroll: {
-    flexGrow: 1,
-    flexShrink: 1,
     minHeight: 0,
   },
   fixed: {

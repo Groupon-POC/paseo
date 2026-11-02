@@ -1801,7 +1801,11 @@ export function NewWorkspaceScreen({
         hideEntries={isPending}
       >
         {composer}
-        <CreationProgressCaption progress={creationProgress} pending={isPending} />
+        <CreationProgressCaption
+          progress={creationProgress}
+          pending={isPending}
+          hanging={!isCompact}
+        />
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </NewWorkspaceLayout>
       <JiraTasksCard serverId={selectedServerId} onTakeTicket={startTicket.openFor} />
@@ -1854,8 +1858,13 @@ function NewWorkspaceLayout({
   children: ReactNode;
 }) {
   // In the header on compact layouts, under the composer otherwise; Start a ticket beside it.
-  const importSessionButton = hideEntries ? null : (
-    <View style={isCompact ? styles.entriesCompact : styles.entries}>
+  // While a workspace is made the row only hides, so the centered form keeps its height.
+  const importSessionButton = (
+    <View
+      style={entriesStyle(isCompact, hideEntries)}
+      pointerEvents={hideEntries ? "none" : "auto"}
+      aria-hidden={hideEntries}
+    >
       <ImportSessionButton compact={isCompact} onPress={onImportSession} />
       <StartTicketButton compact={isCompact} onPress={onStartTicket} />
     </View>
@@ -1894,6 +1903,11 @@ function NewWorkspaceLayout({
   );
 }
 
+function entriesStyle(isCompact: boolean, hidden: boolean) {
+  if (hidden) return isCompact ? styles.entriesCompactHidden : styles.entriesHidden;
+  return isCompact ? styles.entriesCompact : styles.entries;
+}
+
 const styles = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
@@ -1903,6 +1917,16 @@ const styles = StyleSheet.create((theme) => ({
   entries: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  entriesHidden: {
+    flexDirection: "row",
+    alignItems: "center",
+    opacity: 0,
+  },
+  entriesCompactHidden: {
+    flexDirection: "row",
+    alignItems: "center",
+    opacity: 0,
   },
   entriesCompact: {
     flexDirection: "row",

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the centered dock (New workspace) widens with a wide window, and scrolls as a whole when the composer grows taller than the room left, instead of squeezing the setup fields under it.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the centered dock (New workspace) widens with a wide window, from its first frame (the last measured surface), and scrolls as a whole when the composer grows taller than the room left, instead of squeezing the setup fields under it.
 export { ComposerDockBackground } from "./internal/background";
 export { ComposerFullscreenBody, ComposerFullscreenFooter } from "./internal/fullscreen";
 import { ScrollView } from "@/components/ui/scroll-view";
@@ -17,23 +17,31 @@ interface ComposerDockProps {
   fullscreen?: boolean;
 }
 
+/** The last surface a centered dock measured: a new page starts from it, so its form does not jump in width. */
+let lastCenteredSurface: { width: number; height: number } | undefined;
+
 export function ComposerDock({
   children: [content, composer, overlay],
   centered = false,
   fullscreen = false,
 }: ComposerDockProps) {
   const compact = useIsCompactFormFactor();
-  const [surfaceSize, setSurfaceSize] = useState<{ width: number; height: number }>();
+  const [surfaceSize, setSurfaceSize] = useState(centered ? lastCenteredSurface : undefined);
   const surfaceRef = useRef<View>(null);
   const fullscreenFrame = useFullscreenSlotFrame(fullscreen, surfaceRef, surfaceSize);
   const constraint = useMemo(
     () => ({ maxHeight: resolveInlineComposerCapacity(surfaceSize?.height, compact) }),
     [surfaceSize?.height, compact],
   );
-  const measureViewport = useCallback((event: import("react-native").LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    if (height > 0) setSurfaceSize({ width, height });
-  }, []);
+  const measureViewport = useCallback(
+    (event: import("react-native").LayoutChangeEvent) => {
+      const { width, height } = event.nativeEvent.layout;
+      if (height <= 0) return;
+      if (centered) lastCenteredSurface = { width, height };
+      setSurfaceSize({ width, height });
+    },
+    [centered],
+  );
   if (centered) {
     // Groupon Desk: the whole form scrolls. A setup area that shrank on its own was cut off under
     // the composer once the composer grew (a pull request's card after its fetch).
@@ -44,7 +52,7 @@ export function ComposerDock({
           contentContainerStyle={SCROLL_CONTENT}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.centered}>
+          <View style={surfaceSize ? styles.centered : styles.centeredUnmeasured}>
             <View style={styles.form(surfaceSize?.width)}>
               <View style={styles.setup}>{content}</View>
               <View
@@ -110,5 +118,13 @@ const styles = StyleSheet.create((theme) => ({
     ),
   }),
   centeredComposer: { flexShrink: 0 },
+  // Groupon Desk: hidden for the one frame before the very first measure, which sets the width.
+  centeredUnmeasured: {
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingBottom: HEADER_INNER_HEIGHT + 24,
+    opacity: 0,
+  },
   setup: { flexShrink: 0 },
 }));

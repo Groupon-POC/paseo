@@ -1066,17 +1066,21 @@ keeps its error text.
 
 Claude Code reads every server's titles but hands none of them on: a tool call carries only its
 name, and the SDK's `mcpServerStatus()` gives each server's tools by name only. So the daemon reads
-them itself (`packages/server/src/groupon/mcp-tool-titles.ts`). After a Claude process's first
-turn, the agent asks `mcpServerStatus()` once for its servers; each connected one the daemon can
-open (stdio, HTTP, SSE; never `paseo`, nor a claude.ai connector, which only Claude Code reaches)
-is connected to, its `tools/list` read (a tool's `title`, else its `annotations.title`), and closed
-again, one server at a time. The status leaves a stdio server's env out, so the env is the one the
+them itself (`packages/server/src/groupon/mcp-tool-titles.ts`), and nothing waits for it. After a
+turn of a Claude process ends, the agent hands that process's `mcpServerStatus()` to the reader
+once, off the result's handling and never while a turn runs, without awaiting the answer; a status
+that never answers holds up no turn. Each connected server the daemon can open (stdio, HTTP, SSE;
+never `paseo`, nor a claude.ai connector, which only Claude Code reaches) is connected to, its
+`tools/list` read (a tool's `title`, else its `annotations.title`), and closed again, one server at
+a time behind the agent. The status leaves a stdio server's env out, so the env is the one the
 daemon gave the agent (the door's), else the one Claude Code reads: the folder's entry in
-`~/.claude.json`, the folder's `.mcp.json`, the user's scope. What was read is kept in
-`$PASEO_HOME/groupon/mcp-tool-titles.json` by server, with a fingerprint of its command and
-arguments or URL (never its env or headers) and when it was read; a server is read again when its
-fingerprint changes or after 12 hours, and every server seen since the daemon started is read again
-on that beat. The window reads the titles with the plugin RPC `groupon-desk.mcp.tool-titles`, once
-per host every 5 minutes and only while an MCP row is on screen
-(`packages/app/src/groupon/mcp-tool-titles.ts`); a host that predates the RPC answers nothing and its
-rows keep the name in words.
+`~/.claude.json`, the folder's `.mcp.json`, the user's scope, read only when the server is read.
+What was read is kept in `$PASEO_HOME/groupon/mcp-tool-titles.json` by server, with a fingerprint of
+its command and arguments or URL (never its env or headers), when it was read and every tool it
+listed. Tools rarely change: a server is read again when its fingerprint changes, when its status
+lists a tool the last read did not, or after a week, and every server seen since the daemon started
+is read again on that beat; a server that could not be read is left alone for an hour. The window
+reads the titles with the plugin RPC `groupon-desk.mcp.tool-titles`, which answers from the file at
+once, once per host every 5 minutes and only while an MCP row is on screen
+(`packages/app/src/groupon/mcp-tool-titles.ts`). Until a server has been read, or from a host that
+predates the RPC, its rows read as before: the name in words.

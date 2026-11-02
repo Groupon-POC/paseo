@@ -125,8 +125,8 @@ await server.connect(new StdioServerTransport());
       env: {},
     });
     expect(titles).toEqual({
-      desk_self: "Who you are on the desk",
-      query_loki_logs: "Query Loki logs",
+      tools: { desk_self: "Who you are on the desk", query_loki_logs: "Query Loki logs" },
+      names: ["desk_self", "query_loki_logs", "untitled"],
     });
   });
 
@@ -139,7 +139,7 @@ await server.connect(new StdioServerTransport());
       envOf: async () => ({ FROM_CONFIG: "1" }),
       probe: async (connection) => {
         probed.push(connection.type === "stdio" ? connection.command : connection.url);
-        return { tool_a: `Title ${probed.length}` };
+        return { tools: { tool_a: `Title ${probed.length}` }, names: ["tool_a", "tool_b"] };
       },
     });
     const statuses = [
@@ -154,9 +154,13 @@ await server.connect(new StdioServerTransport());
     expect(probed).toEqual(["mcp-grafana"]);
     expect(await titles.all()).toEqual({ grafana: { tool_a: "Title 1" } });
 
-    clock = new Date("2026-11-03T00:00:00Z");
+    clock = new Date("2026-11-08T09:00:00Z");
     await titles.observe({ cwd: dir, statuses });
-    expect(probed).toEqual(["mcp-grafana", "mcp-grafana"]);
+    expect(probed).toHaveLength(1);
+
+    clock = new Date("2026-11-09T10:00:00Z");
+    await titles.observe({ cwd: dir, statuses });
+    expect(probed).toHaveLength(2);
 
     await titles.observe({
       cwd: dir,
@@ -171,37 +175,71 @@ await server.connect(new StdioServerTransport());
     expect(await titles.all()).toEqual({ grafana: { tool_a: "Title 4" } });
   });
 
-  it("gives a stdio server the daemon's env before the Claude config's", async () => {
-    const envs: Record<string, string>[] = [];
+  it("reads a fresh server again when it shows a tool the last read did not list", async () => {
+    let reads = 0;
     const titles = mcpToolTitles({
       paseoHome: dir,
-      envOf: async () => ({ FROM_CONFIG: "1" }),
-      probe: async (connection) => {
-        if (connection.type === "stdio") envs.push(connection.env);
-        return {};
+      envOf: async () => ({}),
+      probe: async () => {
+        reads += 1;
+        return { tools: {}, names: ["desk_self", "desk_start"] };
       },
     });
-    await titles.observe({
+    const withTools = (...names: string[]) => [
+      {
+        ...connected("groupon-desk", { command: "groupon" }),
+        tools: names.map((name) => ({ name })),
+      },
+    ];
+    await titles.observe({ cwd: dir, statuses: withTools("desk_self", "desk_start") });
+    await titles.observe({ cwd: dir, statuses: withTools("desk_start") });
+    expect(reads).toBe(1);
+    await titles.observe({ cwd: dir, statuses: withTools("desk_start", "desk_new") });
+    expect(reads).toBe(2);
+  });
+
+  it("gives a stdio server the daemon's env before the Claude config's, read only when it is read", async () => {
+    const envs: Record<string, string>[] = [];
+    let configReads = 0;
+    const titles = mcpToolTitles({
+      paseoHome: dir,
+      envOf: async () => {
+        configReads += 1;
+        return { FROM_CONFIG: "1" };
+      },
+      probe: async (connection) => {
+        if (connection.type === "stdio") envs.push(connection.env);
+        return { tools: {}, names: [] };
+      },
+    });
+    const input = {
       cwd: dir,
       statuses: [
         connected("groupon-desk", { type: "stdio", command: "groupon", args: ["mcp", "serve"] }),
         connected("grafana", { type: "stdio", command: "mcp-grafana" }),
       ],
       knownEnv: { "groupon-desk": { GROUPON_DESK_SESSION_ID: "s" } },
-    });
+    };
+    await titles.observe(input);
+    await titles.observe(input);
     expect(envs).toEqual([{ GROUPON_DESK_SESSION_ID: "s" }, { FROM_CONFIG: "1" }]);
+    expect(configReads).toBe(1);
   });
 
-  it("keeps the last titles when a read fails, and says which server failed", async () => {
+  it("keeps the last titles when a read fails, says which server failed and leaves it alone an hour", async () => {
+    let clock = new Date("2026-11-02T10:00:00Z");
     const failed: string[] = [];
     let fail = false;
+    let reads = 0;
     const titles = mcpToolTitles({
       paseoHome: dir,
+      now: () => clock,
       envOf: async () => ({}),
       onError: (server) => failed.push(server),
       probe: async () => {
+        reads += 1;
         if (fail) throw new Error("down");
-        return { search: "Search" };
+        return { tools: { search: "Search" }, names: ["search"] };
       },
     });
     const statuses = [connected("es", { type: "http", url: "http://es/mcp" })];
@@ -210,5 +248,33 @@ await server.connect(new StdioServerTransport());
     await titles.refresh();
     expect(failed).toEqual(["es"]);
     expect(await titles.all()).toEqual({ es: { search: "Search" } });
+
+    clock = new Date("2026-11-10T10:00:00Z");
+    await titles.observe({ cwd: dir, statuses });
+    expect(reads).toBe(3);
+    clock = new Date("2026-11-10T10:30:00Z");
+    await titles.observe({ cwd: dir, statuses });
+    expect(reads).toBe(3);
+    clock = new Date("2026-11-10T11:00:01Z");
+    await titles.observe({ cwd: dir, statuses });
+    expect(reads).toBe(4);
+  });
+
+  it("answers what it has at once while a read hangs, and the caller waits for nothing", async () => {
+    const titles = mcpToolTitles({
+      paseoHome: dir,
+      envOf: async () => ({}),
+      probe: () => new Promise(() => undefined),
+    });
+    const observed = titles.observe({
+      cwd: dir,
+      statuses: [connected("slow", { type: "http", url: "http://slow/mcp" })],
+    });
+    const settled = await Promise.race([
+      observed.then(() => "observed"),
+      new Promise((resolve) => setTimeout(() => resolve("still reading"), 50)),
+    ]);
+    expect(settled).toBe("still reading");
+    expect(await titles.all()).toEqual({});
   });
 });

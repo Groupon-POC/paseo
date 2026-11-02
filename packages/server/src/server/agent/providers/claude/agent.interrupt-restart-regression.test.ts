@@ -1,4 +1,10 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a status read of the MCP servers that never answers holds up no turn.
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
+
+import { startMcpToolTitles, stopMcpToolTitles } from "../../../../groupon/mcp-tool-titles.js";
 
 import { createTestLogger } from "../../../../test-utils/test-logger.js";
 import { ClaudeAgentClient } from "./agent.js";
@@ -1081,4 +1087,70 @@ test("auto-completes an open autonomous turn when a foreground prompt starts", a
 
   subscribedEvents.close();
   await session.close();
+});
+
+test("Groupon Desk: the MCP servers' status is read once per process after a turn, and a read that never answers holds up no turn", async () => {
+  const paseoHome = await mkdtemp(join(tmpdir(), "claude-mcp-titles-"));
+  const probed: string[] = [];
+  startMcpToolTitles({
+    paseoHome,
+    envOf: async () => ({}),
+    probe: async (connection) => {
+      probed.push(connection.type === "stdio" ? connection.command : connection.url);
+      return { tools: {}, names: [] };
+    },
+  });
+  const sessionId = "mcp-status-session";
+  let answerStatus: ((statuses: unknown[]) => void) | null = null;
+  const mcpServerStatus = vi.fn(
+    () =>
+      new Promise<unknown[]>((resolve) => {
+        answerStatus = resolve;
+      }),
+  );
+  const queries: ScriptedQuery[] = [];
+  queryFactory.mockImplementation(({ prompt }: { prompt: AsyncIterable<unknown> }) => {
+    const scriptedQuery = createScriptedQuery({
+      prompt,
+      sessionId,
+      async handlePrompt({ promptRecord, query }) {
+        query.emit({
+          type: "assistant",
+          message: { content: `ANSWER ${promptRecord.text}` },
+          session_id: sessionId,
+        });
+        query.emit(buildSuccessResult(sessionId));
+      },
+    });
+    Object.assign(scriptedQuery, { mcpServerStatus });
+    queries.push(scriptedQuery);
+    return scriptedQuery;
+  });
+
+  try {
+    const session = await new ClaudeAgentClient({
+      logger: createTestLogger(),
+      queryFactory,
+      resolveBinary: async () => "/test/claude/bin",
+    }).createSession({ provider: "claude", cwd: process.cwd() });
+
+    const first = await collectUntilTerminal(streamSession(session, "first"));
+    expect(first.some((event) => event.type === "turn_completed")).toBe(true);
+    await waitFor(() => mcpServerStatus.mock.calls.length === 1);
+
+    const second = await collectUntilTerminal(streamSession(session, "second"));
+    expect(collectAssistantText(second)).toContain("ANSWER second");
+    expect(mcpServerStatus).toHaveBeenCalledTimes(1);
+
+    answerStatus?.([
+      { name: "es", status: "connected", config: { type: "http", url: "http://es/mcp" } },
+    ]);
+    await waitFor(() => probed.length === 1);
+    expect(probed).toEqual(["http://es/mcp"]);
+    expect(queries).toHaveLength(1);
+    await session.close();
+  } finally {
+    stopMcpToolTitles();
+    await rm(paseoHome, { recursive: true, force: true });
+  }
 });

@@ -14,8 +14,10 @@ import { writeJsonFileAtomic } from "../server/atomic-file.js";
 /** The Groupon Desk plugin RPC the window calls: `{}`, answered `{ servers: { [server]: { [tool]: title } } }`. */
 export const MCP_TOOL_TITLES_RPC = "groupon-desk.mcp.tool-titles";
 
-/** A server is read again after this, and every server seen since the daemon started on this beat. */
-export const MCP_TOOL_TITLES_TTL_MS = 12 * 60 * 60 * 1000;
+/** Tools rarely change: a server is read again after a week, or at once when it shows a tool not read yet. */
+export const MCP_TOOL_TITLES_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** A server that could not be read is left alone this long. */
+export const MCP_TOOL_TITLES_RETRY_MS = 60 * 60 * 1000;
 const PROBE_TIMEOUT_MS = 20_000;
 // Paseo's own tools have their catalog; a claude.ai connector is reachable only through Claude Code.
 const SKIPPED_SERVERS = new Set(["paseo"]);
@@ -30,12 +32,21 @@ export interface McpServerStatusLike {
   status: string;
   scope?: string;
   config?: unknown;
+  tools?: readonly { name: string }[];
 }
 
 interface StoredServer {
   fingerprint: string;
   probedAt: string;
   tools: Record<string, string>;
+  /** Every tool the read listed, titled or not, so a new one is noticed. */
+  names?: string[];
+}
+
+interface SeenServer {
+  base: McpServerConnection;
+  cwd: string;
+  knownEnv: Record<string, string> | undefined;
 }
 
 type StoredTitles = Record<string, StoredServer>;
@@ -169,21 +180,23 @@ async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 export async function probeToolTitles(
   connection: McpServerConnection,
   timeoutMs = PROBE_TIMEOUT_MS,
-): Promise<Record<string, string>> {
+): Promise<{ tools: Record<string, string>; names: string[] }> {
   const client = new Client({ name: "groupon-desk-tool-titles", version: "1" });
   try {
     await withTimeout(client.connect(transportOf(connection)), timeoutMs);
-    const titles: Record<string, string> = {};
+    const tools: Record<string, string> = {};
+    const names: string[] = [];
     let cursor: string | undefined;
     do {
       const page = await withTimeout(client.listTools(cursor ? { cursor } : {}), timeoutMs);
       for (const tool of page.tools) {
+        names.push(tool.name);
         const title = titleOfTool(tool);
-        if (title) titles[tool.name] = title;
+        if (title) tools[tool.name] = title;
       }
       cursor = page.nextCursor;
     } while (cursor);
-    return titles;
+    return { tools, names };
   } finally {
     await client.close().catch(() => undefined);
   }
@@ -208,14 +221,18 @@ export interface McpToolTitlesDeps {
   onError?: (server: string, error: unknown) => void;
 }
 
-/** The daemon's one reader and store of tool titles: reads run one at a time, at most once per TTL a server. */
+/**
+ * The daemon's one reader and store of tool titles. Nothing waits on it: an agent hands its servers
+ * over and goes on, reads run one at a time behind that, and `all()` answers from the file at once.
+ */
 export function mcpToolTitles(deps: McpToolTitlesDeps) {
   const path = join(deps.paseoHome, "groupon", "mcp-tool-titles.json");
   const probe = deps.probe ?? probeToolTitles;
   const envOf = deps.envOf ?? claudeConfigEnv;
   const now = deps.now ?? (() => new Date());
-  // The connections seen since start, in memory only: they may carry a token.
-  const seen = new Map<string, McpServerConnection>();
+  // In memory only: a connection may carry a token.
+  const seen = new Map<string, SeenServer>();
+  const failedAt = new Map<string, number>();
   let queue: Promise<void> = Promise.resolve();
 
   const read = async (): Promise<StoredTitles> => {
@@ -223,25 +240,43 @@ export function mcpToolTitles(deps: McpToolTitlesDeps) {
     return isRecord(parsed) ? (parsed as StoredTitles) : {};
   };
 
-  const isFresh = (stored: StoredServer | undefined, fingerprint: string): boolean =>
-    stored !== undefined &&
-    stored.fingerprint === fingerprint &&
-    now().getTime() - Date.parse(stored.probedAt) < MCP_TOOL_TITLES_TTL_MS;
+  const isDue = (input: {
+    stored: StoredServer | undefined;
+    fingerprint: string;
+    listed: readonly string[];
+  }): boolean => {
+    const { stored } = input;
+    if (!stored || stored.fingerprint !== input.fingerprint) return true;
+    if (now().getTime() - Date.parse(stored.probedAt) >= MCP_TOOL_TITLES_TTL_MS) return true;
+    const known = stored.names;
+    return known !== undefined && input.listed.some((name) => !known.includes(name));
+  };
 
-  const readServer = async (name: string, connection: McpServerConnection, force: boolean) => {
-    const fingerprint = fingerprintOf(connection);
-    if (!force && isFresh((await read())[name], fingerprint)) return;
+  const connectionFor = async (server: SeenServer, name: string): Promise<McpServerConnection> => {
+    if (server.base.type !== "stdio") return server.base;
+    const env = server.knownEnv ?? (await envOf({ name, cwd: server.cwd }));
+    return { ...server.base, env: { ...env, ...server.base.env } };
+  };
+
+  const readServer = async (name: string, server: SeenServer) => {
     try {
-      const tools = await probe(connection);
-      const next = {
-        ...(await read()),
-        [name]: { fingerprint, probedAt: now().toISOString(), tools },
+      const { tools, names } = await probe(await connectionFor(server, name));
+      const entry = {
+        fingerprint: fingerprintOf(server.base),
+        probedAt: now().toISOString(),
+        tools,
+        names,
       };
-      await writeJsonFileAtomic(path, next);
+      await writeJsonFileAtomic(path, { ...(await read()), [name]: entry });
+      failedAt.delete(name);
     } catch (error) {
+      failedAt.set(name, now().getTime());
       deps.onError?.(name, error);
     }
   };
+
+  const recentlyFailed = (name: string): boolean =>
+    now().getTime() - (failedAt.get(name) ?? -Infinity) < MCP_TOOL_TITLES_RETRY_MS;
 
   const enqueue = (work: () => Promise<void>): Promise<void> => {
     queue = queue.then(work, work);
@@ -249,8 +284,8 @@ export function mcpToolTitles(deps: McpToolTitlesDeps) {
   };
 
   return {
-    /** Reads the connected servers of one agent whose titles are missing, changed or stale. */
-    async observe(input: {
+    /** Reads the connected servers of one agent whose titles are missing, changed, stale or short of a tool. */
+    observe(input: {
       cwd: string;
       statuses: readonly McpServerStatusLike[];
       knownEnv?: Readonly<Record<string, Record<string, string>>>;
@@ -259,28 +294,25 @@ export function mcpToolTitles(deps: McpToolTitlesDeps) {
         if (status.status !== "connected" || SKIPPED_SERVERS.has(status.name)) continue;
         const base = connectionOf(status.config);
         if (!base) continue;
-        const connection =
-          base.type === "stdio"
-            ? {
-                ...base,
-                env: {
-                  ...(input.knownEnv?.[status.name] ??
-                    (await envOf({ name: status.name, cwd: input.cwd }))),
-                  ...base.env,
-                },
-              }
-            : base;
-        seen.set(status.name, connection);
-        await enqueue(() => readServer(status.name, connection, false));
+        const server = { base, cwd: input.cwd, knownEnv: input.knownEnv?.[status.name] };
+        seen.set(status.name, server);
+        const listed = (status.tools ?? []).map((tool) => tool.name);
+        void enqueue(async () => {
+          if (recentlyFailed(status.name)) return;
+          const stored = (await read())[status.name];
+          if (isDue({ stored, fingerprint: fingerprintOf(base), listed })) {
+            await readServer(status.name, server);
+          }
+        });
       }
+      return queue;
     },
     /** Reads again every server seen since the daemon started. */
-    async refresh(): Promise<void> {
-      for (const [name, connection] of seen) {
-        await enqueue(() => readServer(name, connection, true));
-      }
+    refresh(): Promise<void> {
+      for (const [name, server] of seen) void enqueue(() => readServer(name, server));
+      return queue;
     },
-    /** Every stored title, by server and tool. */
+    /** Every stored title, by server and tool; never waits for a read in progress. */
     async all(): Promise<Record<string, Record<string, string>>> {
       const stored = await read();
       return Object.fromEntries(

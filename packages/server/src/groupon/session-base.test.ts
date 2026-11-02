@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): tests for where a session's diff starts.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): tests for where a session's diff starts, a merge still in progress included.
 
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -119,5 +119,44 @@ describe("resolveSessionBase", () => {
     const merge = r.commit(6, "Merge upstream");
 
     expect(await resolveSessionBase(r.root, r.at(3))).toBe(merge);
+  });
+
+  it("takes what a merge still in progress brings in as given", async () => {
+    const r = repo();
+    r.run(1, ["checkout", "-q", "-b", "upstream"]);
+    r.write("b.ts", "b2 upstream\n");
+    r.commit(1, "Upstream work");
+    r.run(2, ["checkout", "-q", "main"]);
+    r.write("a.ts", "a2 session\n");
+    r.commit(4, "Session work");
+    r.run(5, ["merge", "-q", "--no-commit", "--no-ff", "upstream"]);
+
+    const base = await resolveSessionBase(r.root, r.at(3));
+
+    expect(show(r.root, base, "a.ts")).toBe("a1\n");
+    expect(show(r.root, base, "b.ts")).toBe("b2 upstream\n");
+  });
+
+  it("keeps the conflicts of a merge in progress in its base, so only the resolution shows", async () => {
+    const r = repo();
+    r.run(1, ["checkout", "-q", "-b", "upstream"]);
+    r.write("a.ts", "a2 upstream\n");
+    r.write("b.ts", "b2 upstream\n");
+    r.commit(1, "Upstream work");
+    r.run(2, ["checkout", "-q", "main"]);
+    r.write("a.ts", "a2 branch\n");
+    r.commit(2, "Branch work before the session");
+    try {
+      r.run(5, ["merge", "-q", "--no-edit", "upstream"]);
+    } catch {
+      // Still resolving: MERGE_HEAD stays.
+    }
+
+    const base = await resolveSessionBase(r.root, r.at(3));
+
+    expect(show(r.root, base, "b.ts")).toBe("b2 upstream\n");
+    expect(show(r.root, base, "a.ts")).toMatch(
+      /^<<<<<<< [^\n]*\na2 branch\n=======\na2 upstream\n>>>>>>> /,
+    );
   });
 });

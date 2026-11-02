@@ -1043,7 +1043,11 @@ newest merge on HEAD's first-parent line brought in taken as given: `git merge-t
 with the merged-in side, recorded as a commit object with a fixed author and date, so the diff from
 it shows the session's commits, edits and conflict resolutions and none of upstream's
 (`packages/server/src/groupon/session-base.ts`). When the branch before the session conflicts with
-upstream, the base is the merge commit itself.
+upstream, the base is the merge commit itself. A merge still in progress (`MERGE_HEAD`, the agent
+resolving conflicts) counts as the newest merge before its commit exists: every file `git merge`
+wrote fell inside the session's shell call and read as its own, 17,923 files in one chat. With no
+merge commit to fall back to, a conflicted merge keeps `git merge-tree`'s tree with its conflict
+markers as the base, so the diff shows how the session resolved them (67 files in that chat).
 
 ## An MCP call reads as a name, not an id
 

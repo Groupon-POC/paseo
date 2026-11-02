@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): where a session's diff starts in a repository, so a branch switch or a merge of upstream the session made itself never counts as its work.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): where a session's diff starts in a repository, so a branch switch or a merge of upstream the session made itself, finished or still in progress, never counts as its work.
 
 /**
  * HEAD when the session first touched the repository, moved past the last branch switch after
@@ -13,6 +13,9 @@
  *   own gc drops them), the same each time for the same inputs (fixed author and dates)
  * - A merge `git merge-tree` cannot make cleanly falls back to the merge commit itself: the work
  *   after it shows, a resolution and earlier commits do not
+ * - A merge still in progress (`MERGE_HEAD`) is the newest merge: its upstream is taken as given
+ *   before the merge commit exists. With no commit to fall back to, a conflicted one keeps
+ *   `git merge-tree`'s tree, conflict markers and all, so the diff shows how the session resolved it
  */
 
 import { runGitCommand } from "../utils/run-git-command.js";
@@ -84,23 +87,42 @@ export async function resolveSessionBase(cwd: string, at: Date): Promise<string 
   return (await mergedBase(cwd, start)) ?? start;
 }
 
+async function revision(cwd: string, name: string): Promise<string | null> {
+  const found = await git(cwd, ["rev-parse", "-q", "--verify", name]);
+  return found.exitCode === 0 ? String(found.stdout).trim() || null : null;
+}
+
+/** `start` merged with `upstream` as a commit object; a conflicted merge only when `keepConflicts`. */
+async function mergeTreeCommit(
+  cwd: string,
+  input: { start: string; upstream: string; keepConflicts: boolean },
+): Promise<string | null> {
+  const tree = await git(cwd, [
+    "merge-tree",
+    "--write-tree",
+    "--no-messages",
+    input.start,
+    input.upstream,
+  ]);
+  const treeId = String(tree.stdout).split("\n")[0]?.trim();
+  const usable = tree.exitCode === 0 || (input.keepConflicts && tree.exitCode === 1);
+  if (!usable || !treeId || !/^[0-9a-f]{40,64}$/.test(treeId)) return null;
+  const commit = await git(
+    cwd,
+    ["commit-tree", treeId, "-p", input.start, "-m", "Groupon Desk: a session's base"],
+    { ...READ_ONLY, ...FIXED_IDENTITY },
+  );
+  return String(commit.stdout).trim() || null;
+}
+
 /** `start` with what the newest merge since then brought in; null when HEAD took no merge since. */
 async function mergedBase(cwd: string, start: string): Promise<string | null> {
+  const pending = await revision(cwd, "MERGE_HEAD");
+  if (pending) return mergeTreeCommit(cwd, { start, upstream: pending, keepConflicts: true });
   const merges = await git(cwd, ["rev-list", "--first-parent", "--merges", `${start}..HEAD`]);
   const merge = String(merges.stdout).split("\n")[0]?.trim();
   if (!merge) return null;
-  const upstream = String((await git(cwd, ["rev-parse", "--verify", `${merge}^2`])).stdout).trim();
+  const upstream = await revision(cwd, `${merge}^2`);
   if (!upstream) return merge;
-  const tree = await git(cwd, ["merge-tree", "--write-tree", "--no-messages", start, upstream]);
-  const treeId = String(tree.stdout).split("\n")[0]?.trim();
-  if (tree.exitCode !== 0 || !treeId) return merge;
-  const commit = await git(
-    cwd,
-    ["commit-tree", treeId, "-p", start, "-m", "Groupon Desk: a session's base"],
-    {
-      ...READ_ONLY,
-      ...FIXED_IDENTITY,
-    },
-  );
-  return String(commit.stdout).trim() || merge;
+  return (await mergeTreeCommit(cwd, { start, upstream, keepConflicts: false })) ?? merge;
 }

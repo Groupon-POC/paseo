@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a dirty worktree's archive warning counts its uncommitted lines (`groupon/uncommitted-stat.ts`), not the branch's diff against its base.
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
@@ -11,6 +12,7 @@ import type { WorkspaceDescriptor } from "@/stores/session-store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { archiveWorkspaceOptimistically } from "@/workspace/workspace-archive";
+import { readUncommittedStat } from "@/groupon/uncommitted-stat";
 
 function purgeArchivedWorkspaceState(input: { serverId: string; workspaceId: string }): void {
   const workspaceKey = buildWorkspaceTabPersistenceKey(input);
@@ -81,12 +83,13 @@ export function useWorkspaceArchive(input: ArchiveWorkspaceInput): WorkspaceArch
   const archive = useCallback(() => {
     void (async () => {
       if (workspaceKind === "worktree") {
+        const client = isDirty === true ? getHostRuntimeStore().getClient(serverId) : null;
         const confirmed = await confirmRiskyWorktreeArchive(
           {
             workspaceName: name,
             isDirty,
             aheadOfOrigin,
-            diffStat,
+            diffStat: client ? await readUncommittedStat(client, workspaceId) : diffStat,
           },
           warningLabels,
         );
@@ -102,7 +105,9 @@ export function useWorkspaceArchive(input: ArchiveWorkspaceInput): WorkspaceArch
     diffStat,
     isDirty,
     name,
+    serverId,
     warningLabels,
+    workspaceId,
     workspaceKind,
   ]);
 

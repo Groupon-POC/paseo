@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a diff can be limited to paths and taken from any commit (`getPathsDiffSince`), and HEAD can be read at a past moment (`resolveHeadAt`), for an agent session's own changes; `getWorktreeRoot` is exported.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a diff can be limited to paths and taken from any commit (`getPathsDiffSince`), and HEAD can be read at a past moment (`resolveHeadAt`), for an agent session's own changes; `getWorktreeRoot` is exported; `getUncommittedShortstat` counts only what is not committed yet, for the archive warning.
 import { MAX_RELAY_WEBSOCKET_MESSAGE_BYTES } from "@getpaseo/protocol/websocket-message-limit";
 import { resolve, dirname, basename } from "path";
 import { existsSync, realpathSync } from "fs";
@@ -2855,6 +2855,19 @@ async function countUntrackedAdditions(
     }
     return 0;
   }
+}
+
+/** Staged, unstaged and untracked lines against HEAD; null when there are none. */
+export async function getUncommittedShortstat(cwd: string): Promise<CheckoutShortstat | null> {
+  const [{ stdout }, untrackedAdditions] = await Promise.all([
+    getRunGitCommand()(["diff", "--shortstat", "HEAD"], { cwd, envOverlay: READ_ONLY_GIT_ENV }),
+    countUntrackedAdditions(cwd, undefined, true),
+  ]);
+  const tracked = parseCheckoutShortstat(stdout) ?? { additions: 0, deletions: 0 };
+  const additions = tracked.additions + untrackedAdditions;
+  return additions > 0 || tracked.deletions > 0
+    ? { additions, deletions: tracked.deletions }
+    : null;
 }
 
 function handleShortstatGitError(error: unknown, throwOnGitError = false): null {

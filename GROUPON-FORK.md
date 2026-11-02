@@ -1085,3 +1085,14 @@ reads the titles with the plugin RPC `groupon-desk.mcp.tool-titles`, which answe
 once, once per host every 5 minutes and only while an MCP row is on screen
 (`packages/app/src/groupon/mcp-tool-titles.ts`). Until a server has been read, or from a host that
 predates the RPC, its rows read as before: the name in words.
+
+## The archive warning counts what is not committed yet
+
+Archiving a worktree whose branch was fully pushed warned "Uncommitted changes (1971 added lines,
+75 deleted lines)": upstream takes the flag from `git status` and the numbers from the branch's diff
+against its base, so one stray untracked file showed the whole branch as uncommitted. When the
+worktree is dirty, the warning asks its daemon for `git diff HEAD` plus untracked lines
+(`groupon-desk.checkout.uncommitted-stat`, `packages/server/src/groupon/uncommitted-stat.ts`,
+`packages/app/src/groupon/uncommitted-stat.ts`); a daemon that predates the read leaves the numbers
+out. The stray file was the setup's own `.groupon/setup-state.json`, which the hand now keeps out of
+git in every repository (engineering-development).

@@ -357,7 +357,9 @@ out after 30000ms: git status --porcelain".
   persisted on its own. New workspace shows it under the composer as a chat's feed shows a running
   step (`ExpandableBadge`), and below it, on a line of its own, the whole wait and TARS's blob as a
   running turn shows them (`WorkingIndicator`, `groupon/creation-progress.tsx`); the composer is
-  muted only until the workspace exists.
+  muted only until the workspace exists. In the centered layout the caption hangs from a zero-height
+  anchor under the composer and Import session with Start a ticket only fade out, so the centered
+  form keeps its height and the composer does not jump when Enter is pressed.
 - **`git worktree add` checks out in parallel** (`-c checkout.workers=0`): 2.9 s instead of 5.3 s
   for the same tree on the Air, warm cache.
 - **No `git status` on a creation's path.** `getCheckout` answers the checkout's identity from
@@ -792,7 +794,9 @@ width is kept as a share of the pane, one for every chat on this device (`stream
 `groupon/preferences.ts`). A double click returns to the content width, Escape cancels a drag.
 Each chat turns the share into pixels for its own pane, in 16px steps, never below the content
 width nor past the pane less a tenth on each side, and reads a resized pane again only once it
-rests (`groupon/stream-width.ts`, `groupon/use-stream-width.ts`). The pixels reach the rows
+rests (`groupon/stream-width.ts`, `groupon/use-stream-width.ts`). A new chat starts from the pane
+width the last chat measured, so its first message is not drawn at the content width and then
+widened; before any chat has measured one, a widened output stays hidden for that one frame. The pixels reach the rows
 through React (`StreamWidthProvider`, the strategy's `contentMaxWidth`), and the web list forgets
 the row heights it measured at another width (`agent-stream/strategy-web.tsx`); the composer keeps
 the content width.
@@ -843,7 +847,9 @@ The centered New workspace form kept its title and setup fields (project, Mac, b
 scroll area of their own that shrank when the composer grew, so a pull request's card arriving
 after its fetch cut the fields off under the composer. The whole form scrolls now and neither part
 shrinks (`packages/app/src/composer/dock/index.tsx`, the centered branch; test
-`centered-dock.browser.test.tsx`).
+`centered-dock.browser.test.tsx`). The form's width follows the surface it measures; a new page
+starts from the last centered surface measured, and before the very first measure the form stays
+hidden for that one frame, so the composer is not drawn narrow and then widened.
 
 ## Sent feedback returns to the chat
 
@@ -1007,5 +1013,34 @@ scrolling on its own (`packages/app/src/groupon/pr-pane-split.tsx`, wired in
 take the rest, and with both open Paseo's `ResizeHandle` between them sets the checks' height.
 Until the handle is dragged the checks are as tall as their content, at most half the pane; the
 dragged share is kept on the device (`groupon-desk-pr-pane-split`), each block keeping a tenth.
-The checks list itself no longer scrolls inside a fixed 268 px (`checks-section.tsx`): the block
-scrolls, so a taller block shows more checks.
+The checks list itself no longer scrolls inside a fixed 268 px (`checks-section.tsx`): it fills its
+block, so a taller block shows more checks. Each block scrolls only its body, with its scroll bar,
+under a header that stays (`Section`'s `scrollBody` in `section-kit.tsx`); GitLab's own checks keep
+a scroll of the block.
+
+An image in a comment is inline wherever it sits in a paragraph with other content, inside bold or
+a link too (`patches/react-native-enriched-markdown+*.patch`, `markInlineImages` in the library's
+web renderer; test `groupon/markdown-inline-images.test.ts`). The library made inline only an
+image that was a paragraph's own child, so CodeRabbit's 14 px counters in
+`<summary><strong>Pre-merge checks: <img ...>` and linked badges beside text drew as 320 px blocks;
+a picture alone in its paragraph, linked or not, stays a block.
+
+## A chat goes on by itself after a change of its own settings
+
+The agents' door changes a session's model and effort (`desk_chat_settings`) for the next turn, so
+a skill that wants another model for its task had no turn to run it in until the person wrote.
+`groupon-desk.chats.followUp` (`{ agentId, text }`, `packages/server/src/groupon/chat-follow-up.ts`)
+sends a message once the chat's turn ends, at once when none runs, which starts the next turn on
+the new settings; it answers `continueWith: true`, or false while an earlier follow-up of the same
+chat still waits, so a second ask never doubles it.
+
+## A session's diff leaves out the branch switches and merges it made
+
+A session that switched its worktree to a pull request's branch and merged staging into it showed
+staging's 523 commits as its own: its diff started from HEAD when it first touched the repository,
+on the branch it left. Its base is now HEAD after the last branch switch since then, with what the
+newest merge on HEAD's first-parent line brought in taken as given: `git merge-tree` of that base
+with the merged-in side, recorded as a commit object with a fixed author and date, so the diff from
+it shows the session's commits, edits and conflict resolutions and none of upstream's
+(`packages/server/src/groupon/session-base.ts`). When the branch before the session conflicts with
+upstream, the base is the merge commit itself.

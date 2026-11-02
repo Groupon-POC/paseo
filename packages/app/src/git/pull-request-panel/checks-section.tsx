@@ -1,6 +1,6 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the checks list grows with its block; the pane's checks block scrolls (`groupon/pr-pane-split.tsx`), so the list no longer scrolls inside a fixed 268 px.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the checks fill their block in the pane (`groupon/pr-pane-split.tsx`) and the list scrolls under the header that stays, never inside a fixed 268 px.
 import { useCallback, useMemo } from "react";
-import { Pressable, Text, View, type GestureResponderEvent } from "react-native";
+import { Pressable, ScrollView, Text, View, type GestureResponderEvent } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, MessageSquarePlus } from "lucide-react-native";
@@ -77,7 +77,7 @@ export function ChecksSection({
   const { collapsedGroups, toggle: handleToggleGroup } = useCheckGroupState();
 
   return (
-    <View testID="pr-pane-checks">
+    <View testID="pr-pane-checks" style={styles.root}>
       <Pressable
         onPress={onToggle}
         style={headerPressableStyle}
@@ -112,7 +112,7 @@ export function ChecksSection({
       </Pressable>
 
       {open && summary.groups.length > 0 ? (
-        <View style={styles.listContent}>
+        <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
           {summary.groups.map((group) => (
             <CheckGroup
               key={group.status}
@@ -124,7 +124,7 @@ export function ChecksSection({
               onAddLogsToChat={onAddLogsToChat}
             />
           ))}
-        </View>
+        </ScrollView>
       ) : null}
     </View>
   );
@@ -257,6 +257,17 @@ const styles = StyleSheet.create((theme) => ({
   detail: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.foregroundMuted,
+  },
+  root: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: "auto",
+    minHeight: 0,
+  },
+  list: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
   },
   listContent: {
     paddingBottom: theme.spacing[2],

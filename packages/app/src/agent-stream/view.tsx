@@ -1159,7 +1159,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         visibleMessageIds={mountedMessageIds}
       >
         <ToolCallSheetProvider>
-          <AssistantSelectionCopySurface style={stylesheet.container}>
+          <AssistantSelectionCopySurface style={streamContainerStyle(streamWidth.ready)}>
             <View
               style={stylesheet.paneMeasure}
               pointerEvents="none"
@@ -1747,10 +1747,20 @@ function PermissionRequestCard({
   );
 }
 
+function streamContainerStyle(ready: boolean) {
+  return ready ? stylesheet.container : stylesheet.containerUnmeasured;
+}
+
 const stylesheet = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
     backgroundColor: theme.colors.surface0,
+  },
+  // Groupon Desk: one frame hidden while a widened output waits for its pane's first measure.
+  containerUnmeasured: {
+    flex: 1,
+    backgroundColor: theme.colors.surface0,
+    opacity: 0,
   },
   paneMeasure: {
     position: "absolute",

@@ -1024,3 +1024,12 @@ web renderer; test `groupon/markdown-inline-images.test.ts`). The library made i
 image that was a paragraph's own child, so CodeRabbit's 14 px counters in
 `<summary><strong>Pre-merge checks: <img ...>` and linked badges beside text drew as 320 px blocks;
 a picture alone in its paragraph, linked or not, stays a block.
+
+## A chat goes on by itself after a change of its own settings
+
+The agents' door changes a session's model and effort (`desk_chat_settings`) for the next turn, so
+a skill that wants another model for its task had no turn to run it in until the person wrote.
+`groupon-desk.chats.followUp` (`{ agentId, text }`, `packages/server/src/groupon/chat-follow-up.ts`)
+sends a message once the chat's turn ends, at once when none runs, which starts the next turn on
+the new settings; it answers `continueWith: true`, or false while an earlier follow-up of the same
+chat still waits, so a second ask never doubles it.

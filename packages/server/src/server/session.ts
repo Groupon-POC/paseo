@@ -220,6 +220,11 @@ import {
   scheduleChatRelocation,
 } from "../groupon/chat-relocation.js";
 import { CHAT_PROJECT_RPC, projectNamed } from "../groupon/chat-project.js";
+import {
+  CHAT_FOLLOW_UP_RPC,
+  chatFollowUpRequestOf,
+  scheduleChatFollowUp,
+} from "../groupon/chat-follow-up.js";
 import { WORKED_WORKSPACES_RPC, workedIn } from "../groupon/worked-workspaces.js";
 import {
   GIT_DETAILS_RPC,
@@ -2863,6 +2868,9 @@ export class Session {
         },
       );
     }
+    if (method === CHAT_FOLLOW_UP_RPC) {
+      return this.scheduleGrouponFollowUp(chatFollowUpRequestOf(input));
+    }
     if (method === CHAT_PROJECT_RPC) {
       const project = grouponRpcField(input, "project");
       if (project !== null && typeof project !== "string")
@@ -3080,6 +3088,21 @@ export class Session {
       if (workedIn(await this.agentManager.getTimelineRows(agent.id), dir)) worked.add(workspaceId);
     }
     return [...worked];
+  }
+
+  /** The door's follow-up: `text` starts the chat's next turn once the turn now running ends. */
+  private scheduleGrouponFollowUp(request: { agentId: string; text: string }) {
+    if (!this.agentManager.getAgent(request.agentId)) {
+      throw new Error(`Agent not found: ${request.agentId}`);
+    }
+    return scheduleChatFollowUp(request, {
+      waitForTurnEnd: this.grouponMoveDeps({ compare: null, continueWith: null }).waitForTurnEnd,
+      send: async (id, text) => {
+        await this.handleSendAgentMessage(id, text);
+      },
+      onFailure: (id, error) =>
+        this.sessionLogger.error({ err: error, agentId: id }, "A chat's follow-up failed"),
+    });
   }
 
   /** How a chat moves once its turn ends, and what follows: the window's comparison there, a message that goes on. */

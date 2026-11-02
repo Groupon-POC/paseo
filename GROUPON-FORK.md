@@ -1033,3 +1033,14 @@ a skill that wants another model for its task had no turn to run it in until the
 sends a message once the chat's turn ends, at once when none runs, which starts the next turn on
 the new settings; it answers `continueWith: true`, or false while an earlier follow-up of the same
 chat still waits, so a second ask never doubles it.
+
+## A session's diff leaves out the branch switches and merges it made
+
+A session that switched its worktree to a pull request's branch and merged staging into it showed
+staging's 523 commits as its own: its diff started from HEAD when it first touched the repository,
+on the branch it left. Its base is now HEAD after the last branch switch since then, with what the
+newest merge on HEAD's first-parent line brought in taken as given: `git merge-tree` of that base
+with the merged-in side, recorded as a commit object with a fixed author and date, so the diff from
+it shows the session's commits, edits and conflict resolutions and none of upstream's
+(`packages/server/src/groupon/session-base.ts`). When the branch before the session conflicts with
+upstream, the base is the merge commit itself.

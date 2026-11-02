@@ -210,7 +210,6 @@ import {
   renameCurrentBranch as renameCurrentBranchDefault,
   listCommitsSince,
   listUncommittedFiles,
-  resolveHeadAt,
 } from "../utils/checkout-git.js";
 import {
   CHAT_RELOCATE_RPC,
@@ -220,6 +219,7 @@ import {
   scheduleChatRelocation,
 } from "../groupon/chat-relocation.js";
 import { CHAT_PROJECT_RPC, projectNamed } from "../groupon/chat-project.js";
+import { resolveSessionBase } from "../groupon/session-base.js";
 import {
   CHAT_FOLLOW_UP_RPC,
   chatFollowUpRequestOf,
@@ -3037,7 +3037,8 @@ export class Session {
       worktreeRootOf: (dir) => getWorktreeRoot(dir),
       nameOf: async (root) => basename(await getMainRepoRoot(root).catch(() => root)),
       branchOf: (root) => getCurrentBranch(root),
-      headAt: resolveHeadAt,
+      // Groupon Desk: past a branch switch the session made, with what its merges of upstream brought.
+      headAt: resolveSessionBase,
       diffSince: (root, baseCommit, paths) =>
         getPathsDiffSince(root, sessionDiffRange(mode, baseCommit, paths)),
     });

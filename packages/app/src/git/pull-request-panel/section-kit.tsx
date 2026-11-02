@@ -1,5 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a section can scroll its body under a header that stays (`scrollBody`), for the pull request pane's blocks.
 import React, { type ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { CountedCheckPresentation } from "@/git/check-presentation";
 import { CONTROL_HEIGHTS } from "@/components/ui/control-geometry";
@@ -28,6 +29,8 @@ interface SectionProps {
   summary: ReactNode;
   children: ReactNode;
   accessibilityLabel?: string;
+  /** Groupon Desk: the section fills its block and only its body scrolls. */
+  scrollBody?: boolean;
 }
 
 export function Section({
@@ -37,9 +40,10 @@ export function Section({
   summary,
   children,
   accessibilityLabel,
+  scrollBody = false,
 }: SectionProps) {
   return (
-    <View>
+    <View style={scrollBody ? sectionKitStyles.scrollingSection : null}>
       <Pressable
         accessibilityLabel={accessibilityLabel}
         style={sectionKitStyles.sectionHeader}
@@ -53,7 +57,15 @@ export function Section({
         <Text style={sectionKitStyles.sectionTitle}>{title}</Text>
         <View style={sectionKitStyles.summaryWrap}>{summary}</View>
       </Pressable>
-      {open ? <View style={sectionKitStyles.sectionBody}>{children}</View> : null}
+      {open && scrollBody ? (
+        <ScrollView
+          style={sectionKitStyles.scrollingBody}
+          contentContainerStyle={sectionKitStyles.sectionBody}
+        >
+          {children}
+        </ScrollView>
+      ) : null}
+      {open && !scrollBody ? <View style={sectionKitStyles.sectionBody}>{children}</View> : null}
     </View>
   );
 }
@@ -120,6 +132,17 @@ export const sectionKitStyles = StyleSheet.create((theme) => ({
   },
   sectionBody: {
     paddingBottom: theme.spacing[3],
+  },
+  scrollingSection: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: "auto",
+    minHeight: 0,
+  },
+  scrollingBody: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
   },
   summaryWrap: {
     marginLeft: "auto",

@@ -3138,3 +3138,85 @@ new file mode 100644
 +    }
 +  }
 +}
+diff --git a/node_modules/react-native-enriched-markdown/lib/module/web/utils.js b/node_modules/react-native-enriched-markdown/lib/module/web/utils.js
+index dab73ac77..71ed29d42 100644
+--- a/node_modules/react-native-enriched-markdown/lib/module/web/utils.js
++++ b/node_modules/react-native-enriched-markdown/lib/module/web/utils.js
+@@ -40,18 +40,26 @@ export function indexTaskItems(node, counter = {
+  */
+ export function markInlineImages(node) {
+   if (node.type === 'Paragraph' && node.children) {
+-    const hasNonImageChild = node.children.some(child => child.type !== 'Image');
++    // Groupon Desk: an image nested in emphasis or a link is inline too, and a
++    // link holding only an image counts as the image.
++    const hasNonImageChild = node.children.some(child => !isImageLike(child));
+     if (hasNonImageChild) {
+-      for (const child of node.children) {
+-        if (child.type === 'Image') {
+-          child.attributes = {
+-            ...child.attributes,
+-            isInline: true
+-          };
+-        }
+-      }
++      node.children.forEach(stampInlineImages);
+     }
+   }
+   node.children?.forEach(markInlineImages);
+ }
++function isImageLike(node) {
++  if (node.type === 'Image') return true;
++  return node.type === 'Link' && node.children?.length === 1 && node.children[0].type === 'Image';
++}
++function stampInlineImages(node) {
++  if (node.type === 'Image') {
++    node.attributes = {
++      ...node.attributes,
++      isInline: true
++    };
++  }
++  node.children?.forEach(stampInlineImages);
++}
+ //# sourceMappingURL=utils.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-enriched-markdown/src/web/utils.ts b/node_modules/react-native-enriched-markdown/src/web/utils.ts
+index 7d47f1286..9f541e512 100644
+--- a/node_modules/react-native-enriched-markdown/src/web/utils.ts
++++ b/node_modules/react-native-enriched-markdown/src/web/utils.ts
+@@ -38,16 +38,30 @@ export function indexTaskItems(node: ASTNode, counter = { value: 0 }): void {
+  */
+ export function markInlineImages(node: ASTNode): void {
+   if (node.type === 'Paragraph' && node.children) {
++    // Groupon Desk: an image nested in emphasis or a link is inline too, and a
++    // link holding only an image counts as the image.
+     const hasNonImageChild = node.children.some(
+-      (child) => child.type !== 'Image'
++      (child) => !isImageLike(child)
+     );
+     if (hasNonImageChild) {
+-      for (const child of node.children) {
+-        if (child.type === 'Image') {
+-          child.attributes = { ...child.attributes, isInline: true };
+-        }
+-      }
++      node.children.forEach(stampInlineImages);
+     }
+   }
+   node.children?.forEach(markInlineImages);
+ }
++
++function isImageLike(node: ASTNode): boolean {
++  if (node.type === 'Image') return true;
++  return (
++    node.type === 'Link' &&
++    node.children?.length === 1 &&
++    node.children[0]!.type === 'Image'
++  );
++}
++
++function stampInlineImages(node: ASTNode): void {
++  if (node.type === 'Image') {
++    node.attributes = { ...node.attributes, isInline: true };
++  }
++  node.children?.forEach(stampInlineImages);
++}

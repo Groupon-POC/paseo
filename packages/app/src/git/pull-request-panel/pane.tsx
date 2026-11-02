@@ -1,6 +1,6 @@
 // Changed for Groupon Desk (fork of Paseo, Apache-2.0): the checks and the activity are two blocks under the header (`groupon/pr-pane-split.tsx`): a folded activity sits at the pane's foot, and a handle between them sets the checks' height.
 import { useCallback, useMemo, useState } from "react";
-import { Image, Pressable, Text, View, type ViewStyle } from "react-native";
+import { Image, Pressable, ScrollView, Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
   CircleCheck,
@@ -558,7 +558,9 @@ export function PullRequestPane({
       </View>
 
       <PrPaneSplit checksOpen={checksOpen} activityOpen={activityOpen}>
-        {nativeChecksSection ?? (
+        {nativeChecksSection ? (
+          <ScrollView style={styles.nativeChecks}>{nativeChecksSection}</ScrollView>
+        ) : (
           <ChecksSection
             checks={data.checks}
             open={checksOpen}
@@ -569,6 +571,7 @@ export function PullRequestPane({
           />
         )}
         <Section
+          scrollBody
           title={t("workspace.git.pr.sections.activity")}
           open={activityOpen}
           onToggle={handleToggleActivity}
@@ -1197,6 +1200,11 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
     minHeight: 0,
     backgroundColor: theme.colors.surfaceSidebar,
+  },
+  nativeChecks: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 0,
   },
   invisible: {
     opacity: 0,

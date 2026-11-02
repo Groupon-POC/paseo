@@ -1013,5 +1013,14 @@ scrolling on its own (`packages/app/src/groupon/pr-pane-split.tsx`, wired in
 take the rest, and with both open Paseo's `ResizeHandle` between them sets the checks' height.
 Until the handle is dragged the checks are as tall as their content, at most half the pane; the
 dragged share is kept on the device (`groupon-desk-pr-pane-split`), each block keeping a tenth.
-The checks list itself no longer scrolls inside a fixed 268 px (`checks-section.tsx`): the block
-scrolls, so a taller block shows more checks.
+The checks list itself no longer scrolls inside a fixed 268 px (`checks-section.tsx`): it fills its
+block, so a taller block shows more checks. Each block scrolls only its body, with its scroll bar,
+under a header that stays (`Section`'s `scrollBody` in `section-kit.tsx`); GitLab's own checks keep
+a scroll of the block.
+
+An image in a comment is inline wherever it sits in a paragraph with other content, inside bold or
+a link too (`patches/react-native-enriched-markdown+*.patch`, `markInlineImages` in the library's
+web renderer; test `groupon/markdown-inline-images.test.ts`). The library made inline only an
+image that was a paragraph's own child, so CodeRabbit's 14 px counters in
+`<summary><strong>Pre-merge checks: <img ...>` and linked badges beside text drew as 320 px blocks;
+a picture alone in its paragraph, linked or not, stays a block.

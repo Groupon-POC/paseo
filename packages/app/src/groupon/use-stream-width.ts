@@ -8,6 +8,8 @@ import { canWidenStream, resolveStreamMaxWidth } from "./stream-width";
 
 /** A pane being resized is read again only once it rests this long, so rows lay out once. */
 const PANE_SETTLE_MS = 150;
+/** The last pane width any chat measured: a new chat starts from it, so its first rows do not jump. */
+let lastPaneWidth = 0;
 
 /**
  * The output's width in this chat's pane (`stream-width.ts`), the pane's width it came from (read
@@ -18,16 +20,20 @@ export function useStreamWidth(input: { contentMaxWidth: number; compact: boolea
   const enabled = isWeb && !input.compact;
   const share = useGrouponPreferences((state) => state.streamWidthShare ?? null);
   const setShare = useGrouponPreferences((state) => state.setStreamWidthShare);
-  const [paneWidth, setPaneWidth] = useState(0);
+  const [paneWidth, setPaneWidth] = useState(lastPaneWidth);
+  const measuredRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onPaneLayout = useCallback((event: LayoutChangeEvent) => {
     const width = Math.round(event.nativeEvent.layout.width);
+    lastPaneWidth = width;
     if (timerRef.current) clearTimeout(timerRef.current);
-    setPaneWidth((current) => {
-      if (current === 0) return width;
-      timerRef.current = setTimeout(() => setPaneWidth(width), PANE_SETTLE_MS);
-      return current;
-    });
+    // This chat's own first measure lands at once; later ones wait for the pane to rest.
+    if (!measuredRef.current) {
+      measuredRef.current = true;
+      setPaneWidth(width);
+      return;
+    }
+    timerRef.current = setTimeout(() => setPaneWidth(width), PANE_SETTLE_MS);
   }, []);
   useEffect(
     () => () => {
@@ -40,6 +46,8 @@ export function useStreamWidth(input: { contentMaxWidth: number; compact: boolea
     : input.contentMaxWidth;
   return {
     maxWidth,
+    /** False only while a widened output waits for its pane's first measure; the list stays hidden. */
+    ready: !enabled || share === null || paneWidth > 0,
     /** The rows' width when it differs from the content width their styles set; else null. */
     override: maxWidth === input.contentMaxWidth ? null : maxWidth,
     paneWidth,

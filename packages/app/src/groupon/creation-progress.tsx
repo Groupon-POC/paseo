@@ -39,9 +39,12 @@ export function useCreationProgress() {
 export function CreationProgressCaption({
   progress,
   pending,
+  hanging,
 }: {
   progress: CreationProgress | null;
   pending: boolean;
+  /** Hung under a centered composer so it never moves the form; in the flow on a phone, where the composer sits at the foot. */
+  hanging: boolean;
 }): ReactElement | null {
   const visible = pending && progress !== null;
   const now = useTickingNow(visible);
@@ -52,34 +55,50 @@ export function CreationProgressCaption({
   );
   if (!visible) return null;
   const step = creationStep(progress);
+  // A zero-height anchor: the caption hangs under the composer and never moves the centered form.
   return (
-    <View
-      style={styles.column}
-      accessible
-      accessibilityLabel={creationCaption(progress, now)}
-      accessibilityLiveRegion="polite"
-      testID="groupon-creation-progress"
-    >
-      {step ? (
-        <ExpandableBadge
-          testID="groupon-creation-step"
-          label={step.label}
-          secondaryLabel={step.command ?? undefined}
-          icon={STEP_ICONS[step.id] ?? Wrench}
-          isExpanded={false}
-          isLoading
-          isLastInSequence
-        />
-      ) : null}
-      <View style={step ? styles.loaderAfterStep : null}>
-        <WorkingIndicator inFlightTurnStartedAt={startedAt} />
+    <View style={hanging ? styles.anchor : null}>
+      <View
+        style={hanging ? styles.hangingColumn : styles.column}
+        accessible
+        accessibilityLabel={creationCaption(progress, now)}
+        accessibilityLiveRegion="polite"
+        testID="groupon-creation-progress"
+      >
+        {step ? (
+          <ExpandableBadge
+            testID="groupon-creation-step"
+            label={step.label}
+            secondaryLabel={step.command ?? undefined}
+            icon={STEP_ICONS[step.id] ?? Wrench}
+            isExpanded={false}
+            isLoading
+            isLastInSequence
+          />
+        ) : null}
+        <View style={step ? styles.loaderAfterStep : null}>
+          <WorkingIndicator inFlightTurnStartedAt={startedAt} />
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create((theme) => ({
+  anchor: {
+    height: 0,
+    zIndex: 1,
+  },
   column: {
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[3],
+    paddingBottom: theme.spacing[2],
+  },
+  hangingColumn: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: theme.spacing[4],
     paddingTop: theme.spacing[3],
     paddingBottom: theme.spacing[2],

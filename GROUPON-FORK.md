@@ -357,7 +357,9 @@ out after 30000ms: git status --porcelain".
   persisted on its own. New workspace shows it under the composer as a chat's feed shows a running
   step (`ExpandableBadge`), and below it, on a line of its own, the whole wait and TARS's blob as a
   running turn shows them (`WorkingIndicator`, `groupon/creation-progress.tsx`); the composer is
-  muted only until the workspace exists.
+  muted only until the workspace exists. In the centered layout the caption hangs from a zero-height
+  anchor under the composer and Import session with Start a ticket only fade out, so the centered
+  form keeps its height and the composer does not jump when Enter is pressed.
 - **`git worktree add` checks out in parallel** (`-c checkout.workers=0`): 2.9 s instead of 5.3 s
   for the same tree on the Air, warm cache.
 - **No `git status` on a creation's path.** `getCheckout` answers the checkout's identity from
@@ -792,7 +794,9 @@ width is kept as a share of the pane, one for every chat on this device (`stream
 `groupon/preferences.ts`). A double click returns to the content width, Escape cancels a drag.
 Each chat turns the share into pixels for its own pane, in 16px steps, never below the content
 width nor past the pane less a tenth on each side, and reads a resized pane again only once it
-rests (`groupon/stream-width.ts`, `groupon/use-stream-width.ts`). The pixels reach the rows
+rests (`groupon/stream-width.ts`, `groupon/use-stream-width.ts`). A new chat starts from the pane
+width the last chat measured, so its first message is not drawn at the content width and then
+widened; before any chat has measured one, a widened output stays hidden for that one frame. The pixels reach the rows
 through React (`StreamWidthProvider`, the strategy's `contentMaxWidth`), and the web list forgets
 the row heights it measured at another width (`agent-stream/strategy-web.tsx`); the composer keeps
 the content width.
@@ -843,7 +847,9 @@ The centered New workspace form kept its title and setup fields (project, Mac, b
 scroll area of their own that shrank when the composer grew, so a pull request's card arriving
 after its fetch cut the fields off under the composer. The whole form scrolls now and neither part
 shrinks (`packages/app/src/composer/dock/index.tsx`, the centered branch; test
-`centered-dock.browser.test.tsx`).
+`centered-dock.browser.test.tsx`). The form's width follows the surface it measures; a new page
+starts from the last centered surface measured, and before the very first measure the form stays
+hidden for that one frame, so the composer is not drawn narrow and then widened.
 
 ## Sent feedback returns to the chat
 

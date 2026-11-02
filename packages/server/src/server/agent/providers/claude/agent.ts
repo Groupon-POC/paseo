@@ -1,5 +1,6 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): history replay renders only user and assistant entries, never Claude Code's api-request-blob or another bookkeeping entry that carries a `message`; a Bash call that installs, builds or tests waits while the worktree's setup runs (`groupon/worktree-setup-state.ts`, ledger WW-93).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): history replay renders only user and assistant entries, never Claude Code's api-request-blob or another bookkeeping entry that carries a `message`; a Bash call that installs, builds or tests waits while the worktree's setup runs (`groupon/worktree-setup-state.ts`, ledger WW-93); after a Claude process's first turn its connected MCP servers are handed, unawaited, to the reader of their tools' titles (`groupon/mcp-tool-titles.ts`).
 import { validateProviderOptions } from "../../provider-options.js";
+import { knownEnvOf, sharedMcpToolTitles } from "../../../../groupon/mcp-tool-titles.js";
 import {
   realSetupWaitHook,
   SETUP_WAIT_HOOK_TIMEOUT_S,
@@ -2357,6 +2358,7 @@ class ClaudeAgentSession implements AgentSession {
    * cleared by the turn's result or an idle session state. See observeMainTurnBracket.
    */
   private mainTurnInFlight = false;
+  private mcpServersReportedFor: Query | null = null;
   private foregroundHasVisibleActivity = false;
   private activeTurnHasAssistantText = false;
   private readonly contextUsage: ClaudeContextUsageState;
@@ -4187,10 +4189,35 @@ class ClaudeAgentSession implements AgentSession {
     return true;
   }
 
+  /**
+   * Groupon Desk: once per Claude process, after a turn, when its MCP servers are up. Off the
+   * result's handling and never mid-turn; nothing awaits the answer, and a turn already started
+   * leaves it to the next result.
+   */
+  private reportMcpServersOnce(): void {
+    const titles = sharedMcpToolTitles();
+    const query = this.query;
+    if (!titles || !query || this.mcpServersReportedFor === query) return;
+    if (typeof query.mcpServerStatus !== "function") return;
+    setTimeout(() => {
+      if (this.query !== query || this.mainTurnInFlight) return;
+      if (this.mcpServersReportedFor === query) return;
+      this.mcpServersReportedFor = query;
+      const knownEnv = knownEnvOf(this.config.mcpServers);
+      void query
+        .mcpServerStatus()
+        .then((statuses) => titles.observe({ cwd: this.config.cwd, statuses, knownEnv }))
+        .catch((error: unknown) =>
+          this.logger.debug({ err: error }, "groupon.mcp_tool_titles.status_failed"),
+        );
+    }, 0).unref();
+  }
+
   /** Tracks mainTurnInFlight from Claude's own turn brackets (isClaudeTurnInit). */
   private observeMainTurnBracket(message: SDKMessage): void {
     if (message.type === "result") {
       this.mainTurnInFlight = false;
+      this.reportMcpServersOnce();
       return;
     }
     if (isClaudeTurnInit(message)) {

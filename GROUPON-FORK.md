@@ -1043,4 +1043,45 @@ newest merge on HEAD's first-parent line brought in taken as given: `git merge-t
 with the merged-in side, recorded as a commit object with a fixed author and date, so the diff from
 it shows the session's commits, edits and conflict resolutions and none of upstream's
 (`packages/server/src/groupon/session-base.ts`). When the branch before the session conflicts with
-upstream, the base is the merge commit itself.
+upstream, the base is the merge commit itself. A merge still in progress (`MERGE_HEAD`, the agent
+resolving conflicts) counts as the newest merge before its commit exists: every file `git merge`
+wrote fell inside the session's shell call and read as its own, 17,923 files in one chat. With no
+merge commit to fall back to, a conflicted merge keeps `git merge-tree`'s tree with its conflict
+markers as the base, so the diff shows how the session resolved them (67 files in that chat).
+
+## An MCP call reads as a name, not an id
+
+Paseo names only its own MCP tools; any other MCP call showed in the chat as its raw id
+(`mcp__groupon-desk__desk_start`) with no summary. `packages/protocol/src/groupon-mcp-tool-display.ts`,
+asked by `buildToolCallDisplayModel` after Paseo's catalog, splits the name on the double
+underscore (the second part is the server, which may hold single underscores, the rest the tool).
+The row's title is, in this order: the Groupon Desk door's own short label (server `groupon-desk`,
+a table in the shape of Paseo's catalog: Start task, Read session, Move chat, Chat settings), the
+title the tool's server gives it, else the tool's name in words (`getJiraIssue` reads "Get jira
+issue"). The door's own titles ("Change a session's model, effort or permission mode") are
+sentences, too long for a row. The summary is the call's main argument: a field that names what
+the call acts on (a session, a path, a project, a query, a key, a title, a name, a URL), else the
+first short string, clipped like Paseo's summaries, never a field whose name says token, secret,
+password or key of an API; with no such string the summary is the server's name. A failed call
+keeps its error text.
+
+Claude Code reads every server's titles but hands none of them on: a tool call carries only its
+name, and the SDK's `mcpServerStatus()` gives each server's tools by name only. So the daemon reads
+them itself (`packages/server/src/groupon/mcp-tool-titles.ts`), and nothing waits for it. After a
+turn of a Claude process ends, the agent hands that process's `mcpServerStatus()` to the reader
+once, off the result's handling and never while a turn runs, without awaiting the answer; a status
+that never answers holds up no turn. Each connected server the daemon can open (stdio, HTTP, SSE;
+never `paseo`, nor a claude.ai connector, which only Claude Code reaches) is connected to, its
+`tools/list` read (a tool's `title`, else its `annotations.title`), and closed again, one server at
+a time behind the agent. The status leaves a stdio server's env out, so the env is the one the
+daemon gave the agent (the door's), else the one Claude Code reads: the folder's entry in
+`~/.claude.json`, the folder's `.mcp.json`, the user's scope, read only when the server is read.
+What was read is kept in `$PASEO_HOME/groupon/mcp-tool-titles.json` by server, with a fingerprint of
+its command and arguments or URL (never its env or headers), when it was read and every tool it
+listed. Tools rarely change: a server is read again when its fingerprint changes, when its status
+lists a tool the last read did not, or after a week, and every server seen since the daemon started
+is read again on that beat; a server that could not be read is left alone for an hour. The window
+reads the titles with the plugin RPC `groupon-desk.mcp.tool-titles`, which answers from the file at
+once, once per host every 5 minutes and only while an MCP row is on screen
+(`packages/app/src/groupon/mcp-tool-titles.ts`). Until a server has been read, or from a host that
+predates the RPC, its rows read as before: the name in words.

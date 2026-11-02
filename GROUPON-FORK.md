@@ -1045,9 +1045,6 @@ it shows the session's commits, edits and conflict resolutions and none of upstr
 (`packages/server/src/groupon/session-base.ts`). When the branch before the session conflicts with
 upstream, the base is the merge commit itself.
 
-The checks list itself no longer scrolls inside a fixed 268 px (`checks-section.tsx`): the block
-scrolls, so a taller block shows more checks.
-
 ## An MCP call reads as a name, not an id
 
 Paseo names only its own MCP tools; any other MCP call showed in the chat as its raw id

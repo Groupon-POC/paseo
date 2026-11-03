@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a change request's web URL from its number (`buildForgeChangeRequestUrl`), for the file viewer's blame bar.
 /**
  * Forge-neutral web URL builders for "Open on <forge>" actions (a file blob or a
  * branch tree). The host comes from the workspace remote — not a hardcoded
@@ -148,6 +149,20 @@ export function buildForgeBlobUrl(forge: string, input: ForgeBlobUrlInput): stri
     url += grammar.lineAnchor(input.lineStart, input.lineEnd);
   }
   return url;
+}
+
+export function buildForgeChangeRequestUrl(
+  forge: string,
+  input: { remoteUrl: string | null | undefined; number: number },
+): string | null {
+  const infix = getClientForgeLogicModule(forge)?.urlGrammar?.referencePaths?.find(
+    (path) => path.kind === "change_request",
+  )?.infix;
+  const location = resolveForgeWebLocation(forge, input.remoteUrl);
+  if (!infix || !location || !Number.isInteger(input.number) || input.number <= 0) {
+    return null;
+  }
+  return `https://${forgeAuthority(location)}/${location.repo}${infix}${input.number}`;
 }
 
 /** Whether the forge has web URL builders (i.e. a known URL grammar). */

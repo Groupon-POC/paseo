@@ -861,3 +861,24 @@ export const GROUPON_GIT_TIMELINE = {
     count === 1 ? "1 commit went out" : `${count} commits went out`,
   moreFiles: (count: number) => (count === 1 ? "and 1 more file" : `and ${count} more files`),
 } as const;
+
+export const GROUPON_BLAME = {
+  loading: "Loading blame…",
+  unavailable: "Blame unavailable",
+  newFile: "Not committed yet · new file",
+  you: "You",
+  notCommitted: "Not committed yet",
+  notCommittedLines: "You (not committed)",
+  notCommittedNote: "This line has changes that are not in a commit.",
+  showChanges: "Show changes",
+  showCommit: "Show commit",
+  changeRequest: (prefix: string, number: number) => `${prefix}${number}`,
+  copySha: "Copy SHA",
+  copied: "Copied",
+  files: (count: number) => (count === 1 ? "1 file" : `${count} files`),
+  authors: (count: number) => (count === 1 ? "1 author" : `${count} authors`),
+  authorsTitle: "Who wrote this file",
+  authorsNote: (lines: number) => `By lines, across ${lines === 1 ? "1 line" : `${lines} lines`}`,
+  commitAccessibility: "Commit of the current line",
+  authorsAccessibility: "Authors of this file",
+} as const;

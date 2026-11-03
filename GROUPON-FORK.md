@@ -1096,3 +1096,17 @@ worktree is dirty, the warning asks its daemon for `git diff HEAD` plus untracke
 `packages/app/src/groupon/uncommitted-stat.ts`); a daemon that predates the read leaves the numbers
 out. The stray file was the setup's own `.groupon/setup-state.json`, which the hand now keeps out of
 git in every repository (engineering-development).
+
+## The file viewer ends with a blame bar
+
+A source file's view, read-only or editing, ends with a bar like VS Code's: who last changed the
+line under the cursor and when, the commit's title and its change request (`#545`, read from a
+squash's or a merge's subject), and on the right the file's authors. On a desktop each side opens a
+card on hover: the commit's message, date, files and lines with Show commit, the change request's
+page and Copy SHA; the authors' share of the file's lines. On a phone the same cards open as sheets
+on a tap. A read-only view has no cursor, so it shows the file's last commit. The daemon runs
+`git blame --porcelain` on the file on disk (`groupon-desk.git.blame`, `{ workspaceId, path }`, the
+path inside the workspace only, `packages/server/src/groupon/file-blame.ts`); the card's body and
+counts come from `groupon-desk.git.details` while it is open. A file outside git, outside the
+workspace, or on a daemon that predates the read shows no bar
+(`packages/app/src/groupon/file-blame-bar.tsx`).

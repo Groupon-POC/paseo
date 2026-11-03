@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Source view ends with the blame bar (`groupon/file-blame-bar.tsx`), for the cursor's line when editing and the file's last commit when read-only.
 import {
   useCallback,
   useEffect,
@@ -20,6 +21,7 @@ import { isWeb } from "@/constants/platform";
 import { useAppSettings } from "@/hooks/use-settings";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { formatFileSize } from "@/utils/format-file-size";
+import { FileBlameBar } from "@/groupon/file-blame-bar";
 import type { Theme } from "@/styles/theme";
 import { FilePanelLoading } from "../loading";
 import type { FileConflictAlertState } from "./conflict-alert";
@@ -142,13 +144,22 @@ function ReadonlyTextFile({
       {showPreview ? (
         <Preview text={text.text} params={params} workspaceId={workspaceId} host={host} />
       ) : (
-        <ThemedFileSourceView
-          content={text.text}
-          filename={params.path}
-          location={sourceLocation}
-          navigationRevision={revision}
-          presentation={presentation}
-        />
+        <>
+          <ThemedFileSourceView
+            content={text.text}
+            filename={params.path}
+            location={sourceLocation}
+            navigationRevision={revision}
+            presentation={presentation}
+          />
+          <FileBlameBar
+            serverId={host.id}
+            workspaceId={workspaceId}
+            filePath={file.path}
+            modifiedAt={file.modifiedAt}
+            line={null}
+          />
+        </>
       )}
     </View>
   );
@@ -240,15 +251,24 @@ function EditableTextFile({
       {showPreview ? (
         <Preview text={snapshot.content} params={params} workspaceId={workspaceId} host={host} />
       ) : (
-        <SourceEditor
-          model={model}
-          filename={params.path}
-          location={editorLocation}
-          navigationRevision={revision}
-          vimEnabled={settings.vimKeybindings}
-          onCursorChange={setCursor}
-          onVimModeChange={setVimMode}
-        />
+        <>
+          <SourceEditor
+            model={model}
+            filename={params.path}
+            location={editorLocation}
+            navigationRevision={revision}
+            vimEnabled={settings.vimKeybindings}
+            onCursorChange={setCursor}
+            onVimModeChange={setVimMode}
+          />
+          <FileBlameBar
+            serverId={host.id}
+            workspaceId={workspaceId}
+            filePath={file.path}
+            modifiedAt={file.modifiedAt}
+            line={cursor.line}
+          />
+        </>
       )}
     </View>
   );

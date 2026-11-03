@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildForgeBlobUrl,
+  buildForgeChangeRequestUrl,
   buildForgeBranchTreeUrl,
   buildForgeChecksUrl,
   hasForgeWebUrls,
@@ -256,5 +257,29 @@ describe("hasForgeWebUrls", () => {
 
   it("is false for an unknown forge", () => {
     expect(hasForgeWebUrls("bitbucket")).toBe(false);
+  });
+});
+
+describe("buildForgeChangeRequestUrl", () => {
+  it("builds the change request page for each forge's grammar", () => {
+    expect(
+      buildForgeChangeRequestUrl("github", {
+        remoteUrl: "git@github.com:getpaseo/paseo.git",
+        number: 545,
+      }),
+    ).toBe("https://github.com/getpaseo/paseo/pull/545");
+    expect(
+      buildForgeChangeRequestUrl("gitlab", {
+        remoteUrl: "https://gitlab.com/group/project.git",
+        number: 7,
+      }),
+    ).toBe("https://gitlab.com/group/project/-/merge_requests/7");
+  });
+
+  it("is null without a remote or a forge grammar", () => {
+    expect(buildForgeChangeRequestUrl("github", { remoteUrl: null, number: 1 })).toBeNull();
+    expect(
+      buildForgeChangeRequestUrl("unknown", { remoteUrl: "git@github.com:a/b.git", number: 1 }),
+    ).toBeNull();
   });
 });

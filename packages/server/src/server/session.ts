@@ -241,6 +241,12 @@ import {
 } from "../groupon/background-output.js";
 import { UNCOMMITTED_STAT_RPC, uncommittedStatRequestOf } from "../groupon/uncommitted-stat.js";
 import {
+  FILE_BLAME_RPC,
+  fileBlameArgs,
+  fileBlameOf,
+  fileBlameRequestOf,
+} from "../groupon/file-blame.js";
+import {
   type CompareRequest,
   compareRequestOf,
   WORKSPACE_COMPARE_RPC,
@@ -2849,6 +2855,21 @@ export class Session {
         const workspace = await this.workspaceRegistry.get(workspaceId);
         if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
         return { stat: await getUncommittedShortstat(workspace.cwd) };
+      };
+    }
+    if (method === FILE_BLAME_RPC) {
+      return async (input) => {
+        const { workspaceId, path } = fileBlameRequestOf(input);
+        const workspace = await this.workspaceRegistry.get(workspaceId);
+        if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
+        const result = await runGitCommand(fileBlameArgs(path), {
+          cwd: workspace.cwd,
+          envOverlay: { GIT_OPTIONAL_LOCKS: "0", LC_ALL: "C" },
+          acceptExitCodes: [0, 128],
+          timeout: 30_000,
+          maxOutputBytes: 64 * 1024 * 1024,
+        });
+        return { blame: fileBlameOf(result) };
       };
     }
     return undefined;

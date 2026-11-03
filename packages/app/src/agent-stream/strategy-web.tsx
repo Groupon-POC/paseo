@@ -476,15 +476,11 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
   useLayoutEffect(() => {
     const previous = previousSourceItemsRef.current;
     const current = new Map(
-      [
-        ...inputSegments.historyVirtualized,
-        ...inputSegments.historyMounted,
-        ...inputSegments.liveHead,
-      ].map((item) => [item.id, item] as const),
+      inputSegments.historyVirtualized.map((item) => [item.id, item] as const),
     );
     const changed = new Set<string>();
     for (const [id, item] of current) {
-      if (previous.has(id) && previous.get(id) !== item) {
+      if (previous.get(id) !== item) {
         changed.add(id);
         measuredRowHeights.current.delete(id);
       }
@@ -510,13 +506,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
         rowVirtualizer.resizeItem(index, estimateStreamItemHeight({ item, contentMaxWidth }));
       }
     });
-  }, [
-    inputSegments.historyVirtualized,
-    inputSegments.historyMounted,
-    inputSegments.liveHead,
-    contentMaxWidth,
-    rowVirtualizer,
-  ]);
+  }, [inputSegments.historyVirtualized, contentMaxWidth, rowVirtualizer]);
   // Scroll correction belongs to the viewport's committed layout. The virtualizer
   // otherwise writes scrollTop before React applies its new row positions.
   rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false;

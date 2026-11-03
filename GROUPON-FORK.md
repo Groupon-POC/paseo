@@ -1110,3 +1110,30 @@ path inside the workspace only, `packages/server/src/groupon/file-blame.ts`); th
 counts come from `groupon-desk.git.details` while it is open. A file outside git, outside the
 workspace, or on a daemon that predates the read shows no bar
 (`packages/app/src/groupon/file-blame-bar.tsx`).
+
+## The desktop retries its startup sign-in
+
+When the first read of this Mac's sign-in returns nothing (the network is still starting,
+renewal failed, or the CLI's refresh lock was busy), the desktop gate retries every three
+seconds until it restores a session or the person signs in. Reads never overlap. The web
+and phone gates do not run this recovery. A closed gate cancels recovery, a late response
+cannot replace a manual sign-in or a different Core, and recovery stops on the first sign-in,
+so a later explicit sign-out stays signed out. The regression tests are in
+`packages/app/src/groupon/session.test.ts`; the retry lifecycle lives in `startup-sign-in.ts`.
+
+## Desktop device sign-in opens the browser
+
+After the person starts device sign-in in the desktop window, the returned code is shown and
+its verification link opens once in the system browser through the desktop opener. The manual
+button remains available if opening fails or the browser tab is closed. Opening failure does
+not stop approval polling. Browser and phone device sign-in still require the link's tap,
+because Safari blocks scripted pop-ups. A cancelled flow opens no browser.
+
+## Retained chat rows discard obsolete heights
+
+A history message replaced under the same id discards its measured height even when it is
+outside the mounted range. The virtualizer uses a fresh estimate until the row mounts again.
+Ids dropped from the loaded history lose their old sizes too, so a later fetch cannot restore
+an obsolete measurement. Unchanged rows keep their measured estimates and the reading anchor
+continues to handle scroll corrections. The browser regression covers both replacement in
+place and removal followed by restoration under the same id.

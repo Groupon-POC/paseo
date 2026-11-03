@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): rows measured at another output width are measured again (the agent output's width handles, groupon/stream-width.ts). A tail too short to fill the viewport loads older rows by itself.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): rows measured at another output width are measured again (the agent output's width handles, groupon/stream-width.ts). A tail too short to fill the viewport loads older rows by itself. Replaced history content discards its old row height even offscreen.
 import React, {
   type CSSProperties,
   useCallback,
@@ -472,6 +472,51 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     measuredRowHeights.current.clear();
     rowVirtualizerRef.current?.measure();
   }, [contentMaxWidth]);
+  const previousSourceItemsRef = useRef(new Map<string, StreamItem>());
+  useLayoutEffect(() => {
+    const previous = previousSourceItemsRef.current;
+    const current = new Map(
+      [
+        ...inputSegments.historyVirtualized,
+        ...inputSegments.historyMounted,
+        ...inputSegments.liveHead,
+      ].map((item) => [item.id, item] as const),
+    );
+    const changed = new Set<string>();
+    for (const [id, item] of current) {
+      if (previous.has(id) && previous.get(id) !== item) {
+        changed.add(id);
+        measuredRowHeights.current.delete(id);
+      }
+    }
+    let removed = false;
+    for (const id of previous.keys()) {
+      if (!current.has(id)) {
+        measuredRowHeights.current.delete(id);
+        removed = true;
+      }
+    }
+    previousSourceItemsRef.current = current;
+    if (removed) {
+      // Dropped ids must not retain a virtualizer size if a later history fetch restores them.
+      // Unchanged rows still have their measured estimates in measuredRowHeights.
+      rowVirtualizer.measure();
+      return;
+    }
+    // The virtualizer keys heights by id, not content. An offscreen replacement has no DOM
+    // observer to invalidate it; use its new estimate until it mounts and can be measured.
+    inputSegments.historyVirtualized.forEach((item, index) => {
+      if (changed.has(item.id)) {
+        rowVirtualizer.resizeItem(index, estimateStreamItemHeight({ item, contentMaxWidth }));
+      }
+    });
+  }, [
+    inputSegments.historyVirtualized,
+    inputSegments.historyMounted,
+    inputSegments.liveHead,
+    contentMaxWidth,
+    rowVirtualizer,
+  ]);
   // Scroll correction belongs to the viewport's committed layout. The virtualizer
   // otherwise writes scrollTop before React applies its new row positions.
   rowVirtualizer.shouldAdjustScrollPositionOnItemSizeChange = () => false;

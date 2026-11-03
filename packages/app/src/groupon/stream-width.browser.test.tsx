@@ -9,6 +9,7 @@
 import React, { act, useMemo, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { View } from "react-native";
+import { RetainedPanel } from "@/components/retained-panel";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWebStreamStrategy } from "@/agent-stream/strategy-web";
 import type { StreamSegmentRenderers, StreamViewportHandle } from "@/agent-stream/strategy";
@@ -20,7 +21,7 @@ const WIDENED = 1280;
 const PARAGRAPH =
   "The agent reads the repository, runs the tests and writes a long answer that wraps over several lines in a narrow column. ";
 
-function message(index: number): StreamItem {
+function message(index: number): Extract<StreamItem, { kind: "user_message" }> {
   return {
     kind: "user_message",
     id: `message-${index}`,
@@ -203,4 +204,86 @@ describe("the agent output widened in a long, live chat", () => {
     expect(overlaps()).toEqual([]);
     expect(errors.filter((line) => /Maximum update depth|#185/.test(line))).toEqual([]);
   });
+});
+
+describe("a busy chat restored after being hidden", () => {
+  it("restores visible rows without gaps after background updates and a narrower viewport", async () => {
+    host = document.createElement("div");
+    host.style.cssText = "position:fixed;left:0;top:0;width:1600px;height:700px;display:flex;";
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const history = Array.from({ length: 240 }, (_, index) => message(index));
+    const render = (active: boolean) => (
+      <RetainedPanel active={active}>
+        <Chat history={history} />
+      </RetainedPanel>
+    );
+    act(() => root?.render(render(true)));
+    await frames(10);
+    scrollUpTo(scroller(), scroller().scrollHeight / 2);
+    await frames(5);
+
+    act(() => root?.render(render(false)));
+    host.style.width = "600px";
+    for (let step = 0; step < 20; step += 1) {
+      const live = Array.from({ length: step + 1 }, (_, i) => message(1000 + i));
+      act(() => setters?.live(live));
+    }
+    await frames(5);
+    act(() => root?.render(render(true)));
+    await frames(15);
+
+    const boxes = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-history-row-id][data-index]"),
+    )
+      .map((el) => ({ index: Number(el.dataset.index), box: el.getBoundingClientRect() }))
+      .sort((a, b) => a.index - b.index);
+    expect(boxes.length).toBeGreaterThan(1);
+    for (let index = 1; index < boxes.length; index += 1) {
+      const a = boxes[index - 1]!;
+      const b = boxes[index]!;
+      if (b.index === a.index + 1)
+        expect(Math.abs(b.box.top - a.box.bottom)).toBeLessThanOrEqual(1);
+    }
+    expect(overlaps()).toEqual([]);
+    expect(errors.filter((line) => /Maximum update depth|#185/.test(line))).toEqual([]);
+  });
+});
+
+describe("a retained chat's refreshed history", () => {
+  it.each([false, true])(
+    "forgets the old height of an offscreen replacement, removed first: %s",
+    async (removeFirst) => {
+      host = document.createElement("div");
+      host.style.cssText = "position:fixed;left:0;top:0;width:1600px;height:700px;display:flex;";
+      document.body.appendChild(host);
+      root = createRoot(host);
+      const history = Array.from({ length: 240 }, (_, index) => message(index));
+      history[0] = { ...message(0), text: PARAGRAPH.repeat(100) };
+      act(() => root?.render(<Chat history={history} />));
+      await frames(10);
+      const list = scroller();
+      scrollUpTo(list, 0);
+      await frames(15);
+      const first = document.querySelector<HTMLElement>('[data-history-row-id="message-0"]');
+      expect(first?.getBoundingClientRect().height).toBeGreaterThan(500);
+      list.scrollTop = list.scrollHeight;
+      list.dispatchEvent(new Event("scroll"));
+      await frames(15);
+      expect(document.querySelector('[data-history-row-id="message-0"]')).toBeNull();
+      const oldHeight = list.scrollHeight;
+
+      if (removeFirst) {
+        act(() => root?.render(<Chat history={history.slice(1)} />));
+        await frames(10);
+      }
+      const refreshed = history.slice();
+      refreshed[0] = { ...message(0), text: "Updated message" };
+      act(() => root?.render(<Chat history={refreshed} />));
+      await frames(15);
+
+      expect(list.scrollHeight).toBeLessThan(oldHeight - 400);
+      expect(overlaps()).toEqual([]);
+    },
+  );
 });

@@ -257,6 +257,28 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
 }));
 
 /**
+ * Retry borrowing the Mac's sign-in after startup. A slow network or another holder's refresh
+ * lock can make the first read empty. A person signing in or changing Core wins over this read.
+ */
+export async function retryStartupMacSession(cancelled: () => boolean): Promise<void> {
+  const before = useGrouponStore.getState();
+  if (before.status !== "signedOut") return;
+  const session = await macSessionFor(before.coreUrl);
+  if (cancelled() || !session || useGrouponStore.getState() !== before) return;
+  const identity = identityOf(session.accessToken);
+  useGrouponStore.setState({ session, identity });
+  const pending = useGrouponStore.getState();
+  const vaultKey = await keptVaultKey(session.coreUrl, identity);
+  if (cancelled() || useGrouponStore.getState() !== pending) return;
+  useGrouponStore.setState({
+    sealKey: vaultKey ? sealKeyFromVaultKey(vaultKey) : null,
+    deskIdentity: vaultKey ? identityFromVaultKey(vaultKey) : null,
+    status: vaultKey ? "ready" : "vault",
+  });
+  publishDeskIdentity();
+}
+
+/**
  * The gateway's return to the web build, before the gate hydrates: the code is exchanged and the
  * session kept where the device sign-in keeps it, so `hydrate` opens it and the vault step follows
  * as before. A failure stays on the sign-in step with its reason. Either way the code leaves the

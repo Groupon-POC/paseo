@@ -48,6 +48,39 @@ function deps(answers: DeviceAuthPoll["status"][], overrides: Partial<DeviceSign
 beforeEach(() => openExternalUrl.mockClear());
 
 describe("runDeviceSignIn", () => {
+  it("opens the desktop browser once when the code arrives and still completes approval", async () => {
+    const open = vi.fn(async () => {});
+    const d = deps(["pending", "approved"], { openSignInPage: open });
+
+    const approved = await runDeviceSignIn("https://core", "test", d);
+
+    expect(approved?.status).toBe("approved");
+    expect(open).toHaveBeenCalledExactlyOnceWith(signInPageLink(DEVICE_URL));
+    expect(d.onStarted).toHaveBeenCalledBefore(open);
+    expect(open).toHaveBeenCalledBefore(vi.mocked(d.poll));
+  });
+
+  it("keeps approval working through the manual link if opening the browser fails", async () => {
+    const d = deps(["approved"], {
+      openSignInPage: async () => {
+        throw new Error("unavailable");
+      },
+    });
+
+    const approved = await runDeviceSignIn("https://core", "test", d);
+
+    expect(approved?.status).toBe("approved");
+    expect(d.onStarted).toHaveBeenCalledWith(FLOW);
+  });
+
+  it("does not open a browser for a cancelled flow", async () => {
+    const open = vi.fn(async () => {});
+    const d = deps([], { isCancelled: () => true, openSignInPage: open });
+
+    expect(await runDeviceSignIn("https://core", "test", d)).toBeNull();
+    expect(open).not.toHaveBeenCalled();
+  });
+
   it("hands the code to the screen and never opens the sign-in page itself", async () => {
     const d = deps(["pending", "approved"]);
     const approved = await runDeviceSignIn("https://api-core.livingsocial.com", "test", d);

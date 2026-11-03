@@ -8,7 +8,7 @@
  * default browser on the same tap.
  *
  * Constraints:
- * - Never open the page from script outside the person's tap.
+ * - Browsers require the person's tap; the desktop also opens its system browser when a code arrives.
  */
 
 import { useCallback, useMemo, type ComponentType } from "react";

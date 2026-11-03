@@ -13,8 +13,8 @@
  *
  * Constraints:
  * - Launched from the home screen (standalone), sign-in is the device code, never the redirect
- * - Never open the device code's sign-in page from script: only the person's tap on the card's
- *   link opens it (Safari blocks a page opened after the code arrives as a pop-up). The redirect
+ * - Desktop device sign-in opens the system browser when the code arrives. Browser and phone
+ *   device sign-in keep the tap-driven link because Safari blocks scripted pop-ups. The redirect
  *   moves this same tab, which no browser blocks.
  * - A release build names no Core address (production only); a build with a choice does.
  */
@@ -22,6 +22,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import * as Clipboard from "expo-clipboard";
 import { ActivityIndicator, Platform, ScrollView, Text, View } from "react-native";
+import { openExternalUrl } from "@/utils/open-external-url";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { getIsElectron, isWeb } from "@/constants/platform";
 import { StyleSheet } from "react-native-unistyles";
@@ -50,6 +51,7 @@ import { launchedStandalone } from "./install-card-model";
 import { signedInMessageAuthor } from "./message-author";
 import { setMessageAuthorSource } from "./message-author-source";
 import { finishSsoRedirect, useGrouponStore } from "./session";
+import { recoverStartupMacSignIn } from "./startup-sign-in";
 import { SecretInput } from "./secret-input";
 import { SignInPageButton } from "./sign-in-page-button";
 import { buildSsoLoginUrl, redirectSignInOffered, ssoGatewayUrlFor } from "./sso-redirect";
@@ -87,10 +89,21 @@ export function GrouponGate({ children }: { children: ReactNode }) {
   useHideShellEnvironmentBadge();
 
   useEffect(() => {
+    let cancelled = false;
+    let stopRecovery: (() => void) | undefined;
     // The gateway's return is exchanged first, so hydrate finds the session it kept.
     void finishSsoRedirect()
       .catch((caught: unknown) => useGrouponStore.setState({ signInError: messageOf(caught) }))
-      .finally(() => void hydrate());
+      .then(async () => {
+        if (cancelled) return null;
+        await hydrate();
+        if (!cancelled && getIsElectron()) stopRecovery = recoverStartupMacSignIn();
+        return null;
+      });
+    return () => {
+      cancelled = true;
+      stopRecovery?.();
+    };
   }, [hydrate]);
 
   if (status === "ready") {
@@ -212,8 +225,7 @@ function SignInStep() {
     return () => window.removeEventListener("pageshow", reset);
   }, [pageOrigin]);
 
-  // The sign-in page is not opened from here: only the person's tap on the card's link opens it
-  // (`device-sign-in-model.ts`; a page opened by script is a pop-up Safari blocks).
+  // The desktop opens the system browser once; other platforms keep the card's tap-driven link.
   const handleSignIn = useCallback(async () => {
     setError(null);
     const target = await signInTarget();
@@ -227,6 +239,7 @@ function SignInStep() {
         now: Date.now,
         isCancelled: () => cancelled.current,
         onStarted: setFlow,
+        openSignInPage: getIsElectron() ? (link) => openExternalUrl(link.href) : undefined,
       });
       if (approved) await acceptApprovedPoll(approved);
     } catch (caught) {

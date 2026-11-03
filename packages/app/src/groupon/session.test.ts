@@ -14,6 +14,8 @@ vi.mock("./secure-storage", () => ({
 }));
 vi.mock("./core-relay", () => ({ setCoreRelayRoute: vi.fn() }));
 
+const { recoverStartupMacSignIn } = await import("./startup-sign-in");
+
 const { useGrouponStore, grouponRequest } = await import("./session");
 
 const PRODUCTION = "https://api-core.livingsocial.com";
@@ -278,5 +280,94 @@ describe("the desktop window and this Mac's kept vault key", () => {
     await useGrouponStore.getState().hydrate();
     expect(useGrouponStore.getState().status).toBe("vault");
     expect(secrets.has(VAULT_KEY_KEY)).toBe(false);
+  });
+});
+
+describe("startup sign-in recovery", () => {
+  let stop: (() => void) | undefined;
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    stop?.();
+    stop = undefined;
+    vi.useRealTimers();
+  });
+
+  it("opens without refresh after the Mac's initial session read was unavailable", async () => {
+    readDeskSession.mockResolvedValueOnce(null).mockResolvedValue({
+      accessToken: macToken("restored"),
+      accessExpiresAt: inMinutes(15),
+    });
+    secrets.set(
+      VAULT_KEY_KEY,
+      JSON.stringify({
+        coreUrl: PRODUCTION,
+        userId: "user-1",
+        key: Buffer.alloc(32, 7).toString("base64"),
+      }),
+    );
+    await useGrouponStore.getState().hydrate();
+    expect(useGrouponStore.getState().status).toBe("signedOut");
+    stop = recoverStartupMacSignIn();
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(useGrouponStore.getState().status).toBe("ready");
+    expect(useGrouponStore.getState().session?.accessToken).toBe(macToken("restored"));
+    await useGrouponStore.getState().signOut();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(useGrouponStore.getState().status).toBe("signedOut");
+    expect(readDeskSession).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps retrying without overlapping reads and cancels a late response on unmount", async () => {
+    readDeskSession.mockResolvedValue(null);
+    await useGrouponStore.getState().hydrate();
+    let resolve: (value: unknown) => void = () => {};
+    readDeskSession.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    stop = recoverStartupMacSignIn();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(readDeskSession).toHaveBeenCalledTimes(2);
+    resolve(null);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(readDeskSession).toHaveBeenCalledTimes(3);
+    readDeskSession.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    await vi.advanceTimersByTimeAsync(3_000);
+    stop();
+    resolve({ accessToken: macToken("late"), accessExpiresAt: inMinutes(15) });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(useGrouponStore.getState().session).toBeNull();
+    expect(readDeskSession).toHaveBeenCalledTimes(4);
+  });
+
+  it("keeps a manual sign-in when a Mac response arrives late", async () => {
+    readDeskSession.mockResolvedValue(null);
+    await useGrouponStore.getState().hydrate();
+    let resolve: (value: unknown) => void = () => {};
+    readDeskSession.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    stop = recoverStartupMacSignIn();
+    await vi.advanceTimersByTimeAsync(3_000);
+    await useGrouponStore.getState().acceptApprovedPoll({
+      status: "approved",
+      accessToken: jwt({ userId: "user-2" }),
+      refreshToken: "own-refresh",
+      accessTokenExpiresAt: inMinutes(15),
+    });
+    resolve({ accessToken: macToken("late"), accessExpiresAt: inMinutes(15) });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(useGrouponStore.getState().identity?.userId).toBe("user-2");
+    expect(readDeskSession).toHaveBeenCalledTimes(2);
   });
 });

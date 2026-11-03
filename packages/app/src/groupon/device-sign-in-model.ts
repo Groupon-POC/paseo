@@ -3,10 +3,8 @@
 /**
  * What the gate's sign-in card shows and does, kept apart from React so it can be tested.
  *
- * The sign-in page opens only from the person's own tap on "Open the sign-in page": a page opened
- * by script after the code arrives is not a tap, and Safari on an iPhone blocks it as a pop-up
- * (the owner's report of 2026-10-21, desk.livingsocial.com). So the loop below starts the flow,
- * hands the code to the screen and polls; it never opens a window.
+ * The desktop may open the sign-in page through its external browser bridge as soon as the code
+ * arrives. Browsers and phones keep a tap-driven link because Safari blocks scripted pop-ups.
  */
 
 import { CoreError, type DeviceAuthPoll, type DeviceAuthStart } from "./core-client";
@@ -68,6 +66,8 @@ export interface DeviceSignInDeps {
   isCancelled: () => boolean;
   /** The code is here: the screen shows it with the link to the sign-in page. */
   onStarted: (flow: DeviceAuthStart) => void;
+  /** Desktop only: open the system browser, with the visible link kept as a fallback. */
+  openSignInPage?: (link: SignInPageLink) => Promise<unknown>;
 }
 
 export const POLL_FLOOR_SECONDS = 2;
@@ -85,6 +85,14 @@ export async function runDeviceSignIn(
   const started = await deps.start(coreUrl, name);
   if (deps.isCancelled()) return null;
   deps.onStarted(started);
+  const link = signInPageLink(started.verificationUri);
+  if (link && deps.openSignInPage) {
+    try {
+      await deps.openSignInPage(link);
+    } catch {
+      // The visible link lets the person retry opening the browser; keep polling for approval.
+    }
+  }
   const deadline = deps.now() + started.expiresIn * 1000;
   const intervalMs = Math.max(started.pollIntervalSeconds, POLL_FLOOR_SECONDS) * 1000;
   while (!deps.isCancelled() && deps.now() < deadline) {

@@ -65,7 +65,7 @@ import {
 import { useImproveRepositoryStore } from "./improve-repository-store";
 import { macPickerOptions } from "./mac-picker-model";
 import { useGrouponPreferences } from "./preferences";
-import { useRepositoryEntries } from "./repository-picker";
+import { useRepositoryEntries } from "./repository-entries";
 import { repositoryDescription, shortPath, type RepositoryEntry } from "./repository-picker-model";
 import { useRepositoryStandard } from "./repository-settings";
 import { GROUPON_IMPROVE } from "./strings";

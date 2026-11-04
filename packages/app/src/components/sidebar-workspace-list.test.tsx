@@ -1,7 +1,9 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): sidebar render probes share the query provider used by repository reads in the app.
 /**
  * @vitest-environment jsdom
  */
 import { act, renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createWorkspaceVisibilityPolicy } from "@/components/sidebar/sidebar-group-visibility";
 import { useLimitedSidebarGroup } from "@/components/sidebar/use-limited-sidebar-group";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -55,6 +57,7 @@ vi.mock("@react-native-async-storage/async-storage", () => ({
 }));
 
 const SERVER_ID = "sidebar-render-count";
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
 interface RenderCounts {
   frame: number;
@@ -322,7 +325,11 @@ async function renderProbe(counts: RenderCounts): Promise<{ root: Root; containe
 }
 
 function renderSidebarFrame(root: Root, counts: RenderCounts) {
-  root.render(<SidebarFrameProbe counts={counts} />);
+  root.render(
+    <QueryClientProvider client={queryClient}>
+      <SidebarFrameProbe counts={counts} />
+    </QueryClientProvider>,
+  );
 }
 
 describe("sidebar workspace render isolation", () => {
@@ -342,6 +349,7 @@ describe("sidebar workspace render isolation", () => {
     root = null;
     container?.remove();
     container = null;
+    queryClient.clear();
     act(() => {
       pathnameState.value = "/";
       setHostProfiles([]);
@@ -350,6 +358,48 @@ describe("sidebar workspace render isolation", () => {
         projectOrder: [],
       });
     });
+  });
+
+  it("renders one repository heading for two same-Mac checkouts, retaining all rows and status isolation", async () => {
+    const counts: RenderCounts = {
+      frame: 0,
+      headers: {},
+      rows: {},
+      projectSelection: {},
+      rowSelection: {},
+    };
+    ({ root, container } = await renderProbe(counts));
+    const projectKey = "remote:github.com/groupon2/engineering-development";
+    act(() => {
+      for (const projectId of ["project-a", "project-b"]) {
+        getHostRuntimeStore().acceptProjectSnapshot(SERVER_ID, {
+          projectId,
+          projectKey,
+          projectDisplayName: "engineering-development",
+          projectCustomName: null,
+          projectRootPath: `/repo/${projectId}`,
+          projectKind: "git",
+        });
+      }
+    });
+    expect(Object.keys(counts.headers)).toEqual([projectKey]);
+    expect(container?.childElementCount).toBe(1);
+    expect(Object.keys(counts.rows).sort()).toEqual(
+      createWorkspaces()
+        .map((row) => row.id)
+        .sort(),
+    );
+    expect(useSessionStore.getState().sessions[SERVER_ID]?.projects.size).toBe(2);
+
+    resetCounts(counts);
+    act(() => {
+      useSessionStore
+        .getState()
+        .mergeWorkspaces(SERVER_ID, [{ ...createWorkspaces()[1], status: "running" }]);
+    });
+    expect(counts.frame).toBe(0);
+    expect(counts.headers).toEqual({});
+    expect(counts.rows).toEqual({ "a-one": 1 });
   });
 
   it("re-renders only the changed workspace row for a status update", async () => {

@@ -3,19 +3,18 @@
 /**
  * New workspace's Repository field: the repositories of all the person's Macs, each once, and the
  * Mac follows the repository chosen. The lists and the rules are `repository-picker-model.ts`;
- * this file reads the hub's checkouts, holds the person's choice, and keeps Paseo's own project
+ * shared hub reads live in `repository-entries.ts`; this file holds the person's choice and keeps project
  * selection (what the page creates the workspace from) on that repository's project on the
  * chosen Mac.
  *
  * Responsibilities:
- * - `useHubCheckouts`: the hub's repositories and every Mac's checkouts, re-read every minute
+ * - `repository-entries.ts` supplies the shared hub reads without importing picker components
  * - `useRepositoryChoice`: the chosen repository (the person's pick, else the preselected one,
  *   else the repository of Paseo's own pick); choosing one moves the page to the Mac that holds
  *   it; a checkout the hub reports on the chosen Mac that Paseo does not list yet is opened as a
  *   project there; a Mac without it offers the From GitHub clone, prefilled, and the same sheet's
  *   way to add the checkout already on that Mac wherever it lies ("Choose existing folder on <Mac>")
- * - `RepositoryOption` and `RepositoryNotice`: a row of the list, and the line under the fields
- *   when the chosen Mac lacks the repository (or is opening it)
+ * - `RepositoryOption`: a row of the repository list
  *
  * Constraints:
  * - The workspace is only ever created from Paseo's project on the chosen Mac: while that Mac
@@ -26,11 +25,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
 import { ComboboxItem, type ComboboxOption } from "@/components/ui/combobox";
-import { useFetchQuery } from "@/data/query";
 import { useOpenProject } from "@/hooks/use-open-project";
 import { getHostProjectSourceDirectory, type HostProjectListItem } from "@/projects/host-projects";
 import { useGithubProjectStore } from "./github-project-store";
-import { fetchOverview, type HubCheckout, type HubRepository } from "./hub";
 import type { MacPickerOption } from "./mac-picker-model";
 import { useGrouponPreferences } from "./preferences";
 import {
@@ -42,59 +39,11 @@ import {
   paseoPick,
   rememberedEntryId,
   repositoryDescription,
-  repositoryEntries,
   type RepositoryEntry,
   repositoryState,
   type RepositoryState,
 } from "./repository-picker-model";
-import { useGrouponStore } from "./session";
 import { GROUPON_MAC_PICKER, GROUPON_REPOSITORY_PICKER } from "./strings";
-
-const HUB_CHECKOUTS_REFRESH_MS = 60_000;
-const NO_REPOSITORIES: HubRepository[] = [];
-const NO_CHECKOUTS: HubCheckout[] = [];
-
-/** The hub's repositories and checkouts; empty until the hub answers (or from an older hub). */
-export function useHubCheckouts(): { repositories: HubRepository[]; checkouts: HubCheckout[] } {
-  const ready = useGrouponStore((state) => state.status === "ready");
-  const query = useFetchQuery({
-    queryKey: ["groupon-hub-checkouts"],
-    queryFn: async () => {
-      const overview = await fetchOverview();
-      return { repositories: overview.repositories, checkouts: overview.checkouts ?? [] };
-    },
-    enabled: ready,
-    dataShape: "value",
-    staleTimeMs: HUB_CHECKOUTS_REFRESH_MS,
-    refetchInterval: HUB_CHECKOUTS_REFRESH_MS,
-    retry: false,
-  });
-  return {
-    repositories: query.data?.repositories ?? NO_REPOSITORIES,
-    checkouts: query.data?.checkouts ?? NO_CHECKOUTS,
-  };
-}
-
-/** Every repository on the person's Macs, once each, from Paseo's projects and the hub. */
-export function useRepositoryEntries(input: {
-  projects: readonly HostProjectListItem[];
-  macOptions: readonly MacPickerOption[];
-  hostLabel: (serverId: string) => string;
-}): RepositoryEntry[] {
-  const { repositories, checkouts } = useHubCheckouts();
-  const { projects, macOptions, hostLabel } = input;
-  return useMemo(
-    () =>
-      repositoryEntries({
-        projects,
-        hubRepositories: repositories,
-        hubCheckouts: checkouts,
-        macs: macOptions,
-        hostLabel,
-      }),
-    [checkouts, hostLabel, macOptions, projects, repositories],
-  );
-}
 
 export interface RepositoryChoiceInput {
   entries: readonly RepositoryEntry[];

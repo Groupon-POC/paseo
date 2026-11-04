@@ -130,7 +130,8 @@ import {
   withAgentCwd,
   type ChatCreationTarget,
 } from "@/groupon/project-less-chats";
-import { useRepositoryChoice, useRepositoryEntries } from "@/groupon/repository-picker";
+import { useRepositoryChoice } from "@/groupon/repository-picker";
+import { useRepositoryEntries } from "@/groupon/repository-entries";
 import { RepositoryNotice } from "@/groupon/repository-notice";
 import {
   defaultMacForRepository,

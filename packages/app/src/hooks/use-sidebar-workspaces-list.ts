@@ -25,7 +25,7 @@ import {
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
 import { useHubMachinesStore, type HubMachineView } from "@/groupon/hub-sync";
 import { macPickerOptions } from "@/groupon/mac-picker-model";
-import { useRepositoryEntries } from "@/groupon/repository-picker";
+import { useRepositoryEntries } from "@/groupon/repository-entries";
 import { groupSidebarRepositories } from "@/groupon/sidebar-repositories-model";
 
 export {
@@ -176,7 +176,12 @@ export function useSidebarWorkspacesList(options?: {
     (id: string) => allHosts.find((host) => host.serverId === id)?.label ?? id,
     [allHosts],
   );
-  const repositories = useRepositoryEntries({ projects: hostProjects, macOptions, hostLabel });
+  const repositories = useRepositoryEntries({
+    projects: hostProjects,
+    macOptions,
+    hostLabel,
+    enabled: isActive,
+  });
   const sidebarModel = useMemo(
     () => groupSidebarRepositories({ model: placements, projects: hostProjects, repositories }),
     [hostProjects, placements, repositories],

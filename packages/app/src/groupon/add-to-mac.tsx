@@ -29,7 +29,7 @@ import { CopyLine } from "./copy-line";
 import { useHubMachinesStore } from "./hub-sync";
 import { readLocalDaemons } from "./local-daemon";
 import { macPickerOptions } from "./mac-picker-model";
-import { useHubCheckouts } from "./repository-picker";
+import { useHubCheckouts } from "./repository-entries";
 import { GROUPON_ADD_TO_MAC } from "./strings";
 
 /** How often this Mac's loopback is asked for a daemon while its row is greyed on screen. */

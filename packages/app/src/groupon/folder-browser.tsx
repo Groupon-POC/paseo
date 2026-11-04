@@ -57,7 +57,7 @@ import {
 } from "./folder-browser-model";
 import { useHubMachinesStore } from "./hub-sync";
 import { macPickerOptions } from "./mac-picker-model";
-import { useHubCheckouts } from "./repository-picker";
+import { useHubCheckouts } from "./repository-entries";
 import { normaliseRemote } from "./repository-picker-model";
 
 export const FOLDER_BROWSER = {

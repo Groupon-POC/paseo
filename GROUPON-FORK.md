@@ -1162,3 +1162,8 @@ id and its own checkout path and kind. Only the sidebar section key changes to t
 key; its Git checkout supplies the heading and icon ahead of a legacy non-Git folder.
 Different remotes, unnamed folders and explicit repository subdirectories remain separate.
 Mac load samples do not invalidate the identity selector used for this grouping.
+
+Shared hub reads live in `repository-entries.ts`, without a dependency on rendered picker
+components. The sidebar's React integration test uses the app's query provider, renders one
+section for two same-Mac checkouts with all their rows, and verifies that a later chat status
+change still re-renders only that chat row.

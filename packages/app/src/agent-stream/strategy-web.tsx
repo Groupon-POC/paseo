@@ -499,10 +499,18 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       rowVirtualizer.measure();
       return;
     }
-    // The virtualizer keys heights by id, not content. An offscreen replacement has no DOM
-    // observer to invalidate it; use its new estimate until it mounts and can be measured.
+    // Mounted rows are measured from the committed DOM below. Resetting them to estimates
+    // here makes equivalent snapshots alternate estimated and measured sizes indefinitely.
+    const mountedIds = new Set(
+      Array.from(
+        contentRef.current?.querySelectorAll<HTMLElement>("[data-history-row-id][data-index]") ??
+          [],
+        (element) => element.dataset.historyRowId,
+      ),
+    );
+    // An offscreen replacement has no DOM observer: use its estimate until it mounts.
     inputSegments.historyVirtualized.forEach((item, index) => {
-      if (changed.has(item.id)) {
+      if (changed.has(item.id) && !mountedIds.has(item.id)) {
         rowVirtualizer.resizeItem(index, estimateStreamItemHeight({ item, contentMaxWidth }));
       }
     });

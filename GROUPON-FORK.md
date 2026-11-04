@@ -1169,3 +1169,17 @@ Shared hub reads live in `repository-entries.ts`, without a dependency on render
 components. The sidebar's React integration test uses the app's query provider, renders one
 section for two same-Mac checkouts with all their rows, and verifies that a later chat status
 change still re-renders only that chat row.
+
+## Closing a chat's tab asks first, and Cmd+Shift+T brings it back
+
+Closing a root chat's tab archives the chat, which left its workspace in the sidebar with the chat's
+title: an empty row that read as the chat still there. Now the window asks first in a dialog of its
+own (`packages/app/src/groupon/close-chat-dialog.tsx`, Return to go on, Esc to stay; `confirmDialog`
+is the system's alert on a Mac), naming what goes. With the workspace's last chat, when no terminal
+tab holds it either, the workspace goes too (`packages/app/src/groupon/close-chat-flow.ts`). A
+subagent's tab still closes without a word.
+
+Cmd+Shift+T brings back the chat closed last, restoring its workspace first when that went along
+(`packages/app/src/groupon/use-reopen-closed-chat.ts`). A worktree Desk removed comes back from its
+branch, without what was not committed. The list lives in the window's memory, so a closed window
+forgets it; History still has every chat. New terminal, upstream's Cmd+Shift+T, moved to Cmd+Shift+Y.

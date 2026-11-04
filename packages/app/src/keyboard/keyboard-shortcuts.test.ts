@@ -1168,11 +1168,25 @@ describe("unassigned shortcuts", () => {
       expect(result.match).toBeNull();
     });
 
+    it("gives Cmd+Shift+T to the closed chat and New terminal to Cmd+Shift+Y on macOS", () => {
+      const bindings = buildEffectiveBindings({});
+      const context = { ...desktopNonMac, isMac: true };
+      const pressed = (key: string, code: string) =>
+        resolveShortcut({
+          event: { key, code, metaKey: true, shiftKey: true },
+          context,
+          bindings,
+        }).match?.action;
+
+      expect(pressed("t", "KeyT")).toBe("chat.reopen-closed");
+      expect(pressed("y", "KeyY")).toBe("workspace.terminal.new");
+    });
+
     it("leaves other shortcuts firing when one is unassigned", () => {
       const bindings = buildEffectiveBindings({ [TAB_NEW_BINDING]: UNASSIGNED_COMBO });
 
       const result = resolveShortcut({
-        event: { key: "t", code: "KeyT", ctrlKey: true, shiftKey: true },
+        event: { key: "y", code: "KeyY", ctrlKey: true, shiftKey: true },
         context: desktopNonMac,
         bindings,
       });

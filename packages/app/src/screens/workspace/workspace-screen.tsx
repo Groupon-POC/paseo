@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace a relaunch reopened that is gone leaves for the home page (useLeaveGoneRestoredWorkspace); the computer notice sits inset, closes with its X and says in plain words that the computer is not connected (WorkspaceComputerNotice). Back and forward through the tabs it showed (useWorkspaceTabHistory).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace a relaunch reopened that is gone leaves for the home page (useLeaveGoneRestoredWorkspace); the computer notice sits inset, closes with its X and says in plain words that the computer is not connected (WorkspaceComputerNotice). Back and forward through the tabs it showed (useWorkspaceTabHistory). Closing a chat's tab asks first in the window's own dialog (`groupon/close-chat-dialog.tsx`); its last chat takes the workspace along.
 import { useWorkspaceTabHistory } from "@/groupon/use-workspace-tab-history";
 import { useHostFeature } from "@/runtime/host-features";
 import {
@@ -135,6 +135,9 @@ import { useWorkspaceTerminalSessionRetention } from "@/terminal/hooks/use-works
 import type { CheckoutStatusPayload } from "@/git/use-status-query";
 import { confirmDialog } from "@/utils/confirm-dialog";
 import { useArchiveAgent } from "@/hooks/use-archive-agent";
+import { useCloseChatDialog } from "@/groupon/close-chat-dialog";
+import { archiveClosedChat, closeChatPlanOf } from "@/groupon/close-chat-flow";
+import { rememberClosedChat } from "@/groupon/close-chat-model";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { removeResidentBrowserWebview } from "@/desktop/browser/resident-webviews";
 import { createWorkspaceBrowser, useBrowserStore } from "@/desktop/browser/store";
@@ -1270,6 +1273,7 @@ function WorkspaceScreenContent({
     onTerminalCreateFailed: handleTerminalCreateFailed,
   });
   const { archiveAgent } = useArchiveAgent();
+  const { ask: askCloseChat, element: closeChatDialog } = useCloseChatDialog();
 
   const { checkoutQuery, isCheckoutStatusLoading } = useWorkspaceCheckoutStatus({
     client,
@@ -2018,19 +2022,25 @@ function WorkspaceScreenContent({
         const agent =
           useSessionStore.getState().sessions[normalizedServerId]?.agents?.get(agentId) ?? null;
         let closePolicy = resolveCloseAgentTabPolicy(agent);
-        const isRunning = agent?.status === "running";
-
-        if (isRunning && closePolicy.kind === "archive-on-close") {
-          const confirmed = await confirmDialog({
-            title: t("workspace.tabs.confirmations.archiveRunningAgentTitle"),
-            message: t("workspace.tabs.confirmations.archiveRunningAgentMessage"),
-            confirmLabel: t("workspace.tabs.confirmations.archive"),
-            cancelLabel: t("workspace.tabs.confirmations.cancel"),
-            destructive: true,
+        // Groupon Desk: closing a chat archives it, and its workspace with its last chat; say so first.
+        let lastInWorkspace = false;
+        if (closePolicy.kind === "archive-on-close") {
+          const plan = await closeChatPlanOf({
+            serverId: normalizedServerId,
+            workspaceId: normalizedWorkspaceId,
+            agentId,
+            agents: useSessionStore.getState().sessions[normalizedServerId]?.agents.values() ?? [],
+            hasTerminalTab: [...allTabDescriptorsById.values()].some(
+              (tab) => tab.target.kind === "terminal",
+            ),
+            running: agent?.status === "running",
+            workspace: workspaceDescriptor,
+            client,
           });
-          if (!confirmed) {
+          if (!(await askCloseChat(plan.dialog))) {
             return;
           }
+          lastInWorkspace = plan.lastInWorkspace;
         }
 
         if (closePolicy.kind === "layout-only") {
@@ -2066,12 +2076,23 @@ function WorkspaceScreenContent({
           return;
         }
 
-        // Errors (e.g. timeout) are handled by the mutation's onSettled callback
-        void archiveAgent({ serverId: normalizedServerId, agentId }).catch(() => {});
+        archiveClosedChat({
+          serverId: normalizedServerId,
+          workspaceId: normalizedWorkspaceId,
+          agentId,
+          lastInWorkspace,
+          client,
+          archiveAgent,
+        });
       });
     },
     [
+      allTabDescriptorsById,
       archiveAgent,
+      askCloseChat,
+      client,
+      normalizedWorkspaceId,
+      workspaceDescriptor,
       closeTab,
       closeWorkspaceTabWithCleanup,
       normalizedServerId,
@@ -2334,6 +2355,14 @@ function WorkspaceScreenContent({
         return false;
       }
 
+      for (const tab of groups.archiveAgentTabs) {
+        rememberClosedChat({
+          serverId: normalizedServerId,
+          workspaceId: normalizedWorkspaceId,
+          agentId: tab.agentId,
+          workspaceArchived: false,
+        });
+      }
       await closeBulkWorkspaceTabs({
         client,
         groups,
@@ -3823,6 +3852,7 @@ function WorkspaceScreenContent({
           onSubmit={handleRenameModalSubmit}
           onClose={handleRenameModalClose}
         />
+        {closeChatDialog}
       </View>
     </RenderProfile>
   );

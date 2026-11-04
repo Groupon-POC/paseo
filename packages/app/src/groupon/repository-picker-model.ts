@@ -22,7 +22,8 @@
  * - The identity is the remote as the hand normalises it (lowercase host, no scheme, no `.git`);
  *   Paseo's `projectKey` (`remote:<host>/<path>`) is read into the same form
  * - A Mac is matched by its daemon's server id (Paseo's projects) or its hub machine ids (the
- *   hub's checkouts), never by a label
+ *   hub's checkouts), never by a label; a missing daemon remote is recovered only from the hub's
+ *   exact checkout path on the same Mac
  */
 
 import { isChatsProject } from "./project-less-chats";
@@ -106,6 +107,31 @@ function macOfMachine(macs: readonly MacPickerOption[], machine: string) {
   return macs.find((mac) => mac.machineIds.includes(machine)) ?? null;
 }
 
+/** Recover a missing daemon identity only from an exact checkout path on the same Mac. */
+function reportedRemoteOfProject(
+  project: HostProjectListItem,
+  input: RepositoryEntriesInput,
+  remoteOfRepository: ReadonlyMap<string, string>,
+): string | null {
+  // An explicit remote subdirectory remains a distinct project.
+  if (project.projectKey?.startsWith(REMOTE_PREFIX)) return null;
+  const remotes = new Set<string>();
+  for (const host of project.hosts) {
+    const mac = macOfServer(input.macs, host.serverId);
+    if (!mac) continue;
+    for (const checkout of input.hubCheckouts) {
+      const sameMac = mac.machineIds.includes(checkout.machine);
+      const samePath =
+        checkout.rootPath.replace(/\/+$/, "") === host.iconWorkingDir.replace(/\/+$/, "");
+      if (!sameMac || !samePath) continue;
+      const remote = remoteOfRepository.get(checkout.repositoryId);
+      if (remote) remotes.add(remote);
+    }
+  }
+  // Conflicting reports cannot identify a repository safely.
+  return remotes.size === 1 ? ([...remotes][0] ?? null) : null;
+}
+
 interface Draft {
   entry: RepositoryEntry;
   byMac: Map<string, RepositoryCheckout>;
@@ -141,6 +167,13 @@ export function repositoryEntries(input: RepositoryEntriesInput): RepositoryEntr
   const hostLabel = input.hostLabel ?? ((serverId: string) => serverId);
   const repositories = new Map<string, Draft>();
   const folders: Draft[] = [];
+  const remoteOfRepository = new Map<string, string>();
+  for (const repository of input.hubRepositories) {
+    const remote = normaliseRemote(repository.remoteUrl);
+    if (!remote || repository.hidden) continue;
+    remoteOfRepository.set(repository.id, remote);
+  }
+
   const draftFor = (remote: string, project: HostProjectListItem | null): Draft => {
     const kept = repositories.get(remote);
     if (kept) {
@@ -162,7 +195,8 @@ export function repositoryEntries(input: RepositoryEntriesInput): RepositoryEntr
   };
 
   for (const project of input.projects) {
-    const remote = remoteOfProject(project);
+    const remote =
+      remoteOfProject(project) ?? reportedRemoteOfProject(project, input, remoteOfRepository);
     const draft: Draft = remote
       ? draftFor(remote, project)
       : {
@@ -181,12 +215,6 @@ export function repositoryEntries(input: RepositoryEntriesInput): RepositoryEntr
     }
   }
 
-  const remoteOfRepository = new Map<string, string>();
-  for (const repository of input.hubRepositories) {
-    const remote = normaliseRemote(repository.remoteUrl);
-    if (!remote || repository.hidden) continue;
-    remoteOfRepository.set(repository.id, remote);
-  }
   for (const checkout of input.hubCheckouts) {
     const remote = remoteOfRepository.get(checkout.repositoryId);
     if (!remote) continue;
@@ -237,14 +265,12 @@ export function entryOfProject(
   if (remote) return entries.find((entry) => entry.remote === remote) ?? null;
   return (
     entries.find((entry) => entry.id === folderId(project)) ??
-    entries.find(
-      (entry) =>
-        entry.remote === null &&
-        entry.checkouts.some((checkout) =>
-          project.hosts.some(
-            (host) => host.serverId === checkout.serverId && host.projectId === checkout.projectId,
-          ),
+    entries.find((entry) =>
+      entry.checkouts.some((checkout) =>
+        project.hosts.some(
+          (host) => host.serverId === checkout.serverId && host.projectId === checkout.projectId,
         ),
+      ),
     ) ??
     null
   );

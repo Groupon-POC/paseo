@@ -160,6 +160,106 @@ const ENTRIES = repositoryEntries({
 const byId = (id: string) => ENTRIES.find((entry) => entry.id === id)!;
 
 describe("repositoryEntries", () => {
+  it("uses the hub checkout identity when an older daemon omits the project's remote", () => {
+    const legacy = { ...MONOREPO, projectKey: null, viewKey: "legacy-mini-project" };
+    const entries = repositoryEntries({
+      projects: [legacy],
+      hubRepositories: HUB_REPOSITORIES,
+      hubCheckouts: HUB_CHECKOUTS,
+      macs: MACS,
+    });
+
+    const entry = entryOfProject(entries, legacy);
+    expect(entry?.id).toBe("repo:github.com/groupon2/engineering-development");
+    expect(entry?.checkouts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ serverId: "srv_mini", projectId: "p_mono_mini" }),
+        expect.objectContaining({ serverId: "srv_air", path: HUB_CHECKOUTS[1]!.rootPath }),
+      ]),
+    );
+    expect(entries.filter((row) => row.project === legacy)).toHaveLength(1);
+    expect(
+      preselectedRepositoryId({
+        entries,
+        routeProject: legacy,
+        lastActiveProject: null,
+        lastRepositoryId: null,
+      }),
+    ).toBe(entry?.id);
+  });
+
+  it("keeps both daemon project ids when a legacy project is selected on another Mac", () => {
+    const mini = { ...MONOREPO, projectKey: null, viewKey: "legacy-mini" };
+    const air = project("same-repository-renamed", null, [
+      {
+        serverId: "srv_air",
+        projectId: "p_mono_air",
+        path: HUB_CHECKOUTS[1]!.rootPath,
+      },
+    ]);
+    const entries = repositoryEntries({
+      projects: [mini, air],
+      hubRepositories: HUB_REPOSITORIES,
+      hubCheckouts: HUB_CHECKOUTS,
+      macs: MACS,
+    });
+    const entry = entryOfProject(entries, mini)!;
+    const checkout = entry.checkouts.find((row) => row.serverId === "srv_air")!;
+    const pick = paseoPick({
+      paseoSelectedProject: air,
+      paseoProjectByOptionId: new Map([["air-option", air]]),
+      serverId: "srv_air",
+      checkout,
+    });
+
+    expect(entryOfProject(entries, air)).toBe(entry);
+    expect(pick.selectedProject).toBe(air);
+    expect(repositoryState(entry, true, checkout, null)).toEqual({ kind: "ready" });
+  });
+
+  it.each([
+    { name: "same path on a different Mac", machine: "air", path: MONOREPO.iconWorkingDir },
+    {
+      name: "same folder name at another path",
+      machine: "mini",
+      path: "/elsewhere/engineering-development",
+    },
+  ])("does not guess the repository from $name", ({ machine: machineId, path }) => {
+    const legacy = { ...MONOREPO, projectKey: null };
+    const entries = repositoryEntries({
+      projects: [legacy],
+      hubRepositories: HUB_REPOSITORIES,
+      hubCheckouts: [{ ...HUB_CHECKOUTS[0]!, machine: machineId, rootPath: path }],
+      macs: MACS,
+    });
+
+    expect(entryOfProject(entries, legacy)?.remote).toBeNull();
+  });
+
+  it("leaves an explicit repository subdirectory separate from its reported root", () => {
+    const subdirectory = { ...MONOREPO, projectKey: `${MONOREPO.projectKey}#subdir:apps/admin` };
+    const entries = repositoryEntries({
+      projects: [subdirectory],
+      hubRepositories: HUB_REPOSITORIES,
+      hubCheckouts: HUB_CHECKOUTS,
+      macs: MACS,
+    });
+
+    expect(entryOfProject(entries, subdirectory)?.remote).toBeNull();
+  });
+
+  it("does not choose between conflicting hub identities for the same Mac and path", () => {
+    const legacy = { ...MONOREPO, projectKey: null };
+    const entries = repositoryEntries({
+      projects: [legacy],
+      hubRepositories: HUB_REPOSITORIES,
+      hubCheckouts: [HUB_CHECKOUTS[0]!, { ...HUB_CHECKOUTS[0]!, repositoryId: "r_infra" }],
+      macs: MACS,
+    });
+
+    expect(entryOfProject(entries, legacy)?.remote).toBeNull();
+  });
+
   it("lists each repository once by owner/name, then the folder with no remote", () => {
     expect(ENTRIES.map((entry) => [entry.id, entry.label])).toEqual([
       ["repo:github.com/groupon2/engineering-development", "groupon2/engineering-development"],
@@ -257,7 +357,9 @@ describe("preselectedRepositoryId", () => {
         lastRepositoryId: "repo:github.com/groupon2/infra-development",
       }),
     ).toBe("repo:github.com/groupon2/engineering-development");
-    expect(entryOfProject(ENTRIES, routeProject)).toBeNull();
+    expect(entryOfProject(ENTRIES, routeProject)?.id).toBe(
+      "repo:github.com/groupon2/engineering-development",
+    );
   });
 
   it("falls back to the last workspace's repository, then to the last repository chosen", () => {

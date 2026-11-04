@@ -1137,3 +1137,11 @@ Ids dropped from the loaded history lose their old sizes too, so a later fetch c
 an obsolete measurement. Unchanged rows keep their measured estimates and the reading anchor
 continues to handle scroll corrections. The browser regression covers both replacement in
 place and removal followed by restoration under the same id.
+
+## Existing checkouts keep their repository identity across Macs
+
+The Repository field joins an older daemon's project without a remote key to the hub's
+repository only when its checkout path and Mac both match. The chosen repository then keeps
+its per-Mac project ids, so switching to another Mac uses that Mac's existing checkout or
+opens the checkout already reported by the hub. Equal folder names alone never join projects;
+conflicting reports and explicit repository subdirectories stay separate.

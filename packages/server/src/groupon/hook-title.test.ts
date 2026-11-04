@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import {
   configDirOf,
+  carryHookTitle,
   hookTitleLedger,
   lastCustomTitleOf,
   readTranscriptTail,
@@ -50,5 +51,41 @@ describe("a hook's session title", () => {
       configDirOf("/x/claude --flag HOME=/u CLAUDE_CONFIG_DIR=/u/.groupon/claude-a TERM=x"),
     ).toBe("/u/.groupon/claude-a");
     expect(configDirOf("HOME=/u")).toBeNull();
+  });
+});
+
+describe("carryHookTitle", () => {
+  function chat(workspaceAfterTitle: string) {
+    const titled: Array<[string, string]> = [];
+    let workspace = "wks_before";
+    return {
+      titled,
+      deps: {
+        applied: async () => null,
+        remember: async () => undefined,
+        setChatTitle: async () => {
+          workspace = workspaceAfterTitle;
+        },
+        workspaceOf: async () => workspace,
+        titleWorkspace: async (workspaceId: string, title: string) => {
+          titled.push([workspaceId, title]);
+        },
+      },
+    };
+  }
+
+  test("titles the workspace the chat is in once it has the title, after a move at the same turn's end", async () => {
+    const { titled, deps } = chat("wks_after");
+    await carryHookTitle("agent", "Temporal: TLS", deps);
+    expect(titled).toEqual([["wks_after", "Temporal: TLS"]]);
+  });
+
+  test("leaves everything alone once that title was carried", async () => {
+    const { titled, deps } = chat("wks_after");
+    await carryHookTitle("agent", "Temporal: TLS", {
+      ...deps,
+      applied: async () => "Temporal: TLS",
+    });
+    expect(titled).toEqual([]);
   });
 });

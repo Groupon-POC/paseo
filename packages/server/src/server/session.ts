@@ -254,6 +254,7 @@ import {
 } from "../groupon/workspace-compare.js";
 import {
   configDirOf,
+  carryHookTitle,
   hookTitleLedger,
   lastCustomTitleOf,
   readTranscriptTail,
@@ -2271,11 +2272,18 @@ export class Session {
       configDir: configDir ?? undefined,
     });
     const title = lastCustomTitleOf((await readTranscriptTail(path)) ?? "");
+    if (!title) return;
     const ledger = hookTitleLedger(this.paseoHome);
-    if (!title || (await ledger.applied(agentId)) === title) return;
-    await this.agentManager.updateAgentMetadata(agentId, { title });
-    await ledger.remember(agentId, title);
-    if (record.workspaceId) await this.titleGrouponWorkspaceAfterChat(record.workspaceId, title);
+    await carryHookTitle(agentId, title, {
+      applied: (id) => ledger.applied(id),
+      remember: (id, carried) => ledger.remember(id, carried),
+      setChatTitle: async (id, carried) => {
+        await this.agentManager.updateAgentMetadata(id, { title: carried });
+      },
+      workspaceOf: async (id) => (await this.agentStorage.get(id))?.workspaceId ?? null,
+      titleWorkspace: (workspaceId, carried) =>
+        this.titleGrouponWorkspaceAfterChat(workspaceId, carried),
+    });
   }
 
   /** A workspace holding only one chat carries that chat's title, as the sidebar names it. */

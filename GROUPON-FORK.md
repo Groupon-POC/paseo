@@ -1152,3 +1152,13 @@ it does not clone or accept a different repository. The notice is separate from 
 hook so its failed-opening action can be tested in a real browser. The integration regression
 also covers a plain folder on the source Mac, an unregistered checkout on the destination,
 project registration and selecting the destination's Git project for a worktree.
+
+## The sidebar shows one heading per repository
+
+The sidebar uses the Repository field's verified identity to join duplicate project headings.
+Multiple checkouts on the same Mac and a hub-identified legacy folder on another Mac remain
+registered under their original project ids. Every workspace keeps its server and workspace
+id and its own checkout path and kind. Only the sidebar section key changes to the repository
+key; its Git checkout supplies the heading and icon ahead of a legacy non-Git folder.
+Different remotes, unnamed folders and explicit repository subdirectories remain separate.
+Mac load samples do not invalidate the identity selector used for this grouping.

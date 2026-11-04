@@ -1,3 +1,5 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): one sidebar heading per known repository, retaining all checkout and workspace identities.
+/** Reads host directories and projects their workspaces under logical repository headings. */
 import { useHostFeatureMap } from "@/runtime/host-features";
 import { useCallback, useEffect, useMemo } from "react";
 import { useStoreWithEqualityFn } from "zustand/traditional";
@@ -21,6 +23,10 @@ import {
   type SidebarWorkspacePlacement,
 } from "./sidebar-workspaces-view-model";
 import type { SidebarStateBucket } from "@/utils/sidebar-agent-state";
+import { useHubMachinesStore, type HubMachineView } from "@/groupon/hub-sync";
+import { macPickerOptions } from "@/groupon/mac-picker-model";
+import { useRepositoryEntries } from "@/groupon/repository-picker";
+import { groupSidebarRepositories } from "@/groupon/sidebar-repositories-model";
 
 export {
   appendMissingOrderKeys,
@@ -151,9 +157,29 @@ export function useSidebarWorkspacesList(options?: {
   const { projects: hostProjects } = useWorkspaceStructure(directoryServerIds, sort);
 
   const selectPlacements = useMemo(createSidebarWorkspacePlacementSelector, []);
-  const sidebarModel = useMemo(
+  const placements = useMemo(
     () => selectPlacements(hostProjects),
     [hostProjects, selectPlacements],
+  );
+  // Load samples must not rebuild repository groups; only changes in Mac identity matter here.
+  const selectMacOptions = useCallback(
+    (state: { machines: HubMachineView[] }) =>
+      macPickerOptions(state.machines, () => false, allHosts),
+    [allHosts],
+  );
+  const macOptions = useStoreWithEqualityFn(
+    useHubMachinesStore,
+    selectMacOptions,
+    workspaceEqualityFns.deep,
+  );
+  const hostLabel = useCallback(
+    (id: string) => allHosts.find((host) => host.serverId === id)?.label ?? id,
+    [allHosts],
+  );
+  const repositories = useRepositoryEntries({ projects: hostProjects, macOptions, hostLabel });
+  const sidebarModel = useMemo(
+    () => groupSidebarRepositories({ model: placements, projects: hostProjects, repositories }),
+    [hostProjects, placements, repositories],
   );
 
   const projects = sidebarModel.projects.length > 0 ? sidebarModel.projects : EMPTY_PROJECTS;

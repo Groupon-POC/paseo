@@ -602,7 +602,7 @@ describe("keyboard-shortcuts", () => {
     });
   });
 
-  // Groupon Desk: back and forward through a workspace's tabs, never inside a text field.
+  // Groupon Desk: back and forward through a workspace's tabs.
   describe("back and forward through a workspace's tabs", () => {
     const cmdLeft = { key: "ArrowLeft", code: "ArrowLeft", metaKey: true };
     const ctrlCmdLeft = { ...cmdLeft, ctrlKey: true };
@@ -626,13 +626,20 @@ describe("keyboard-shortcuts", () => {
       ).not.toBe("workspace.history.back");
     });
 
-    it("stays out of the text field the person types in", () => {
+    it("works on a Mac from a text field and a terminal, whose keys it takes nothing from", () => {
+      for (const focusScope of ["message-input", "editable", "terminal"] as const) {
+        expect(
+          resolveShortcut({ event: ctrlCmdLeft, context: { isMac: true, focusScope } }).match
+            ?.action,
+        ).toBe("workspace.history.back");
+      }
+    });
+
+    it("leaves Alt+arrows to the text field elsewhere, where they move the caret", () => {
       expect(
-        resolveShortcut({
-          event: ctrlCmdLeft,
-          context: { isMac: true, focusScope: "message-input" },
-        }).match?.action,
-      ).not.toBe("workspace.history.back");
+        resolveShortcut({ event: altRight, context: { isMac: false, focusScope: "message-input" } })
+          .match?.action,
+      ).not.toBe("workspace.history.forward");
     });
   });
 

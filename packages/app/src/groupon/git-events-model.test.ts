@@ -234,3 +234,33 @@ describe("gitEventsOf", () => {
     expect(gitEventsOf(shell('echo "git commit -m x"', ""))).toEqual([]);
   });
 });
+
+describe("commands inside quotes", () => {
+  it("takes no commit from a grep pattern that names one", () => {
+    const events = gitEventsOfShell(
+      'grep -n -E "merge|push|git commit" .claude/settings.json | cut -c1-200; git diff --stat a b',
+      " 12 files changed, 765 insertions(+), 130 deletions(-)",
+      "done",
+    );
+    expect(events).toEqual([]);
+  });
+
+  it("takes no push from a commit message that names one, and keeps the commit", () => {
+    const events = gitEventsOfShell(
+      `git commit -m "Docs; git push origin main | how-to" && git log -1 --oneline`,
+      "abc1234 Docs; git push origin main | how-to",
+      "done",
+    );
+    expect(events.map((event) => event.kind)).toEqual(["commit"]);
+    expect(events[0]).toMatchObject({ sha: "abc1234" });
+  });
+
+  it("still splits the commands around the quotes", () => {
+    const events = gitEventsOfShell(
+      `echo "a|b" && git commit -m 'one' || echo failed; git push origin main | tail -2`,
+      "[main abc1234] one\n   abc1234..def5678  main -> main",
+      "done",
+    );
+    expect(events.map((event) => event.kind)).toEqual(["commit", "push"]);
+  });
+});

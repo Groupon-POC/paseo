@@ -31,7 +31,6 @@ export interface GitPushEvent {
 
 export type GitEvent = GitCommitEvent | GitPushEvent;
 
-const SEGMENT_SPLIT = /&&|\|\||;|\|/;
 const GIT_VERB =
   /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git((?:\s+-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+))*)\s+(commit|push)\b(.*)$/;
 const COMMIT_LINE = /^\[([^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.+)$/m;
@@ -82,7 +81,7 @@ export function gitEventsOfShell(
   status: GitEventStatus,
 ): GitEvent[] {
   const segments = commandLinesOf(command).flatMap((line) =>
-    line.text.split(SEGMENT_SPLIT).map((text) => ({ text, line })),
+    segmentsOfLine(line.text).map((text) => ({ text, line })),
   );
   const events: GitEvent[] = [];
   const refs = [...output.matchAll(PUSH_REF)];
@@ -126,6 +125,26 @@ const unquote = (text: string) => text.replace(/^(["'])(.*)\1$/, "$2");
 function folderOf(options: string): string | null {
   const found = /-C\s+("[^"]+"|'[^']+'|\S+)/.exec(options);
   return found?.[1] ? unquote(found[1]) : null;
+}
+
+/** A line's commands, split at `&&`, `||`, `;` and `|` outside quotes: `grep "push|git commit"` runs no git. */
+function segmentsOfLine(text: string): string[] {
+  const segments: string[] = [];
+  let start = 0;
+  let quote: string | null = null;
+  for (let at = 0; at < text.length; at += 1) {
+    const char = text[at] ?? "";
+    if (char === "\\" && quote !== "'") at += 1;
+    else if (quote) quote = char === quote ? null : quote;
+    else if (char === '"' || char === "'") quote = char;
+    else if (char === ";" || char === "|" || (char === "&" && text[at + 1] === "&")) {
+      segments.push(text.slice(start, at));
+      if (text[at + 1] === char) at += 1;
+      start = at + 1;
+    }
+  }
+  segments.push(text.slice(start));
+  return segments;
 }
 
 function commandLinesOf(command: string): CommandLine[] {

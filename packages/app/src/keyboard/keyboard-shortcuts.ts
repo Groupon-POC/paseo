@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "New chat" binding (`chat.new`, no default key). Back and forward through a workspace's tabs: Cmd+Left/Right on a Mac, Alt+Left/Right elsewhere, never inside a text field. Cmd+Shift+T brings back a closed chat, as in a browser; New terminal moved to Cmd+Shift+Y.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "New chat" binding (`chat.new`, no default key). Back and forward through a workspace's tabs: Ctrl+Cmd+Left/Right on a Mac, Alt+Left/Right elsewhere, never inside a text field. Cmd+Shift+T brings back a closed chat, as in a browser; New terminal moved to Cmd+Shift+Y.
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import type {
   KeyboardActionId,
@@ -394,7 +394,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-history-back-cmd-left",
     action: "workspace.history.back",
-    combo: "Cmd+ArrowLeft",
+    combo: "Cmd+Ctrl+ArrowLeft",
     when: { mac: true, editable: false, terminal: false, commandCenter: false },
     help: {
       id: "workspace-history-back",
@@ -405,7 +405,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-history-forward-cmd-right",
     action: "workspace.history.forward",
-    combo: "Cmd+ArrowRight",
+    combo: "Cmd+Ctrl+ArrowRight",
     when: { mac: true, editable: false, terminal: false, commandCenter: false },
     help: {
       id: "workspace-history-forward",

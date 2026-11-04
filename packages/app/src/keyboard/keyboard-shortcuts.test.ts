@@ -605,11 +605,12 @@ describe("keyboard-shortcuts", () => {
   // Groupon Desk: back and forward through a workspace's tabs, never inside a text field.
   describe("back and forward through a workspace's tabs", () => {
     const cmdLeft = { key: "ArrowLeft", code: "ArrowLeft", metaKey: true };
+    const ctrlCmdLeft = { ...cmdLeft, ctrlKey: true };
     const altRight = { key: "ArrowRight", code: "ArrowRight", altKey: true };
 
-    it("goes back on Cmd+Left on a Mac and forward on Alt+Right elsewhere", () => {
+    it("goes back on Ctrl+Cmd+Left on a Mac and forward on Alt+Right elsewhere", () => {
       expect(
-        resolveShortcut({ event: cmdLeft, context: { isMac: true, focusScope: "other" } }).match
+        resolveShortcut({ event: ctrlCmdLeft, context: { isMac: true, focusScope: "other" } }).match
           ?.action,
       ).toBe("workspace.history.back");
       expect(
@@ -618,10 +619,19 @@ describe("keyboard-shortcuts", () => {
       ).toBe("workspace.history.forward");
     });
 
-    it("leaves Cmd+Left to the text field the person types in", () => {
+    it("leaves plain Cmd+Left alone", () => {
       expect(
-        resolveShortcut({ event: cmdLeft, context: { isMac: true, focusScope: "message-input" } })
-          .match?.action,
+        resolveShortcut({ event: cmdLeft, context: { isMac: true, focusScope: "other" } }).match
+          ?.action,
+      ).not.toBe("workspace.history.back");
+    });
+
+    it("stays out of the text field the person types in", () => {
+      expect(
+        resolveShortcut({
+          event: ctrlCmdLeft,
+          context: { isMac: true, focusScope: "message-input" },
+        }).match?.action,
       ).not.toBe("workspace.history.back");
     });
   });

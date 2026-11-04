@@ -264,3 +264,76 @@ describe("commands inside quotes", () => {
     expect(events.map((event) => event.kind)).toEqual(["commit", "push"]);
   });
 });
+
+describe("a message over several lines", () => {
+  const message = `git add a && git commit -q -m "[ENC-1] Fix it
+
+Why it changed: git push origin main is not run here.
+
+Co-Authored-By: Someone <a@b>"; echo "commit exit: $?"; git log -1 --format='%h %s%n%b'`;
+
+  it("takes the sha from the git log after it and no push from its body", () => {
+    expect(
+      gitEventsOfShell(message, "commit exit: 0\nabc1234 [ENC-1] Fix it\nWhy it changed", "done"),
+    ).toEqual([
+      expect.objectContaining({ kind: "commit", sha: "abc1234", subject: "[ENC-1] Fix it" }),
+    ]);
+  });
+
+  it("still sees the commands on the lines after it", () => {
+    const events = gitEventsOfShell(
+      `${message}\ngit push origin main`,
+      "abc1234 [ENC-1] Fix it\n   abc1234..def5678  main -> main",
+      "done",
+    );
+    expect(events.map((event) => event.kind)).toEqual(["commit", "push"]);
+  });
+
+  it("is not thrown off by an apostrophe in a comment", () => {
+    const events = gitEventsOfShell(
+      "# don't forget the hook\ngit commit -m 'one'\ngit push origin main",
+      "[main abc1234] one\n   abc1234..def5678  main -> main",
+      "done",
+    );
+    expect(events.map((event) => event.kind)).toEqual(["commit", "push"]);
+  });
+});
+
+describe("a repository the call made to try something out", () => {
+  it("shows nothing for a folder in a mktemp variable, or one inside it", () => {
+    const script = `set -u; S=$(mktemp -d /tmp/sim-XXXX); O="$S/origin.git"; git init -q --bare "$O"; git clone -q "$O" "$S/w"; cd "$S/w"
+w(){ printf '%s\\n' "$2" > "$1"; git add "$1"; git commit -q -m "$3"; }
+git push -q origin staging:refs/heads/production
+cd sub
+git commit -q -m "more"`;
+    expect(gitEventsOfShell(script, "", "done")).toEqual([]);
+  });
+
+  it("shows nothing for a temp folder, by cd or by git -C", () => {
+    expect(gitEventsOfShell('cd /tmp/try && git commit -m "x"', "", "done")).toEqual([]);
+    expect(gitEventsOfShell('git -C "/tmp/try" push origin main', "", "done")).toEqual([]);
+  });
+
+  it("comes back to the session's work after an absolute cd", () => {
+    const events = gitEventsOfShell(
+      'cd /tmp/try; cd /Users/me/repo && git commit -m "real"',
+      "[main abc1234] real",
+      "done",
+    );
+    expect(events).toEqual([expect.objectContaining({ sha: "abc1234", dir: "/Users/me/repo" })]);
+  });
+
+  it("keeps a real repository named by a variable of another kind", () => {
+    expect(
+      gitEventsOfShell('git -C "$WT" commit -m "real"', "[main abc1234] real", "done"),
+    ).toEqual([expect.objectContaining({ sha: "abc1234", dir: "$WT" })]);
+  });
+});
+
+describe("a commit message that is a variable", () => {
+  it("has no subject", () => {
+    expect(gitEventsOfShell('git commit -q -m "$MSG"', "", "done")).toEqual([
+      expect.objectContaining({ kind: "commit", subject: null }),
+    ]);
+  });
+});

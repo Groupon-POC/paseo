@@ -1,7 +1,9 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): shortcut projections use the same query provider as the sidebar repository reads.
 /**
  * @vitest-environment jsdom
  */
 import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "@testing-library/react";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { createRoot, type Root } from "react-dom/client";
@@ -17,6 +19,18 @@ import type { HostProfile } from "@/types/host-connection";
 import { WorkspaceShortcutTargetsSubscriber } from "./workspace-shortcut-targets-subscriber";
 import { SidebarModelProvider } from "./sidebar/sidebar-model";
 import { defaultHostAppearance } from "@/hosts/appearance";
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function SidebarWithQuery({
+  children,
+  ...props
+}: React.ComponentProps<typeof SidebarModelProvider>) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <SidebarModelProvider {...props}>{children}</SidebarModelProvider>
+    </QueryClientProvider>
+  );
+}
 
 vi.hoisted(() => {
   (globalThis as unknown as { __DEV__: boolean }).__DEV__ = false;
@@ -117,6 +131,7 @@ describe("WorkspaceShortcutTargetsSubscriber", () => {
     root = null;
     container?.remove();
     container = null;
+    queryClient.clear();
     act(() => {
       setHostProfiles([]);
       useSessionStore.getState().clearSession("srv");
@@ -128,9 +143,9 @@ describe("WorkspaceShortcutTargetsSubscriber", () => {
   it("publishes workspace shortcut targets without rendering the sidebar", async () => {
     await act(async () => {
       root?.render(
-        <SidebarModelProvider>
+        <SidebarWithQuery>
           <WorkspaceShortcutTargetsSubscriber enabled={true} />
-        </SidebarModelProvider>,
+        </SidebarWithQuery>,
       );
     });
 
@@ -196,9 +211,9 @@ describe("WorkspaceShortcutTargetsSubscriber", () => {
 
     await act(async () => {
       root?.render(
-        <SidebarModelProvider>
+        <SidebarWithQuery>
           <WorkspaceShortcutTargetsSubscriber enabled={true} />
-        </SidebarModelProvider>,
+        </SidebarWithQuery>,
       );
     });
 
@@ -230,9 +245,9 @@ describe("WorkspaceShortcutTargetsSubscriber", () => {
 
     await act(async () => {
       root?.render(
-        <SidebarModelProvider>
+        <SidebarWithQuery>
           <WorkspaceShortcutTargetsSubscriber enabled={true} />
-        </SidebarModelProvider>,
+        </SidebarWithQuery>,
       );
     });
 
@@ -252,17 +267,17 @@ describe("WorkspaceShortcutTargetsSubscriber", () => {
   it("clears targets when disabled", async () => {
     await act(async () => {
       root?.render(
-        <SidebarModelProvider>
+        <SidebarWithQuery>
           <WorkspaceShortcutTargetsSubscriber enabled={true} />
-        </SidebarModelProvider>,
+        </SidebarWithQuery>,
       );
     });
 
     await act(async () => {
       root?.render(
-        <SidebarModelProvider>
+        <SidebarWithQuery>
           <WorkspaceShortcutTargetsSubscriber enabled={false} />
-        </SidebarModelProvider>,
+        </SidebarWithQuery>,
       );
     });
 

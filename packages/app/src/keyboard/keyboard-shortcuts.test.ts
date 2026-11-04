@@ -602,14 +602,15 @@ describe("keyboard-shortcuts", () => {
     });
   });
 
-  // Groupon Desk: back and forward through a workspace's tabs, never inside a text field.
+  // Groupon Desk: back and forward through a workspace's tabs.
   describe("back and forward through a workspace's tabs", () => {
     const cmdLeft = { key: "ArrowLeft", code: "ArrowLeft", metaKey: true };
+    const ctrlCmdLeft = { ...cmdLeft, ctrlKey: true };
     const altRight = { key: "ArrowRight", code: "ArrowRight", altKey: true };
 
-    it("goes back on Cmd+Left on a Mac and forward on Alt+Right elsewhere", () => {
+    it("goes back on Ctrl+Cmd+Left on a Mac and forward on Alt+Right elsewhere", () => {
       expect(
-        resolveShortcut({ event: cmdLeft, context: { isMac: true, focusScope: "other" } }).match
+        resolveShortcut({ event: ctrlCmdLeft, context: { isMac: true, focusScope: "other" } }).match
           ?.action,
       ).toBe("workspace.history.back");
       expect(
@@ -618,11 +619,27 @@ describe("keyboard-shortcuts", () => {
       ).toBe("workspace.history.forward");
     });
 
-    it("leaves Cmd+Left to the text field the person types in", () => {
+    it("leaves plain Cmd+Left alone", () => {
       expect(
-        resolveShortcut({ event: cmdLeft, context: { isMac: true, focusScope: "message-input" } })
-          .match?.action,
+        resolveShortcut({ event: cmdLeft, context: { isMac: true, focusScope: "other" } }).match
+          ?.action,
       ).not.toBe("workspace.history.back");
+    });
+
+    it("works on a Mac from a text field and a terminal, whose keys it takes nothing from", () => {
+      for (const focusScope of ["message-input", "editable", "terminal"] as const) {
+        expect(
+          resolveShortcut({ event: ctrlCmdLeft, context: { isMac: true, focusScope } }).match
+            ?.action,
+        ).toBe("workspace.history.back");
+      }
+    });
+
+    it("leaves Alt+arrows to the text field elsewhere, where they move the caret", () => {
+      expect(
+        resolveShortcut({ event: altRight, context: { isMac: false, focusScope: "message-input" } })
+          .match?.action,
+      ).not.toBe("workspace.history.forward");
     });
   });
 
@@ -1168,11 +1185,25 @@ describe("unassigned shortcuts", () => {
       expect(result.match).toBeNull();
     });
 
+    it("gives Cmd+Shift+T to the closed chat and New terminal to Cmd+Shift+Y on macOS", () => {
+      const bindings = buildEffectiveBindings({});
+      const context = { ...desktopNonMac, isMac: true };
+      const pressed = (key: string, code: string) =>
+        resolveShortcut({
+          event: { key, code, metaKey: true, shiftKey: true },
+          context,
+          bindings,
+        }).match?.action;
+
+      expect(pressed("t", "KeyT")).toBe("chat.reopen-closed");
+      expect(pressed("y", "KeyY")).toBe("workspace.terminal.new");
+    });
+
     it("leaves other shortcuts firing when one is unassigned", () => {
       const bindings = buildEffectiveBindings({ [TAB_NEW_BINDING]: UNASSIGNED_COMBO });
 
       const result = resolveShortcut({
-        event: { key: "t", code: "KeyT", ctrlKey: true, shiftKey: true },
+        event: { key: "y", code: "KeyY", ctrlKey: true, shiftKey: true },
         context: desktopNonMac,
         bindings,
       });

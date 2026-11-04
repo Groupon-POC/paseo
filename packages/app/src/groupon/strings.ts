@@ -883,3 +883,21 @@ export const GROUPON_BLAME = {
   commitAccessibility: "Commit of the current line",
   authorsAccessibility: "Authors of this file",
 } as const;
+
+export const GROUPON_CLOSE_CHAT = {
+  title: "Archive this chat?",
+  runningTitle: "Stop and archive this chat?",
+  confirm: "Archive",
+  runningConfirm: "Stop and archive",
+  cancel: "Cancel",
+  running: "The agent is still running and will stop.",
+  chatAndSession: "The chat and its session move to the archive and leave the sidebar.",
+  chatAndSessionAndWorktree:
+    "The chat and its session move to the archive and leave the sidebar, and the worktree is removed.",
+  chatOnly: "The chat moves to the archive. Its session stays in the sidebar.",
+  bringBack: "You can bring the chat back from History.",
+  bringBackNotChanges: "You can bring the chat back from History, but not what is listed below.",
+  nothingClosed: "No closed chat to bring back",
+  hostDisconnected: "The chat's host is not connected",
+  reopenFailed: "Could not bring the chat back",
+} as const;

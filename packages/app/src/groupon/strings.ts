@@ -176,6 +176,7 @@ export const GROUPON_REPOSITORY_PICKER = {
     `${folder} is a folder on another Mac. Choose a repository on ${mac}.`,
   cloneOn: (mac: string) => `Clone it on ${mac}`,
   alreadyOn: (mac: string) => `It is already on ${mac}`,
+  chooseExisting: (mac: string) => `Choose existing folder on ${mac}`,
   adding: (path: string, mac: string) => `Opening ${path} on ${mac}`,
   refused: "the Mac refused it",
   addFailed: (path: string, mac: string, reason: string) =>

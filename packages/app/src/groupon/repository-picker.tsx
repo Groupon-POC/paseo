@@ -13,7 +13,7 @@
  *   else the repository of Paseo's own pick); choosing one moves the page to the Mac that holds
  *   it; a checkout the hub reports on the chosen Mac that Paseo does not list yet is opened as a
  *   project there; a Mac without it offers the From GitHub clone, prefilled, and the same sheet's
- *   way to add the checkout already on that Mac wherever it lies ("It is already on <Mac>")
+ *   way to add the checkout already on that Mac wherever it lies ("Choose existing folder on <Mac>")
  * - `RepositoryOption` and `RepositoryNotice`: a row of the list, and the line under the fields
  *   when the chosen Mac lacks the repository (or is opening it)
  *
@@ -25,9 +25,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { Text, View } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
-import { Button } from "@/components/ui/button";
 import { ComboboxItem, type ComboboxOption } from "@/components/ui/combobox";
 import { useFetchQuery } from "@/data/query";
 import { useOpenProject } from "@/hooks/use-open-project";
@@ -49,7 +46,6 @@ import {
   type RepositoryEntry,
   repositoryState,
   type RepositoryState,
-  shortPath,
 } from "./repository-picker-model";
 import { useGrouponStore } from "./session";
 import { GROUPON_MAC_PICKER, GROUPON_REPOSITORY_PICKER } from "./strings";
@@ -318,64 +314,3 @@ export function RepositoryOption({
     />
   );
 }
-
-/** The one line under the fields when the chosen Mac lacks the repository, or is opening it. */
-export function RepositoryNotice({ choice }: { choice: RepositoryChoice }): ReactElement | null {
-  const { entry, state, clone, pickExisting, macLabel } = choice;
-  if (!entry || state.kind === "none" || state.kind === "ready") return null;
-  let text: string;
-  if (state.kind === "opening") {
-    text = GROUPON_REPOSITORY_PICKER.adding(shortPath(state.checkout.path), macLabel);
-  } else if (state.kind === "openFailed") {
-    text = GROUPON_REPOSITORY_PICKER.addFailed(
-      shortPath(state.checkout.path),
-      macLabel,
-      state.reason,
-    );
-  } else if (entry.remote === null) {
-    text = GROUPON_REPOSITORY_PICKER.folderNotOn(entry.label, macLabel);
-  } else {
-    text = GROUPON_REPOSITORY_PICKER.notOn(entry.label, macLabel);
-  }
-  return (
-    <View style={styles.notice} testID="new-workspace-repository-notice">
-      <Text style={styles.noticeText}>{text}</Text>
-      {state.kind === "missing" && state.cloneable ? (
-        <>
-          <Button
-            variant="outline"
-            size="sm"
-            onPress={clone}
-            testID="new-workspace-repository-clone"
-          >
-            {GROUPON_REPOSITORY_PICKER.cloneOn(macLabel)}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onPress={pickExisting}
-            testID="new-workspace-repository-existing"
-          >
-            {GROUPON_REPOSITORY_PICKER.alreadyOn(macLabel)}
-          </Button>
-        </>
-      ) : null}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create((theme) => ({
-  notice: {
-    flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: theme.spacing[2],
-    paddingHorizontal: theme.spacing[4],
-    marginBottom: theme.spacing[3],
-  },
-  noticeText: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.foregroundMuted,
-    flexShrink: 1,
-  },
-}));

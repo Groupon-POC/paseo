@@ -1145,3 +1145,10 @@ repository only when its checkout path and Mac both match. The chosen repository
 its per-Mac project ids, so switching to another Mac uses that Mac's existing checkout or
 opens the checkout already reported by the hub. Equal folder names alone never join projects;
 conflicting reports and explicit repository subdirectories stay separate.
+
+When a reported checkout cannot be opened, New workspace now offers "Choose existing folder
+on <Mac>" beside the error. This uses the existing folder browser and repository checks;
+it does not clone or accept a different repository. The notice is separate from the selection
+hook so its failed-opening action can be tested in a real browser. The integration regression
+also covers a plain folder on the source Mac, an unregistered checkout on the destination,
+project registration and selecting the destination's Git project for a worktree.

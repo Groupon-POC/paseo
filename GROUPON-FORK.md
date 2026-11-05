@@ -176,7 +176,9 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   agent this Mac cannot start is replaced the same way (`groupon/default-agent-selection.ts`,
   `provider-selection/resolve-agent-form.ts`). Only the New chat and New workspace forms write these
   preferences: a model, effort, mode, feature or profile picked in a running session stays in that session,
-  so one chat's change never decides what the next one starts on.
+  so one chat's change never decides what the next one starts on. The Explorer sidebar's width goes
+  the other way on purpose: Paseo kept one per workspace, here every workspace shares one, so a new
+  chat opens it as wide as the last one left it (`docs/explorer-sidebar.md`).
 
 ## The web build under a strict Content Security Policy
 

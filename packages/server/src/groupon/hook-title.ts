@@ -52,6 +52,27 @@ function titleOfLine(line: string): string | null {
   }
 }
 
+export interface HookTitleCarryDeps {
+  applied: (agentId: string) => Promise<string | null>;
+  setChatTitle: (agentId: string, title: string) => Promise<void>;
+  remember: (agentId: string, title: string) => Promise<void>;
+  workspaceOf: (agentId: string) => Promise<string | null>;
+  titleWorkspace: (workspaceId: string, title: string) => Promise<void>;
+}
+
+/** Once, per title: the chat takes it, then the workspace it is in by then, as a move ending the same turn may have just changed that. */
+export async function carryHookTitle(
+  agentId: string,
+  title: string,
+  deps: HookTitleCarryDeps,
+): Promise<void> {
+  if ((await deps.applied(agentId)) === title) return;
+  await deps.setChatTitle(agentId, title);
+  await deps.remember(agentId, title);
+  const workspaceId = await deps.workspaceOf(agentId);
+  if (workspaceId) await deps.titleWorkspace(workspaceId, title);
+}
+
 /** `CLAUDE_CONFIG_DIR` from a process's `ps -wwE` line; null when it is not set. */
 export function configDirOf(environment: string): string | null {
   return /(?:^|\s)CLAUDE_CONFIG_DIR=(\S+)/.exec(environment)?.[1] ?? null;

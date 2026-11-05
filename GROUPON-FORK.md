@@ -914,7 +914,9 @@ Claude session lands in its transcript as a `custom-title` record, which Paseo r
 At the end of each turn the daemon reads the transcript's last 512 KB, takes the last such title and,
 when it is new, makes it the chat's title and the title of a workspace holding only that chat; what
 it carried is kept in `<PASEO_HOME>/groupon/hook-titles.json`, so a restart never puts it back over
-the person's own rename (`packages/server/src/groupon/hook-title.ts`).
+the person's own rename (`packages/server/src/groupon/hook-title.ts`). A move (`desk_move`) ends the
+same turn and races this read, so the workspace is looked up after the chat takes the title: it may
+be the one the chat just moved into.
 
 ## Commits and pushes on a git timeline in the chat
 

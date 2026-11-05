@@ -391,7 +391,7 @@ export const GROUPON_PREFERENCES = {
   remindWorktreeScriptsHint:
     "Off by default. A repository's .groupon/desk.toml is everyone's setup; turn this on to see the reminder card for a project that has none.",
   showMyTasks: "Show My tasks on New workspace",
-  showMyTasksHint: "Your Jira tasks under the composer, each with Take to development.",
+  showMyTasksHint: "Your Jira tasks under the composer, each with Take.",
   changesSessionDefault: "Changes show the session's edits",
   changesSessionDefaultHint:
     "Changes opens on what this chat's sessions changed, per repository, instead of all the branch's changes.",
@@ -508,7 +508,7 @@ export const GROUPON_TASKS = {
   columnsSearch: "Search Jira's fields",
   columnsSearchClear: "Clear the search",
   restoreDefaults: "Restore defaults",
-  take: "Take to development",
+  take: "Take",
   previous: "Previous",
   next: "Next",
   loading: "Reading your tasks from Jira",

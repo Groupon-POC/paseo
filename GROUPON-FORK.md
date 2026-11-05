@@ -528,12 +528,14 @@ mounting `groupon/jira-tasks-card.tsx`), a card lists the person's Jira tasks: a
 modelled on Jira's (Assignee = Current user, Type, Status, Created in the last N days, More
 filters as free JQL, Clear filters; `groupon/jira-tasks-filters.tsx`), the table with the person's
 columns (Jira's own nine by default, picked in `groupon/jira-tasks-columns.tsx`), paging, and as
-the last column "Take to development", which opens Start a ticket with that key. Every change is
+the last column "Take", which opens Start a ticket with that key. Every change is
 saved, after a pause, as the person's default view on the internal plane, so every window opens
 the same. The Groupon plugin on the page's Mac answers `groupon.jira-search`,
 `groupon.jira-fields` and `groupon.jira-saved-view` through that Mac's `groupon` CLI; the filter
 bar's JQL and its reading back are `groupon/jira-tasks-model.ts`. Not drawn on a phone-sized
-layout, where the composer sits at the bottom.
+layout, where the composer sits at the bottom. The card folds away a moment after the person starts
+writing and comes back as soon as the composer is empty, so the composer takes the page's middle
+while it is used (`groupon/collapse-while-typing.tsx`).
 
 ## Your access and the Standards page
 

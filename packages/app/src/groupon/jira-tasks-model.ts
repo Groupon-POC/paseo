@@ -306,7 +306,7 @@ export function assigneeLabel(mine: boolean): string {
 
 // ---- The columns -----------------------------------------------------------------------------
 
-/** A column on or off; one switched on joins at the end, the last column (Take to development) stays last. */
+/** A column on or off; one switched on joins at the end, the last column (Take) stays last. */
 export function toggledColumn(columns: readonly string[], id: string): string[] {
   if (!columns.includes(id)) return [...columns, id];
   const left = columns.filter((column) => column !== id);

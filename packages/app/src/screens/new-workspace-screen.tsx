@@ -17,6 +17,7 @@ import { createNameId } from "mnemonic-id";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Composer } from "@/composer";
 import { ComposerDock } from "@/composer/dock";
+import type { ComposerTextSource } from "@/composer/text-source";
 import { useComposerEditingSession, useComposerFullscreen } from "@/composer/editing-session";
 import { FileDropZone } from "@/components/file-drop/file-drop-zone";
 import {
@@ -1806,11 +1807,23 @@ export function NewWorkspaceScreen({
         />
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
       </NewWorkspaceLayout>
-      <JiraTasksCard serverId={selectedServerId} onTakeTicket={startTicket.openFor} />
+      <JiraTasksCard
+        serverId={selectedServerId}
+        onTakeTicket={startTicket.openFor}
+        composerText={launchTextSource(isTerminalLaunch, terminalTextSource, chatDraft.textSource)}
+      />
       {importSession.sheet}
       {startTicket.sheet}
     </FileDropZone>
   );
+}
+
+function launchTextSource(
+  isTerminalLaunch: boolean,
+  terminal: ComposerTextSource,
+  chat: ComposerTextSource,
+): ComposerTextSource {
+  return isTerminalLaunch ? terminal : chat;
 }
 
 /** Terminal and chat launches edit in separate sessions; the screen follows the mounted one. */

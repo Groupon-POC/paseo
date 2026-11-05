@@ -31,6 +31,7 @@ export interface UseSchedulesResult {
   error: Error | null;
   refetch: () => void;
   isRefetching: boolean;
+  canPlaceSharedCrons: boolean;
 }
 
 export function useSchedules(): UseSchedulesResult {
@@ -72,5 +73,6 @@ export function useSchedules(): UseSchedulesResult {
       void query.refetch();
     },
     isRefetching: query.isRefetching,
+    canPlaceSharedCrons: query.data?.status === "loaded" && query.data.cronPlacementReady === true,
   };
 }

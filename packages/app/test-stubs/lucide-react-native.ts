@@ -133,3 +133,5 @@ export const X = StubIcon;
 export const XCircle = StubIcon;
 export const ZoomIn = StubIcon;
 export const ZoomOut = StubIcon;
+
+export const Pause = StubIcon;

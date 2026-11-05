@@ -1183,3 +1183,18 @@ Cmd+Shift+T brings back the chat closed last, restoring its workspace first when
 (`packages/app/src/groupon/use-reopen-closed-chat.ts`). A worktree Desk removed comes back from its
 branch, without what was not committed. The list lives in the window's memory, so a closed window
 forgets it; History still has every chat. New terminal, upstream's Cmd+Shift+T, moved to Cmd+Shift+Y.
+
+## Desk reliability and organization, 2026-11-05
+
+- Mounted history rows keep their measured DOM size when equivalent history objects are refreshed.
+  Only offscreen replacements receive an estimated height. The browser regression reproduces React
+  error 185 before this fix and verifies that measurements settle afterward.
+- Settings > Sidebar > Project sections stores named headings, their order and project assignments
+  locally. Deleting a heading keeps every project and workspace. The project view and keyboard
+  workspace navigation use the same section order.
+- Plugin popovers have an explicit viewport-bounded width, so full account emails and separate
+  wrapping usage lines remain readable.
+- Schedules (Cron) uses the Groupon plugin's registered cron identities to group equal portable
+  home-folder templates. Different instructions, permissions, cadence or targets stay separate.
+  Its computer selector uses the CLI's shared placement and requires all old copies to acknowledge
+  pause before activation on another Mac. Existing-chat schedules retain their own computer.

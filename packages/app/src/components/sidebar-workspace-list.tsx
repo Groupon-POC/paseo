@@ -1,3 +1,5 @@
+import { groupSidebarProjects } from "@/groupon/sidebar-project-sections";
+import { useProjectSectionsStore } from "@/groupon/sidebar-project-sections-store";
 // Changed for Groupon Desk (fork of Paseo, Apache-2.0): a project row's "+" (new workspace) always shows, as in Conductor; its menu offers Improve this repository; a project's "+ New workspace" row is always under its last workspace, not only for a project with none. The "New workspace" row follows the sidebar's Show New workspace setting. "No project" leads the project list while it holds a chat and is hidden when empty.
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import {
@@ -2228,6 +2230,7 @@ function ProjectModeList({
   const selectionEnabled = isWorkspaceRoute;
   const activeWorkspaceSelection = useActiveWorkspaceSelection();
   const { pinnedChats } = pinnedGroups;
+  const projectSections = useProjectSectionsStore((state) => state.sections);
   const unpinnedProjects = useMemo(
     () => arrangeChatsProject(pinnedGroups.unpinnedProjects),
     [pinnedGroups.unpinnedProjects],
@@ -2486,24 +2489,41 @@ function ProjectModeList({
     ],
   );
 
+  const projectSectionGroups = useMemo(
+    () => groupSidebarProjects(unpinnedProjects, projectSections),
+    [unpinnedProjects, projectSections],
+  );
+
   const projectBody =
     projects.length === 0 ? (
       <SidebarProjectEmptyState onAddProject={onAddProject} onImportSession={onImportSession} />
     ) : (
-      <DraggableList
-        testID="sidebar-project-list"
-        data={unpinnedProjects}
-        keyExtractor={projectViewKeyExtractor}
-        renderItem={renderProject}
-        onDragEnd={handleProjectDragEnd}
-        extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
-        scrollEnabled={false}
-        useDragHandle
-        nestable={platformIsNative}
-        simultaneousGestureRef={parentGestureRef}
-        gestureHostPresented={dragGestureHostActive}
-        containerStyle={styles.projectListContainer}
-      />
+      <>
+        {projectSectionGroups.map((section) => (
+          <View key={section.id}>
+            {section.title ? (
+              <SidebarSectionHeader
+                title={section.title}
+                testID={`sidebar-project-section-${section.id}`}
+              />
+            ) : null}
+            <DraggableList
+              testID="sidebar-project-list"
+              data={section.projects}
+              keyExtractor={projectViewKeyExtractor}
+              renderItem={renderProject}
+              onDragEnd={handleProjectDragEnd}
+              extraData={activeWorkspaceSelectionKey(activeWorkspaceSelection)}
+              scrollEnabled={false}
+              useDragHandle
+              nestable={platformIsNative}
+              simultaneousGestureRef={parentGestureRef}
+              gestureHostPresented={dragGestureHostActive}
+              containerStyle={styles.projectListContainer}
+            />
+          </View>
+        ))}
+      </>
     );
 
   const content = (

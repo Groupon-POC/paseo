@@ -1,3 +1,6 @@
+import { arrangeChatsProject } from "@/groupon/project-less-chats";
+import { groupSidebarProjects } from "@/groupon/sidebar-project-sections";
+import { useProjectSectionsStore } from "@/groupon/sidebar-project-sections-store";
 import { useTranslation } from "react-i18next";
 import React, { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
 import {
@@ -147,10 +150,18 @@ export function SidebarModelProvider({
     list.projects,
     visibleWorkspaceKeys,
   ]);
-  const pinnedKeys = usePinnedSidebarKeys(filteredProjects);
+  const projectSections = useProjectSectionsStore((state) => state.sections);
+  const sectionOrderedProjects = useMemo(
+    () =>
+      groupSidebarProjects(arrangeChatsProject(filteredProjects), projectSections).flatMap(
+        (section) => section.projects,
+      ),
+    [filteredProjects, projectSections],
+  );
+  const pinnedKeys = usePinnedSidebarKeys(sectionOrderedProjects);
   const projectionInput = useMemo(
     () => ({
-      projects: filteredProjects,
+      projects: sectionOrderedProjects,
       pinnedKeys,
       pinnedWorkspaceOrder,
       workspaceEntriesByKey: filteredWorkspaceEntriesByKey,
@@ -166,7 +177,7 @@ export function SidebarModelProvider({
       collapsedWorkspaceGroupKeys,
       groupMode,
       list.projectNamesByViewKey,
-      filteredProjects,
+      sectionOrderedProjects,
       pinnedCollapsed,
       pinnedKeys,
       pinnedWorkspaceOrder,

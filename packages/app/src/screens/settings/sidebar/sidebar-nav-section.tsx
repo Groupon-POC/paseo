@@ -20,6 +20,7 @@ import { Shortcut } from "@/components/ui/shortcut";
 import { Switch } from "@/components/ui/switch";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
+import { ProjectSectionsSetting } from "@/groupon/sidebar-project-sections-setting";
 import { NewChatSidebarSetting } from "@/groupon/new-chat-sidebar-setting";
 import {
   builtinSidebarNavLabelKey,
@@ -198,6 +199,7 @@ export function SidebarNavSection(): ReactElement {
     <>
       <SidebarItemsCard section="header" />
       <SidebarItemsCard section="footer" />
+      <ProjectSectionsSetting />
     </>
   );
 }

@@ -307,6 +307,8 @@ describe("the Groupon plugin's RPCs", () => {
       encoreApps: "groupon.encore-apps",
       standards: "groupon.standards",
       deskUpdate: "groupon.desk-update",
+      cronCatalog: "groupon.cron-catalog",
+      cronPlace: "groupon.cron-place",
     });
   });
 

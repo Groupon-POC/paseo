@@ -75,6 +75,11 @@ test.describe("Command Center agent controls", () => {
         query: "load test",
         choice: "Mode › Load test",
       });
+      const saved = await page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key) ?? "null"),
+        CREATE_AGENT_PREFERENCES_KEY,
+      );
+      expect(saved?.providerPreferences?.mock?.mode).toBeUndefined();
     } finally {
       await workspace.cleanup();
     }

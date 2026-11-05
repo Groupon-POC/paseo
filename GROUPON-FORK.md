@@ -174,7 +174,9 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (Paseo's form preferences, the source Improve this repository reads), else Claude, else the first
   agent this Mac can start, with the model used last for it, else the agent's default model; an
   agent this Mac cannot start is replaced the same way (`groupon/default-agent-selection.ts`,
-  `provider-selection/resolve-agent-form.ts`).
+  `provider-selection/resolve-agent-form.ts`). Only the New chat and New workspace forms write these
+  preferences: a model, effort, mode, feature or profile picked in a running session stays in that session,
+  so one chat's change never decides what the next one starts on.
 
 ## The web build under a strict Content Security Policy
 

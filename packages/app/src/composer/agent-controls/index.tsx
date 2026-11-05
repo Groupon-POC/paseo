@@ -38,7 +38,6 @@ import { filterSelectableModels } from "@/provider-selection/model-catalog";
 import { useSessionStore } from "@/stores/session-store";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { resolveProviderDefinition } from "@/utils/provider-definitions";
-import { mergeProviderPreferences, useFormPreferences } from "@/hooks/use-form-preferences";
 import { Combobox, ComboboxItem, type ComboboxOption } from "@/components/ui/combobox";
 import {
   AgentModeControl,
@@ -1556,7 +1555,6 @@ export const AgentControls = memo(function AgentControls({
   onDropdownClose,
   isCompactLayout,
 }: AgentControlsProps) {
-  const { updatePreferences } = useFormPreferences();
   const agent = useSessionStore(
     useShallow((state) => selectAgentControlsSlice(state, serverId, agentId)),
   );
@@ -1630,19 +1628,12 @@ export const AgentControls = memo(function AgentControls({
       }
       try {
         await client.setAgentModel(agentId, modelId);
-        await updatePreferences((current) =>
-          mergeProviderPreferences({
-            preferences: current,
-            provider: agentProvider,
-            updates: { model: modelId },
-          }),
-        );
       } catch (error) {
-        console.warn("[AgentControls] setAgentModel or persist preference failed", error);
+        console.warn("[AgentControls] setAgentModel failed", error);
         toast.error(toErrorMessage(error));
       }
     },
-    [agentId, agentProvider, client, toast, updatePreferences],
+    [agentId, agentProvider, client, toast],
   );
   const handleSelectCommandCenterModel = useCallback(
     (_provider: AgentProvider, modelId: string) => handleSelectModel(modelId),
@@ -1674,22 +1665,6 @@ export const AgentControls = memo(function AgentControls({
       if (!client || !agentProvider) {
         return;
       }
-      if (activeModelId) {
-        void updatePreferences((current) =>
-          mergeProviderPreferences({
-            preferences: current,
-            provider: agentProvider,
-            updates: {
-              model: activeModelId,
-              thinkingByModel: {
-                [activeModelId]: thinkingOptionId,
-              },
-            },
-          }),
-        ).catch((error) => {
-          console.warn("[AgentControls] persist thinking preference failed", error);
-        });
-      }
       void client
         .setAgentThinkingOption(agentId, thinkingOptionId)
         .then((notice) => showProviderNoticeToast(toast, notice))
@@ -1698,7 +1673,7 @@ export const AgentControls = memo(function AgentControls({
           toast.error(toErrorMessage(error));
         });
     },
-    [activeModelId, agentId, agentProvider, client, toast, updatePreferences],
+    [agentId, agentProvider, client, toast],
   );
 
   const handleSetFeature = useCallback(
@@ -1706,25 +1681,12 @@ export const AgentControls = memo(function AgentControls({
       if (!client || !agentProvider) {
         return;
       }
-      void updatePreferences((current) =>
-        mergeProviderPreferences({
-          preferences: current,
-          provider: agentProvider,
-          updates: {
-            featureValues: {
-              [featureId]: value,
-            },
-          },
-        }),
-      ).catch((error) => {
-        console.warn("[AgentControls] persist feature preference failed", error);
-      });
       void client.setAgentFeature(agentId, featureId, value).catch((error) => {
         console.warn("[AgentControls] setAgentFeature failed", error);
         toast.error(toErrorMessage(error));
       });
     },
-    [agentId, agentProvider, client, toast, updatePreferences],
+    [agentId, agentProvider, client, toast],
   );
 
   const commandCenterControls = useMemo<AgentControlCommandCenterSource>(

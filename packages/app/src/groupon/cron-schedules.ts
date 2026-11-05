@@ -119,3 +119,39 @@ export async function placeCronGroup(input: {
     changingGroups.delete(key);
   }
 }
+
+/** Update every copy with the same definition while preserving each Mac's home directory. */
+export async function updateCronCopies(input: {
+  copies: readonly AggregatedSchedule[];
+  update: import("@getpaseo/client/internal/daemon-client").UpdateScheduleOptions;
+  getClient: (serverId: string) => Pick<DaemonClient, "scheduleUpdate"> | null;
+}) {
+  const clients = input.copies.map((copy) => {
+    const client = input.getClient(copy.serverId);
+    if (!client || !portableCron(copy))
+      throw new Error(`${copy.serverName} must be connected to edit this shared cron.`);
+    return client;
+  });
+  for (const [index, copy] of input.copies.entries()) {
+    const answer = await clients[index]!.scheduleUpdate({
+      ...input.update,
+      id: copy.id,
+      ...(input.update.newAgentConfig
+        ? { newAgentConfig: { ...input.update.newAgentConfig, cwd: copy.cron!.home } }
+        : {}),
+    });
+    if (answer.error) throw new Error(`${copy.serverName}: ${answer.error}`);
+  }
+}
+
+/** Delete every template copy after stopping it, through the CLI's durable removal path. */
+export async function removeCronCopies(input: Parameters<typeof placeCronGroup>[0]) {
+  await placeCronGroup({ ...input, target: null });
+  for (const copy of input.copies) {
+    const answer = await input
+      .getClient(copy.serverId)!
+      .invokePluginRpc("groupon", "groupon.cron-remove", { scheduleId: copy.id });
+    if (!z.object({ removed: z.literal(true) }).safeParse(answer).success)
+      throw new Error(`${copy.serverName}: the cron could not be removed.`);
+  }
+}

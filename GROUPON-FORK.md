@@ -1198,3 +1198,8 @@ forgets it; History still has every chat. New terminal, upstream's Cmd+Shift+T, 
   home-folder templates. Different instructions, permissions, cadence or targets stay separate.
   Its computer selector uses the CLI's shared placement and requires all old copies to acknowledge
   pause before activation on another Mac. Existing-chat schedules retain their own computer.
+
+Shared cron edits update every copy while preserving each Mac's home folder. Deleting a shared
+row pauses all copies and removes their registered definitions through the CLI, which retains logs
+and writes the vault deletion tombstones. Failed operations remain visible as errors and refresh
+the list, rather than silently leaving the old row in the cache.

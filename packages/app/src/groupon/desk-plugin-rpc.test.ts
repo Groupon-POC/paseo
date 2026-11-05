@@ -309,6 +309,7 @@ describe("the Groupon plugin's RPCs", () => {
       deskUpdate: "groupon.desk-update",
       cronCatalog: "groupon.cron-catalog",
       cronPlace: "groupon.cron-place",
+      cronRemove: "groupon.cron-remove",
     });
   });
 

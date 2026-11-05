@@ -1,3 +1,8 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { schedulesQueryBaseKey } from "@/schedules/aggregated-schedules";
+import { updateCronCopies } from "@/groupon/cron-schedules";
+import type { AggregatedSchedule } from "@/schedules/aggregated-schedules";
+import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import equal from "fast-deep-equal";
 import {
   useCallback,
@@ -64,6 +69,8 @@ export interface ScheduleFormSheetProps {
   onClose: () => void;
   mode: "create" | "edit";
   schedule?: ScheduleSummary;
+  sharedCopies?: AggregatedSchedule[];
+  canEditSharedCopies?: boolean;
 }
 
 function parseMaxRuns(raw: string): number | null {
@@ -238,6 +245,8 @@ function OpenScheduleFormSheet({
   onDismiss,
   mode,
   schedule,
+  sharedCopies,
+  canEditSharedCopies,
 }: ScheduleFormSheetProps & { onDismiss: () => void }): ReactElement {
   const controlSize: FieldControlSize = useIsCompactFormFactor() ? "md" : "sm";
   const { projects } = useProjects();
@@ -268,11 +277,50 @@ function OpenScheduleFormSheet({
   const providerSnapshot = useScheduleFormProviderSnapshot(model, state);
   const { agents } = useAggregatedAgents({ includeArchived: true });
   const mutationServerId = state.selectedServerId ?? serverId ?? "";
-  const { createSchedule, updateSchedule, isCreating, isUpdating } = useScheduleMutations({
+  const {
+    createSchedule,
+    updateSchedule: updateLocalSchedule,
+    isCreating,
+    isUpdating,
+  } = useScheduleMutations({
     serverId: mutationServerId,
   });
 
-  const isSubmitting = isCreating || isUpdating;
+  const queryClient = useQueryClient();
+  const [isUpdatingCopies, setUpdatingCopies] = useState(false);
+  const updateSchedule = useCallback(
+    async (update: Parameters<typeof updateLocalSchedule>[0]) => {
+      if (!sharedCopies?.length) return updateLocalSchedule(update);
+      if (!canEditSharedCopies)
+        throw new Error("Connect all computers before editing a shared cron.");
+      if (
+        update.newAgentConfig?.cwd &&
+        update.newAgentConfig.cwd !==
+          sharedCopies.find((copy) => copy.id === update.id && copy.serverId === mutationServerId)
+            ?.cron?.home
+      )
+        throw new Error(
+          "A shared home-folder cron must keep its home folder. Create a separate schedule for a project.",
+        );
+      setUpdatingCopies(true);
+      try {
+        const runtime = getHostRuntimeStore();
+        await updateCronCopies({
+          copies: sharedCopies,
+          update,
+          getClient: (targetServerId) =>
+            runtime.getSnapshot(targetServerId)?.connectionStatus === "online"
+              ? runtime.getClient(targetServerId)
+              : null,
+        });
+      } finally {
+        setUpdatingCopies(false);
+        await queryClient.invalidateQueries({ queryKey: schedulesQueryBaseKey });
+      }
+    },
+    [sharedCopies, canEditSharedCopies, updateLocalSchedule, queryClient, mutationServerId],
+  );
+  const isSubmitting = isCreating || isUpdating || isUpdatingCopies;
   const cadenceError =
     state.cadence.type === "cron" ? validateCron(state.cadence.expression) : null;
   const canSubmit = state.canSubmit && cadenceError === null && !isSubmitting;

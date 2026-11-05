@@ -3,7 +3,12 @@
 import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 import type { AggregatedSchedule } from "@/schedules/aggregated-schedules";
-import { groupCronSchedules, placeCronGroup } from "./cron-schedules";
+import {
+  groupCronSchedules,
+  placeCronGroup,
+  updateCronCopies,
+  removeCronCopies,
+} from "./cron-schedules";
 function copy(
   serverId: string,
   id: string,
@@ -128,5 +133,76 @@ describe("cron handoff", () => {
     f.invokePluginRpc.mockResolvedValueOnce({ shared: false });
     await expect(placeCronGroup(f.input)).rejects.toThrow("shared");
     expect(f.invokePluginRpc).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("shared cron edits and removal", () => {
+  it("updates every copy while retaining each computer's home", async () => {
+    const copies = [copy("air", "one"), copy("mini", "two")];
+    const scheduleUpdate = vi.fn(
+      async (_input: import("@getpaseo/client/internal/daemon-client").UpdateScheduleOptions) => ({
+        requestId: "test",
+        schedule: null,
+        error: null,
+      }),
+    );
+    await updateCronCopies({
+      copies,
+      update: {
+        id: "one",
+        prompt: "New instructions",
+        newAgentConfig: { cwd: "/home/air", model: "new-model" },
+      },
+      getClient: () => ({ scheduleUpdate }),
+    });
+    expect(scheduleUpdate.mock.calls.map((call) => call[0])).toEqual([
+      {
+        id: "one",
+        prompt: "New instructions",
+        newAgentConfig: { cwd: "/home/air", model: "new-model" },
+      },
+      {
+        id: "two",
+        prompt: "New instructions",
+        newAgentConfig: { cwd: "/home/mini", model: "new-model" },
+      },
+    ]);
+  });
+  it("checks every computer before starting a shared edit", async () => {
+    const copies = [copy("air", "one"), copy("mini", "two")];
+    const scheduleUpdate = vi.fn(
+      async (_input: import("@getpaseo/client/internal/daemon-client").UpdateScheduleOptions) => ({
+        requestId: "test",
+        schedule: null,
+        error: null,
+      }),
+    );
+    await expect(
+      updateCronCopies({
+        copies,
+        update: { id: "one", prompt: "New" },
+        getClient: (host) => (host === "air" ? { scheduleUpdate } : null),
+      }),
+    ).rejects.toThrow("mini");
+    expect(scheduleUpdate).not.toHaveBeenCalled();
+  });
+  it("stops all copies before removing their durable definitions", async () => {
+    const calls: string[] = [];
+    const copies = [copy("air", "one"), copy("mini", "two")];
+    const invokePluginRpc = vi.fn(async (_plugin: string, method: string, value: unknown) => {
+      const parsed = z
+        .object({ scheduleId: z.string(), active: z.boolean().optional() })
+        .parse(value);
+      calls.push(`${parsed.scheduleId}:${method.endsWith("remove") ? "remove" : parsed.active}`);
+      return method.endsWith("remove") ? { removed: true } : { shared: true };
+    });
+    await removeCronCopies({
+      copies,
+      target: null,
+      getClient: () => ({ invokePluginRpc }),
+      isOnline: () => true,
+      allHostsLoaded: true,
+    });
+    expect(calls).toEqual(["one:false", "two:false", "one:remove", "two:remove"]);
   });
 });

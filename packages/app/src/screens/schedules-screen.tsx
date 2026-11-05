@@ -44,7 +44,7 @@ import type { ScheduleSummary } from "@getpaseo/protocol/schedule/types";
 type FormState =
   | { mode: "closed" }
   | { mode: "create" }
-  | { mode: "edit"; serverId: string; schedule: ScheduleSummary };
+  | { mode: "edit"; serverId: string; schedule: ScheduleSummary; copies?: AggregatedSchedule[] };
 
 const STATUS_FILTER_OPTIONS: { value: ScheduleBucket; label: string; testID: string }[] = [
   { value: "runnable", label: "Active", testID: "schedules-filter-active" },
@@ -106,8 +106,8 @@ function SchedulesScreenContent(): ReactElement {
   }, [hosts, selectedHost]);
 
   const openCreate = useCallback(() => setForm({ mode: "create" }), []);
-  const openEdit = useCallback((schedule: AggregatedSchedule) => {
-    setForm({ mode: "edit", serverId: schedule.serverId, schedule });
+  const openEdit = useCallback((schedule: AggregatedSchedule, copies?: AggregatedSchedule[]) => {
+    setForm({ mode: "edit", serverId: schedule.serverId, schedule, copies });
   }, []);
   const closeForm = useCallback(() => setForm({ mode: "closed" }), []);
 
@@ -197,6 +197,8 @@ function SchedulesScreenContent(): ReactElement {
         onClose={closeForm}
         mode={form.mode === "edit" ? "edit" : "create"}
         schedule={form.mode === "edit" ? form.schedule : undefined}
+        sharedCopies={form.mode === "edit" ? form.copies : undefined}
+        canEditSharedCopies={canPlaceSharedCrons}
       />
     </View>
   );
@@ -231,7 +233,7 @@ function SchedulesScreenBody({
   onSelectHost: (serverId: string) => void;
   onRetry: () => void;
   onCreate: () => void;
-  onEdit: (schedule: AggregatedSchedule) => void;
+  onEdit: (schedule: AggregatedSchedule, copies?: AggregatedSchedule[]) => void;
 }): ReactElement {
   const bodyState = resolveSchedulesScreenBodyState({ loadState, showLoadError });
 

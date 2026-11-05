@@ -1,4 +1,4 @@
-import { placeCronGroup, portableCron } from "@/groupon/cron-schedules";
+import { placeCronGroup, portableCron, removeCronCopies } from "@/groupon/cron-schedules";
 import { getHostRuntimeStore, useHosts } from "@/runtime/host-runtime";
 import { useToast } from "@/contexts/toast-context";
 import { useQueryClient } from "@tanstack/react-query";
@@ -36,7 +36,7 @@ interface SchedulesTableProps {
    * shares the screen's "New schedule" button), so the table delegates edit
    * upward rather than mounting a second sheet here.
    */
-  onEditSchedule: (schedule: AggregatedSchedule) => void;
+  onEditSchedule: (schedule: AggregatedSchedule, copies?: AggregatedSchedule[]) => void;
 }
 
 /**
@@ -85,7 +85,7 @@ function SchedulesTableRow({
   row: ScheduleRowView;
   canPlaceSharedCrons: boolean;
   isFirst: boolean;
-  onEditSchedule: (schedule: AggregatedSchedule) => void;
+  onEditSchedule: (schedule: AggregatedSchedule, copies?: AggregatedSchedule[]) => void;
 }): ReactElement {
   const { schedule } = row;
   const { id, serverId } = schedule;
@@ -143,8 +143,8 @@ function SchedulesTableRow({
   );
 
   const handleEdit = useCallback(() => {
-    onEditSchedule(schedule);
-  }, [onEditSchedule, schedule]);
+    onEditSchedule(schedule, shared ? copies : undefined);
+  }, [onEditSchedule, schedule, shared, copies]);
 
   const handlePause = useCallback(() => {
     if (shared) {
@@ -171,16 +171,48 @@ function SchedulesTableRow({
       const productName = scheduleProductName(schedule);
       const confirmed = await confirmDialog({
         title: `Delete ${productName.toLowerCase()}`,
-        message: `Delete "${resolveScheduleTitle(schedule)}"? This cannot be undone.`,
+        message: shared
+          ? `Delete "${resolveScheduleTitle(schedule)}" from all your computers? Its logs stay.`
+          : `Delete "${resolveScheduleTitle(schedule)}"? This cannot be undone.`,
         confirmLabel: "Delete",
         destructive: true,
       });
       if (!confirmed) {
         return;
       }
-      await runAction("delete", () => mutations.deleteSchedule(id));
+      if (shared) {
+        await runAction("delete", async () => {
+          try {
+            await removeCronCopies({
+              copies,
+              target: null,
+              getClient: (targetServerId) => runtime.getClient(targetServerId),
+              isOnline: (targetServerId) =>
+                runtime.getSnapshot(targetServerId)?.connectionStatus === "online",
+              allHostsLoaded: canPlaceSharedCrons,
+            });
+          } catch (error) {
+            toast.error(
+              error instanceof Error ? error.message : "Could not remove the shared cron.",
+            );
+          } finally {
+            await query.invalidateQueries({ queryKey: schedulesQueryBaseKey });
+          }
+        });
+      } else await runAction("delete", () => mutations.deleteSchedule(id));
     })();
-  }, [runAction, mutations, id, schedule]);
+  }, [
+    runAction,
+    mutations,
+    id,
+    schedule,
+    shared,
+    copies,
+    runtime,
+    canPlaceSharedCrons,
+    toast,
+    query,
+  ]);
 
   return (
     <View>
@@ -204,7 +236,7 @@ function SchedulesTableRow({
         <View style={styles.placement}>
           <MenuRoot compactMode="sheet">
             <MenuTrigger
-              disabled={Boolean(pending.pause || pending.resume)}
+              disabled={Object.keys(pending).length > 0}
               accessibilityLabel={`Choose computer for ${resolveScheduleTitle(schedule)}`}
             >
               <Text style={styles.placementText}>

@@ -4,7 +4,7 @@
  * The columns of My tasks, picked the way Jira's list picks them: a searchable list of every field
  * Jira can show, the shown ones ticked and first, a tap switching one on or off, and Restore
  * defaults putting back Jira's own nine. The fields come from the Groupon plugin on the Mac
- * (`groupon.jira-fields`); "Take to development" is not a field and always stays the last column.
+ * (`groupon.jira-fields`); "Take" is not a field and always stays the last column.
  */
 
 import { Check } from "lucide-react-native";

@@ -2,7 +2,7 @@
 
 /**
  * The person's Jira tasks under the composer: Jira's filter bar, the table with the person's
- * columns, paging, and as the last column "Take to development", which opens Start a ticket with
+ * columns, paging, and as the last column "Take", which opens Start a ticket with
  * that key (the Groupon plugin then runs `groupon ticket start` on the chosen Mac). The Groupon
  * plugin on the page's Mac reads everything (`groupon.jira-search`, `groupon.jira-fields`,
  * `groupon.jira-saved-view`) with that Mac's CLI session; the platform runs the search with its own
@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { Button } from "@/components/ui/button";
+import type { ComposerTextSource } from "@/composer/text-source";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -35,6 +36,7 @@ import {
   type JiraSearchPage,
   type PluginRpcClient,
 } from "./desk-plugin-rpc";
+import { CollapseWhileTyping } from "./collapse-while-typing";
 import { JiraColumnsSheet } from "./jira-tasks-columns";
 import { JiraFilterBar } from "./jira-tasks-filters";
 import {
@@ -60,7 +62,7 @@ import { tasksPageKey, useJiraTasksCache } from "./jira-tasks-cache";
 import { GROUPON_TASKS } from "./strings";
 import { useGrouponPreferences } from "./preferences";
 
-const TAKE_WIDTH = 190;
+const TAKE_WIDTH = 104;
 const ThemedSpinner = withUnistyles(LoadingSpinner, (theme: Theme) => ({
   color: theme.colors.foregroundMuted,
 }));
@@ -69,15 +71,21 @@ const ThemedSpinner = withUnistyles(LoadingSpinner, (theme: Theme) => ({
 export function JiraTasksCard({
   serverId,
   onTakeTicket,
+  composerText,
 }: {
   serverId: string;
   onTakeTicket: (ticket: string) => void;
+  composerText: ComposerTextSource;
 }) {
   const compact = useIsCompactFormFactor();
   const client = useHostRuntimeClient(serverId);
   const shown = useGrouponPreferences((state) => state.showMyTasks ?? true);
   if (compact || !client || !shown) return null;
-  return <TasksCard client={client} serverId={serverId} onTakeTicket={onTakeTicket} />;
+  return (
+    <CollapseWhileTyping textSource={composerText}>
+      <TasksCard client={client} serverId={serverId} onTakeTicket={onTakeTicket} />
+    </CollapseWhileTyping>
+  );
 }
 
 /** The saved view once, then the person's own changes, each saved after a pause. */
@@ -469,7 +477,6 @@ function toneOf(category: string | null) {
 const styles = StyleSheet.create((theme) => ({
   card: {
     flexShrink: 1,
-    maxHeight: "55%",
     width: "100%",
     maxWidth: 1280,
     alignSelf: "center",

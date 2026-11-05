@@ -117,6 +117,25 @@ describe("gitEventsOf", () => {
     expect(gitEventsOf(shell('git -C "/r/wt" push', ""))[0]?.dir).toBe("/r/wt");
   });
 
+  it("reads a push and a commit behind an environment variable with spaces in its value", () => {
+    const push = gitEventsOf(
+      shell(
+        `GIT_SSH_COMMAND='ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=20' USE_TS7= git -C "/r/wt" push origin HEAD:refs/heads/B2B/x 2>&1 | tail -2`,
+        "   dfee59a0a3a..d8ea8091c08  HEAD -> B2B/x\n",
+      ),
+    );
+    expect(push).toHaveLength(1);
+    expect(push[0]).toMatchObject({
+      kind: "push",
+      dir: "/r/wt",
+      target: "origin/B2B/x",
+      range: "dfee59a0a3a..d8ea8091c08",
+    });
+    expect(gitEventsOf(shell(`GIT_AUTHOR_NAME="Nick P" git commit -q -m 'x'`, ""))[0]?.kind).toBe(
+      "commit",
+    );
+  });
+
   it("names a quiet commit from the git log -1 after it, never from one before it", () => {
     const merge = gitEventsOf(
       shell(

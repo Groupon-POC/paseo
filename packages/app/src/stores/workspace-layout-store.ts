@@ -143,7 +143,8 @@ interface WorkspaceLayoutStore {
   sheetsByWorkspace: Record<string, readonly SheetTab[]>;
   layoutByWorkspace: Record<string, WorkspaceLayout>;
   splitSizesByWorkspace: Record<string, Record<string, number[]>>;
-  explorerSidebarWidthByWorkspace: Record<string, number>;
+  /** One width for every workspace: a chat opens the sidebar as wide as the last one left it. */
+  explorerSidebarWidth: number | undefined;
   pinnedAgentIdsByWorkspace: Record<string, Set<string>>;
   hiddenAgentIdsByWorkspace: Record<string, Set<string>>;
   focusRestorationByWorkspace: Record<string, WorkspaceFocusRestorationState>;
@@ -215,7 +216,7 @@ interface WorkspaceLayoutStore {
   unfocusPane: (workspaceKey: string) => string | null;
   restorePaneFocus: (workspaceKey: string, token: string) => void;
   resizeSplit: (workspaceKey: string, groupId: string, sizes: number[]) => void;
-  resizeExplorerSidebar: (workspaceKey: string, width: number) => void;
+  resizeExplorerSidebar: (width: number) => void;
   reorderTabsInPane: (workspaceKey: string, paneId: string, tabIds: string[]) => void;
   unpinAgent: (workspaceKey: string, agentId: string) => void;
   hideAgent: (workspaceKey: string, agentId: string) => void;
@@ -954,7 +955,7 @@ const PERSISTED_SLICES = [
   "layoutByWorkspace",
   "pinnedAgentIdsByWorkspace",
   "splitSizesByWorkspace",
-  "explorerSidebarWidthByWorkspace",
+  "explorerSidebarWidth",
   "explorerSidebarPaneIdByWorkspace",
   "sidePaneIdByWorkspace",
   "pullRequestTabAutoOpenedByWorkspace",
@@ -988,7 +989,7 @@ function createPersistedStateProjection() {
         ]),
       ),
       splitSizesByWorkspace: source.splitSizesByWorkspace,
-      explorerSidebarWidthByWorkspace: source.explorerSidebarWidthByWorkspace,
+      explorerSidebarWidth: source.explorerSidebarWidth,
       explorerPaneIdByWorkspace: source.explorerSidebarPaneIdByWorkspace,
       sidePaneIdByWorkspace: source.sidePaneIdByWorkspace,
       pullRequestTabAutoOpenedByWorkspace: source.pullRequestTabAutoOpenedByWorkspace,
@@ -1065,7 +1066,7 @@ export function createWorkspaceLayoutStore(
         sheetsByWorkspace: {},
         layoutByWorkspace: {},
         splitSizesByWorkspace: {},
-        explorerSidebarWidthByWorkspace: {},
+        explorerSidebarWidth: undefined,
         pinnedAgentIdsByWorkspace: {},
         hiddenAgentIdsByWorkspace: {},
         focusRestorationByWorkspace: {},
@@ -2093,18 +2094,12 @@ export function createWorkspaceLayoutStore(
             },
           }));
         },
-        resizeExplorerSidebar: (workspaceKey, width) => {
-          const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);
-          if (!normalizedWorkspaceKey || !Number.isFinite(width) || width <= 0) {
+        resizeExplorerSidebar: (width) => {
+          if (!Number.isFinite(width) || width <= 0) {
             return;
           }
 
-          set((state) => ({
-            explorerSidebarWidthByWorkspace: {
-              ...state.explorerSidebarWidthByWorkspace,
-              [normalizedWorkspaceKey]: width,
-            },
-          }));
+          set({ explorerSidebarWidth: width });
         },
         reorderTabsInPane: (workspaceKey, paneId, tabIds) => {
           const normalizedWorkspaceKey = trimNonEmpty(workspaceKey);
@@ -2222,7 +2217,6 @@ export function createWorkspaceLayoutStore(
               normalizedWorkspaceKey in state.pendingOpenByWorkspace ||
               normalizedWorkspaceKey in state.layoutByWorkspace ||
               normalizedWorkspaceKey in state.splitSizesByWorkspace ||
-              normalizedWorkspaceKey in state.explorerSidebarWidthByWorkspace ||
               normalizedWorkspaceKey in state.pinnedAgentIdsByWorkspace ||
               normalizedWorkspaceKey in state.hiddenAgentIdsByWorkspace ||
               normalizedWorkspaceKey in state.focusRestorationByWorkspace ||
@@ -2243,10 +2237,6 @@ export function createWorkspaceLayoutStore(
               state.layoutByWorkspace;
             const { [normalizedWorkspaceKey]: _splits, ...splitSizesByWorkspace } =
               state.splitSizesByWorkspace;
-            const {
-              [normalizedWorkspaceKey]: _explorerSidebarWidth,
-              ...explorerSidebarWidthByWorkspace
-            } = state.explorerSidebarWidthByWorkspace;
             const { [normalizedWorkspaceKey]: _pinned, ...pinnedAgentIdsByWorkspace } =
               state.pinnedAgentIdsByWorkspace;
             const { [normalizedWorkspaceKey]: _hidden, ...hiddenAgentIdsByWorkspace } =
@@ -2265,7 +2255,6 @@ export function createWorkspaceLayoutStore(
               pullRequestTabAutoOpenedByWorkspace,
               layoutByWorkspace,
               splitSizesByWorkspace,
-              explorerSidebarWidthByWorkspace,
               pinnedAgentIdsByWorkspace,
               hiddenAgentIdsByWorkspace,
               focusRestorationByWorkspace,
@@ -2325,13 +2314,16 @@ export function createWorkspaceLayoutStore(
               ]),
             ),
             splitSizesByWorkspace: result.data.splitSizesByWorkspace ?? {},
-            explorerSidebarWidthByWorkspace:
-              result.data.explorerSidebarWidthByWorkspace ??
-              convertLegacyExplorerSidebarRatios(
-                result.data.explorerSidebarRatioByWorkspace ??
-                  result.data.sidePanelRatioByWorkspace ??
-                  {},
-              ),
+            explorerSidebarWidth:
+              result.data.explorerSidebarWidth ??
+              Object.values(
+                result.data.explorerSidebarWidthByWorkspace ??
+                  convertLegacyExplorerSidebarRatios(
+                    result.data.explorerSidebarRatioByWorkspace ??
+                      result.data.sidePanelRatioByWorkspace ??
+                      {},
+                  ),
+              ).at(-1),
             explorerSidebarPaneIdByWorkspace,
             sidePaneIdByWorkspace: result.data.sidePaneIdByWorkspace ?? {},
             pullRequestTabAutoOpenedByWorkspace:

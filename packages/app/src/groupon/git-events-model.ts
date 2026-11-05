@@ -32,7 +32,7 @@ export interface GitPushEvent {
 export type GitEvent = GitCommitEvent | GitPushEvent;
 
 const GIT_VERB =
-  /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git((?:\s+-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+))*)\s+(commit|push)\b([\s\S]*)$/;
+  /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+)*git((?:\s+-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+))*)\s+(commit|push)\b([\s\S]*)$/;
 const COMMIT_LINE = /^\[([^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.+)$/m;
 const LOGGED_COMMIT = /^([0-9a-f]{7,40})(?: (.+))?$/m;
 const GIT_PREFIX = String.raw`^\s*git(?:\s+-C\s+(?:"[^"]*"|'[^']*'|\S+))*\s+`;

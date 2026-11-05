@@ -575,6 +575,38 @@ describe("workspace-layout-store version 2 migration", () => {
     });
   });
 
+  it("keeps one Explorer sidebar width across workspaces and restarts", async () => {
+    await AsyncStorage.removeItem("workspace-layout-state");
+    const store = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
+    await store.persist.rehydrate();
+
+    store.getState().resizeExplorerSidebar(512);
+
+    await vi.waitFor(async () => {
+      const persisted = JSON.parse((await AsyncStorage.getItem("workspace-layout-state")) ?? "{}");
+      expect(persisted.state?.explorerSidebarWidth).toBe(512);
+    });
+    const restored = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
+    await restored.persist.rehydrate();
+    expect(restored.getState().explorerSidebarWidth).toBe(512);
+  });
+
+  it("takes the Explorer sidebar width from a layout that kept one per workspace", async () => {
+    await AsyncStorage.setItem(
+      "workspace-layout-state",
+      JSON.stringify({
+        state: {
+          layoutByWorkspace: {},
+          explorerSidebarWidthByWorkspace: { first: 400, second: 500 },
+        },
+        version: 2,
+      }),
+    );
+    const restored = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
+    await restored.persist.rehydrate();
+    expect(restored.getState().explorerSidebarWidth).toBe(500);
+  });
+
   it("writes version 2 preserving the existing Explorer key", async () => {
     await persistVersionOneLayout("v0.6");
     const restored = createWorkspaceLayoutStore(createDeterministicWorkspaceLayoutIds());
@@ -586,7 +618,6 @@ describe("workspace-layout-store version 2 migration", () => {
       expect(persisted.version).toBe(2);
       expect(Object.keys(persisted.state).sort()).toEqual([
         "explorerPaneIdByWorkspace",
-        "explorerSidebarWidthByWorkspace",
         "layoutByWorkspace",
         "pinnedAgentIdsByWorkspace",
         "pullRequestTabAutoOpenedByWorkspace",
@@ -3181,7 +3212,7 @@ describe("workspace-layout-store actions", () => {
       layoutByWorkspace: { [workspaceKey]: layout },
       pinnedAgentIdsByWorkspace: {},
       splitSizesByWorkspace: currentState.splitSizesByWorkspace,
-      explorerSidebarWidthByWorkspace: currentState.explorerSidebarWidthByWorkspace,
+      explorerSidebarWidth: currentState.explorerSidebarWidth,
       explorerPaneIdByWorkspace: {},
       pullRequestTabAutoOpenedByWorkspace: currentState.pullRequestTabAutoOpenedByWorkspace,
       sidePaneIdByWorkspace: currentState.sidePaneIdByWorkspace,
@@ -3416,7 +3447,6 @@ describe("workspace-layout-store actions", () => {
       layoutByWorkspace: {},
       pinnedAgentIdsByWorkspace: {},
       splitSizesByWorkspace: {},
-      explorerSidebarWidthByWorkspace: {},
       explorerPaneIdByWorkspace: {},
       sidePaneIdByWorkspace: {},
     });

@@ -1,7 +1,5 @@
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { mergeCreateAgentSelectionPreferences } from "@/create-agent-preferences/preferences";
-import { useFormPreferences } from "@/hooks/use-form-preferences";
 import { useProvidersSnapshot } from "@/hooks/use-providers-snapshot";
 import { useSessionStore } from "@/stores/session-store";
 import { useToast } from "@/contexts/toast-context";
@@ -72,7 +70,6 @@ export function useAgentProfilePicker(
   // rather than a workspace's. That is also the key the settings section uses,
   // so every composer on a host shares one query instead of adding its own.
   const { entries } = useProvidersSnapshot(serverId, { cwd: null });
-  const { updatePreferences } = useFormPreferences();
   const client = useSessionStore((state) => state.sessions[serverId ?? ""]?.client ?? null);
   const toast = useToast();
 
@@ -108,26 +105,6 @@ export function useAgentProfilePicker(
     [applicableProfiles, entries, formatFeatureCount],
   );
 
-  const persistSelection = useCallback(
-    (resolved: MaterializedAgentProfile) => {
-      void updatePreferences((current) =>
-        mergeCreateAgentSelectionPreferences({
-          preferences: current,
-          provider: resolved.provider,
-          modelId: resolved.modelId,
-          modeId: resolved.modeId,
-          thinkingOptionId: resolved.thinkingOptionId,
-          ...(Object.keys(resolved.featureValues).length > 0
-            ? { featureValues: resolved.featureValues }
-            : {}),
-        }),
-      ).catch((error) => {
-        console.warn("[useAgentProfilePicker] persist profile selection failed", error);
-      });
-    },
-    [updatePreferences],
-  );
-
   const applyProfile = useCallback(
     (profileId: string) => {
       const profile = applicableProfiles.find((entry) => entry.id === profileId);
@@ -145,7 +122,6 @@ export function useAgentProfilePicker(
       if (!reconciled) {
         return;
       }
-      persistSelection(reconciled);
       if (!client) {
         return;
       }
@@ -157,7 +133,7 @@ export function useAgentProfilePicker(
           toast.error(toErrorMessage(error));
         });
     },
-    [applicableProfiles, client, persistSelection, target, toast],
+    [applicableProfiles, client, target, toast],
   );
 
   return useMemo(

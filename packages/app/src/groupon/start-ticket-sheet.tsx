@@ -6,7 +6,7 @@
  * without a terminal: the branch name and the readiness grading (the CLI itself, so its comment on
  * the ticket and its desk record are the CLI's), then Paseo's worktree on that branch and the
  * agent with the CLI's flow order. A ticket the readiness check hands back shows its questions and
- * the link, and nothing is created. My tasks' "Take to development" opens it with the key filled in.
+ * the link, and nothing is created. My tasks' "Take" opens it with the key filled in.
  * While it runs, each step is marked as the hand reports it, with the time it has taken; a failure
  * shows the hand's sentence, and after five minutes of nothing the sheet stops waiting and says on
  * which step; both offer Retry (WW-83).
@@ -109,7 +109,7 @@ export function useStartTicketFromPage(input: {
 
 /**
  * The page's button and sheet: `open` shows the sheet for the page's current choices, `openFor`
- * the same with a ticket's key filled in (My tasks' Take to development).
+ * the same with a ticket's key filled in (My tasks' Take).
  */
 export function useStartTicket(initial: StartTicketInitial): {
   open: () => void;

@@ -14,7 +14,10 @@ import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { archiveWorkspaceOptimistically } from "@/workspace/workspace-archive";
 import { readUncommittedStat } from "@/groupon/uncommitted-stat";
 
-function purgeArchivedWorkspaceState(input: { serverId: string; workspaceId: string }): void {
+export function purgeArchivedWorkspaceState(input: {
+  serverId: string;
+  workspaceId: string;
+}): void {
   const workspaceKey = buildWorkspaceTabPersistenceKey(input);
   if (workspaceKey) {
     useWorkspaceLayoutStore.getState().purgeWorkspace(workspaceKey);

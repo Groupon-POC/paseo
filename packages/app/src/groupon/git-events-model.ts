@@ -31,9 +31,8 @@ export interface GitPushEvent {
 
 export type GitEvent = GitCommitEvent | GitPushEvent;
 
-const SEGMENT_SPLIT = /&&|\|\||;|\|/;
 const GIT_VERB =
-  /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git((?:\s+-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+))*)\s+(commit|push)\b(.*)$/;
+  /^\s*(?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*git((?:\s+-[Cc]\s+(?:"[^"]*"|'[^']*'|\S+))*)\s+(commit|push)\b([\s\S]*)$/;
 const COMMIT_LINE = /^\[([^\]\s]+)(?: \(root-commit\))? ([0-9a-f]{7,40})\] (.+)$/m;
 const LOGGED_COMMIT = /^([0-9a-f]{7,40})(?: (.+))?$/m;
 const GIT_PREFIX = String.raw`^\s*git(?:\s+-C\s+(?:"[^"]*"|'[^']*'|\S+))*\s+`;
@@ -82,17 +81,27 @@ export function gitEventsOfShell(
   status: GitEventStatus,
 ): GitEvent[] {
   const segments = commandLinesOf(command).flatMap((line) =>
-    line.text.split(SEGMENT_SPLIT).map((text) => ({ text, line })),
+    segmentsOfLine(line.text).map((text) => ({ text, line })),
   );
   const events: GitEvent[] = [];
   const refs = [...output.matchAll(PUSH_REF)];
+  const tempVariables = new Set(
+    [...command.matchAll(TEMP_VARIABLE)].map((match) => match[1] ?? ""),
+  );
   let cd: string | null = null;
+  let inScratch = false;
   for (const [index, segment] of segments.entries()) {
     const moved = CD.exec(segment.text);
-    if (moved) cd = unquote(moved[1] ?? "");
+    if (moved) {
+      cd = unquote(moved[1] ?? "");
+      inScratch = isScratchFolder(cd, tempVariables) || (inScratch && !isAbsoluteFolder(cd));
+    }
     const verb = GIT_VERB.exec(segment.text);
     if (!verb || /--dry-run\b/.test(verb[3] ?? "")) continue;
-    const dir = folderOf(verb[1] ?? "") ?? cd;
+    const folder = folderOf(verb[1] ?? "");
+    // A repository the call made to try something out is not the session's work.
+    if (folder ? isScratchFolder(folder, tempVariables) : inScratch) continue;
+    const dir = folder ?? cd;
     if (verb[2] === "commit") {
       const later = segments.slice(index + 1).map((next) => next.text);
       events.push({ ...commitEvent(segment, later, output, status), dir });
@@ -128,11 +137,65 @@ function folderOf(options: string): string | null {
   return found?.[1] ? unquote(found[1]) : null;
 }
 
+/** What a scan of shell text outside its quotes and comments found. */
+interface ShellScan {
+  /** Offsets of `&&`, `||`, `;` and `|` outside quotes and comments, with their length. */
+  separators: Array<{ at: number; length: number }>;
+  /** Offset of the first line break outside quotes; -1 when there is none. */
+  lineEnd: number;
+  quoteLeftOpen: boolean;
+}
+
+function scanShell(text: string): ShellScan {
+  const separators: ShellScan["separators"] = [];
+  let quote: string | null = null;
+  let lineEnd = -1;
+  for (let at = 0; at < text.length; at += 1) {
+    const char = text[at] ?? "";
+    if (char === "\\" && quote !== "'") at += 1;
+    else if (quote) quote = char === quote ? null : quote;
+    else if (char === '"' || char === "'") quote = char;
+    else if (char === "\n") {
+      lineEnd = at;
+      break;
+    } else if (char === "#" && (at === 0 || /\s/.test(text[at - 1] ?? ""))) {
+      const next = text.indexOf("\n", at);
+      if (next === -1) break;
+      at = next - 1;
+    } else if (char === ";" || char === "|" || (char === "&" && text[at + 1] === "&")) {
+      const length = text[at + 1] === char ? 2 : 1;
+      separators.push({ at, length });
+      at += length - 1;
+    }
+  }
+  return { separators, lineEnd, quoteLeftOpen: quote !== null };
+}
+
+/** A line's commands, split outside quotes: `grep "push|git commit"` runs no git. */
+function segmentsOfLine(text: string): string[] {
+  const segments: string[] = [];
+  let start = 0;
+  for (const { at, length } of scanShell(text).separators) {
+    segments.push(text.slice(start, at));
+    start = at + length;
+  }
+  segments.push(text.slice(start));
+  return segments;
+}
+
+/** The command's lines; a quote that spans lines stays one line, and a heredoc's body goes with its opener. */
 function commandLinesOf(command: string): CommandLine[] {
   const lines = command.split("\n");
   const result: CommandLine[] = [];
   for (let index = 0; index < lines.length; index += 1) {
-    const text = lines[index] ?? "";
+    let text = lines[index] ?? "";
+    const rest = lines.slice(index).join("\n");
+    const scan = scanShell(rest);
+    if (!scan.quoteLeftOpen) {
+      const logical = scan.lineEnd === -1 ? rest : rest.slice(0, scan.lineEnd);
+      index += logical.split("\n").length - 1;
+      text = logical;
+    }
     const tag = HEREDOC_OPEN.exec(text)?.[2];
     const end = tag ? lines.findIndex((line, at) => at > index && line.trim() === tag) : -1;
     result.push({ text, heredoc: end === -1 ? null : lines.slice(index + 1, end).join("\n") });
@@ -140,6 +203,19 @@ function commandLinesOf(command: string): CommandLine[] {
   }
   return result;
 }
+
+const TEMP_FOLDER = /^(?:\/private)?\/tmp(?:\/|$)|^\/var\/folders\//;
+const TEMP_VARIABLE = /\b([A-Za-z_]\w*)=["']?\$\(\s*mktemp\b/g;
+const LEADING_VARIABLE = /^\$\{?([A-Za-z_]\w*)/;
+
+/** A folder the call made for itself: under a temp folder, or in a variable it filled with `mktemp`. */
+function isScratchFolder(folder: string, tempVariables: ReadonlySet<string>): boolean {
+  if (TEMP_FOLDER.test(folder)) return true;
+  const variable = LEADING_VARIABLE.exec(folder)?.[1];
+  return variable !== undefined && tempVariables.has(variable);
+}
+
+const isAbsoluteFolder = (folder: string) => /^(?:\/|~)/.test(folder);
 
 function commitEvent(
   segment: Segment,
@@ -243,8 +319,9 @@ function messageOf(segment: Segment): string | null {
   const quoted = /(?:^|\s)(?:-[a-z]*m|--message)(?:=|\s*)(?:"((?:[^"\\]|\\.)*)|'([^']*))/.exec(
     from,
   );
-  const text = quoted?.[1] ?? quoted?.[2];
-  return text ? firstLine(text.replace(/\\"/g, '"')) : null;
+  const text = firstLine((quoted?.[1] ?? quoted?.[2] ?? "").replace(/\\"/g, '"'));
+  // `-m "$1"` names a variable, not a message.
+  return text && !/^\$\{?\w+\}?$/.test(text) ? text : null;
 }
 
 function firstLine(text: string): string | null {

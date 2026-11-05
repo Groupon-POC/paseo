@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "New chat" binding (`chat.new`, no default key). Back and forward through a workspace's tabs: Cmd+Left/Right on a Mac, Alt+Left/Right elsewhere, never inside a text field.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "New chat" binding (`chat.new`, no default key). Back and forward through a workspace's tabs: Ctrl+Cmd+Left/Right on a Mac from anywhere, Alt+Left/Right elsewhere outside text fields and terminals. Cmd+Shift+T brings back a closed chat, as in a browser; New terminal moved to Cmd+Shift+Y.
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import type {
   KeyboardActionId,
@@ -180,6 +180,7 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "workspace-tab-target-changes",
     "workspace-tab-target-files",
     "workspace-tab-close-current",
+    "chat-reopen-closed",
     "workspace-tab-jump-index",
     "workspace-tab-prev",
     "workspace-tab-next",
@@ -389,12 +390,12 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
     },
   },
 
-  // --- Back and forward through a workspace's tabs (Groupon Desk), never inside a text field ---
+  // --- Back and forward through a workspace's tabs (Groupon Desk). Alt+arrows move the caret, so those stay out of a text field ---
   {
     id: "workspace-history-back-cmd-left",
     action: "workspace.history.back",
-    combo: "Cmd+ArrowLeft",
-    when: { mac: true, editable: false, terminal: false, commandCenter: false },
+    combo: "Cmd+Ctrl+ArrowLeft",
+    when: { mac: true, commandCenter: false },
     help: {
       id: "workspace-history-back",
       section: "tabs-panes",
@@ -404,8 +405,8 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-history-forward-cmd-right",
     action: "workspace.history.forward",
-    combo: "Cmd+ArrowRight",
-    when: { mac: true, editable: false, terminal: false, commandCenter: false },
+    combo: "Cmd+Ctrl+ArrowRight",
+    when: { mac: true, commandCenter: false },
     help: {
       id: "workspace-history-forward",
       section: "tabs-panes",
@@ -914,7 +915,7 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-terminal-new-cmd-shift-t-mac",
     action: "workspace.terminal.new",
-    combo: "Cmd+Shift+T",
+    combo: "Cmd+Shift+Y",
     when: { mac: true, commandCenter: false },
     help: {
       id: "workspace-terminal-new",
@@ -925,12 +926,36 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
   {
     id: "workspace-terminal-new-ctrl-shift-t-non-mac",
     action: "workspace.terminal.new",
-    combo: "Ctrl+Shift+T",
+    combo: "Ctrl+Shift+Y",
     when: { mac: false, commandCenter: false, terminal: false },
     help: {
       id: "workspace-terminal-new",
       section: "tabs-panes",
       label: "New terminal",
+    },
+  },
+
+  // --- Closed chat ---
+  {
+    id: "chat-reopen-closed-cmd-shift-t-mac",
+    action: "chat.reopen-closed",
+    combo: "Cmd+Shift+T",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "chat-reopen-closed",
+      section: "tabs-panes",
+      label: "Reopen closed chat",
+    },
+  },
+  {
+    id: "chat-reopen-closed-ctrl-shift-t-non-mac",
+    action: "chat.reopen-closed",
+    combo: "Ctrl+Shift+T",
+    when: { mac: false, commandCenter: false, terminal: false },
+    help: {
+      id: "chat-reopen-closed",
+      section: "tabs-panes",
+      label: "Reopen closed chat",
     },
   },
 

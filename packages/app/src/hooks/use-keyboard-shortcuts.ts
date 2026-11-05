@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Cmd+Shift+T's `reopenClosedChat` callback.
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { usePathname, useRouter } from "expo-router";
 import { getIsElectronRuntime } from "@/constants/layout";
@@ -50,6 +51,7 @@ export function useKeyboardShortcuts({
   toggleBothSidebars,
   exitFocusMode,
   cycleTheme,
+  reopenClosedChat,
 }: {
   enabled: boolean;
   isMobile: boolean;
@@ -58,6 +60,7 @@ export function useKeyboardShortcuts({
   toggleBothSidebars?: () => void;
   exitFocusMode: () => void;
   cycleTheme?: () => void;
+  reopenClosedChat?: () => void;
 }) {
   const keyboardActionDispatcher = useKeyboardActionDispatcher();
   const pathname = usePathname();
@@ -155,6 +158,7 @@ export function useKeyboardShortcuts({
     "toggle-agent-list": toggleAgentList,
     "toggle-both-sidebars": toggleBothSidebars,
     "cycle-theme": cycleTheme,
+    "reopen-closed-chat": reopenClosedChat,
   };
 
   const performShortcutAction = (

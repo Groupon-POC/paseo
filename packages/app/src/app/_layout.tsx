@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in gate in front of the host runtime; the From GitHub sheet; no built-in daemon, the hand owns it; no Paseo update callout, updates arrive with Groupon Desk; the Improve this repository sheet; no built-in daemon, the hand owns it; the "New chat" shortcut's handler.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in gate in front of the host runtime; the From GitHub sheet; no built-in daemon, the hand owns it; no Paseo update callout, updates arrive with Groupon Desk; the Improve this repository sheet; no built-in daemon, the hand owns it; the "New chat" shortcut's handler. Cmd+Shift+T brings back a closed chat (`groupon/use-reopen-closed-chat.ts`).
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useIsExplorerSidebarOpen } from "@/workspace-tabs/explorer-sidebar";
@@ -68,6 +68,7 @@ import { HorizontalScrollProvider } from "@/contexts/horizontal-scroll-context";
 import { SessionProvider } from "@/contexts/session-context";
 import { SidebarCalloutProvider } from "@/contexts/sidebar-callout-context";
 import { ToastProvider } from "@/contexts/toast-context";
+import { useReopenClosedChat } from "@/groupon/use-reopen-closed-chat";
 import { VoiceProvider } from "@/contexts/voice-context";
 import {
   resolveStartupBlocker,
@@ -396,6 +397,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
   // other non-workspace routes) don't need a special-case to keep shortcuts alive.
   const keyboardShortcutsEnabled = chromeEnabled || pathname.startsWith("/settings");
 
+  const reopenClosedChat = useReopenClosedChat();
   useKeyboardShortcuts({
     enabled: keyboardShortcutsEnabled,
     isMobile: isCompactLayout,
@@ -404,6 +406,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
     toggleBothSidebars: toggleDesktopSidebars,
     exitFocusMode,
     cycleTheme,
+    reopenClosedChat,
   });
 
   useActiveWorktreeNewAction();

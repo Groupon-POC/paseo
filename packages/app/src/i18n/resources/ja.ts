@@ -1059,6 +1059,20 @@ export const ja: TranslationResources = {
           reviews: "レビュー",
           activity: "アクティビティ",
         },
+        status: {
+          mode: {
+            status: "ステータス",
+            timeline: "タイムライン",
+          },
+          groups: {
+            reviews: "レビュー",
+            reports: "レポート",
+            conversation: "会話",
+          },
+          passed: "{{count}} 件成功",
+          headsUp: "{{count}} 件の通知",
+          round: "×{{count}}",
+        },
         empty: {
           noJobs: "ジョブなし",
           loadingPipeline: "パイプラインを読み込み中...",

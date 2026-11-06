@@ -1,6 +1,14 @@
 // Changed for Groupon Desk (fork of Paseo, Apache-2.0): the checks and the activity are two blocks under the header (`groupon/pr-pane-split.tsx`): a folded activity sits at the pane's foot, and a handle between them sets the checks' height.
 import { useCallback, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, Text, View, type ViewStyle } from "react-native";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+  type GestureResponderEvent,
+  type ViewStyle,
+} from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
   CircleCheck,
@@ -11,6 +19,8 @@ import {
   GitPullRequest,
   GitPullRequestClosed,
   GitPullRequestDraft,
+  History,
+  ListChecks,
   MessageSquare,
   MessageSquarePlus,
   MoreHorizontal,
@@ -53,9 +63,14 @@ import {
   collapseActivity,
   expandActivity,
   getActivityState,
+  getActivityStateKey,
   getCollapsedEntryIds,
   getVisibleEntries,
 } from "./activity-state";
+import { PrStatusSection } from "./status-section";
+import { buildPrStatusModel } from "./status-mode";
+import { usePrStatusRules } from "./use-status-rules";
+import { useGrouponPreferences } from "@/groupon/preferences";
 import { formatPullRequestThreadPath } from "./activity-location";
 import {
   buildPullRequestCommentContextAttachment,
@@ -92,6 +107,8 @@ const ThemedGitMerge = withUnistyles(GitMerge);
 const ThemedGitPullRequest = withUnistyles(GitPullRequest);
 const ThemedGitPullRequestClosed = withUnistyles(GitPullRequestClosed);
 const ThemedGitPullRequestDraft = withUnistyles(GitPullRequestDraft);
+const ThemedHistory = withUnistyles(History);
+const ThemedListChecks = withUnistyles(ListChecks);
 const ThemedMessageSquare = withUnistyles(MessageSquare);
 const ThemedMessageSquarePlus = withUnistyles(MessageSquarePlus);
 const ThemedMoreHorizontal = withUnistyles(MoreHorizontal);
@@ -226,6 +243,11 @@ export function PullRequestPane({
   const [checksOpen, setChecksOpen] = useState(true);
   const [activityOpen, setActivityOpen] = useState(true);
   const [activityState, setActivityState] = useState(getActivityState);
+  const activityDisplayMode = useGrouponPreferences(
+    (state) => state.prActivityDisplayMode ?? "status",
+  );
+  const setActivityDisplayMode = useGrouponPreferences((state) => state.setPrActivityDisplayMode);
+  const statusRules = usePrStatusRules(daemonClient, cwd);
   const [loadingCheckKeys, setLoadingCheckKeys] = useState<ReadonlySet<string>>(() => new Set());
 
   const handleOpenPrUrl = useCallback(() => {
@@ -270,6 +292,11 @@ export function PullRequestPane({
   ).length;
 
   const timelineEntries = useMemo(() => buildPrTimeline(data.activity), [data.activity]);
+  const statusModel = useMemo(
+    () =>
+      activityDisplayMode === "status" ? buildPrStatusModel(timelineEntries, statusRules) : null,
+    [activityDisplayMode, statusRules, timelineEntries],
+  );
   const visibleEntries = useMemo(
     () =>
       getVisibleEntries(activityState, {
@@ -454,6 +481,54 @@ export function PullRequestPane({
     [data.number],
   );
 
+  const isStatusEntryCollapsed = useCallback(
+    (entryId: string) =>
+      !activityState.expandedKeys.includes(
+        getActivityStateKey({ prNumber: data.number, activityId: entryId }),
+      ),
+    [activityState.expandedKeys, data.number],
+  );
+  const statusCollapsedEntryIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const entry of timelineEntries) {
+      if (isStatusEntryCollapsed(entry.id)) {
+        ids.add(entry.id);
+      }
+      if (entry.kind === "review") {
+        for (const thread of entry.threads) {
+          if (isStatusEntryCollapsed(thread.id)) {
+            ids.add(thread.id);
+          }
+        }
+      }
+    }
+    return ids;
+  }, [isStatusEntryCollapsed, timelineEntries]);
+  const renderStatusTimelineEntry = useCallback(
+    (entry: PrTimelineEntry) => (
+      <TimelineEntryCard
+        key={entry.id}
+        entry={entry}
+        collapsed={isStatusEntryCollapsed(entry.id)}
+        collapsedEntryIds={statusCollapsedEntryIds}
+        attachEnabled={attachEnabled}
+        brandLabel={getForgePresentation(data.forge).brandLabel}
+        onAddToChat={handleAddActivityToChat}
+        onAddThreadToChat={handleAddThreadToChat}
+        onToggleCollapsed={handleToggleEntryCollapsed}
+      />
+    ),
+    [
+      attachEnabled,
+      data.forge,
+      handleAddActivityToChat,
+      handleAddThreadToChat,
+      handleToggleEntryCollapsed,
+      isStatusEntryCollapsed,
+      statusCollapsedEntryIds,
+    ],
+  );
+
   const statePresentation = PR_STATE_PRESENTATION[data.state];
   const StateIcon = statePresentation.Icon;
   const forgePresentation = getForgePresentation(data.forge);
@@ -584,6 +659,7 @@ export function PullRequestPane({
                 variant="danger"
               />
               <SummaryPill count={commentCount} icon={SUMMARY_COMMENT_ICON} variant="muted" />
+              <ActivityModeToggle mode={activityDisplayMode} onChange={setActivityDisplayMode} />
             </>
           }
         >
@@ -600,27 +676,126 @@ export function PullRequestPane({
               </Button>
             </View>
           ) : null}
-          {activityLoading ? <PrActivitySkeleton /> : null}
-          {!activityLoading && visibleEntries.length === 0 ? (
-            <Text style={sectionKitStyles.emptyText}>{t("workspace.git.pr.empty.noActivity")}</Text>
-          ) : null}
-          {!activityLoading
-            ? visibleEntries.map(({ entry, collapsed }) => (
-                <TimelineEntryCard
-                  key={entry.id}
-                  entry={entry}
-                  collapsed={collapsed}
-                  collapsedEntryIds={collapsedEntryIds}
-                  attachEnabled={attachEnabled}
-                  brandLabel={forgePresentation.brandLabel}
-                  onAddToChat={handleAddActivityToChat}
-                  onAddThreadToChat={handleAddThreadToChat}
-                  onToggleCollapsed={handleToggleEntryCollapsed}
-                />
-              ))
-            : null}
+          {activityLoading ? (
+            <PrActivitySkeleton />
+          ) : (
+            <ActivityBody
+              statusModel={statusModel}
+              visibleEntries={visibleEntries}
+              collapsedEntryIds={collapsedEntryIds}
+              attachEnabled={attachEnabled}
+              brandLabel={forgePresentation.brandLabel}
+              onAddToChat={handleAddActivityToChat}
+              onAddThreadToChat={handleAddThreadToChat}
+              onToggleCollapsed={handleToggleEntryCollapsed}
+              renderStatusTimelineEntry={renderStatusTimelineEntry}
+            />
+          )}
         </Section>
       </PrPaneSplit>
+    </View>
+  );
+}
+
+function ActivityBody({
+  statusModel,
+  visibleEntries,
+  collapsedEntryIds,
+  attachEnabled,
+  brandLabel,
+  onAddToChat,
+  onAddThreadToChat,
+  onToggleCollapsed,
+  renderStatusTimelineEntry,
+}: TimelineEntryCallbacks & {
+  statusModel: ReturnType<typeof buildPrStatusModel> | null;
+  visibleEntries: readonly { entry: PrTimelineEntry; collapsed: boolean }[];
+  collapsedEntryIds: ReadonlySet<string>;
+  renderStatusTimelineEntry: (entry: PrTimelineEntry) => React.ReactNode;
+}) {
+  const { t } = useTranslation();
+  if (visibleEntries.length === 0) {
+    return <Text style={sectionKitStyles.emptyText}>{t("workspace.git.pr.empty.noActivity")}</Text>;
+  }
+  if (statusModel) {
+    return (
+      <PrStatusSection
+        model={statusModel}
+        attachEnabled={attachEnabled}
+        brandLabel={brandLabel}
+        onAddToChat={onAddToChat}
+        renderTimelineEntry={renderStatusTimelineEntry}
+      />
+    );
+  }
+  return (
+    <>
+      {visibleEntries.map(({ entry, collapsed }) => (
+        <TimelineEntryCard
+          key={entry.id}
+          entry={entry}
+          collapsed={collapsed}
+          collapsedEntryIds={collapsedEntryIds}
+          attachEnabled={attachEnabled}
+          brandLabel={brandLabel}
+          onAddToChat={onAddToChat}
+          onAddThreadToChat={onAddThreadToChat}
+          onToggleCollapsed={onToggleCollapsed}
+        />
+      ))}
+    </>
+  );
+}
+
+function ActivityModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: "status" | "timeline";
+  onChange: (mode: "status" | "timeline") => void;
+}) {
+  const { t } = useTranslation();
+  // The toggle sits inside the section header's pressable; a mode switch must not fold the section.
+  const handleStatus = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      onChange("status");
+    },
+    [onChange],
+  );
+  const handleTimeline = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      onChange("timeline");
+    },
+    [onChange],
+  );
+  return (
+    <View style={styles.modeToggle} testID="pr-pane-activity-mode">
+      <Pressable
+        onPress={handleStatus}
+        style={mode === "status" ? styles.modeButtonActive : styles.modeButton}
+        accessibilityRole="button"
+        accessibilityLabel={t("workspace.git.pr.status.mode.status")}
+        testID="pr-pane-activity-mode-status"
+      >
+        <ThemedListChecks
+          size={13}
+          uniProps={mode === "status" ? foregroundColorMapping : foregroundMutedColorMapping}
+        />
+      </Pressable>
+      <Pressable
+        onPress={handleTimeline}
+        style={mode === "timeline" ? styles.modeButtonActive : styles.modeButton}
+        accessibilityRole="button"
+        accessibilityLabel={t("workspace.git.pr.status.mode.timeline")}
+        testID="pr-pane-activity-mode-timeline"
+      >
+        <ThemedHistory
+          size={13}
+          uniProps={mode === "timeline" ? foregroundColorMapping : foregroundMutedColorMapping}
+        />
+      </Pressable>
     </View>
   );
 }
@@ -1471,5 +1646,24 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: 10,
     fontWeight: theme.fontWeight.normal,
     color: "#fff",
+  },
+  modeToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    borderRadius: theme.borderRadius.base,
+    backgroundColor: theme.colors.surface1,
+    padding: 2,
+  },
+  modeButton: {
+    paddingHorizontal: theme.spacing[1],
+    paddingVertical: 1,
+    borderRadius: theme.borderRadius.sm,
+  },
+  modeButtonActive: {
+    paddingHorizontal: theme.spacing[1],
+    paddingVertical: 1,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.surface2,
   },
 }));

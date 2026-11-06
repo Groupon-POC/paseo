@@ -49,6 +49,8 @@ const GrouponPreferencesSchema = z.object({
   streamWidthShare: z.number().min(0).max(1).nullable().optional(),
   /** What the Changes views compare by default: All changes (as Paseo), or what the session changed. */
   changesDefaultComparison: z.enum(["all", "session"]).optional(),
+  /** How the PR pane's Activity reads: parsed status rows (default), or the plain timeline. */
+  prActivityDisplayMode: z.enum(["status", "timeline"]).optional(),
 });
 
 type GrouponPreferences = z.infer<typeof GrouponPreferencesSchema>;
@@ -60,6 +62,7 @@ interface GrouponPreferencesState extends GrouponPreferences {
   setDiffSelectedFileOnly: (value: boolean) => void;
   setStreamWidthShare: (value: number | null) => void;
   setChangesDefaultComparison: (value: "all" | "session") => void;
+  setPrActivityDisplayMode: (value: "status" | "timeline") => void;
   rememberGithubHost: (host: string) => void;
   rememberGithubPlace: (host: string, organisation: string, team: string) => void;
   rememberStandardsPlace: (serverId: string, repoRoot: string) => void;
@@ -81,6 +84,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
       setDiffSelectedFileOnly: (value) => set({ diffSelectedFileOnly: value }),
       setStreamWidthShare: (value) => set({ streamWidthShare: value }),
       setChangesDefaultComparison: (value) => set({ changesDefaultComparison: value }),
+      setPrActivityDisplayMode: (value) => set({ prActivityDisplayMode: value }),
       rememberGithubHost: (host) => set({ githubHost: host }),
       rememberGithubPlace: (host, organisation, team) =>
         set((state) => ({
@@ -112,6 +116,7 @@ export const useGrouponPreferences = create<GrouponPreferencesState>()(
         diffSelectedFileOnly: state.diffSelectedFileOnly ?? false,
         streamWidthShare: state.streamWidthShare ?? null,
         changesDefaultComparison: state.changesDefaultComparison ?? "all",
+        prActivityDisplayMode: state.prActivityDisplayMode ?? "status",
       }),
       version: 1,
     },

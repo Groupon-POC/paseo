@@ -3,10 +3,10 @@
 /**
  * Tests for the agent output's width through the web chat list.
  *
- * Covers: packages/app/src/groupon/stream-width.ts
+ * Covers: packages/app/src/agent-stream/strategy-web.tsx and groupon/stream-width.ts
  */
 
-import React, { act, useMemo, useState, type ReactNode } from "react";
+import React, { act, useCallback, useMemo, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { View } from "react-native";
 import { RetainedPanel } from "@/components/retained-panel";
@@ -61,14 +61,33 @@ const loadOlder = () => true;
 let setters: { width: (width: number | null) => void; live: (items: StreamItem[]) => void } | null =
   null;
 
-function Chat({ history }: { history: StreamItem[] }): ReactNode {
+interface ChatProps {
+  history: StreamItem[];
+  mirrorGeometry?: boolean;
+}
+interface GeometrySnapshot {
+  height: number;
+  history: StreamItem[];
+}
+
+function Chat({ history, mirrorGeometry = false }: ChatProps): ReactNode {
+  const [snapshot, setSnapshot] = useState<GeometrySnapshot | null>(null);
+  const reportGeometry = useCallback(() => {
+    if (!mirrorGeometry) return;
+    const height =
+      document.querySelector<HTMLElement>('[data-testid="agent-chat-scroll"]')?.scrollHeight ?? 0;
+    setSnapshot((previous) =>
+      previous?.height === height ? previous : { height, history: structuredClone(history) },
+    );
+  }, [history, mirrorGeometry]);
+  const sourceHistory = snapshot?.history ?? history;
   const [width, setWidth] = useState<number | null>(null);
   const [live, setLive] = useState<StreamItem[]>([]);
   setters = { width: setWidth, live: setLive };
   const viewportRef = React.useRef<StreamViewportHandle | null>(null);
   const segments = useMemo(
-    () => ({ historyVirtualized: history, historyMounted: [], liveHead: live }),
-    [history, live],
+    () => ({ historyVirtualized: sourceHistory, historyMounted: [], liveHead: live }),
+    [sourceHistory, live],
   );
   const boundary = useMemo(
     () => ({ hasVirtualizedHistory: true, hasMountedHistory: false, hasLiveHead: live.length > 0 }),
@@ -85,7 +104,7 @@ function Chat({ history }: { history: StreamItem[] }): ReactNode {
         viewportRef,
         routeBottomAnchorRequest: null,
         isAuthoritativeHistoryReady: true,
-        onNearBottomChange: noop,
+        onNearBottomChange: mirrorGeometry ? reportGeometry : noop,
         onNearHistoryStart: loadOlder,
         isLoadingOlderHistory: false,
         hasOlderHistory: false,
@@ -286,4 +305,47 @@ describe("a retained chat's refreshed history", () => {
       expect(overlaps()).toEqual([]);
     },
   );
+});
+
+it("settles measurements when geometry reports refresh equivalent history snapshots", async () => {
+  host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:0;top:0;width:1600px;height:700px;display:flex;";
+  document.body.appendChild(host);
+  root = createRoot(host);
+  const history = Array.from({ length: 240 }, (_, index) => message(index));
+  act(() => root?.render(<Chat history={history} mirrorGeometry />));
+  await frames(20);
+  const list = scroller();
+  const height = list.scrollHeight;
+  await frames(10);
+  expect(list.scrollHeight).toBe(height);
+  expect(overlaps()).toEqual([]);
+  expect(errors.filter((line) => /Maximum update depth|#185/.test(line))).toEqual([]);
+});
+
+it("measures changed mounted content without resetting it to an estimate", async () => {
+  host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:0;top:0;width:1600px;height:700px;display:flex;";
+  document.body.appendChild(host);
+  root = createRoot(host);
+  const history = Array.from({ length: 240 }, (_, index) => message(index));
+  act(() => root?.render(<Chat history={history} />));
+  await frames(10);
+  const list = scroller();
+  scrollUpTo(list, 0);
+  await frames(15);
+  const before = list.scrollHeight;
+  const grown = history.slice();
+  grown[0] = { ...message(0), text: PARAGRAPH.repeat(100) };
+  act(() => root?.render(<Chat history={grown} />));
+  await frames(15);
+  expect(
+    document.querySelector('[data-history-row-id="message-0"]')?.getBoundingClientRect().height,
+  ).toBeGreaterThan(500);
+  expect(list.scrollHeight).toBeGreaterThan(before + 400);
+  act(() => root?.render(<Chat history={history} />));
+  await frames(15);
+  expect(Math.abs(list.scrollHeight - before)).toBeLessThan(5);
+  expect(overlaps()).toEqual([]);
+  expect(errors.filter((line) => /Maximum update depth|#185/.test(line))).toEqual([]);
 });

@@ -116,7 +116,7 @@ function buildMeta(input: {
       parts.push(`Next run ${next}`);
     }
   }
-  if (serverName && !singleHost) {
+  if (state === "active" && serverName && !singleHost) {
     parts.unshift(serverName);
   }
   return parts.join(" · ");

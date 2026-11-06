@@ -174,7 +174,11 @@ Paseo's code for these stays, so a rebase onto a new tag stays small; only the w
   (Paseo's form preferences, the source Improve this repository reads), else Claude, else the first
   agent this Mac can start, with the model used last for it, else the agent's default model; an
   agent this Mac cannot start is replaced the same way (`groupon/default-agent-selection.ts`,
-  `provider-selection/resolve-agent-form.ts`).
+  `provider-selection/resolve-agent-form.ts`). Only the New chat and New workspace forms write these
+  preferences: a model, effort, mode, feature or profile picked in a running session stays in that session,
+  so one chat's change never decides what the next one starts on. The Explorer sidebar's width goes
+  the other way on purpose: Paseo kept one per workspace, here every workspace shares one, so a new
+  chat opens it as wide as the last one left it (`docs/explorer-sidebar.md`).
 
 ## The web build under a strict Content Security Policy
 
@@ -524,12 +528,14 @@ mounting `groupon/jira-tasks-card.tsx`), a card lists the person's Jira tasks: a
 modelled on Jira's (Assignee = Current user, Type, Status, Created in the last N days, More
 filters as free JQL, Clear filters; `groupon/jira-tasks-filters.tsx`), the table with the person's
 columns (Jira's own nine by default, picked in `groupon/jira-tasks-columns.tsx`), paging, and as
-the last column "Take to development", which opens Start a ticket with that key. Every change is
+the last column "Take", which opens Start a ticket with that key. Every change is
 saved, after a pause, as the person's default view on the internal plane, so every window opens
 the same. The Groupon plugin on the page's Mac answers `groupon.jira-search`,
 `groupon.jira-fields` and `groupon.jira-saved-view` through that Mac's `groupon` CLI; the filter
 bar's JQL and its reading back are `groupon/jira-tasks-model.ts`. Not drawn on a phone-sized
-layout, where the composer sits at the bottom.
+layout, where the composer sits at the bottom. The card folds away a moment after the person starts
+writing and comes back as soon as the composer is empty, so the composer takes the page's middle
+while it is used (`groupon/collapse-while-typing.tsx`).
 
 ## Your access and the Standards page
 
@@ -1183,3 +1189,35 @@ Cmd+Shift+T brings back the chat closed last, restoring its workspace first when
 (`packages/app/src/groupon/use-reopen-closed-chat.ts`). A worktree Desk removed comes back from its
 branch, without what was not committed. The list lives in the window's memory, so a closed window
 forgets it; History still has every chat. New terminal, upstream's Cmd+Shift+T, moved to Cmd+Shift+Y.
+
+## An archived workspace stays archived when its request runs long
+
+The daemon answers `archive_workspace_request` only after the worktree is off the disk, while the
+record is archived and the window told within seconds. Measured 2026-11-06: 204 s for a
+`groupon-monorepo` worktree whose record was archived after 25 s. The window gave up at the default
+60 s and restored its row. The daemon sends its `remove` once, and that `remove` is already behind
+the window's cursor, so the row stayed, through reloads too, until the daemon restarted.
+
+The request now waits 10 minutes (`packages/client/src/daemon-client.ts`). A failed request restores
+the row only while the archive is still pending (`packages/app/src/workspace/workspace-archive.ts`):
+the `remove` clears pending, and after it the archive counts as done.
+
+## Desk reliability and organization, 2026-11-05
+
+- Mounted history rows keep their measured DOM size when equivalent history objects are refreshed.
+  Only offscreen replacements receive an estimated height. The browser regression reproduces React
+  error 185 before this fix and verifies that measurements settle afterward.
+- Settings > Sidebar > Project sections stores named headings, their order and project assignments
+  locally. Deleting a heading keeps every project and workspace. The project view and keyboard
+  workspace navigation use the same section order.
+- Plugin popovers have an explicit viewport-bounded width, so full account emails and separate
+  wrapping usage lines remain readable.
+- Schedules (Cron) uses the Groupon plugin's registered cron identities to group equal portable
+  home-folder templates. Different instructions, permissions, cadence or targets stay separate.
+  Its computer selector uses the CLI's shared placement and requires all old copies to acknowledge
+  pause before activation on another Mac. Existing-chat schedules retain their own computer.
+
+Shared cron edits update every copy while preserving each Mac's home folder. Deleting a shared
+row pauses all copies and removes their registered definitions through the CLI, which retains logs
+and writes the vault deletion tombstones. Failed operations remain visible as errors and refresh
+the list, rather than silently leaving the old row in the cache.

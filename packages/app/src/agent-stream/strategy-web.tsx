@@ -48,6 +48,7 @@ import {
 import { useChatFindSelectedMessageId } from "@/agent-stream/chat-find";
 import { getStreamItemMessageId } from "./presentation";
 import { useScrollToMessage } from "./use-scroll-to-message.web";
+import { createMeasurePassBudget } from "./measure-pass-budget";
 
 interface CreateWebStreamStrategyInput {
   isMobileBreakpoint: boolean;
@@ -499,10 +500,18 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       rowVirtualizer.measure();
       return;
     }
-    // The virtualizer keys heights by id, not content. An offscreen replacement has no DOM
-    // observer to invalidate it; use its new estimate until it mounts and can be measured.
+    // Mounted rows are measured from the committed DOM below. Resetting them to estimates
+    // here makes equivalent snapshots alternate estimated and measured sizes indefinitely.
+    const mountedIds = new Set(
+      Array.from(
+        contentRef.current?.querySelectorAll<HTMLElement>("[data-history-row-id][data-index]") ??
+          [],
+        (element) => element.dataset.historyRowId,
+      ),
+    );
+    // An offscreen replacement has no DOM observer: use its estimate until it mounts.
     inputSegments.historyVirtualized.forEach((item, index) => {
-      if (changed.has(item.id)) {
+      if (changed.has(item.id) && !mountedIds.has(item.id)) {
         rowVirtualizer.resizeItem(index, estimateStreamItemHeight({ item, contentMaxWidth }));
       }
     });
@@ -607,7 +616,16 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     scheduler.schedule();
   });
 
-  const measureVirtualizedRows = useStableEvent(() => {
+  const measurePassBudget = useMemo(() => createMeasurePassBudget(), []);
+  useEffect(() => () => measurePassBudget.dispose(), [measurePassBudget]);
+  const measureVirtualizedRows = useStableEvent((): boolean => {
+    // Groupon Desk: a row that never settles would re-render this commit until React aborts (#185).
+    if (!measurePassBudget.canMeasure()) {
+      measurePassBudget.deferToNextFrame(() => {
+        if (isActiveRef.current) measureVirtualizedRows();
+      });
+      return false;
+    }
     let resized = false;
     for (const element of contentRef.current?.querySelectorAll<HTMLElement>(
       "[data-history-row-id][data-index]",
@@ -618,6 +636,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       rowVirtualizer.resizeItem(index, height);
       resized = true;
     }
+    if (resized) measurePassBudget.recordResize();
     return resized;
   });
 

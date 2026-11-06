@@ -1,6 +1,6 @@
 import { PluginClientStateProvider } from "@getpaseo/plugin/client/host";
 import type { ReactNode } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { MenuSurface, type MenuSurfaceProps } from "@/components/ui/menu";
 import { ToastApiProvider, type useToast } from "@/contexts/toast-context";
@@ -47,7 +47,18 @@ type PluginPopoverSurfaceProps = Pick<
  * sheet on compact ones when the enclosing `MenuRoot` uses `compactMode="sheet"`.
  */
 export function PluginPopoverSurface(props: PluginPopoverSurfaceProps) {
-  return <MenuSurface {...props} minWidth={280} maxWidth={420} maxHeight={440} scrollable />;
+  const { width } = useWindowDimensions();
+  const surfaceWidth = Math.min(420, Math.max(0, width - 32));
+  return (
+    <MenuSurface
+      {...props}
+      width={surfaceWidth}
+      minWidth={Math.min(280, surfaceWidth)}
+      maxWidth={420}
+      maxHeight={440}
+      scrollable
+    />
+  );
 }
 
 export function PluginPopoverContent({ children }: { children: ReactNode }) {

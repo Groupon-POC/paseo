@@ -1,3 +1,4 @@
+import { groupCronSchedules } from "@/groupon/cron-schedules";
 import {
   useCallback,
   useEffect,
@@ -43,7 +44,7 @@ import type { ScheduleSummary } from "@getpaseo/protocol/schedule/types";
 type FormState =
   | { mode: "closed" }
   | { mode: "create" }
-  | { mode: "edit"; serverId: string; schedule: ScheduleSummary };
+  | { mode: "edit"; serverId: string; schedule: ScheduleSummary; copies?: AggregatedSchedule[] };
 
 const STATUS_FILTER_OPTIONS: { value: ScheduleBucket; label: string; testID: string }[] = [
   { value: "runnable", label: "Active", testID: "schedules-filter-active" },
@@ -63,7 +64,7 @@ export function SchedulesScreen(): ReactElement {
 }
 
 function SchedulesScreenContent(): ReactElement {
-  const { loadState, hostErrors, isError, refetch } = useSchedules();
+  const { loadState, hostErrors, isError, refetch, canPlaceSharedCrons } = useSchedules();
   const schedules = loadState.status === "loaded" ? loadState.data : EMPTY_SCHEDULES;
   const { agents } = useAggregatedAgents({ includeArchived: true });
   const { projects } = useProjects();
@@ -105,8 +106,8 @@ function SchedulesScreenContent(): ReactElement {
   }, [hosts, selectedHost]);
 
   const openCreate = useCallback(() => setForm({ mode: "create" }), []);
-  const openEdit = useCallback((schedule: AggregatedSchedule) => {
-    setForm({ mode: "edit", serverId: schedule.serverId, schedule });
+  const openEdit = useCallback((schedule: AggregatedSchedule, copies?: AggregatedSchedule[]) => {
+    setForm({ mode: "edit", serverId: schedule.serverId, schedule, copies });
   }, []);
   const closeForm = useCallback(() => setForm({ mode: "closed" }), []);
 
@@ -128,8 +129,9 @@ function SchedulesScreenContent(): ReactElement {
   // across hosts.
   const resolvedRows = useMemo(() => {
     const now = Date.now();
-    return schedules.map((schedule) => ({
+    return groupCronSchedules(schedules).map(({ schedule, copies }) => ({
       schedule,
+      copies,
       resolved: resolveSchedule({
         schedule,
         serverId: schedule.serverId,
@@ -145,17 +147,24 @@ function SchedulesScreenContent(): ReactElement {
     const singleHost = hosts.length <= 1;
     return resolvedRows
       .filter(
-        ({ schedule, resolved }) =>
-          (selectedHost === ALL_HOSTS_OPTION_ID || schedule.serverId === selectedHost) &&
+        ({ copies, resolved }) =>
+          (selectedHost === ALL_HOSTS_OPTION_ID ||
+            copies.some((copy) => copy.serverId === selectedHost)) &&
           resolved.bucket === statusFilter,
       )
       .sort((a, b) => Date.parse(b.schedule.createdAt) - Date.parse(a.schedule.createdAt))
-      .map(({ schedule, resolved }) => ({
+      .map(({ schedule, copies, resolved }) => ({
+        copies,
         schedule,
         targetLabel: resolved.target.label,
         provider: resolved.target.provider,
         state: resolved.state,
-        serverName: schedule.serverName,
+        serverName:
+          copies
+            .filter((copy) => copy.status === "active")
+            .map((copy) => copy.serverName)
+            .filter((name, index, all) => all.indexOf(name) === index)
+            .join(", ") || schedule.serverName,
         singleHost,
       }));
   }, [resolvedRows, selectedHost, statusFilter, hosts.length]);
@@ -165,8 +174,9 @@ function SchedulesScreenContent(): ReactElement {
 
   return (
     <View style={styles.container}>
-      <MenuHeader title="Schedules" />
+      <MenuHeader title="Schedules (Cron)" />
       <SchedulesScreenBody
+        canPlaceSharedCrons={canPlaceSharedCrons}
         rows={visibleRows}
         loadState={loadState}
         hostErrors={hostErrors}
@@ -187,12 +197,15 @@ function SchedulesScreenContent(): ReactElement {
         onClose={closeForm}
         mode={form.mode === "edit" ? "edit" : "create"}
         schedule={form.mode === "edit" ? form.schedule : undefined}
+        sharedCopies={form.mode === "edit" ? form.copies : undefined}
+        canEditSharedCopies={canPlaceSharedCrons}
       />
     </View>
   );
 }
 
 function SchedulesScreenBody({
+  canPlaceSharedCrons,
   rows,
   loadState,
   hostErrors,
@@ -208,6 +221,7 @@ function SchedulesScreenBody({
   onEdit,
 }: {
   rows: ScheduleRowView[];
+  canPlaceSharedCrons: boolean;
   loadState: AggregateLoadState<AggregatedSchedule>;
   hostErrors: ScheduleHostError[];
   showLoadError: boolean;
@@ -219,7 +233,7 @@ function SchedulesScreenBody({
   onSelectHost: (serverId: string) => void;
   onRetry: () => void;
   onCreate: () => void;
-  onEdit: (schedule: AggregatedSchedule) => void;
+  onEdit: (schedule: AggregatedSchedule, copies?: AggregatedSchedule[]) => void;
 }): ReactElement {
   const bodyState = resolveSchedulesScreenBodyState({ loadState, showLoadError });
 
@@ -253,7 +267,13 @@ function SchedulesScreenBody({
 
   let schedulesContent: ReactElement;
   if (rows.length > 0) {
-    schedulesContent = <SchedulesTable rows={rows} onEditSchedule={onEdit} />;
+    schedulesContent = (
+      <SchedulesTable
+        rows={rows}
+        onEditSchedule={onEdit}
+        canPlaceSharedCrons={canPlaceSharedCrons}
+      />
+    );
   } else if (statusFilter === "ended") {
     schedulesContent = <SchedulesEndedEmptyState />;
   } else {

@@ -1,3 +1,5 @@
+import type { z } from "zod";
+import { CronCatalogSchema, type CronIdentity } from "@/groupon/cron-schedules";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { ScheduleSummary } from "@getpaseo/protocol/schedule/types";
 import { toErrorMessage } from "@/utils/error-messages";
@@ -16,7 +18,9 @@ export interface ScheduleRuntimeSnapshot {
 }
 
 export interface ScheduleRuntime {
-  getClient(serverId: string): Pick<DaemonClient, "scheduleList"> | null;
+  getClient(
+    serverId: string,
+  ): (Pick<DaemonClient, "scheduleList"> & Partial<Pick<DaemonClient, "invokePluginRpc">>) | null;
   getSnapshot(serverId: string): ScheduleRuntimeSnapshot | null | undefined;
 }
 
@@ -25,6 +29,7 @@ export interface ScheduleRuntime {
 export interface AggregatedSchedule extends ScheduleSummary {
   serverId: string;
   serverName: string;
+  cron?: CronIdentity;
 }
 
 export interface ScheduleHostError {
@@ -41,6 +46,7 @@ export interface FetchAggregatedSchedulesResult {
   status: "loaded";
   data: AggregatedSchedule[];
   hostErrors: ScheduleHostError[];
+  cronPlacementReady?: boolean;
 }
 
 export type FetchAggregatedSchedulesState =
@@ -84,6 +90,7 @@ export async function fetchAggregatedSchedules(
   const schedules: AggregatedSchedule[] = [];
   const hostErrors: ScheduleHostError[] = [];
   let connectedAttempts = 0;
+  let catalogsLoaded = 0;
 
   await Promise.all(
     input.hosts.map(async (host) => {
@@ -99,8 +106,27 @@ export async function fetchAggregatedSchedules(
         if (payload.error) {
           throw new Error(payload.error);
         }
+        let catalog: z.infer<typeof CronCatalogSchema> | null = null;
+        if (client.invokePluginRpc) {
+          try {
+            const response = await client.invokePluginRpc("groupon", "groupon.cron-catalog", {});
+            const parsed = CronCatalogSchema.safeParse(response);
+            if (parsed?.success) {
+              catalog = parsed.data;
+              catalogsLoaded += 1;
+            }
+          } catch {
+            /* An older plugin still shows its independent schedules. */
+          }
+        }
         for (const schedule of payload.schedules) {
-          schedules.push({ ...schedule, serverId: host.serverId, serverName: host.serverName });
+          const job = catalog?.jobs.find((entry) => entry.scheduleId === schedule.id);
+          schedules.push({
+            ...schedule,
+            serverId: host.serverId,
+            serverName: host.serverName,
+            ...(job && catalog ? { cron: { name: job.name, home: catalog.home } } : {}),
+          });
         }
       } catch (error) {
         hostErrors.push({
@@ -120,7 +146,14 @@ export async function fetchAggregatedSchedules(
     return { status: "connecting" };
   }
 
-  return { status: "loaded", data: schedules, hostErrors };
+  return {
+    status: "loaded",
+    data: schedules,
+    hostErrors,
+    ...(catalogsLoaded === input.hosts.length && catalogsLoaded > 0 && hostErrors.length === 0
+      ? { cronPlacementReady: true }
+      : {}),
+  };
 }
 
 function isScheduleHostConnectionSettling(

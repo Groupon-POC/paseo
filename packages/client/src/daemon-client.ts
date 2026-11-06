@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): sendAgentMessage may name the prompt's author; a relay rollover reconnects at once, unannounced.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): sendAgentMessage may name the prompt's author; a relay rollover reconnects at once, unannounced; archiving a workspace outwaits its worktree's removal.
 import {
   HOST_ROUTE_OPCODE,
   encodeHostRouteFrame,
@@ -207,6 +207,8 @@ const perfNow: () => number =
     : () => Date.now();
 
 const PROJECT_GITHUB_CLONE_TIMEOUT_MS = 5 * 60 * 1000;
+// The daemon answers once the worktree is off the disk, which took 204 s for a large repository.
+const ARCHIVE_WORKSPACE_TIMEOUT_MS = 10 * 60 * 1000;
 
 interface ImportAgentInputBase {
   cwd?: string;
@@ -3034,6 +3036,7 @@ export class DaemonClient {
         workspaceId,
       },
       responseType: "archive_workspace_response",
+      timeout: ARCHIVE_WORKSPACE_TIMEOUT_MS,
     });
   }
 

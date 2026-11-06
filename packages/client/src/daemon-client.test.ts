@@ -8272,3 +8272,41 @@ test("closes before admission when a protected-capable daemon is reached in lega
   expect(daemonReceived).toHaveLength(1);
   expect(JSON.parse(daemonReceived[0] as string)).toMatchObject({ type: "hello" });
 });
+
+test("archiveWorkspace outwaits the removal of a large worktree", async () => {
+  useHeartbeatClock();
+  const logger = createMockLogger();
+  const mock = createMockTransport();
+
+  const client = new DaemonClient({
+    url: "ws://test",
+    clientId: "clsk_unit_test",
+    logger,
+    reconnect: { enabled: false },
+    transportFactory: () => mock.transport,
+  });
+  clients.push(client);
+
+  const connectPromise = client.connect();
+  mock.triggerOpen();
+  await connectPromise;
+
+  const responsePromise = client.archiveWorkspace("workspace-1", "req-archive-1");
+  let settled = false;
+  void responsePromise.then(
+    () => {
+      settled = true;
+      return undefined;
+    },
+    () => {
+      settled = true;
+      return undefined;
+    },
+  );
+
+  await vi.advanceTimersByTimeAsync(9 * 60_000);
+  expect(settled).toBe(false);
+
+  await vi.advanceTimersByTimeAsync(60_000);
+  await expect(responsePromise).rejects.toThrow("Timeout waiting for message (600000ms)");
+});

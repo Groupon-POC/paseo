@@ -73,6 +73,31 @@ describe("chat display modes", () => {
     expect(ids(filterForDisplayMode([message("m1"), answered], "output"))).toEqual(["m1"]);
   });
 
+  it("Live keeps a question that ended unanswered, with failed calls off too", () => {
+    const question = (id: string, status: string) =>
+      ({
+        kind: "tool_call",
+        id,
+        timestamp: at,
+        payload: { source: "agent", data: { name: "AskUserQuestion", status } },
+      }) as unknown as StreamItem;
+    const items = [question("failed", "failed"), question("canceled", "canceled")];
+
+    expect(ids(filterForDisplayMode(items, "live", false))).toEqual(["failed", "canceled"]);
+    expect(ids(filterForDisplayMode(items, "output"))).toEqual([]);
+  });
+
+  it("Live never adds a row for a question still waiting: the form under the chat answers it", () => {
+    const waiting = {
+      kind: "tool_call",
+      id: "q",
+      timestamp: at,
+      payload: { source: "agent", data: { name: "AskUserQuestion", status: "running" } },
+    } as unknown as StreamItem;
+
+    expect(ids(filterForDisplayMode([waiting], "live"))).toEqual([]);
+  });
+
   it("Live drops the failed calls once the person turns them off", () => {
     expect(ids(filterForDisplayMode(STREAM, "live", false))).toEqual(["m1"]);
     expect(filterForDisplayMode(STREAM, "all", false)).toBe(STREAM);

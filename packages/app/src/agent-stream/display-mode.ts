@@ -6,7 +6,7 @@ import { isGitEventCall } from "@/groupon/git-events-model";
 
 /**
  * Display only: the history keeps every row. Live shows the messages, the tool calls
- * that failed (unless the person turned them off, `showFailed`) and the questions the person answered; what runs now (a tool call, thinking) is not a row there, it is the turn footer's
+ * that failed (unless the person turned them off, `showFailed`) and the finished questions; what runs now (a tool call, thinking) is not a row there, it is the turn footer's
  * slot above the running turn's footer (`liveItemOf`), so nothing enters the list and leaves it again and the chat
  * never jumps. "output" shows no tool call and no thinking at all.
  */
@@ -20,14 +20,16 @@ export function isShownInDisplayMode(
   if (item.kind !== "tool_call") return true;
   if (mode !== "live") return false;
   const data = item.payload.data;
-  if (data.status === "failed") return showFailed;
-  if (data.status === "completed" && isGitEventCall(item)) return true;
-  // A question the person answered stays: it is part of the conversation, and it stays put.
-  return (
+  // A finished question stays, answered or not: it is part of the conversation, not a failed call.
+  if (
     item.payload.source === "agent" &&
-    data.status === "completed" &&
-    item.payload.data.name === "AskUserQuestion"
-  );
+    item.payload.data.name === "AskUserQuestion" &&
+    data.status !== "running"
+  ) {
+    return true;
+  }
+  if (data.status === "failed") return showFailed;
+  return data.status === "completed" && isGitEventCall(item);
 }
 
 export function filterForDisplayMode(

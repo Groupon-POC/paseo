@@ -48,6 +48,7 @@ import {
 import { useChatFindSelectedMessageId } from "@/agent-stream/chat-find";
 import { getStreamItemMessageId } from "./presentation";
 import { useScrollToMessage } from "./use-scroll-to-message.web";
+import { createMeasurePassBudget } from "./measure-pass-budget";
 
 interface CreateWebStreamStrategyInput {
   isMobileBreakpoint: boolean;
@@ -615,7 +616,16 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     scheduler.schedule();
   });
 
-  const measureVirtualizedRows = useStableEvent(() => {
+  const measurePassBudget = useMemo(() => createMeasurePassBudget(), []);
+  useEffect(() => () => measurePassBudget.dispose(), [measurePassBudget]);
+  const measureVirtualizedRows = useStableEvent((): boolean => {
+    // Groupon Desk: a row that never settles would re-render this commit until React aborts (#185).
+    if (!measurePassBudget.canMeasure()) {
+      measurePassBudget.deferToNextFrame(() => {
+        if (isActiveRef.current) measureVirtualizedRows();
+      });
+      return false;
+    }
     let resized = false;
     for (const element of contentRef.current?.querySelectorAll<HTMLElement>(
       "[data-history-row-id][data-index]",
@@ -626,6 +636,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       rowVirtualizer.resizeItem(index, height);
       resized = true;
     }
+    if (resized) measurePassBudget.recordResize();
     return resized;
   });
 

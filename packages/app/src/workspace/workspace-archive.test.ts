@@ -150,6 +150,25 @@ describe("archiveWorkspaceOptimistically", () => {
       }),
     ).toBe(false);
   });
+
+  it("keeps the workspace hidden when the request times out after the daemon removed it", async () => {
+    const archived = workspace();
+    getHostRuntimeStore().acceptWorkspaceSnapshots(SERVER_ID, [archived]);
+    const releaseArchive = deferred<ArchiveWorkspacePayload>();
+    const client = createClient(vi.fn(async () => releaseArchive.promise));
+
+    const archive = archiveWorkspaceOptimistically({
+      client,
+      workspace: target(),
+    });
+
+    // What the daemon's remove update leaves behind: the row is already hidden, so only pending clears.
+    clearWorkspaceArchivePending({ serverId: SERVER_ID, workspaceId: archived.id });
+    releaseArchive.reject(new Error("Timeout waiting for message (60000ms)"));
+    await archive;
+
+    expect(storedWorkspace(archived.id)).toBeUndefined();
+  });
 });
 
 describe("archiveWorkspacesOptimistically", () => {

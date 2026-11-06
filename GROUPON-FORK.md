@@ -1190,6 +1190,18 @@ Cmd+Shift+T brings back the chat closed last, restoring its workspace first when
 branch, without what was not committed. The list lives in the window's memory, so a closed window
 forgets it; History still has every chat. New terminal, upstream's Cmd+Shift+T, moved to Cmd+Shift+Y.
 
+## An archived workspace stays archived when its request runs long
+
+The daemon answers `archive_workspace_request` only after the worktree is off the disk, while the
+record is archived and the window told within seconds. Measured 2026-11-06: 204 s for a
+`groupon-monorepo` worktree whose record was archived after 25 s. The window gave up at the default
+60 s and restored its row. The daemon sends its `remove` once, and that `remove` is already behind
+the window's cursor, so the row stayed, through reloads too, until the daemon restarted.
+
+The request now waits 10 minutes (`packages/client/src/daemon-client.ts`). A failed request restores
+the row only while the archive is still pending (`packages/app/src/workspace/workspace-archive.ts`):
+the `remove` clears pending, and after it the archive counts as done.
+
 ## Desk reliability and organization, 2026-11-05
 
 - Mounted history rows keep their measured DOM size when equivalent history objects are refreshed.

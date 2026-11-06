@@ -1,6 +1,8 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a request that fails after the daemon removed the workspace no longer brings its row back.
 import { getHostRuntimeStore } from "@/runtime/host-runtime";
 import {
   clearWorkspaceArchivePending,
+  isWorkspaceArchivePending,
   markWorkspaceArchivePending,
 } from "@/contexts/session-workspace-upserts";
 import { useSessionStore, type WorkspaceDescriptor } from "@/stores/session-store";
@@ -91,6 +93,8 @@ export async function archiveWorkspaceOptimistically(input: {
       workspaceId: input.workspace.workspaceId,
     });
   } catch (error) {
+    // The daemon's remove update cleared pending: the archive happened, whatever the request says.
+    if (!isWorkspaceArchivePending(input.workspace)) return;
     restoreOptimisticallyHiddenWorkspace({
       serverId: input.workspace.serverId,
       workspaceId: input.workspace.workspaceId,

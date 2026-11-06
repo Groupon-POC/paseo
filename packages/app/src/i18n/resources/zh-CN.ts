@@ -1039,6 +1039,20 @@ export const zhCN: TranslationResources = {
           reviews: "Reviews",
           activity: "动态",
         },
+        status: {
+          mode: {
+            status: "状态",
+            timeline: "时间线",
+          },
+          groups: {
+            reviews: "评审",
+            reports: "报告",
+            conversation: "会话",
+          },
+          passed: "{{count}} 个通过",
+          headsUp: "{{count}} 个提示",
+          round: "×{{count}}",
+        },
         empty: {
           noJobs: "无作业",
           loadingPipeline: "正在加载流水线...",

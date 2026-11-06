@@ -59,7 +59,12 @@ export function DeskUpdateSidebarRow() {
         {installing ?? GROUPON_DESK_UPDATE.available(what)}
       </Text>
       {installing ? null : (
-        <Button variant="secondary" size="xs" leftIcon={Download} onPress={() => void handleInstall()}>
+        <Button
+          variant="secondary"
+          size="xs"
+          leftIcon={Download}
+          onPress={() => void handleInstall()}
+        >
           {GROUPON_DESK_UPDATE.action}
         </Button>
       )}

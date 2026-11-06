@@ -1046,6 +1046,20 @@ export const ar: TranslationResources = {
           reviews: "التعليقات",
           activity: "النشاط",
         },
+        status: {
+          mode: {
+            status: "الحالة",
+            timeline: "الخط الزمني",
+          },
+          groups: {
+            reviews: "المراجعات",
+            reports: "التقارير",
+            conversation: "المحادثة",
+          },
+          passed: "نجح {{count}}",
+          headsUp: "تنبيهات {{count}}",
+          round: "×{{count}}",
+        },
         empty: {
           noJobs: "لا توجد مهام",
           loadingPipeline: "جارٍ تحميل خط المعالجة...",

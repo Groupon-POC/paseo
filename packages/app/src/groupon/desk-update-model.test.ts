@@ -12,7 +12,9 @@ const answer = (desk: boolean, cli: boolean): DeskUpdateAnswer => ({
 
 describe("the sidebar's update row", () => {
   it("names what is newer on the shelf", () => {
-    expect(deskUpdateWhat(answer(true, true))).toBe("Groupon Desk 2.0.8601 and the command line 2.0.8602");
+    expect(deskUpdateWhat(answer(true, true))).toBe(
+      "Groupon Desk 2.0.8601 and the command line 2.0.8602",
+    );
     expect(deskUpdateWhat(answer(false, true))).toBe("the command line 2.0.8602");
   });
 

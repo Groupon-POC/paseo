@@ -1072,6 +1072,20 @@ export const fr: TranslationResources = {
           reviews: "Revues",
           activity: "Activité",
         },
+        status: {
+          mode: {
+            status: "Statut",
+            timeline: "Chronologie",
+          },
+          groups: {
+            reviews: "Revues",
+            reports: "Rapports",
+            conversation: "Conversation",
+          },
+          passed: "{{count}} réussis",
+          headsUp: "{{count}} à noter",
+          round: "×{{count}}",
+        },
         empty: {
           noJobs: "Aucun job",
           loadingPipeline: "Chargement du pipeline…",

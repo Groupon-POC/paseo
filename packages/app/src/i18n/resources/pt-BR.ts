@@ -1069,6 +1069,20 @@ export const ptBR: TranslationResources = {
           reviews: "Revisões",
           activity: "Atividade",
         },
+        status: {
+          mode: {
+            status: "Status",
+            timeline: "Linha do tempo",
+          },
+          groups: {
+            reviews: "Revisões",
+            reports: "Relatórios",
+            conversation: "Conversa",
+          },
+          passed: "{{count}} aprovados",
+          headsUp: "{{count}} avisos",
+          round: "×{{count}}",
+        },
         empty: {
           noJobs: "Sem jobs",
           loadingPipeline: "Carregando pipeline...",

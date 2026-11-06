@@ -2,7 +2,13 @@
 
 # The work window's own sections: what it runs when it prepares or archives a worktree and its Run menu (written by its Projects page).
 [worktree]
-setup = [ "npm ci", "node ./scripts/seed-ios-native-cache.mjs", "node ./scripts/seed-worktree-dev-state.mjs", "npm run build:server", "npm run build --workspace=@getpaseo/expo-two-way-audio" ]
+setup = [
+  "npm ci",
+  "node ./scripts/seed-ios-native-cache.mjs",
+  "node ./scripts/seed-worktree-dev-state.mjs",
+  "npm run build:server",
+  "npm run build --workspace=@getpaseo/expo-two-way-audio",
+]
 
 [scripts.daemon]
 type = "service"

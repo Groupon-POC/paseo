@@ -1053,6 +1053,20 @@ export const ko: TranslationResources = {
           reviews: "리뷰",
           activity: "활동",
         },
+        status: {
+          mode: {
+            status: "상태",
+            timeline: "타임라인",
+          },
+          groups: {
+            reviews: "리뷰",
+            reports: "보고서",
+            conversation: "대화",
+          },
+          passed: "{{count}}개 통과",
+          headsUp: "알림 {{count}}개",
+          round: "×{{count}}",
+        },
         empty: {
           noJobs: "작업 없음",
           loadingPipeline: "파이프라인 로드 중…",

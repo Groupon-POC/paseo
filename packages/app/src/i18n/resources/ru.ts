@@ -1063,6 +1063,20 @@ export const ru: TranslationResources = {
           reviews: "Ревью",
           activity: "Активность",
         },
+        status: {
+          mode: {
+            status: "Статус",
+            timeline: "Лента",
+          },
+          groups: {
+            reviews: "Ревью",
+            reports: "Отчёты",
+            conversation: "Обсуждение",
+          },
+          passed: "{{count}} прошло",
+          headsUp: "{{count}} к сведению",
+          round: "×{{count}}",
+        },
         empty: {
           noJobs: "Нет заданий",
           loadingPipeline: "Загрузка пайплайна...",

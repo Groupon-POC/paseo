@@ -1054,6 +1054,20 @@ export const en = {
           reviews: "Reviews",
           activity: "Activity",
         },
+        status: {
+          mode: {
+            status: "Status",
+            timeline: "Timeline",
+          },
+          groups: {
+            reviews: "Reviews",
+            reports: "Reports",
+            conversation: "Conversation",
+          },
+          passed: "{{count}} passed",
+          headsUp: "{{count}} heads-up",
+          round: "×{{count}}",
+        },
         empty: {
           noJobs: "No jobs",
           loadingPipeline: "Loading pipeline…",

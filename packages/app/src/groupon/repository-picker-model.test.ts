@@ -289,6 +289,53 @@ describe("repositoryEntries", () => {
     ]);
   });
 
+  it("yields a Paseo project whose folder moved to the hub's checkout of the same Mac", () => {
+    // The Mini's repository moved on 2026-11-03; Paseo's project still names the old folder,
+    // the hand reports the new one every ten minutes.
+    const moved = repositoryEntries({
+      projects: [MONOREPO],
+      hubRepositories: HUB_REPOSITORIES,
+      hubCheckouts: [
+        {
+          id: "c1",
+          machine: "mini",
+          repositoryId: "r_mono",
+          rootPath: "/Users/c_tzaruba/Documents/GitHub/groupon2/engineering-development/",
+        },
+      ],
+      macs: MACS,
+    });
+    const mono = moved.find(
+      (entry) => entry.id === "repo:github.com/groupon2/engineering-development",
+    )!;
+    expect(mono.project).toBe(MONOREPO);
+    expect(mono.checkouts).toEqual([
+      {
+        macId: "mini",
+        serverId: "srv_mini",
+        macLabel: "Tomas - Mac Mini in Office",
+        path: "/Users/c_tzaruba/Documents/GitHub/groupon2/engineering-development/",
+        projectId: null,
+      },
+    ]);
+  });
+
+  it("keeps a Paseo project the hand never found when the hub knows the repository on no other path of that Mac", () => {
+    const deep = repositoryEntries({
+      projects: [MONOREPO],
+      hubRepositories: HUB_REPOSITORIES,
+      hubCheckouts: HUB_CHECKOUTS.filter((checkout) => checkout.machine !== "mini"),
+      macs: MACS,
+    });
+    const mono = deep.find(
+      (entry) => entry.id === "repo:github.com/groupon2/engineering-development",
+    )!;
+    expect(mono.checkouts.map((checkout) => [checkout.macId, checkout.projectId])).toEqual([
+      ["air", null],
+      ["mini", "p_mono_mini"],
+    ]);
+  });
+
   it("lists a repository only the hub knows, on its one Mac, with no Paseo project", () => {
     const infra = byId("repo:github.com/groupon2/infra-development");
     expect(infra.project).toBeNull();

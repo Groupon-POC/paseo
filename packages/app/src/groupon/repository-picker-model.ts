@@ -24,6 +24,10 @@
  * - A Mac is matched by its daemon's server id (Paseo's projects) or its hub machine ids (the
  *   hub's checkouts), never by a label; a missing daemon remote is recovered only from the hub's
  *   exact checkout path on the same Mac
+ * - A Paseo project whose folder moved yields to the hub: the hand re-reads the Mac's disk every
+ *   ten minutes, so when the hub holds the repository on that Mac at other paths only, the
+ *   project's path is stale (the owner's Mac Mini, 2026-11-08: a repository moved on 11-03 kept
+ *   failing with "Directory not found" for five days) and the hub's checkout is used instead
  */
 
 import { isChatsProject } from "./project-less-chats";
@@ -135,10 +139,29 @@ function reportedRemoteOfProject(
 interface Draft {
   entry: RepositoryEntry;
   byMac: Map<string, RepositoryCheckout>;
+  /** The hub's checkout paths of this repository per Mac, as the hand found them on its disk. */
+  hubPaths: Map<string, Set<string>>;
+}
+
+const macKeyOf = (checkout: Pick<RepositoryCheckout, "macId" | "serverId">): string =>
+  checkout.macId ?? `server:${checkout.serverId}`;
+
+const trimmedPath = (path: string): string => path.replace(/\/+$/, "");
+
+/**
+ * Whether a Paseo project's checkout stands where the hand no longer finds the repository: the
+ * hub knows the repository on that Mac, at other paths only. The hand looks two folders deep
+ * under the home folder, so a project it never found keeps its say.
+ */
+function staleOnHub(draft: Draft, checkout: RepositoryCheckout): boolean {
+  if (checkout.projectId === null) return false;
+  const paths = draft.hubPaths.get(macKeyOf(checkout));
+  return paths !== undefined && paths.size > 0 && !paths.has(trimmedPath(checkout.path));
 }
 
 function addCheckout(draft: Draft, checkout: RepositoryCheckout): void {
-  const key = checkout.macId ?? `server:${checkout.serverId}`;
+  if (staleOnHub(draft, checkout)) return;
+  const key = macKeyOf(checkout);
   const kept = draft.byMac.get(key);
   // One checkout per Mac: the one Paseo lists as a project wins, else the first reported.
   if (kept && (kept.projectId !== null || checkout.projectId === null)) return;
@@ -173,6 +196,17 @@ export function repositoryEntries(input: RepositoryEntriesInput): RepositoryEntr
     if (!remote || repository.hidden) continue;
     remoteOfRepository.set(repository.id, remote);
   }
+  // Where the hand found each repository on each Mac, read before any project is placed.
+  const hubPathsOf = new Map<string, Map<string, Set<string>>>();
+  for (const checkout of input.hubCheckouts) {
+    const remote = remoteOfRepository.get(checkout.repositoryId);
+    const mac = remote ? macOfMachine(input.macs, checkout.machine) : null;
+    if (!remote || !mac) continue;
+    const byMac = hubPathsOf.get(remote) ?? new Map<string, Set<string>>();
+    const key = macKeyOf({ macId: mac.id, serverId: mac.hostServerId });
+    byMac.set(key, (byMac.get(key) ?? new Set<string>()).add(trimmedPath(checkout.rootPath)));
+    hubPathsOf.set(remote, byMac);
+  }
 
   const draftFor = (remote: string, project: HostProjectListItem | null): Draft => {
     const kept = repositories.get(remote);
@@ -189,6 +223,7 @@ export function repositoryEntries(input: RepositoryEntriesInput): RepositoryEntr
         checkouts: [],
       },
       byMac: new Map(),
+      hubPaths: hubPathsOf.get(remote) ?? new Map(),
     };
     repositories.set(remote, draft);
     return draft;
@@ -208,6 +243,7 @@ export function repositoryEntries(input: RepositoryEntriesInput): RepositoryEntr
             checkouts: [],
           },
           byMac: new Map(),
+          hubPaths: new Map(),
         };
     if (!remote) folders.push(draft);
     for (const checkout of projectCheckouts(project, input.macs, hostLabel)) {

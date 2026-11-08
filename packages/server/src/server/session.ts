@@ -868,6 +868,8 @@ export class Session {
   private readonly agentDirectory: AgentDirectory;
   private readonly directorySync: DirectorySyncService;
   private readonly filesystem: SessionFileSystem;
+  /** Groupon Desk: the projects whose remote key this session already read from git. */
+  private readonly projectRemoteKeyTried = new Set<string>();
   private readonly github: ForgeService;
   private readonly renameCurrentBranch: typeof renameCurrentBranchDefault;
   private readonly workspaceGitService: WorkspaceGitService;
@@ -7349,6 +7351,20 @@ export class Session {
     }
   }
 
+  /** Groupon Desk: a path-keyed project is read from git once per session, so every list carries its remote key. */
+  private async projectWithRemoteKey(
+    project: PersistedProjectRecord,
+  ): Promise<PersistedProjectRecord> {
+    if (
+      project.projectKey?.startsWith("remote:") ||
+      this.projectRemoteKeyTried.has(project.projectId)
+    ) {
+      return project;
+    }
+    this.projectRemoteKeyTried.add(project.projectId);
+    return this.workspaceProvisioning.backfillProjectRemoteKey(project);
+  }
+
   private async handleProjectListRequest(
     request: Extract<SessionInboundMessage, { type: "project.list.request" }>,
   ): Promise<void> {
@@ -7356,7 +7372,9 @@ export class Session {
       const projects = await Promise.all(
         (await this.projectRegistry.list())
           .filter((project) => !project.archivedAt)
-          .map((project) => this.buildProjectDescriptor(project)),
+          .map(async (project) =>
+            this.buildProjectDescriptor(await this.projectWithRemoteKey(project)),
+          ),
       );
       const synchronized = request.sync
         ? this.directorySync.synchronizeProjects(projects, request.sync)

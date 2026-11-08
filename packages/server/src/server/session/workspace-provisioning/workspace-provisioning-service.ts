@@ -78,6 +78,12 @@ export interface WorkspaceProvisioningService {
     input: CreateWorktreeWorkspaceInput,
   ): Promise<PersistedWorkspaceRecord>;
   findOrCreateProjectForDirectory(cwd: string): Promise<PersistedProjectRecord>;
+  /**
+   * Groupon Desk: a project keyed by its path gets its `remote:` key from git when its folder
+   * is a checkout with a remote; a project already keyed by a remote, or whose folder is gone,
+   * is left as it is. The sidebar joins the same repository across Macs by this key alone.
+   */
+  backfillProjectRemoteKey(project: PersistedProjectRecord): Promise<PersistedProjectRecord>;
   ensureWorkspaceRecordUnarchived(
     workspace: PersistedWorkspaceRecord,
   ): Promise<PersistedWorkspaceRecord>;
@@ -503,6 +509,50 @@ export function createWorkspaceProvisioningService(deps: {
     return refreshed;
   }
 
+  // Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Mac Mini's groupon-monorepo project,
+  // made by a daemon that wrote no remote key, sat in a group of its own beside the Studio's
+  // (2026-11-08). Only a path-keyed project is read, only a remote key is written, so a project
+  // whose folder is gone or has no remote never loses the identity it has.
+  async function backfillProjectRemoteKey(
+    project: PersistedProjectRecord,
+  ): Promise<PersistedProjectRecord> {
+    if (project.archivedAt || project.projectKey?.startsWith("remote:")) return project;
+    if (!(await deps.isDirectory(project.rootPath))) return project;
+    let checkout: Awaited<ReturnType<WorkspaceGitService["getCheckout"]>>;
+    try {
+      checkout = await workspaceGitService.getCheckout(project.rootPath);
+    } catch (error) {
+      logger.warn({ err: error, rootPath: project.rootPath }, "Project remote key not read");
+      return project;
+    }
+    if (!checkout.isGit || !checkout.remoteUrl) return project;
+    const projectKey = deriveProjectKey({
+      rootPath: project.rootPath,
+      remoteUrl: checkout.remoteUrl,
+      worktreeRoot: checkout.worktreeRoot,
+      mainRepoRoot: checkout.mainRepoRoot,
+      serverId,
+    });
+    if (!projectKey.startsWith("remote:") || projectKey === project.projectKey) return project;
+    const refreshed = {
+      ...project,
+      kind: "git" as const,
+      projectKey,
+      updatedAt: new Date().toISOString(),
+    };
+    await projectRegistry.upsert(refreshed);
+    logger.info(
+      {
+        projectId: project.projectId,
+        rootPath: project.rootPath,
+        from: project.projectKey,
+        to: projectKey,
+      },
+      "Project keyed by its remote",
+    );
+    return refreshed;
+  }
+
   return {
     runInImportWorkspace,
     findOrCreateWorkspaceForDirectory,
@@ -510,6 +560,7 @@ export function createWorkspaceProvisioningService(deps: {
     createWorkspaceForDirectory,
     createWorkspaceForWorktree,
     findOrCreateProjectForDirectory,
+    backfillProjectRemoteKey,
     ensureWorkspaceRecordUnarchived,
   };
 }

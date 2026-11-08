@@ -2,7 +2,7 @@ import os from "node:os";
 import path from "node:path";
 import { mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync } from "node:fs";
 
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { getCheckoutStatus } from "../../../utils/checkout-git.js";
 import { createTestLogger } from "../../../test-utils/test-logger.js";
@@ -977,5 +977,78 @@ test("a directory that goes away while the git read is in flight keeps its place
     workspaceId: created.workspaceId,
     kind: "local_checkout",
     branch: "feature/vanishing",
+  });
+});
+
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): a project keyed by its path takes its remote key from git.
+describe("backfillProjectRemoteKey", () => {
+  const remoteOf = new Map<string, string>();
+  const keyed = (rootPath: string, projectKey: string | null) => ({
+    projectId: `prj_${path.basename(rootPath)}`,
+    rootPath,
+    kind: "git" as const,
+    displayName: path.basename(rootPath),
+    projectKey,
+    customName: null,
+    customIconRevision: null,
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-01T00:00:00.000Z",
+    archivedAt: null,
+  });
+
+  beforeEach(() => {
+    remoteOf.clear();
+    provisioning = createWorkspaceProvisioningService({
+      serverId: "srv_mini",
+      workspaceRegistry,
+      projectRegistry,
+      workspaceGitService: createNoopWorkspaceGitService({
+        getCheckout: async (cwd: string) => ({
+          cwd,
+          isGit: gitRoots.has(cwd),
+          currentBranch: gitRoots.has(cwd) ? "staging" : null,
+          remoteUrl: remoteOf.get(cwd) ?? null,
+          worktreeRoot: gitRoots.has(cwd) ? cwd : null,
+          isPaseoOwnedWorktree: false,
+          mainRepoRoot: null,
+        }),
+      }),
+      isDirectory,
+      logger,
+    });
+  });
+
+  test("a path-keyed checkout with a remote is keyed by that remote, lowercased on GitHub", async () => {
+    const repo = path.join(tmpDir, "groupon-monorepo");
+    mkdirSync(repo, { recursive: true });
+    gitRoots.add(repo);
+    remoteOf.set(repo, "git@github.com:Groupon/groupon-monorepo.git");
+    await projectRegistry.upsert(keyed(repo, `host:srv_mini:${repo}`));
+
+    const refreshed = await provisioning.backfillProjectRemoteKey(
+      (await projectRegistry.list())[0]!,
+    );
+
+    expect(refreshed.projectKey).toBe("remote:github.com/groupon/groupon-monorepo");
+    expect((await projectRegistry.list())[0]!.projectKey).toBe(
+      "remote:github.com/groupon/groupon-monorepo",
+    );
+  });
+
+  test("a project whose folder is gone, has no remote, or is keyed by a remote already is left alone", async () => {
+    const gone = path.join(tmpDir, "gone");
+    const plain = path.join(tmpDir, "plain");
+    mkdirSync(plain, { recursive: true });
+    gitRoots.add(plain);
+    const remote = path.join(tmpDir, "remote");
+    mkdirSync(remote, { recursive: true });
+    for (const project of [
+      keyed(gone, `host:srv_mini:${gone}`),
+      keyed(plain, `host:srv_mini:${plain}`),
+      keyed(remote, "remote:github.com/groupon2/engineering-development"),
+    ]) {
+      expect(await provisioning.backfillProjectRemoteKey(project)).toBe(project);
+    }
+    expect(await projectRegistry.list()).toHaveLength(0);
   });
 });

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the PR timeline keeps the newest 100 reviews, comments and review threads, not the oldest.
 import { z } from "zod";
 import {
   isGitHubHost,
@@ -405,7 +406,7 @@ const PullRequestReviewThreadNodeSchema = z.object({
 });
 
 const PullRequestTimelinePageInfoSchema = z.object({
-  hasNextPage: z.boolean().catch(false),
+  hasPreviousPage: z.boolean().catch(false),
 });
 
 const PullRequestTimelineGraphqlSchema = z.object({
@@ -419,21 +420,21 @@ const PullRequestTimelineGraphqlSchema = z.object({
               reviews: z
                 .object({
                   nodes: z.array(PullRequestTimelineReviewNodeSchema).catch([]),
-                  pageInfo: PullRequestTimelinePageInfoSchema.catch({ hasNextPage: false }),
+                  pageInfo: PullRequestTimelinePageInfoSchema.catch({ hasPreviousPage: false }),
                 })
-                .catch({ nodes: [], pageInfo: { hasNextPage: false } }),
+                .catch({ nodes: [], pageInfo: { hasPreviousPage: false } }),
               comments: z
                 .object({
                   nodes: z.array(PullRequestTimelineCommentNodeSchema).catch([]),
-                  pageInfo: PullRequestTimelinePageInfoSchema.catch({ hasNextPage: false }),
+                  pageInfo: PullRequestTimelinePageInfoSchema.catch({ hasPreviousPage: false }),
                 })
-                .catch({ nodes: [], pageInfo: { hasNextPage: false } }),
+                .catch({ nodes: [], pageInfo: { hasPreviousPage: false } }),
               reviewThreads: z
                 .object({
                   nodes: z.array(PullRequestReviewThreadNodeSchema).catch([]),
-                  pageInfo: PullRequestTimelinePageInfoSchema.catch({ hasNextPage: false }),
+                  pageInfo: PullRequestTimelinePageInfoSchema.catch({ hasPreviousPage: false }),
                 })
-                .catch({ nodes: [], pageInfo: { hasNextPage: false } }),
+                .catch({ nodes: [], pageInfo: { hasPreviousPage: false } }),
             })
             .nullable()
             .optional(),
@@ -559,7 +560,7 @@ query PullRequestTimeline($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       number
-      reviews(first: 100) {
+      reviews(last: 100) {
         nodes {
           id
           state
@@ -574,10 +575,10 @@ query PullRequestTimeline($owner: String!, $name: String!, $number: Int!) {
           }
         }
         pageInfo {
-          hasNextPage
+          hasPreviousPage
         }
       }
-      comments(first: 100) {
+      comments(last: 100) {
         nodes {
           id
           body
@@ -591,10 +592,10 @@ query PullRequestTimeline($owner: String!, $name: String!, $number: Int!) {
           }
         }
         pageInfo {
-          hasNextPage
+          hasPreviousPage
         }
       }
-      reviewThreads(first: 100) {
+      reviewThreads(last: 100) {
         nodes {
           id
           path
@@ -624,7 +625,7 @@ query PullRequestTimeline($owner: String!, $name: String!, $number: Int!) {
           }
         }
         pageInfo {
-          hasNextPage
+          hasPreviousPage
         }
       }
     }
@@ -3579,11 +3580,11 @@ function toPullRequestTimeline(
     repoOwner: identity.repoOwner,
     repoName: identity.repoName,
     items,
-    // S3 deliberately caps timeline fetches at the first 100 reviews, comments, and review threads.
+    // Capped at the newest 100 reviews, comments and review threads, so the latest verdicts survive.
     truncated: Boolean(
-      pullRequest?.reviews.pageInfo.hasNextPage ||
-      pullRequest?.comments.pageInfo.hasNextPage ||
-      pullRequest?.reviewThreads.pageInfo.hasNextPage ||
+      pullRequest?.reviews.pageInfo.hasPreviousPage ||
+      pullRequest?.comments.pageInfo.hasPreviousPage ||
+      pullRequest?.reviewThreads.pageInfo.hasPreviousPage ||
       pullRequest?.reviewThreads.nodes.some((thread) => thread.comments.pageInfo.hasNextPage),
     ),
     error: pullRequest ? null : { kind: "not_found", message: "Pull request not found" },

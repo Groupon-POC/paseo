@@ -105,6 +105,29 @@ describe("buildPrStatusModel reviewers", () => {
     expect(reviewer.latest.severities).toEqual([{ token: "🔴", tone: "danger", count: 2 }]);
   });
 
+  it("keeps a reviewer's rounds in timeline order, so a later review beats an earlier verdict comment", () => {
+    const model = build([
+      review("architect", "changes_requested", "## Review @ `aaaaaaa1`\n\n**Verdict: blocked.**"),
+      comment("architect", "## Review @ `bbbbbbb2`\n\n**Verdict: Request changes. 1 🔴.**"),
+      review("architect", "approved", "## Review @ `ccccccc3`\n\n**Verdict: Approve.**"),
+    ]);
+    const [reviewer] = model.reviewers;
+    expect(reviewer.rounds.map((round) => round.sha)).toEqual(["aaaaaaa", "bbbbbbb", "ccccccc"]);
+    expect(reviewer.latest.state).toBe("approved");
+    expect(reviewer.latest.severities).toEqual([]);
+  });
+
+  it("reads a count written after the mark, so a zero tally shows no badge", () => {
+    const model = build([
+      review(
+        "bot",
+        "approved",
+        "**Verdict: APPROVED.**\n\n#### 🔵 Suggestion\n\n| Findings total | 2 (🔴 0 · 🟡 0 · 🔵 2) |",
+      ),
+    ]);
+    expect(model.reviewers[0].latest.severities).toEqual([{ token: "🔵", tone: "info", count: 2 }]);
+  });
+
   it("merges a stub review with the verdict comment that names the same commit", () => {
     const model = build([
       review("architect", "changes_requested", "## Review @ `4bbd3580aa` (inline comments)"),

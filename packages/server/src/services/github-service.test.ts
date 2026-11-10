@@ -1886,11 +1886,11 @@ describe("ForgeService", () => {
         "number=42",
       ],
     });
-    expect(runner.calls[0]?.args[3]).toContain("reviews(first: 100)");
-    expect(runner.calls[0]?.args[3]).toContain("comments(first: 100)");
+    expect(runner.calls[0]?.args[3]).toContain("reviews(last: 100)");
+    expect(runner.calls[0]?.args[3]).toContain("comments(last: 100)");
     expect(runner.calls[0]?.args[3]).toContain("bodyHTML");
     expect(runner.calls[0]?.args[3]).toContain("avatarUrl");
-    expect(runner.calls[0]?.args[3]).toContain("reviewThreads(first: 100)");
+    expect(runner.calls[0]?.args[3]).toContain("reviewThreads(last: 100)");
     expect(timeline).toEqual({
       prNumber: 42,
       repoOwner: "parentOwner",
@@ -2328,12 +2328,12 @@ describe("ForgeService", () => {
     ]);
   });
 
-  it("marks PR timeline results truncated when reviews or comments hit the pagination cap", async () => {
+  it("marks PR timeline results truncated when older reviews or comments fall outside the cap", async () => {
     const runner = createRunner([
       pullRequestTimelineJson({
         reviews: {
           nodes: [],
-          pageInfo: { hasNextPage: true },
+          pageInfo: { hasPreviousPage: true },
         },
         comments: {
           nodes: [],

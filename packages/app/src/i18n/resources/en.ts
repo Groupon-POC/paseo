@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name wherever the English names it, the engine's included (owner, 2026-10-20: no trace of Paseo a person meets); the project config is .groupon/desk.toml. The desktop notifications switch (`settings.notifications.enabled`, `enabledHint`). The sidebar's Show New workspace toggle (`sidebar.display.showNewWorkspaceRows`). New workspace's isolation reads Local or Worktree.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name wherever the English names it, the engine's included (owner, 2026-10-20: no trace of Paseo a person meets); the project config is .groupon/desk.toml. The desktop notifications switch (`settings.notifications.enabled`, `enabledHint`). The sidebar's Show New workspace toggle (`sidebar.display.showNewWorkspaceRows`). New workspace's isolation reads Local or Worktree. The too-large diff state reads the owner's words (ENC-12144).
 export const en = {
   paneFind: {
     connectionFailure: "Could not search this chat. Check the host connection and retry.",
@@ -943,8 +943,8 @@ export const en = {
         },
         binaryFile: "Binary file",
         tooLarge: "Diff too large to display",
-        previewTooLargeTitle: "This diff is too large to preview",
-        previewTooLargeDescription: "Narrow the comparison to preview it here",
+        previewTooLargeTitle: "This workspace's changes are too large to show here",
+        previewTooLargeDescription: "Open them on the machine, or narrow the comparison.",
         unified: "Unified diff",
         split: "Side-by-side diff",
         switchToUnified: "Switch to unified diff",

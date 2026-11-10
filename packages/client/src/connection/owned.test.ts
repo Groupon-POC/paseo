@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { OwnedSubscriptions } from "./owned.js";
 import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
 
@@ -126,4 +126,110 @@ test("a late listener after bounded replay overflow gets a fresh snapshot", asyn
   expect(first).toEqual(["old", "fresh"]);
   expect(late).toEqual(["fresh", "update"]);
   await handle.release();
+});
+
+/** Requests per subscription, each answerable or failed the way a dropped transport fails it. */
+function droppingConnection() {
+  const subscriptions = new OwnedSubscriptions({ release: async () => {}, failed: () => {} });
+  const sent: Array<{ name: string; answer: (id: string) => void; drop: () => void }> = [];
+  subscriptions.restore();
+  const observe = (name: string) =>
+    subscriptions.observe<Snapshot>(
+      (accept) =>
+        new Promise((resolve, reject) => {
+          sent.push({
+            name,
+            answer: (subscriptionId) => {
+              const snapshot = { subscriptionId, requestId: name };
+              accept(snapshot);
+              resolve(snapshot);
+            },
+            drop: () => reject(new Error("Relay stream ended")),
+          });
+        }),
+    );
+  const lastSent = (name: string) => sent.findLast((request) => request.name === name);
+  const drop = async () => {
+    subscriptions.disconnected();
+    for (const request of sent) request.drop();
+    await vi.advanceTimersByTimeAsync(0);
+    subscriptions.restore();
+  };
+  const sentCount = (name: string) => sent.filter((request) => request.name === name).length;
+  return { observe, drop, lastSent, sentCount };
+}
+
+test("a subscription in flight at two drops in a row is asked again only after a back-off, the others at once (ENC-12144)", async () => {
+  vi.useFakeTimers();
+  try {
+    const c = droppingConnection();
+    c.observe("diff");
+    c.observe("agents");
+    c.lastSent("agents")!.answer("agents-1");
+
+    await c.drop();
+    expect(c.sentCount("diff")).toBe(2);
+    c.lastSent("agents")!.answer("agents-2");
+    await c.drop();
+
+    expect(c.sentCount("agents")).toBe(3);
+    expect(c.sentCount("diff")).toBe(2);
+    await vi.advanceTimersByTimeAsync(1_999);
+    expect(c.sentCount("diff")).toBe(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(c.sentCount("diff")).toBe(3);
+
+    await c.drop();
+    await vi.advanceTimersByTimeAsync(3_999);
+    expect(c.sentCount("diff")).toBe(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(c.sentCount("diff")).toBe(4);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("the back-off stops at 60 s and ends once the subscription gets its snapshot (ENC-12144)", async () => {
+  vi.useFakeTimers();
+  try {
+    const c = droppingConnection();
+    c.observe("diff");
+    for (let drop = 0; drop < 8; drop++) {
+      await c.drop();
+      await vi.advanceTimersByTimeAsync(60_000);
+    }
+    const before = c.sentCount("diff");
+    await c.drop();
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(c.sentCount("diff")).toBe(before);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(c.sentCount("diff")).toBe(before + 1);
+
+    c.lastSent("diff")!.answer("diff-ok");
+    await vi.advanceTimersByTimeAsync(0);
+    await c.drop();
+    expect(c.sentCount("diff")).toBe(before + 2);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("a drop while the subscription waits out its back-off keeps its count (ENC-12144)", async () => {
+  vi.useFakeTimers();
+  try {
+    const c = droppingConnection();
+    c.observe("diff");
+    await c.drop();
+    await c.drop();
+    expect(c.sentCount("diff")).toBe(2);
+
+    await c.drop();
+    await vi.advanceTimersByTimeAsync(1_999);
+
+    expect(c.sentCount("diff")).toBe(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(c.sentCount("diff")).toBe(3);
+  } finally {
+    vi.useRealTimers();
+  }
 });

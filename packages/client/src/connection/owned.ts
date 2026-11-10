@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a subscription in flight at two drops in a row is asked again after a back-off, 2 s doubling to 60 s (ENC-12144).
 import type { SessionOutboundMessage } from "@getpaseo/protocol/messages";
 
 export type SubscriptionSnapshot<T> = T & { subscriptionId: string };
@@ -29,6 +30,20 @@ export interface OwnedSubscriptionsHost {
 }
 
 const MAX_BOOTSTRAP_UPDATES = 128;
+/** The first wait before asking again for a subscription that was in flight at two drops in a row. */
+export const REPEATED_DROP_FIRST_BACKOFF_MS = 2_000;
+export const REPEATED_DROP_MAX_BACKOFF_MS = 60_000;
+
+/**
+ * How long to wait before asking again for a subscription whose opening request was in flight at
+ * `drops` drops in a row: none for one (an ordinary reconnect), then 2 s, doubling, at most 60 s.
+ * A reply too big for the relay ends the connection every time it is asked for (ENC-12144), so
+ * asking again at once only drops the connection again.
+ */
+export function repeatedDropBackoffMs(drops: number): number {
+  if (drops < 2) return 0;
+  return Math.min(REPEATED_DROP_FIRST_BACKOFF_MS * 2 ** (drops - 2), REPEATED_DROP_MAX_BACKOFF_MS);
+}
 
 /** Transport routing and lifetime only; query semantics remain with each domain. */
 export class OwnedSubscriptions {
@@ -50,6 +65,15 @@ export class OwnedSubscriptions {
     let teardown: Promise<void> | null = null;
     let disposed = false;
     let overflow = false;
+    // Drops in a row that found this subscription's opening request in flight, and the wait that follows.
+    let dropsInFlight = 0;
+    let backoff: ReturnType<typeof setTimeout> | null = null;
+    let backoffElapsed = false;
+    const clearBackoff = () => {
+      if (backoff !== null) clearTimeout(backoff);
+      backoff = null;
+      backoffElapsed = false;
+    };
     const buffered: SessionOutboundMessage[] = [];
     const observers = new Set<SubscriptionObserver<SubscriptionSnapshot<T>>>();
     let resolve!: (snapshot: SubscriptionSnapshot<T>) => void;
@@ -81,10 +105,21 @@ export class OwnedSubscriptions {
     const registration: Registration = {
       start: () => {
         if (disposed || pending || id || !this.connected) return;
+        const wait = repeatedDropBackoffMs(dropsInFlight);
+        if (wait > 0 && !backoffElapsed) {
+          backoff ??= setTimeout(() => {
+            backoff = null;
+            backoffElapsed = true;
+            registration.start();
+          }, wait);
+          return;
+        }
+        backoffElapsed = false;
         const generation = this.generation;
         pending = request((value) => {
           if (generation !== this.generation) return;
           assertSubscriptionSnapshot(value);
+          dropsInFlight = 0;
           id = value.subscriptionId;
           snapshot = value;
           buffered.length = 0;
@@ -121,6 +156,10 @@ export class OwnedSubscriptions {
           });
       },
       disconnected: () => {
+        // A drop while the subscription waits out its back-off keeps the count: it was not asked.
+        if (pending) dropsInFlight += 1;
+        else if (backoff === null) dropsInFlight = 0;
+        clearBackoff();
         id = null;
         snapshot = undefined;
         buffered.length = 0;
@@ -138,6 +177,7 @@ export class OwnedSubscriptions {
       release: () => {
         if (teardown) return teardown;
         disposed = true;
+        clearBackoff();
         signal?.removeEventListener("abort", abort);
         observers.clear();
         buffered.length = 0;

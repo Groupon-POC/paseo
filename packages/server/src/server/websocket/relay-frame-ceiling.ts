@@ -14,25 +14,15 @@ export const RELAY_MAX_PLAINTEXT_BYTES = maxSecuredPlaintextByteLength(
 export const RELAY_FRAME_TOO_LARGE_CODE = "relay_frame_too_large";
 
 /** What the log line and the error reply say of a refused message; never its content. */
-export interface OversizedMessageFacts {
-  messageType: string;
-  requestId?: string;
-  subscriptionId?: string;
-  cwd?: string;
-}
-
-export function describeOversizedMessage(message: unknown): OversizedMessageFacts {
+export function describeOversizedMessage(message: unknown) {
   const outer = asRecord(message);
   const inner = outer?.type === "session" ? asRecord(outer.message) : outer;
   const payload = asRecord(inner?.payload);
   return {
     messageType: stringField(inner, "type") ?? "unknown",
-    ...optionalField(
-      "requestId",
-      stringField(payload, "requestId") ?? stringField(inner, "requestId"),
-    ),
-    ...optionalField("subscriptionId", stringField(payload, "subscriptionId")),
-    ...optionalField("cwd", stringField(payload, "cwd")),
+    requestId: stringField(payload, "requestId") ?? stringField(inner, "requestId"),
+    subscriptionId: stringField(payload, "subscriptionId"),
+    cwd: stringField(payload, "cwd"),
   };
 }
 
@@ -50,11 +40,4 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function stringField(record: Record<string, unknown> | null, key: string): string | undefined {
   const value = record?.[key];
   return typeof value === "string" ? value : undefined;
-}
-
-function optionalField<TKey extends string>(
-  key: TKey,
-  value: string | undefined,
-): Partial<Record<TKey, string>> {
-  return value === undefined ? {} : ({ [key]: value } as Record<TKey, string>);
 }

@@ -1293,13 +1293,18 @@ export class VoiceAssistantWebSocketServer {
     bytes: number,
   ): WebSocketLike[] {
     if (bytes <= RELAY_MAX_PLAINTEXT_BYTES) return sockets;
-    const refused = sockets.filter((ws) => this.isRelaySocket(ws));
+    const sendable: WebSocketLike[] = [];
+    const refused: Array<{ ws: WebSocketLike; identity: WebSocketConnectionIdentity }> = [];
+    for (const ws of sockets) {
+      const identity = this.socketIdentities.get(ws);
+      if (identity && identity.transport !== "direct") refused.push({ ws, identity });
+      else sendable.push(ws);
+    }
     if (refused.length === 0) return sockets;
     const facts = describeOversizedMessage(message);
-    const identity = this.socketIdentities.get(refused[0]);
     this.logger.warn(
       {
-        ...(identity ? toConnectionLogFields(identity) : {}),
+        ...toConnectionLogFields(refused[0].identity),
         ...facts,
         bytes,
         maxBytes: RELAY_MAX_PLAINTEXT_BYTES,
@@ -1307,7 +1312,7 @@ export class VoiceAssistantWebSocketServer {
       },
       "relay_outbound_frame_too_large",
     );
-    for (const ws of refused) {
+    for (const { ws } of refused) {
       if (facts.requestId !== undefined) {
         // The delivery grants the reply its own proof, so a modern window receives it too.
         this.sessions.get(ws)?.session.delivery.protocolFailure(ws, {
@@ -1317,16 +1322,12 @@ export class VoiceAssistantWebSocketServer {
         });
       } else {
         // No request to fail: an update the window never gets would leave its screen stale, so
-        // the socket closes as it did before, now named, and the window reconnects and refetches.
+        // the socket closes, named, and the window refetches; its reconnect back-off grows while
+        // connections keep dropping.
         ws.close(1009, "Frame too large");
       }
     }
-    return sockets.filter((ws) => !refused.includes(ws));
-  }
-
-  private isRelaySocket(ws: WebSocketLike): boolean {
-    const transport = this.socketIdentities.get(ws)?.transport;
-    return transport !== undefined && transport !== "direct";
+    return sendable;
   }
 
   private async sendMessageToClientAndWait(

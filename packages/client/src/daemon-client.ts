@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): sendAgentMessage may name the prompt's author; a relay rollover reconnects at once, unannounced; archiving a workspace outwaits its worktree's removal.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): sendAgentMessage may name the prompt's author; a relay rollover reconnects at once, unannounced; archiving a workspace outwaits its worktree's removal. The reconnect back-off starts over only after a connection stayed up 30 s, so a server that drops each connection at once is retried ever more slowly (ENC-12144).
 import {
   HOST_ROUTE_OPCODE,
   encodeHostRouteFrame,
@@ -1091,6 +1091,12 @@ function toTimeoutError(error: unknown, label: string, timeoutMs: number): Error
 
 const DEFAULT_RECONNECT_BASE_DELAY_MS = 1500;
 const DEFAULT_RECONNECT_MAX_DELAY_MS = 30000;
+/**
+ * How long a connection must stay up before the reconnect back-off starts over. A connection the
+ * server drops right after its hello (a reply too big for the relay, ENC-12144) then waits longer
+ * each time instead of retrying at the shortest delay in a loop.
+ */
+const STABLE_CONNECTION_MS = 30_000;
 const DEFAULT_SESSION_RPC_TIMEOUT_MS = 60_000;
 const PUSH_TOKEN_REVOCATION_TIMEOUT_MS = 2_000;
 const DEFAULT_CONNECT_TIMEOUT_MS = 15_000;
@@ -1332,6 +1338,7 @@ export class DaemonClient {
   private connectTimeout: ReturnType<typeof setTimeout> | null = null;
   private pendingGenericTransportErrorTimeout: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempt = 0;
+  private reconnectAttemptReset: ReturnType<typeof setTimeout> | null = null;
   private traceConnectionAttempt = 0;
   private shouldReconnect = true;
   private connectPromise: Promise<void> | null = null;
@@ -1666,6 +1673,7 @@ export class DaemonClient {
     }
     this.shouldReconnect = false;
     this.rejectConnect(new Error("Daemon client closed"));
+    this.clearReconnectAttemptReset();
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -7006,6 +7014,7 @@ export class DaemonClient {
   }
 
   private discardLostConnection(reason: string | undefined, failure?: Error): void {
+    this.clearReconnectAttemptReset();
     this.owned.disconnected();
     this.providerSnapshotUpdates.clear();
 
@@ -7067,6 +7076,19 @@ export class DaemonClient {
         ...(input?.reasonCode ? { reasonCode: input.reasonCode } : {}),
       },
     );
+  }
+
+  private armReconnectAttemptReset(): void {
+    this.clearReconnectAttemptReset();
+    this.reconnectAttemptReset = setTimeout(() => {
+      this.reconnectAttemptReset = null;
+      this.reconnectAttempt = 0;
+    }, STABLE_CONNECTION_MS);
+  }
+
+  private clearReconnectAttemptReset(): void {
+    if (this.reconnectAttemptReset) clearTimeout(this.reconnectAttemptReset);
+    this.reconnectAttemptReset = null;
   }
 
   private armReconnectTimer(): void {
@@ -7160,7 +7182,7 @@ export class DaemonClient {
         this.connectionFailure = undefined;
         if (this.connectionState.status === "connecting") {
           this.resetConnectTimeout();
-          this.reconnectAttempt = 0;
+          this.armReconnectAttemptReset();
           this.updateConnectionState({ status: "connected" }, { event: "HELLO_SERVER_INFO" });
           this.startLivenessHeartbeat();
           this.owned.restore(serverInfo, {

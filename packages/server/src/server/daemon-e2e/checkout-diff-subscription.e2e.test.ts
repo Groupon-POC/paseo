@@ -133,7 +133,7 @@ test("pushes updates when subscribed from a subdirectory and files change outsid
   }
 }, 60000);
 
-test("keeps the socket usable after rejecting an oversized structured diff", async () => {
+test("keeps the socket usable and lists each file too large for the reply as too_large (ENC-12144)", async () => {
   const cwd = tmpCwd();
 
   try {
@@ -149,12 +149,17 @@ test("keeps the socket usable after rejecting an oversized structured diff", asy
     const subscription = ctx.client.observeCheckoutDiff(cwd, { mode: "uncommitted" });
     const initial = await subscription.ready;
 
+    // Groupon Desk: a file whose highlighted diff would cross the reply cap is listed without its
+    // hunks instead of failing the whole diff (ENC-12144).
     expect(initial).toMatchObject({
       cwd,
-      files: [],
-      diffTooLarge: true,
-      error: { code: "UNKNOWN" },
+      error: null,
+      files: [
+        { path: "large-a.js", status: "too_large", hunks: [], additions: 4_000 },
+        { path: "large-b.js", status: "too_large", hunks: [], additions: 4_000 },
+      ],
     });
+    expect(initial.diffTooLarge).not.toBe(true);
 
     const status = await ctx.client.getCheckoutStatus(cwd);
     expect(status).toMatchObject({ cwd, isGit: true });

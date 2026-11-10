@@ -1249,9 +1249,9 @@ in `groupon2/engineering-development`.
   ids, and fails the message's request with `rpc_error`, code `relay_frame_too_large`, through
   `SessionDelivery.protocolFailure`; a message that answers no request closes that relay socket with
   1009 instead, so the window refetches.
-- A subscription whose opening request was in flight at two drops in a row is asked again after
-  2 s, doubling to 60 s, while the others reconnect at once (`packages/client/src/connection/owned.ts`).
-  The window cannot see the 1009: Core closes a daemon's clients with 1012 whatever ended its data
+- The reconnect back-off (1.5 s doubling to 30 s) starts over only after a connection stayed up
+  30 s, not on every hello (`STABLE_CONNECTION_MS`, `packages/client/src/daemon-client.ts`), so a
+  server that drops each connection at once is retried ever more slowly. The window cannot see the 1009: Core closes a daemon's clients with 1012 whatever ended its data
   socket.
 - The too-large diff state reads "This workspace's changes are too large to show here. Open them on
   the machine, or narrow the comparison." (the owner's words, English only).

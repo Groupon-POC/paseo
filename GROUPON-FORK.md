@@ -1246,7 +1246,9 @@ in `groupon2/engineering-development`.
 - The daemon never sends a relay or hub socket a JSON message over one frame
   (`packages/server/src/server/websocket/relay-frame-ceiling.ts`, called from
   `prepareJsonDelivery`): it logs `relay_outbound_frame_too_large` with the type, bytes, cwd and
-  ids, and fails the message's request with `rpc_error`, code `relay_frame_too_large`.
+  ids, and fails the message's request with `rpc_error`, code `relay_frame_too_large`, through
+  `SessionDelivery.protocolFailure`; a message that answers no request closes that relay socket with
+  1009 instead, so the window refetches.
 - A subscription whose opening request was in flight at two drops in a row is asked again after
   2 s, doubling to 60 s, while the others reconnect at once (`packages/client/src/connection/owned.ts`).
   The window cannot see the 1009: Core closes a daemon's clients with 1012 whatever ended its data

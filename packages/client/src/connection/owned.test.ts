@@ -149,14 +149,26 @@ function droppingConnection() {
         }),
     );
   const lastSent = (name: string) => sent.findLast((request) => request.name === name);
+  // One drop as the daemon client makes it: `discardLostConnection` marks the subscriptions
+  // disconnected, the lost request fails, and the reconnect's `disposeTransport` marks them again
+  // before `restore`.
   const drop = async () => {
     subscriptions.disconnected();
     for (const request of sent) request.drop();
     await vi.advanceTimersByTimeAsync(0);
+    subscriptions.disconnected();
     subscriptions.restore();
   };
+  // A rollover: the reconnect follows at once, before the lost request has failed.
+  const rollOver = async () => {
+    subscriptions.disconnected();
+    subscriptions.disconnected();
+    for (const request of sent) request.drop();
+    subscriptions.restore();
+    await vi.advanceTimersByTimeAsync(0);
+  };
   const sentCount = (name: string) => sent.filter((request) => request.name === name).length;
-  return { observe, drop, lastSent, sentCount };
+  return { observe, drop, rollOver, lastSent, sentCount };
 }
 
 test("a subscription in flight at two drops in a row is asked again only after a back-off, the others at once (ENC-12144)", async () => {
@@ -229,6 +241,20 @@ test("a drop while the subscription waits out its back-off keeps its count (ENC-
     expect(c.sentCount("diff")).toBe(2);
     await vi.advanceTimersByTimeAsync(1);
     expect(c.sentCount("diff")).toBe(3);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test("one rollover counts as one drop, not two (ENC-12144)", async () => {
+  vi.useFakeTimers();
+  try {
+    const c = droppingConnection();
+    c.observe("diff");
+
+    await c.rollOver();
+
+    expect(c.sentCount("diff")).toBe(2);
   } finally {
     vi.useRealTimers();
   }

@@ -19,7 +19,8 @@ export interface OwnedSubscription<T> {
 
 interface Registration {
   start(): void;
-  disconnected(): void;
+  /** `dropped` is false for a second mark of the same drop (the reconnect marks it again). */
+  disconnected(dropped: boolean): void;
   receive(message: SessionOutboundMessage): void;
   release(): Promise<void>;
 }
@@ -155,10 +156,10 @@ export class OwnedSubscriptions {
             if (generation !== this.generation && !disposed) registration.start();
           });
       },
-      disconnected: () => {
+      disconnected: (dropped) => {
         // A drop while the subscription waits out its back-off keeps the count: it was not asked.
-        if (pending) dropsInFlight += 1;
-        else if (backoff === null) dropsInFlight = 0;
+        if (dropped && pending) dropsInFlight += 1;
+        else if (dropped && backoff === null) dropsInFlight = 0;
         clearBackoff();
         id = null;
         snapshot = undefined;
@@ -251,10 +252,13 @@ export class OwnedSubscriptions {
   }
 
   disconnected(): void {
+    // The daemon client marks one drop twice (the lost connection, then the reconnect's dispose):
+    // only the first mark after a restore is a drop.
+    const dropped = this.connected;
     this.connected = false;
     this.generation++;
     this.routes.clear();
-    for (const registration of this.registrations) registration.disconnected();
+    for (const registration of this.registrations) registration.disconnected(dropped);
   }
 
   async close(): Promise<void> {

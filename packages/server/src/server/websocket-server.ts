@@ -130,8 +130,9 @@ import {
 } from "./websocket/physical-socket.js";
 import {
   describeOversizedMessage,
+  RELAY_FRAME_TOO_LARGE_CODE,
   RELAY_MAX_PLAINTEXT_BYTES,
-  relayFrameTooLargeReply,
+  relayFrameTooLargeError,
 } from "./websocket/relay-frame-ceiling.js";
 
 const WS_CLOSE_DAEMON_AUTH_FAILED = 4401;
@@ -1283,8 +1284,9 @@ export class VoiceAssistantWebSocketServer {
   }
 
   // Groupon Desk (ENC-12144): a message over one relay frame would close the relay socket with
-  // 1009 and the window would ask again, in a loop. It is never sent there: it is logged once and
-  // its request, if it has one, fails with an error reply instead.
+  // 1009 and the window would ask again, in a loop. It is never sent there: one line is logged per
+  // refused message, and its request fails with an error reply, or, when it answers no request,
+  // the socket closes with 1009 so the window refetches.
   private withoutOversizedRelaySockets(
     sockets: WebSocketLike[],
     message: WSOutboundMessage,
@@ -1305,9 +1307,19 @@ export class VoiceAssistantWebSocketServer {
       },
       "relay_outbound_frame_too_large",
     );
-    if (facts.requestId !== undefined) {
-      const reply = relayFrameTooLargeReply(facts.requestId, bytes);
-      for (const ws of refused) this.sendToClient(ws, reply);
+    for (const ws of refused) {
+      if (facts.requestId !== undefined) {
+        // The delivery grants the reply its own proof, so a modern window receives it too.
+        this.sessions.get(ws)?.session.delivery.protocolFailure(ws, {
+          requestId: facts.requestId,
+          error: relayFrameTooLargeError(bytes),
+          code: RELAY_FRAME_TOO_LARGE_CODE,
+        });
+      } else {
+        // No request to fail: an update the window never gets would leave its screen stale, so
+        // the socket closes as it did before, now named, and the window reconnects and refetches.
+        ws.close(1009, "Frame too large");
+      }
     }
     return sockets.filter((ws) => !refused.includes(ws));
   }

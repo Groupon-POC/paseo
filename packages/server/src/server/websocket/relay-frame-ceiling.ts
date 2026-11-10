@@ -36,19 +36,9 @@ export function describeOversizedMessage(message: unknown): OversizedMessageFact
   };
 }
 
-/** The error reply that fails the refused message's request, so the window is not left waiting. */
-export function relayFrameTooLargeReply(requestId: string, bytes: number) {
-  return {
-    type: "session" as const,
-    message: {
-      type: "rpc_error" as const,
-      payload: {
-        requestId,
-        error: `Reply of ${bytes} B is too large for the relay (at most ${RELAY_MAX_PLAINTEXT_BYTES} B)`,
-        code: RELAY_FRAME_TOO_LARGE_CODE,
-      },
-    },
-  };
+/** The error text that fails the refused message's request, so the window is not left waiting. */
+export function relayFrameTooLargeError(bytes: number): string {
+  return `Reply of ${bytes} B is too large for the relay (at most ${RELAY_MAX_PLAINTEXT_BYTES} B)`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

@@ -30,7 +30,7 @@ import { writeMarkdownToRichClipboard } from "@/utils/rich-clipboard";
 import { getDefaultMarkdownClipboardEnvironment } from "@/utils/rich-clipboard-default-environment";
 import { isNative } from "@/constants/platform";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { CheckPresentationIcon } from "@/git/check-presentation.view";
+import { CheckPresentationIcon, IconSlot } from "@/git/check-presentation.view";
 import type { Theme } from "@/styles/theme";
 import type { PrPaneActivity } from "./data";
 import { getActivityVerbKey } from "./data";
@@ -296,7 +296,11 @@ function RoundRow({
 
 function RoundStateIcon({ round, size = 14 }: { round: PrReviewRound; size?: number }) {
   if (round.gated) {
-    return <ThemedOctagonMinus size={size} uniProps={warningColorMapping} />;
+    return (
+      <IconSlot size={size}>
+        <ThemedOctagonMinus size={size} uniProps={warningColorMapping} />
+      </IconSlot>
+    );
   }
   if (round.state === "approved") {
     return <CheckPresentationIcon presentation="success" size={size} />;
@@ -304,7 +308,11 @@ function RoundStateIcon({ round, size = 14 }: { round: PrReviewRound; size?: num
   if (round.state === "changes_requested") {
     return <CheckPresentationIcon presentation="failure" size={size} />;
   }
-  return <ThemedMessageSquare size={size - 1} uniProps={foregroundMutedColorMapping} />;
+  return (
+    <IconSlot size={size}>
+      <ThemedMessageSquare size={size - 1} uniProps={foregroundMutedColorMapping} />
+    </IconSlot>
+  );
 }
 
 function SeverityBadges({ severities }: { severities: readonly PrSeverityCount[] }) {
@@ -403,7 +411,9 @@ function ReportRow({
         testID="pr-pane-status-report"
       >
         {report.status === "info" ? (
-          <ThemedInfo size={14} uniProps={foregroundMutedColorMapping} />
+          <IconSlot size={14}>
+            <ThemedInfo size={14} uniProps={foregroundMutedColorMapping} />
+          </IconSlot>
         ) : (
           <CheckPresentationIcon
             presentation={REPORT_STATUS_PRESENTATION[report.status]}
@@ -471,7 +481,9 @@ function ConversationFold({
         <View style={styles.conversationFold}>
           {commands.map((command) => (
             <View key={command.id} style={sectionKitStyles.checkRow}>
-              <ThemedSquareSlash size={13} uniProps={foregroundMutedColorMapping} />
+              <IconSlot size={13}>
+                <ThemedSquareSlash size={13} uniProps={foregroundMutedColorMapping} />
+              </IconSlot>
               <Text style={styles.roundText} numberOfLines={1}>
                 {command.command}
                 {command.count > 1 ? ` ×${command.count}` : ""}

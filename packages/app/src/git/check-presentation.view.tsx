@@ -1,5 +1,7 @@
-import type { ReactNode } from "react";
-import { withUnistyles } from "react-native-unistyles";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): an icon sits in a fixed slot (`IconSlot`), so a long one-line text beside it cannot shrink it.
+import { useMemo, type ReactNode } from "react";
+import { View } from "react-native";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { CircleCheck, CircleDot, CircleSlash, CircleX } from "lucide-react-native";
 import { ManualStatusIcon } from "@/components/icons/manual-status-icon";
 import type { Theme } from "@/styles/theme";
@@ -72,6 +74,12 @@ export function getCheckPresentationTone(presentation: CheckPresentation): Check
   return CHECK_PRESENTATION_VIEW_POLICY[presentation].tone;
 }
 
+// On web an icon is a bare <svg>, which shrinks in a flex row; a View does not.
+export function IconSlot({ size, children }: { size: number; children: ReactNode }) {
+  const style = useMemo(() => [styles.iconSlot, { width: size, height: size }], [size]);
+  return <View style={style}>{children}</View>;
+}
+
 export function CheckPresentationIcon({
   presentation,
   size,
@@ -79,5 +87,14 @@ export function CheckPresentationIcon({
   presentation: CheckPresentation;
   size: number;
 }): ReactNode {
-  return CHECK_PRESENTATION_VIEW_POLICY[presentation].renderIcon(size);
+  return (
+    <IconSlot size={size}>{CHECK_PRESENTATION_VIEW_POLICY[presentation].renderIcon(size)}</IconSlot>
+  );
 }
+
+const styles = StyleSheet.create({
+  iconSlot: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

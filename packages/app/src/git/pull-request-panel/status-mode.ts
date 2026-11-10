@@ -82,21 +82,28 @@ export function buildPrStatusModel(
   const reviewersByAuthor = new Map<string, PrReviewerGroup>();
   const reportsByKey = new Map<string, PrReportEntry>();
   const commandsByText = new Map<string, PrCommandEntry>();
-  const comments: { entry: PrTimelineEntry; activity: PrPaneActivity }[] = [];
+  const comments: { entry: PrTimelineEntry; activity: PrPaneActivity; position: number }[] = [];
+  // Comment rounds are added after every review, so rounds are put back in timeline order at the end.
+  const roundPositions = new Map<PrReviewRound, number>();
+  function placeRound(round: PrReviewRound | null, position: number) {
+    if (round) {
+      roundPositions.set(round, position);
+    }
+  }
 
   // Reviews first: an author is a reviewer because the forge says so, never because of wording.
-  for (const entry of entries) {
+  for (const [position, entry] of entries.entries()) {
     try {
       if (entry.kind === "review") {
-        addRound(reviewersByAuthor, entry.review, entry.threads, compiled);
+        placeRound(addRound(reviewersByAuthor, entry.review, entry.threads, compiled), position);
         continue;
       }
       if (entry.kind === "single" && entry.activity.kind === "review") {
-        addRound(reviewersByAuthor, entry.activity, [], compiled);
+        placeRound(addRound(reviewersByAuthor, entry.activity, [], compiled), position);
         continue;
       }
       if (entry.kind === "single") {
-        comments.push({ entry, activity: entry.activity });
+        comments.push({ entry, activity: entry.activity, position });
         continue;
       }
       model.conversation.push(entry);
@@ -105,7 +112,7 @@ export function buildPrStatusModel(
     }
   }
 
-  for (const { entry, activity } of comments) {
+  for (const { entry, activity, position } of comments) {
     try {
       const body = activity.body;
       if (compiled.command.test(body.trim())) {
@@ -142,7 +149,7 @@ export function buildPrStatusModel(
       // author the forge already marked as a reviewer: anyone can quote the word "verdict".
       const reviewer = reviewersByAuthor.get(activity.author);
       if (reviewer && hasVerdictLine(body, compiled)) {
-        addRound(reviewersByAuthor, activity, [], compiled);
+        placeRound(addRound(reviewersByAuthor, activity, [], compiled), position);
         continue;
       }
       model.conversation.push(entry);
@@ -152,6 +159,7 @@ export function buildPrStatusModel(
   }
 
   for (const reviewer of reviewersByAuthor.values()) {
+    reviewer.rounds.sort((a, b) => (roundPositions.get(a) ?? 0) - (roundPositions.get(b) ?? 0));
     reviewer.latest = reviewer.rounds[reviewer.rounds.length - 1];
     model.reviewers.push(reviewer);
   }
@@ -243,7 +251,7 @@ function addRound(
   activity: PrPaneActivity,
   threads: PrThreadEntry[],
   compiled: CompiledRules,
-) {
+): PrReviewRound | null {
   const round = parseRound(activity, threads, compiled);
   const existing = reviewers.get(activity.author);
   if (!existing) {
@@ -256,7 +264,7 @@ function addRound(
       rounds: [round],
       latest: round,
     });
-    return;
+    return round;
   }
   // Some bots submit a stub review for the inline comments and the full verdict as a separate
   // comment. Both name the same commit, so same author + same sha is one round: the longer body
@@ -266,9 +274,10 @@ function addRound(
     : findStubSibling(existing.rounds, round);
   if (sibling) {
     mergeRounds(sibling, round);
-    return;
+    return null;
   }
   existing.rounds.push(round);
+  return round;
 }
 
 /**
@@ -362,10 +371,10 @@ function countSeverities(body: string, compiled: CompiledRules): PrSeverityCount
   const counts: PrSeverityCount[] = [];
   for (const severity of compiled.rules.severityTokens) {
     const escaped = escapeRegExp(severity.token);
-    // "2 🔴" spells the count out; otherwise each occurrence is one finding.
-    const explicit = [...body.matchAll(safeRegExp(`(\\d+)\\s*${escaped}`, "g") ?? /$^/g)].map(
-      (match) => Number.parseInt(match[1], 10),
-    );
+    // "2 🔴" or "🔴 2" spells the count out; otherwise each occurrence is one finding.
+    const explicit = [
+      ...body.matchAll(safeRegExp(`(\\d+)\\s*${escaped}|${escaped}\\s*(\\d+)`, "g") ?? /$^/g),
+    ].map((match) => Number.parseInt(match[1] ?? match[2], 10));
     const count =
       explicit.length > 0 ? Math.max(...explicit) : body.split(severity.token).length - 1;
     if (count > 0) {

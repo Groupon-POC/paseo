@@ -1033,6 +1033,11 @@ image that was a paragraph's own child, so CodeRabbit's 14 px counters in
 `<summary><strong>Pre-merge checks: <img ...>` and linked badges beside text drew as 320 px blocks;
 a picture alone in its paragraph, linked or not, stays a block.
 
+The activity fetches the newest 100 reviews, comments and review threads of a pull request, not
+the oldest (`last: 100` in `packages/server/src/services/github-service.ts`): on a pull request
+with more than 100 reviews Paseo's `first: 100` cut off every recent verdict, so the reviewer rows
+showed a long-gone "changes requested" and a later approval never appeared.
+
 ## A chat goes on by itself after a change of its own settings
 
 The agents' door changes a session's model and effort (`desk_chat_settings`) for the next turn, so

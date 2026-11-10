@@ -1342,4 +1342,65 @@ describe("relay external socket reconnect behavior", () => {
 
     await server.close();
   });
+
+  test("never sends a relay socket a frame over the relay ceiling: it logs the message once and fails its request (ENC-12144)", async () => {
+    const logger = createLogger();
+    const server = createServer({ logger });
+    const clientId = "cid-oversized-reply";
+    const directSocket = new MockSocket();
+    const relaySocket = new MockSocket();
+    await attachDirectAndHello({ server, socket: directSocket, clientId });
+    await attachRelayAndHello({ server, socket: relaySocket, clientId });
+    const session = sessionMock.instances[0];
+    const onMessage = session.args.onMessage as (message: unknown) => void;
+    const relaySentBefore = relaySocket.sent.length;
+    const directSentBefore = directSocket.sent.length;
+    // About 7 MB of plaintext: over the largest plaintext an 8 MiB encrypted relay frame carries.
+    const oversized = {
+      type: "checkout.diff.get.response",
+      payload: {
+        requestId: "diff-1",
+        cwd: "/repo",
+        files: [{ path: "big.txt", text: "x".repeat(7_000_000) }],
+      },
+    };
+
+    onMessage(oversized);
+    onMessage({ type: "status", payload: { status: "ok" } });
+
+    const relayFrames = relaySocket.sent.slice(relaySentBefore);
+    expect(
+      relayFrames.every((frame) => typeof frame !== "string" || frame.length < 1_000_000),
+    ).toBe(true);
+    expect(relayFrames.filter((frame) => typeof frame === "string").map(parseSentEnvelope)).toEqual(
+      [
+        {
+          type: "session",
+          message: {
+            type: "rpc_error",
+            payload: {
+              requestId: "diff-1",
+              error: expect.stringContaining("too large for the relay"),
+              code: "relay_frame_too_large",
+            },
+          },
+        },
+        { type: "session", message: { type: "status", payload: { status: "ok" } } },
+      ],
+    );
+    expect(directSocket.sent.slice(directSentBefore)).toHaveLength(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageType: "checkout.diff.get.response",
+        requestId: "diff-1",
+        cwd: "/repo",
+        bytes: expect.any(Number),
+        maxBytes: expect.any(Number),
+        transport: "relay",
+      }),
+      "relay_outbound_frame_too_large",
+    );
+
+    await server.close();
+  });
 });

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a message over one relay frame is not sent to a relay socket; it is logged and its request fails (ENC-12144).
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import {
   createAgentMessageDelivery,
@@ -127,6 +128,11 @@ import {
   sendBoundedPhysicalFrame,
   sendBoundedPhysicalFrameAndWait,
 } from "./websocket/physical-socket.js";
+import {
+  describeOversizedMessage,
+  RELAY_MAX_PLAINTEXT_BYTES,
+  relayFrameTooLargeReply,
+} from "./websocket/relay-frame-ceiling.js";
 
 const WS_CLOSE_DAEMON_AUTH_FAILED = 4401;
 
@@ -1270,7 +1276,45 @@ export class VoiceAssistantWebSocketServer {
       return null;
     }
 
-    return { sockets: writableSockets, payload, bytes: outboundFrameByteLength(payload) };
+    const bytes = outboundFrameByteLength(payload);
+    const sendable = this.withoutOversizedRelaySockets(writableSockets, message, bytes);
+    if (sendable.length === 0) return null;
+    return { sockets: sendable, payload, bytes };
+  }
+
+  // Groupon Desk (ENC-12144): a message over one relay frame would close the relay socket with
+  // 1009 and the window would ask again, in a loop. It is never sent there: it is logged once and
+  // its request, if it has one, fails with an error reply instead.
+  private withoutOversizedRelaySockets(
+    sockets: WebSocketLike[],
+    message: WSOutboundMessage,
+    bytes: number,
+  ): WebSocketLike[] {
+    if (bytes <= RELAY_MAX_PLAINTEXT_BYTES) return sockets;
+    const refused = sockets.filter((ws) => this.isRelaySocket(ws));
+    if (refused.length === 0) return sockets;
+    const facts = describeOversizedMessage(message);
+    const identity = this.socketIdentities.get(refused[0]);
+    this.logger.warn(
+      {
+        ...(identity ? toConnectionLogFields(identity) : {}),
+        ...facts,
+        bytes,
+        maxBytes: RELAY_MAX_PLAINTEXT_BYTES,
+        refusedSockets: refused.length,
+      },
+      "relay_outbound_frame_too_large",
+    );
+    if (facts.requestId !== undefined) {
+      const reply = relayFrameTooLargeReply(facts.requestId, bytes);
+      for (const ws of refused) this.sendToClient(ws, reply);
+    }
+    return sockets.filter((ws) => !refused.includes(ws));
+  }
+
+  private isRelaySocket(ws: WebSocketLike): boolean {
+    const transport = this.socketIdentities.get(ws)?.transport;
+    return transport !== undefined && transport !== "direct";
   }
 
   private async sendMessageToClientAndWait(

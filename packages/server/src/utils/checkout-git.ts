@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a diff can be limited to paths and taken from any commit (`getPathsDiffSince`), and HEAD can be read at a past moment (`resolveHeadAt`), for an agent session's own changes; `getWorktreeRoot` is exported; `getUncommittedShortstat` counts only what is not committed yet, for the archive warning.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a diff can be limited to paths and taken from any commit (`getPathsDiffSince`), and HEAD can be read at a past moment (`resolveHeadAt`), for an agent session's own changes; `getWorktreeRoot` is exported; `getUncommittedShortstat` counts only what is not committed yet, for the archive warning. A file whose highlighted diff would cross the reply cap is listed as `too_large` instead of failing the whole diff (ENC-12144).
 import { MAX_RELAY_WEBSOCKET_MESSAGE_BYTES } from "@getpaseo/protocol/websocket-message-limit";
 import { resolve, dirname, basename } from "path";
 import { existsSync, realpathSync } from "fs";
@@ -2194,6 +2194,14 @@ function appendStructuredFile(
   structured: StructuredDiffAccumulator,
   file: ParsedDiffFile,
 ): boolean {
+  if (pushStructuredFile(structured, file)) return true;
+  // A file whose highlighted diff would cross the cap is listed without its hunks, so the files
+  // around it still show; only a list too long for even that fails the whole diff.
+  if (file.status === "too_large") return false;
+  return pushStructuredFile(structured, tooLargeStructuredFile(file));
+}
+
+function pushStructuredFile(structured: StructuredDiffAccumulator, file: ParsedDiffFile): boolean {
   const separatorBytes = structured.files.length > 0 ? 1 : 0;
   const fileBytes = Buffer.byteLength(JSON.stringify(file), "utf8");
   const nextBytes = structured.serializedBytes + separatorBytes + fileBytes;
@@ -2203,6 +2211,10 @@ function appendStructuredFile(
   structured.files.push(file);
   structured.serializedBytes = nextBytes;
   return true;
+}
+
+function tooLargeStructuredFile(file: ParsedDiffFile): ParsedDiffFile {
+  return { ...file, hunks: [], status: "too_large" };
 }
 const UNTRACKED_BINARY_SNIFF_BYTES = 16 * 1024;
 

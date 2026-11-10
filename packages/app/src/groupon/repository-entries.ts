@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { useFetchQuery } from "@/data/query";
 import type { HostProjectListItem } from "@/projects/host-project-model";
+import { coreQueryRetry, coreQueryRetryDelay, coreRefetchInterval } from "./core-backoff";
 import { fetchOverview, type HubCheckout, type HubRepository } from "./hub";
 import type { MacPickerOption } from "./mac-picker-model";
 import { repositoryEntries, type RepositoryEntry } from "./repository-picker-model";
@@ -27,8 +28,9 @@ export function useHubCheckouts(options: { enabled?: boolean } = {}): {
     enabled: ready && options.enabled !== false,
     dataShape: "value",
     staleTimeMs: HUB_CHECKOUTS_REFRESH_MS,
-    refetchInterval: HUB_CHECKOUTS_REFRESH_MS,
-    retry: false,
+    refetchInterval: coreRefetchInterval(HUB_CHECKOUTS_REFRESH_MS),
+    retry: coreQueryRetry,
+    retryDelay: coreQueryRetryDelay,
   });
   return {
     repositories: query.data?.repositories ?? NO_REPOSITORIES,

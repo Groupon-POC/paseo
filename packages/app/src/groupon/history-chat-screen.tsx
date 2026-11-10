@@ -22,6 +22,7 @@ import {
   type MessageBody,
   type OpenedMessage,
 } from "./history";
+import { Backoff, retryableFailure } from "./core-backoff";
 import { AuthorChip, authorStyles, thisDevice } from "./message-author";
 import {
   authorOfHubMessage,
@@ -257,8 +258,9 @@ export function HubHistoryChatScreen({
   const [error, setError] = useState<string | null>(null);
 
   const loadGeneration = useRef(0);
-  const load = useCallback(async () => {
-    if (!sealKey) return;
+  /** Reads the chat; resolves with what failed (shown already), for the shared chat's poll. */
+  const load = useCallback(async (): Promise<unknown> => {
+    if (!sealKey) return null;
     const generation = ++loadGeneration.current;
     setError(null);
     try {
@@ -270,7 +272,7 @@ export function HubHistoryChatScreen({
         setShared(null);
         setAuthors({ owner: null, names });
         setMessages(openMessages(rows, sealKey));
-        return;
+        return null;
       }
       setAuthors({ owner: { userId: entry.owner.userId, name: entry.owner.name }, names });
       const key = sharedKeyOf(entry, deskIdentity);
@@ -278,19 +280,24 @@ export function HubHistoryChatScreen({
         setShared(null);
         setMessages(null);
         setError(key.why);
-        return;
+        return null;
       }
       setShared({ entry, sealKey: key.sealKey, version: key.version });
       setMessages(openMessages(rows, key.sealKey));
+      return null;
     } catch (caught) {
-      if (generation !== loadGeneration.current) return;
+      if (generation !== loadGeneration.current) return null;
       // A revoked grant or failed refresh must not leave a stale writer or transcript visible.
       setShared(null);
       setMessages(null);
       setError(caught instanceof Error ? caught.message : String(caught));
+      return caught;
     }
   }, [chatId, deskIdentity, sealKey]);
   const handleRetry = useCallback(() => void load(), [load]);
+  const handleSent = useCallback(async () => {
+    await load();
+  }, [load]);
 
   useEffect(() => {
     setShared(null);
@@ -304,9 +311,19 @@ export function HubHistoryChatScreen({
   const isShared = shared !== null;
   // A colleague in a shared chat checks in, so the owner sees them, and sees who else is in it.
   const presence = useHubPresence(shared?.entry.workspace.id ?? null);
+  // Every 5 s while shared; a read Core could not serve holds the next ones for its back-off.
   useEffect(() => {
     if (!isShared) return;
-    const timer = setInterval(() => void load(), SHARED_REFRESH_MS);
+    const backoff = new Backoff();
+    const timer = setInterval(() => {
+      if (backoff.waitMs() > 0) return;
+      void (async () => {
+        const failure = await load();
+        const retryable = retryableFailure(failure);
+        if (retryable) backoff.fail(retryable.retryAfterMs);
+        else if (failure === null) backoff.succeed();
+      })();
+    }, SHARED_REFRESH_MS);
     return () => clearInterval(timer);
   }, [isShared, load]);
 
@@ -341,7 +358,7 @@ export function HubHistoryChatScreen({
           />
         ))}
         {shared && shared.entry.role === "write" && messages ? (
-          <SharedWriter chatId={chatId} access={shared} messages={messages} onSent={load} />
+          <SharedWriter chatId={chatId} access={shared} messages={messages} onSent={handleSent} />
         ) : null}
       </ScrollView>
     </View>

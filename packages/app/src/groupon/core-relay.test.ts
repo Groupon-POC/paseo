@@ -1,7 +1,9 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): Paseo's relay client socket over Core's relay stream.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Backoff } from "./core-backoff";
 import {
   CORE_RELAY_ROLLOVER_MIN_MS,
+  CORE_RELAY_STABLE_MS,
   CORE_RELAY_ROLLOVER_REASON,
   CoreRelaySocket,
   coreRelayEndpoint,
@@ -48,7 +50,9 @@ const CORE = "http://localhost:4100";
 const RELAY_URL = "ws://localhost:4100/ws?serverId=srv_mac&role=client&v=2";
 const route = { coreUrl: CORE, accessToken: async () => "jwt-of-ada" };
 
-async function openSocket(): Promise<{ socket: CoreRelaySocket; upstream: FakeUpstream }> {
+async function openSocket(
+  backoff: Backoff = new Backoff(),
+): Promise<{ socket: CoreRelaySocket; upstream: FakeUpstream }> {
   let upstream: FakeUpstream | null = null;
   const socket = new CoreRelaySocket(
     "ws://localhost:4100/user/groupon_desk/paseo_relay/stream?serverId=srv_mac&role=client&v=2",
@@ -58,6 +62,7 @@ async function openSocket(): Promise<{ socket: CoreRelaySocket; upstream: FakeUp
       return upstream;
     },
     20_000,
+    backoff,
   );
   await vi.waitFor(() => expect(upstream).not.toBeNull());
   return { socket, upstream: upstream as unknown as FakeUpstream };
@@ -258,6 +263,8 @@ describe("CoreRelaySocket", () => {
       "ws://localhost:4100/user/groupon_desk/paseo_relay/stream",
       { coreUrl: CORE, accessToken: () => new Promise((resolve) => (release = resolve)) },
       make,
+      20_000,
+      new Backoff(),
     );
     const closed = new Promise((resolve) => socket.addEventListener("close", resolve));
 
@@ -269,15 +276,128 @@ describe("CoreRelaySocket", () => {
   });
 
   it("fails as a closed socket when nobody is signed in", async () => {
-    const socket = new CoreRelaySocket("ws://localhost:4100/x", {
-      coreUrl: CORE,
-      accessToken: async () => {
-        throw new Error("Not signed in to Groupon.");
+    const socket = new CoreRelaySocket(
+      "ws://localhost:4100/x",
+      {
+        coreUrl: CORE,
+        accessToken: async () => {
+          throw new Error("Not signed in to Groupon.");
+        },
       },
-    });
+      undefined,
+      20_000,
+      new Backoff(),
+    );
     const closed = new Promise((resolve) => socket.addEventListener("close", resolve));
 
     expect(await closed).toMatchObject({ code: 1011, reason: "Not signed in to Groupon" });
+  });
+});
+
+describe("CoreRelaySocket under an overloaded Core", () => {
+  const STREAM = "ws://localhost:4100/user/groupon_desk/paseo_relay/stream?serverId=srv_mac";
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  /**
+   * Paseo's client as the window runs it, made worse: it opens a new socket 100 ms after each
+   * close, and Core refuses every stream at the handshake (a 429 the browser sees as error + 1006).
+   */
+  function reconnectingClient(backoff: Backoff, refuse: (upstream: FakeUpstream) => void) {
+    const upstreams: FakeUpstream[] = [];
+    let stopped = false;
+    const connect = () => {
+      if (stopped) return;
+      const socket = new CoreRelaySocket(
+        STREAM,
+        route,
+        (url, protocols) => {
+          const upstream = new FakeUpstream(url, protocols);
+          upstreams.push(upstream);
+          setTimeout(() => refuse(upstream), 50);
+          return upstream;
+        },
+        20_000,
+        backoff,
+      );
+      socket.addEventListener("close", () => setTimeout(connect, 100));
+    };
+    connect();
+    return {
+      upstreams,
+      stop: () => {
+        stopped = true;
+      },
+    };
+  }
+
+  it("opens Core's stream a few times a minute while Core refuses every one", async () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    const client = reconnectingClient(new Backoff(), (upstream) => {
+      upstream.fire("error");
+      upstream.fire("close", { code: 1006 });
+    });
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    const firstMinute = client.upstreams.length;
+    await vi.advanceTimersByTimeAsync(120_000);
+    const nextTwoMinutes = client.upstreams.length - firstMinute;
+    client.stop();
+    vi.restoreAllMocks();
+
+    // Without the back-off this client would open about 400 streams a minute.
+    expect(firstMinute).toBe(7);
+    expect(nextTwoMinutes).toBe(4);
+  });
+
+  it("spreads the reopening of streams that were up a long time over a jittered second", async () => {
+    const draws = [0.1, 0.9];
+    const backoffs = draws.map((draw) => new Backoff({ random: () => draw }));
+    const sockets = await Promise.all(backoffs.map((backoff) => openSocket(backoff)));
+    for (const { upstream } of sockets) upstream.fire("open");
+
+    vi.advanceTimersByTime(CORE_RELAY_ROLLOVER_MIN_MS + 1_000);
+    for (const { upstream } of sockets) upstream.fire("close", { code: 1006 });
+
+    expect(backoffs.map((backoff) => backoff.attempt)).toEqual([1, 1]);
+    expect(backoffs.map((backoff) => backoff.waitMs())).toEqual([100, 900]);
+  });
+
+  it("counts a stream Core drops right after it opened, and starts over after one that stayed up", async () => {
+    const backoff = new Backoff({ random: () => 0.5 });
+    for (let i = 0; i < 3; i += 1) {
+      vi.advanceTimersByTime(backoff.waitMs());
+      const { upstream } = await openSocket(backoff);
+      upstream.fire("open");
+      upstream.fire("message", { data: '{"kind":"close","code":1012,"reason":"Daemon gone"}' });
+    }
+    expect(backoff.attempt).toBe(3);
+
+    vi.advanceTimersByTime(backoff.waitMs());
+    const { upstream } = await openSocket(backoff);
+    upstream.fire("open");
+    vi.advanceTimersByTime(CORE_RELAY_STABLE_MS);
+    upstream.fire("close", { code: 1011 });
+    expect(backoff.attempt).toBe(1);
+  });
+
+  it("does not count a close Paseo asked for on an open stream, and waits out the back-off before opening", async () => {
+    const backoff = new Backoff({ random: () => 0.5 });
+    const { socket, upstream } = await openSocket(backoff);
+    upstream.fire("open");
+    socket.close(1000, "done");
+    upstream.fire("close", { code: 1000 });
+    expect(backoff.attempt).toBe(0);
+
+    backoff.fail();
+    backoff.fail();
+    const make = vi.fn((url: string, protocols: string[]) => new FakeUpstream(url, protocols));
+    const waiting = new CoreRelaySocket(STREAM, route, make, 20_000, backoff);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(make).not.toHaveBeenCalled();
+    expect(waiting.readyState).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(make).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -10,7 +10,8 @@
  *
  * Responsibilities:
  * - a clock every 10 s while the window is visible, so a Mac whose hand stopped goes grey
- * - while a Mac is open, its load read again every 10 s (`fetchMachines`, one GET, nothing
+ * - while a Mac is open, its load read again every 10 s, longer by the back-off of
+ *   `core-backoff.ts` while Core cannot serve it (`fetchMachines`, one GET, nothing
  *   opened or added): the shared list is read only every 30 s
  * - the last 60 samples of each Mac, in memory, from both reads (`machine-load-model.ts`)
  *
@@ -41,6 +42,7 @@ import {
 } from "./connected-computers-model";
 import { useCodexServerIds } from "./codex-servers";
 import { ComputerLoadCard, ComputerLoadStrip } from "./computer-load-card";
+import { startCorePoll } from "./core-backoff";
 import { fetchMachines, type HubMachineLoad } from "./hub";
 import { useHubMachinesStore, useOnlineServerIds } from "./hub-sync";
 import { recordSamples } from "./machine-load-model";
@@ -103,27 +105,26 @@ export function ConnectedComputersSidebarSection() {
   const anyOpen = !folded && expanded.size > 0;
   useEffect(() => {
     if (!ready || !visible) return;
+    setNow(new Date());
+    const timer = setInterval(() => setNow(new Date()), COMPUTERS_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [ready, visible]);
+
+  useEffect(() => {
+    if (!ready || !visible || !anyOpen) return;
     let cancelled = false;
+    // A failed read keeps the bars' last reading until it goes stale; the poll backs off.
     const readLoads = async () => {
-      try {
-        const { machines } = await fetchMachines();
-        if (cancelled) return;
-        const loads = new Map<string, HubMachineLoad>();
-        for (const machine of machines) if (machine.load) loads.set(machine.machine, machine.load);
-        setFreshLoads(loads);
-      } catch {
-        // The hub is out of reach for now: the bars keep the last reading until it goes stale.
-      }
+      const { machines } = await fetchMachines();
+      if (cancelled) return;
+      const loads = new Map<string, HubMachineLoad>();
+      for (const machine of machines) if (machine.load) loads.set(machine.machine, machine.load);
+      setFreshLoads(loads);
     };
-    const tick = () => {
-      setNow(new Date());
-      if (anyOpen) void readLoads();
-    };
-    tick();
-    const timer = setInterval(tick, COMPUTERS_REFRESH_MS);
+    const stop = startCorePoll({ run: readLoads, intervalMs: COMPUTERS_REFRESH_MS });
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      stop();
     };
   }, [ready, visible, anyOpen]);
 

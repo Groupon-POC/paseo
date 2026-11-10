@@ -26,6 +26,12 @@
  *   `CORE_RELAY_ROLLOVER_MIN_MS` ends the socket with a reason that starts `Relay rolled over`
  *   (`RELAY_ROLLOVER_REASON_PREFIX` in the fork's client), which the client answers with an
  *   immediate reconnect and no disconnected state; a 1006 sooner is a failure as before
+ * - Each stream URL (one per Mac) waits its back-off (`core-backoff.ts`) before it asks Core again:
+ *   every end of a stream counts as a failure, and one that stayed up 30 s first starts the count
+ *   over, so a rollover or a redeploy reopens within a jittered second, while a Core that refuses or
+ *   drops every stream (2026-11-10: 429 on everything) is asked ever more slowly, up to a minute
+ *   apart. The wait sits under Paseo's own reconnect timer (1.5 s doubling to 30 s, no jitter),
+ *   which this socket cannot see; a close Paseo asked for on an open stream counts for nothing
  *
  * Constraints:
  * - Never reads a frame: they are Paseo's end-to-end boxes between this client and the daemon;
@@ -39,6 +45,7 @@ import type {
   WebSocketFactory,
   WebSocketLike,
 } from "@getpaseo/client/internal/daemon-client-transport-types";
+import { Backoff } from "./core-backoff";
 
 export const CORE_RELAY_STREAM_PATH = "/user/groupon_desk/paseo_relay/stream";
 /** How often the socket tells Core's stream it is alive; Core ends a silent stream after 60 s. */
@@ -50,6 +57,11 @@ export const CORE_RELAY_KEEPALIVE_MS = 20_000;
 export const CORE_RELAY_ROLLOVER_MIN_MS = 290_000;
 /** The start of the close reason the fork's client reads as a rollover (`RELAY_ROLLOVER_REASON_PREFIX`). */
 export const CORE_RELAY_ROLLOVER_REASON = "Relay rolled over";
+/**
+ * How long a stream must stay up for its back-off to start over (the fork client's
+ * `STABLE_CONNECTION_MS`, ENC-12144): a stream Core drops right after it opens keeps waiting longer.
+ */
+export const CORE_RELAY_STABLE_MS = 30_000;
 const ABNORMAL_CLOSE = 1006;
 const KEEPALIVE_FRAME = JSON.stringify({ kind: "keepalive" });
 
@@ -73,6 +85,18 @@ export function setCoreRelayRoute(route: () => CoreRelayRoute | null): void {
 
 export function coreRelayRoute(): CoreRelayRoute | null {
   return currentRoute();
+}
+
+const relayBackoffs = new Map<string, Backoff>();
+
+/** The back-off of one Core stream URL (one Mac), shared by every socket this window opens to it. */
+export function coreRelayBackoff(streamUrl: string): Backoff {
+  let backoff = relayBackoffs.get(streamUrl);
+  if (!backoff) {
+    backoff = new Backoff();
+    relayBackoffs.set(streamUrl, backoff);
+  }
+  return backoff;
 }
 
 /** Core's address as a Paseo relay endpoint; null for an address that is not http(s). */
@@ -222,13 +246,22 @@ export class CoreRelaySocket implements WebSocketLike {
   #keepalive: ReturnType<typeof setInterval> | null = null;
   #ended = false;
   #openedAt: number | null = null;
+  #backoffWait: ReturnType<typeof setTimeout> | null = null;
+  #wakeFromBackoff: (() => void) | null = null;
+  /** The stream's end was counted in the back-off (once per socket). */
+  #counted = false;
+  /** Paseo closed this socket after Core's stream had opened: not Core's failure. */
+  #closedByClient = false;
+  readonly #backoff: Backoff;
 
   constructor(
     streamUrl: string,
     route: CoreRelayRoute,
     makeUpstream: MakeCoreUpstream = globalUpstream,
     keepaliveMs: number = CORE_RELAY_KEEPALIVE_MS,
+    backoff: Backoff = coreRelayBackoff(streamUrl),
   ) {
+    this.#backoff = backoff;
     void this.#open(streamUrl, route, makeUpstream, keepaliveMs);
   }
 
@@ -249,7 +282,9 @@ export class CoreRelaySocket implements WebSocketLike {
 
   close(code = 1000, reason = ""): void {
     if (this.readyState >= CLOSING) return;
+    if (this.readyState === OPEN) this.#closedByClient = true;
     this.readyState = CLOSING;
+    this.#stopBackoffWait();
     try {
       this.#upstream?.close(1000, reason.slice(0, 120));
     } catch {
@@ -264,10 +299,13 @@ export class CoreRelaySocket implements WebSocketLike {
     makeUpstream: MakeCoreUpstream,
     keepaliveMs: number,
   ): Promise<void> {
+    await this.#waitForBackoff();
+    if (this.readyState !== CONNECTING) return;
     let token: string;
     try {
       token = await route.accessToken();
     } catch {
+      this.#countEnd();
       this.#emit("error", { type: "error" });
       this.#end(1011, "Not signed in to Groupon");
       return;
@@ -294,6 +332,7 @@ export class CoreRelaySocket implements WebSocketLike {
       if (frame === null) return;
       if (frame.kind === "close") {
         this.readyState = CLOSING;
+        this.#countEnd();
         upstream.close(1000, "Closed by Core's relay");
         this.#end(frame.code, frame.reason);
         return;
@@ -306,12 +345,43 @@ export class CoreRelaySocket implements WebSocketLike {
       const reason = eventField(event, "reason");
       const closeCode = typeof code === "number" ? code : ABNORMAL_CLOSE;
       const lived = this.#openedAt === null ? 0 : Date.now() - this.#openedAt;
+      this.#countEnd();
       if (closeCode === ABNORMAL_CLOSE && lived >= CORE_RELAY_ROLLOVER_MIN_MS) {
         this.#end(closeCode, `${CORE_RELAY_ROLLOVER_REASON} after ${Math.round(lived / 1000)} s`);
         return;
       }
       this.#end(closeCode, typeof reason === "string" ? reason : "Relay stream ended");
     });
+  }
+
+  /** Waits out the back-off of this stream URL; a close by Paseo meanwhile ends the wait. */
+  async #waitForBackoff(): Promise<void> {
+    const wait = this.#backoff.waitMs();
+    if (wait <= 0) return;
+    await new Promise<void>((resolve) => {
+      this.#wakeFromBackoff = resolve;
+      this.#backoffWait = setTimeout(resolve, wait);
+    });
+    this.#backoffWait = null;
+    this.#wakeFromBackoff = null;
+  }
+
+  #stopBackoffWait(): void {
+    if (this.#backoffWait !== null) clearTimeout(this.#backoffWait);
+    this.#wakeFromBackoff?.();
+  }
+
+  /**
+   * Counts how Core's stream ended, once: a stream that stayed up `CORE_RELAY_STABLE_MS` starts
+   * the count over, and every end then counts as a failure, so the next stream to this Mac waits
+   * at least a jittered second. A stream Paseo itself closed after it opened counts for nothing.
+   */
+  #countEnd(): void {
+    if (this.#counted || this.#closedByClient) return;
+    this.#counted = true;
+    const lived = this.#openedAt === null ? 0 : Date.now() - this.#openedAt;
+    if (lived >= CORE_RELAY_STABLE_MS) this.#backoff.succeed();
+    this.#backoff.fail();
   }
 
   #end(code: number, reason: string): void {

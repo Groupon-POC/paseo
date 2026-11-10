@@ -371,3 +371,150 @@ describe("startup sign-in recovery", () => {
     expect(readDeskSession).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("an overloaded Core (2026-11-10: 429 on everything)", () => {
+  const OWN_REFRESH = jwt({ exp: Math.floor(Date.now() / 1000) + 86_400 });
+  const oldToken = jwt({ userId: "user-1", n: "old" });
+  const newToken = jwt({ userId: "user-1", n: "new" });
+
+  const isRefresh = (url: string) => url.endsWith("/auth/authentication/token/refresh");
+  const refreshes = () => fetchMock.mock.calls.filter(([url]) => isRefresh(url)).length;
+  const bearerOf = (init: RequestInit | undefined) =>
+    (init?.headers as Record<string, string> | undefined)?.Authorization ?? "";
+  const json = (status: number, body: unknown = {}, headers: Record<string, string> = {}) =>
+    new Response(JSON.stringify(body), { status, headers });
+
+  async function signedInOwn(accessExpiresAt: string): Promise<void> {
+    secrets.set(
+      SESSION_KEY,
+      JSON.stringify({
+        coreUrl: PRODUCTION,
+        accessToken: oldToken,
+        refreshToken: OWN_REFRESH,
+        accessExpiresAt,
+      }),
+    );
+    vi.stubGlobal("window", {});
+    await useGrouponStore.getState().hydrate();
+  }
+
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    // Signing out leaves no back-off behind for the next test.
+    await useGrouponStore.getState().signOut();
+  });
+
+  it("refreshes once for any number of concurrent 401s, and every caller gets the new token", async () => {
+    await signedInOwn(inMinutes(10));
+    let answerRefresh: () => void = () => {};
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (isRefresh(url)) {
+        await new Promise<void>((resolve) => {
+          answerRefresh = resolve;
+        });
+        return json(200, { token: newToken, expiresAt: inMinutes(15) });
+      }
+      return bearerOf(init) === `Bearer ${newToken}` ? json(200, { ok: url }) : json(401);
+    });
+
+    const calls = Array.from({ length: 8 }, (_, i) => grouponRequest(`/user/groupon_desk/r${i}`));
+    await vi.waitFor(() => expect(refreshes()).toBe(1));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    answerRefresh();
+    const answers = await Promise.all(calls);
+
+    expect(refreshes()).toBe(1);
+    expect(answers).toHaveLength(8);
+    expect(useGrouponStore.getState().session?.accessToken).toBe(newToken);
+  });
+
+  it("hands a 401 that arrives after the refresh finished the new token, without a second refresh", async () => {
+    await signedInOwn(inMinutes(10));
+    let answerLate: () => void = () => {};
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (isRefresh(url)) return json(200, { token: newToken, expiresAt: inMinutes(15) });
+      if (bearerOf(init) === `Bearer ${newToken}`) return json(200, {});
+      if (url.endsWith("/late")) {
+        await new Promise<void>((resolve) => {
+          answerLate = resolve;
+        });
+      }
+      return json(401);
+    });
+
+    const late = grouponRequest("/user/groupon_desk/late");
+    await grouponRequest("/user/groupon_desk/early");
+    answerLate();
+    await late;
+
+    expect(refreshes()).toBe(1);
+  });
+
+  it("keeps the current token through a refresh Core could not serve, and waits before the next", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    await signedInOwn(inMinutes(0.5));
+    fetchMock.mockImplementation(async (url: string) =>
+      isRefresh(url) ? json(429, { message: "Rate exceeded" }) : json(200, { machines: [] }),
+    );
+
+    for (let i = 0; i < 5; i += 1) await grouponRequest("/user/groupon_desk/machines");
+
+    expect(refreshes()).toBe(1);
+    expect(useGrouponStore.getState().session?.accessToken).toBe(oldToken);
+    // A 429 is no refusal: the window's session stays, nobody is signed out.
+    expect(secrets.has(SESSION_KEY)).toBe(true);
+    expect(useGrouponStore.getState().status).not.toBe("signedOut");
+
+    // The first back-off is 0.5 s at this draw; after it, one more refresh is allowed.
+    vi.setSystemTime(Date.now() + 600);
+    await grouponRequest("/user/groupon_desk/machines");
+    expect(refreshes()).toBe(2);
+  });
+
+  it("fails as busy without asking Core when the token has lapsed and the refresh is backing off", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    await signedInOwn(inMinutes(0.5));
+    fetchMock.mockImplementation(async (url: string) =>
+      isRefresh(url) ? json(503, {}, { "Retry-After": "120" }) : json(200, {}),
+    );
+    await grouponRequest("/user/groupon_desk/machines");
+    fetchMock.mockClear();
+
+    vi.setSystemTime(Date.now() + 60_000);
+    await expect(grouponRequest("/user/groupon_desk/machines")).rejects.toMatchObject({
+      status: 429,
+      retryable: true,
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("asks a failing endpoint a few times a minute however many polls read it", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    await signedInOwn(inMinutes(60));
+    fetchMock.mockImplementation(async () => json(429, { message: "Rate exceeded" }));
+    const { startCorePoll } = await import("./core-backoff");
+    const overview = () => grouponRequest("/user/groupon_desk/work/overview");
+
+    // Five screens poll the same endpoint every 10 s, as the window's overview readers do.
+    const stops = Array.from({ length: 5 }, () =>
+      startCorePoll({ run: async () => void (await overview()), intervalMs: 10_000 }),
+    );
+    await vi.advanceTimersByTimeAsync(60_000);
+    const firstMinute = fetchMock.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(120_000);
+    const nextTwoMinutes = fetchMock.mock.calls.length - firstMinute;
+    for (const stop of stops) stop();
+
+    // Before the first answer all five went out; from then on one at a time, by the back-off:
+    // 6 requests in the first minute, 2 a minute after it (five polls without the gate: 30 a minute).
+    expect(firstMinute).toBe(6);
+    expect(nextTwoMinutes).toBe(4);
+    expect(fetchMock.mock.calls.every(([url]) => String(url).endsWith("/work/overview"))).toBe(
+      true,
+    );
+  });
+});

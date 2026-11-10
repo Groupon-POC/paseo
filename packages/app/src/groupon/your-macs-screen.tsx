@@ -6,7 +6,8 @@
  * relay or it is this Mac, and a plain sentence under each one that cannot open. With no Mac
  * past "its hand is not running" (or none at all), the install instructions and one download
  * link. It re-reads the hub every 15 s (more often than the 30 s `GrouponHubSync` keeps for the
- * whole window: here nothing else is on screen to wait for), shows when it last did, and the
+ * whole window: here nothing else is on screen to wait for; longer, by the back-off of
+ * `core-backoff.ts`, while Core cannot serve it), shows when it last did, and the
  * moment one Mac comes online the window goes straight to it, as Paseo's welcome screen did. The same screen on a phone, where every Mac is
  * reached through Core's relay.
  *
@@ -27,6 +28,7 @@ import { openExternalUrl } from "@/utils/open-external-url";
 import { GROUPON_DESK_DOWNLOAD_URL } from "./environments";
 import { ThemedGrouponMark } from "./groupon-mark";
 import { HUB_HISTORY_ROUTE } from "./history-screen";
+import { startCorePoll } from "./core-backoff";
 import { useHubMachinesStore, useOnlineServerIds } from "./hub-sync";
 import { thisComputerBadge } from "./mac-picker-model";
 import { GROUPON_HISTORY, GROUPON_YOUR_MACS } from "./strings";
@@ -50,6 +52,7 @@ export function YourMacsScreen() {
   const lastSyncAt = useHubMachinesStore((state) => state.lastSyncAt);
   const error = useHubMachinesStore((state) => state.error);
   const sync = useHubMachinesStore((state) => state.sync);
+  const syncOrThrow = useHubMachinesStore((state) => state.syncOrThrow);
   const [now, setNow] = useState(() => new Date());
 
   const serverIds = useMemo(
@@ -74,15 +77,15 @@ export function YourMacsScreen() {
     if (connected) router.replace(buildOpenProjectRoute());
   }, [connected, router]);
 
-  // The hub again every 15 s, until a Mac connects.
+  // The hub again every 15 s (longer while Core cannot serve it), until a Mac connects.
   useEffect(() => {
-    void sync();
-    const timer = setInterval(() => {
-      setNow(new Date());
-      void sync();
-    }, YOUR_MACS_REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [sync]);
+    const timer = setInterval(() => setNow(new Date()), YOUR_MACS_REFRESH_MS);
+    const stop = startCorePoll({ run: syncOrThrow, intervalMs: YOUR_MACS_REFRESH_MS });
+    return () => {
+      clearInterval(timer);
+      stop();
+    };
+  }, [syncOrThrow]);
 
   const handleRefresh = useCallback(() => void sync(), [sync]);
   const handleDownload = useCallback(() => void openExternalUrl(GROUPON_DESK_DOWNLOAD_URL), []);

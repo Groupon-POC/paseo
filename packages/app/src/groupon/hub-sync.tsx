@@ -32,7 +32,9 @@
  * - while a chooser of Macs shows this Mac greyed and this Mac's daemon has started meanwhile
  *   (`add-to-mac-model.ts`' `shouldResyncForThisMac`), so the row enables without waiting
  * An event-driven read follows the previous one by at least 5 s, and two reads never overlap. A
- * read that fails keeps the last list and its error line until a read succeeds.
+ * read that fails keeps the last list and its error line until a read succeeds. A read Core could
+ * not serve (429, 5xx, unreachable) pushes the next one out by the back-off (`core-backoff.ts`):
+ * never sooner than 30 s, and no event-driven read until it has passed.
  *
  * Every read also asks the desktop app which hub Mac it runs on (`readThisMachineId`), so this Mac
  * is named and listed first even while its hand, and so its daemon, is not running.
@@ -46,6 +48,7 @@ import {
   isHostRuntimeConnected,
   useHostRegistryStatus,
 } from "@/runtime/host-runtime";
+import { Backoff, retryableFailure, type BackoffClock } from "./core-backoff";
 import { coreRelayEndpoint } from "./core-relay";
 import { openSealedText } from "./crypto";
 import {
@@ -87,7 +90,10 @@ interface HubMachinesState {
   syncing: boolean;
   lastSyncAt: string | null;
   error: string | null;
+  /** Reads the hub; a failure stays on `error` and is not thrown (for screens). */
   sync: () => Promise<void>;
+  /** The same read, rejecting when it failed, so a schedule can back off. */
+  syncOrThrow: () => Promise<void>;
 }
 
 /** The serverId inside an offer URL (`#offer=<base64url JSON>`), for the list; null if unreadable. */
@@ -184,7 +190,11 @@ export const useHubMachinesStore = create<HubMachinesState>((set, get) => ({
   syncing: false,
   lastSyncAt: null,
   error: null,
-  sync: async () => {
+  sync: () =>
+    get()
+      .syncOrThrow()
+      .catch(() => undefined),
+  syncOrThrow: async () => {
     const { sealKey, coreUrl } = useGrouponStore.getState();
     if (!sealKey || get().syncing) return;
     // The error line stays until a read succeeds, so a failing retry does not blink it away.
@@ -208,6 +218,7 @@ export const useHubMachinesStore = create<HubMachinesState>((set, get) => ({
       });
     } catch (error) {
       set({ error: error instanceof Error ? error.message : String(error) });
+      throw error;
     } finally {
       set({ syncing: false });
     }
@@ -240,58 +251,83 @@ export interface HubResync {
 }
 
 /**
- * The schedule of hub reads, without React: an interval while in the foreground, a read on
- * entering it and on a nudge, at least `gapMs` after the previous read for anything event-driven,
- * and never a second read while one is in flight.
+ * The schedule of hub reads, without React: a read every `intervalMs` while in the foreground, a
+ * read on entering it and on a nudge, at least `gapMs` after the previous read for anything
+ * event-driven, and never a second read while one is in flight. A read that failed retryably
+ * waits the larger of `intervalMs` and the back-off, and holds back every event-driven read meanwhile.
  */
 export function createHubResync({
   sync,
   intervalMs = HUB_RESYNC_MS,
   gapMs = HUB_EVENT_RESYNC_GAP_MS,
   now = Date.now,
+  random,
 }: {
   sync: () => Promise<void>;
   intervalMs?: number;
   gapMs?: number;
   now?: () => number;
+  random?: BackoffClock["random"];
 }): HubResync {
-  let timer: ReturnType<typeof setInterval> | null = null;
+  const backoff = new Backoff({ now, random });
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let foreground = false;
   let inFlight = false;
   let lastStartedAt = Number.NEGATIVE_INFINITY;
 
+  const clear = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  };
+  const schedule = (delayMs: number) => {
+    clear();
+    if (foreground) timer = setTimeout(run, delayMs);
+  };
+  /** One read; resolves with how long to wait before the next. */
+  const readOnce = async (): Promise<number> => {
+    try {
+      await sync();
+      backoff.succeed();
+      return intervalMs;
+    } catch (error) {
+      const failure = retryableFailure(error);
+      return failure ? Math.max(intervalMs, backoff.fail(failure.retryAfterMs)) : intervalMs;
+    }
+  };
   const run = () => {
     if (inFlight) return;
     inFlight = true;
     lastStartedAt = now();
-    void sync()
-      .catch(() => undefined)
-      .finally(() => {
-        inFlight = false;
-      });
+    void (async () => {
+      const delayMs = await readOnce();
+      inFlight = false;
+      schedule(delayMs);
+    })();
   };
   const runIfDue = () => {
-    if (now() - lastStartedAt >= gapMs) run();
-  };
-  const stop = () => {
-    if (timer !== null) clearInterval(timer);
-    timer = null;
+    if (now() - lastStartedAt >= gapMs && backoff.waitMs() === 0) run();
   };
 
   return {
     syncNow: run,
-    setForeground(foreground) {
-      if (!foreground) {
-        stop();
+    setForeground(next) {
+      if (!next) {
+        foreground = false;
+        clear();
         return;
       }
-      if (timer !== null) return;
-      timer = setInterval(run, intervalMs);
+      if (foreground) return;
+      foreground = true;
+      if (!inFlight) schedule(intervalMs);
       runIfDue();
     },
     nudge() {
-      if (timer !== null) runIfDue();
+      if (foreground) runIfDue();
     },
-    stop,
+    stop() {
+      foreground = false;
+      clear();
+    },
   };
 }
 
@@ -331,7 +367,7 @@ export function GrouponHubSync() {
   const [serverIds, setServerIds] = useState(EMPTY_SERVER_IDS);
   const online = useOnlineServerIds(serverIds);
   const [resync] = useState(() =>
-    createHubResync({ sync: () => useHubMachinesStore.getState().sync() }),
+    createHubResync({ sync: () => useHubMachinesStore.getState().syncOrThrow() }),
   );
 
   // Only a change in which Macs the hub names re-subscribes the relay signal, not every read.

@@ -1,6 +1,6 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): the gate's device sign-in, without the screen.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { DeviceAuthPoll, DeviceAuthStart } from "./core-client";
+import { CoreError, type DeviceAuthPoll, type DeviceAuthStart } from "./core-client";
 import {
   coreLineShown,
   runDeviceSignIn,
@@ -96,6 +96,31 @@ describe("runDeviceSignIn", () => {
     });
     await runDeviceSignIn("https://core", "test", d);
     expect(d.sleep).toHaveBeenCalledWith(2000);
+  });
+
+  it("keeps polling through a busy Core, each poll waiting longer, and still completes", async () => {
+    const d = deps(["approved"]);
+    vi.mocked(d.poll)
+      .mockRejectedValueOnce(new CoreError("Rate exceeded", 429, { retryAfterMs: 20_000 }))
+      .mockRejectedValueOnce(new CoreError("Cannot reach Core", null, { unreachable: true }));
+
+    const approved = await runDeviceSignIn("https://core", "test", d);
+
+    expect(approved?.status).toBe("approved");
+    expect(d.poll).toHaveBeenCalledTimes(3);
+    // The interval, then Core's Retry-After, then at least the interval again.
+    const waits = vi.mocked(d.sleep).mock.calls.map(([ms]) => ms);
+    expect(waits[0]).toBe(5_000);
+    expect(waits[1]).toBe(20_000);
+    expect(waits[2]).toBeGreaterThanOrEqual(5_000);
+  });
+
+  it("ends at once on an answer Core will not change, as before", async () => {
+    const d = deps([]);
+    vi.mocked(d.poll).mockRejectedValueOnce(new CoreError("Bad device code", 400));
+
+    await expect(runDeviceSignIn("https://core", "test", d)).rejects.toThrow("Bad device code");
+    expect(d.poll).toHaveBeenCalledTimes(1);
   });
 
   it("throws on a denial and on an expired code", async () => {

@@ -5,14 +5,26 @@
  * (`POST /auth/device_auth/start` and `poll`; monorepo `packages/groupon-cli/src/auth/login.ts`),
  * the token refresh with the refresh JWT in the body (the browser's way, which native fetch shares),
  * and the hub's reads (`/user/groupon_desk/...`). Bodies that carry a credential are never logged.
+ * A failed answer keeps Core's `Retry-After` on the error, for the back-off (`core-backoff.ts`).
  */
 
+import { isRetryableStatus, retryAfterMs } from "./core-backoff";
+
 export class CoreError extends Error {
+  /** Worth asking again later (`core-backoff.ts`): Core was unreachable, or answered 408, 429, 502-504. */
+  readonly retryable: boolean;
+  /** The wait Core asked for (`Retry-After`), in ms; null when it named none. */
+  readonly retryAfterMs: number | null;
+
   constructor(
     message: string,
+    /** The HTTP status; null when Core gave none (unreachable, or a verdict of this app's own). */
     readonly status: number | null,
+    options: { unreachable?: boolean; retryAfterMs?: number | null } = {},
   ) {
     super(message);
+    this.retryable = options.unreachable === true || (status !== null && isRetryableStatus(status));
+    this.retryAfterMs = options.retryAfterMs ?? null;
   }
 }
 
@@ -53,10 +65,14 @@ export async function coreRequest<T>(
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   } catch {
-    throw new CoreError(`Cannot reach Core at ${coreUrl}.`, null);
+    throw new CoreError(`Cannot reach Core at ${coreUrl}.`, null, { unreachable: true });
   }
   const body = await readJson(response);
-  if (!response.ok) throw new CoreError(errorMessageOf(body, response.status), response.status);
+  if (!response.ok) {
+    throw new CoreError(errorMessageOf(body, response.status), response.status, {
+      retryAfterMs: retryAfterMs(response.headers, Date.now()),
+    });
+  }
   return body as T;
 }
 

@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { StyleSheet } from "react-native-unistyles";
 import { PressHighlight } from "@/components/ui/press-highlight";
+import { startCorePoll } from "./core-backoff";
 import { fetchOverview } from "./hub";
 import { sharedChatRoute } from "./history-screen";
 import { useGrouponStore } from "./session";
@@ -25,19 +26,15 @@ export function SharedWithMeSidebarSection({
   useEffect(() => {
     if (!ready) return;
     let cancelled = false;
+    // A failed read keeps the list as it was; the next one waits the poll's back-off.
     const read = async () => {
-      try {
-        const overview = await fetchOverview();
-        if (!cancelled) setEntries(sharedTree(overview));
-      } catch {
-        // The hub is out of reach for now; the next read tries again and the list stays as it was.
-      }
+      const overview = await fetchOverview();
+      if (!cancelled) setEntries(sharedTree(overview));
     };
-    void read();
-    const timer = setInterval(() => void read(), REFRESH_MS);
+    const stop = startCorePoll({ run: read, intervalMs: REFRESH_MS });
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      stop();
     };
   }, [ready]);
 

@@ -10,6 +10,7 @@ import { getIsElectronRuntime } from "@/constants/layout";
 import { useFetchQuery } from "@/data/query";
 import { useWorkspaceDirectory } from "@/stores/session-store-hooks";
 import type { Theme } from "@/styles/theme";
+import { coreQueryRetry, coreQueryRetryDelay, coreRefetchInterval } from "./core-backoff";
 import { checkInPresence, fetchOverview, type HubOverview, type HubWorkspacePresence } from "./hub";
 import { useHubMachinesStore } from "./hub-sync";
 import {
@@ -35,7 +36,8 @@ const mutedColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
 /**
  * Check in to a hub workspace every 15 s while it is on screen, and read who else is in it. One
- * query per workspace: the composer row and the Share screen share its answer.
+ * query per workspace: the composer row and the Share screen share its answer. While Core cannot
+ * serve it, the check-in is retried and repeated by the back-off of `core-backoff.ts`.
  */
 export function useHubPresence(hubWorkspaceId: string | null) {
   const ready = useGrouponStore((state) => state.status === "ready");
@@ -48,9 +50,10 @@ export function useHubPresence(hubWorkspaceId: string | null) {
     },
     enabled: ready && hubWorkspaceId !== null,
     dataShape: "value",
-    retry: false,
+    retry: coreQueryRetry,
+    retryDelay: coreQueryRetryDelay,
     staleTimeMs: PRESENCE_POLL_MS,
-    refetchInterval: PRESENCE_POLL_MS,
+    refetchInterval: coreRefetchInterval(PRESENCE_POLL_MS),
   });
 }
 
@@ -85,10 +88,12 @@ export function useHubWorkspaceForDaemon(serverId: string, workspaceId: string):
     queryFn: fetchOverview,
     enabled: ready && workspaceId.length > 0,
     dataShape: "value",
-    retry: false,
+    retry: coreQueryRetry,
+    retryDelay: coreQueryRetryDelay,
     staleTimeMs: OVERVIEW_STALE_MS,
-    refetchInterval: (query) =>
+    refetchInterval: coreRefetchInterval((query) =>
       query.state.data && find(query.state.data) ? false : NOT_YET_MIRRORED_POLL_MS,
+    ),
   });
   return overview.data ? (find(overview.data)?.id ?? null) : null;
 }

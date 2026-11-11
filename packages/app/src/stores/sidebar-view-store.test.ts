@@ -38,6 +38,7 @@ describe("sidebar view store", () => {
       hostFilters: [],
       projectFilters: [],
       labelFilter: { labels: [] },
+      headerRowsExpanded: false,
     });
   });
 
@@ -92,6 +93,7 @@ describe("sidebar view store", () => {
       hostFilters: [],
       projectFilters: [],
       labelFilter: { labels: [] },
+      headerRowsExpanded: false,
     });
   });
 
@@ -108,6 +110,7 @@ describe("sidebar view store", () => {
       hostFilters: ["host-a"],
       projectFilters: [],
       labelFilter: { labels: [] },
+      headerRowsExpanded: false,
     });
   });
 
@@ -124,6 +127,7 @@ describe("sidebar view store", () => {
       hostFilters: ["host-a", "host-b"],
       projectFilters: [],
       labelFilter: { labels: [] },
+      headerRowsExpanded: false,
     });
   });
 
@@ -140,6 +144,7 @@ describe("sidebar view store", () => {
       groupMode: "status",
       hostFilters: ["host-a"],
       labelFilter: { labels: [] },
+      headerRowsExpanded: false,
     });
   });
 
@@ -236,6 +241,7 @@ describe("sidebar view store", () => {
       hostFilters: ["host-a"],
       projectFilters: ["project-a", "project-b"],
       labelFilter: { labels: [] },
+      headerRowsExpanded: false,
     });
   });
 
@@ -247,6 +253,7 @@ describe("sidebar view store", () => {
       hostFilters: [],
       projectFilters: [],
       labelFilter: { labels: [] },
+      headerRowsExpanded: false,
     });
   });
 
@@ -299,6 +306,19 @@ it("defaults to Created and persists the Last prompt choice across migration", (
   expect(
     migrateSidebarViewState({ workspaceSort: "lastPrompt", groupMode: "status" }),
   ).toMatchObject({ workspaceSort: "lastPrompt", groupMode: "status" });
+});
+
+it("keeps the folded header rows folded by default and persists the person's choice", () => {
+  expect(migrateSidebarViewState({}).headerRowsExpanded).toBe(false);
+  expect(migrateSidebarViewState({ headerRowsExpanded: true }).headerRowsExpanded).toBe(true);
+  useSidebarViewStore.getState().setHeaderRowsExpanded(true);
+  expect(useSidebarViewStore.getState().headerRowsExpanded).toBe(true);
+  expect(
+    useSidebarViewStore.persist.getOptions().partialize?.(useSidebarViewStore.getState()),
+  ).toMatchObject({
+    headerRowsExpanded: true,
+  });
+  useSidebarViewStore.getState().setHeaderRowsExpanded(false);
 });
 
 it("retains the manual sorting preference on reload", () => {

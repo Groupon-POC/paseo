@@ -1,7 +1,17 @@
-import { placeCronGroup, portableCron, removeCronCopies } from "@/groupon/cron-schedules";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a shared cron's repository shown and chosen, its computers limited to Macs holding a checkout of it.
+import {
+  copiesHoldingRepository,
+  type CronRepository,
+  placeCronGroup,
+  portableCron,
+  readCronRepositories,
+  removeCronCopies,
+  setCronRepository,
+} from "@/groupon/cron-schedules";
 import { getHostRuntimeStore, useHosts } from "@/runtime/host-runtime";
 import { useToast } from "@/contexts/toast-context";
 import { useQueryClient } from "@tanstack/react-query";
+import { useFetchQuery } from "@/data/query";
 import { schedulesQueryBaseKey } from "@/schedules/aggregated-schedules";
 import { MenuRoot, MenuTrigger, MenuSurface, MenuItem } from "@/components/ui/menu";
 import { Text } from "react-native";
@@ -122,6 +132,47 @@ function SchedulesTableRow({
     [copies, hosts, runtime, toast, query, canPlaceSharedCrons],
   );
   const mutations = useScheduleMutations({ serverId });
+  const repository = schedule.cron?.repository ?? null;
+  const [repositoryMenuOpen, setRepositoryMenuOpen] = useState(false);
+  // The hub's repositories and the Macs holding each, asked of this row's Mac: for the Repository
+  // picker once opened, and to offer a repository cron only the Macs that can run it.
+  const repositories = useFetchQuery({
+    queryKey: ["groupon", "cron-repositories", serverId],
+    enabled: shared && (repositoryMenuOpen || repository !== null),
+    dataShape: "value",
+    retry: false,
+    staleTimeMs: 60_000,
+    queryFn: async (): Promise<CronRepository[]> => {
+      const client = runtime.getClient(serverId);
+      if (!client) throw new Error("This computer is not connected.");
+      return readCronRepositories(client);
+    },
+  });
+  const runnable = useMemo(
+    () => (repositories.data ? copiesHoldingRepository(copies, repositories.data) : copies),
+    [copies, repositories.data],
+  );
+  const chooseRepository = useCallback(
+    async (next: string | null) => {
+      const client = runtime.getClient(serverId);
+      if (!client) {
+        toast.error("This computer must be connected to change the cron's repository.");
+        return;
+      }
+      setPending((current) => ({ ...current, resume: true, pause: true }));
+      try {
+        await setCronRepository({ copy: schedule, repository: next, client });
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Could not change the cron's repository.",
+        );
+      } finally {
+        setPending(NO_PENDING);
+        await query.invalidateQueries({ queryKey: schedulesQueryBaseKey });
+      }
+    },
+    [runtime, serverId, schedule, toast, query],
+  );
 
   const runAction = useCallback(
     async (key: keyof ScheduleRowPending, action: () => Promise<void>): Promise<void> => {
@@ -232,6 +283,49 @@ function SchedulesTableRow({
         onRunNow={handleRunNow}
         onDelete={handleDelete}
       />
+      {shared ? (
+        <View style={styles.placement}>
+          <MenuRoot compactMode="sheet" onOpenChange={setRepositoryMenuOpen}>
+            <MenuTrigger
+              disabled={Object.keys(pending).length > 0}
+              accessibilityLabel={`Choose repository for ${resolveScheduleTitle(schedule)}`}
+            >
+              <Text style={styles.placementText}>
+                {repository
+                  ? `Works in ${repositoryLabel(repository, repositories.data)}, a fresh worktree each run`
+                  : "Works in the home folder"}
+              </Text>
+            </MenuTrigger>
+            <MenuSurface sheetTitle="Run this cron in">
+              <CronRepositoryChoice
+                label="The home folder"
+                repository={null}
+                onChoose={chooseRepository}
+              />
+              {(repositories.data ?? []).map((entry) => (
+                <CronRepositoryChoice
+                  key={entry.repository}
+                  label={entry.name}
+                  repository={entry.repository}
+                  onChoose={chooseRepository}
+                />
+              ))}
+              {repositories.isPending && repositoryMenuOpen ? (
+                <MenuItem disabled onSelect={noop}>
+                  Loading your repositories...
+                </MenuItem>
+              ) : null}
+              {repositories.error ? (
+                <MenuItem disabled onSelect={noop}>
+                  {repositories.error instanceof Error
+                    ? repositories.error.message
+                    : "Repositories not read"}
+                </MenuItem>
+              ) : null}
+            </MenuSurface>
+          </MenuRoot>
+        </View>
+      ) : null}
       {shared && (row.state === "active" || row.state === "paused") ? (
         <View style={styles.placement}>
           <MenuRoot compactMode="sheet">
@@ -246,10 +340,10 @@ function SchedulesTableRow({
               </Text>
             </MenuTrigger>
             <MenuSurface sheetTitle="Run this cron on">
-              {copies
+              {runnable
                 .filter(
                   (copy, index) =>
-                    copies.findIndex((other) => other.serverId === copy.serverId) === index,
+                    runnable.findIndex((other) => other.serverId === copy.serverId) === index,
                 )
                 .map((copy) => (
                   <CronComputerChoice key={copy.serverId} copy={copy} onMove={move} />
@@ -260,6 +354,32 @@ function SchedulesTableRow({
       ) : null}
     </View>
   );
+}
+
+function noop() {}
+
+/** The repository's name as the hub lists it, else the last part of its identity. */
+function repositoryLabel(repository: string, known: readonly CronRepository[] | undefined): string {
+  return (
+    known?.find((entry) => entry.repository === repository)?.name ??
+    repository.split("/").at(-1) ??
+    repository
+  );
+}
+
+function CronRepositoryChoice({
+  label,
+  repository,
+  onChoose,
+}: {
+  label: string;
+  repository: string | null;
+  onChoose: (repository: string | null) => Promise<void>;
+}) {
+  const select = useCallback(() => {
+    void onChoose(repository);
+  }, [repository, onChoose]);
+  return <MenuItem onSelect={select}>{label}</MenuItem>;
 }
 
 function CronComputerChoice({

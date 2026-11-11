@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a cron's identity carries its repository and its Mac's hub id from the plugin's catalog.
 import type { z } from "zod";
 import { CronCatalogSchema, type CronIdentity } from "@/groupon/cron-schedules";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -125,7 +126,16 @@ export async function fetchAggregatedSchedules(
             ...schedule,
             serverId: host.serverId,
             serverName: host.serverName,
-            ...(job && catalog ? { cron: { name: job.name, home: catalog.home } } : {}),
+            ...(job && catalog
+              ? {
+                  cron: {
+                    name: job.name,
+                    home: catalog.home,
+                    repository: job.repository ?? null,
+                    machine: catalog.machine ?? null,
+                  },
+                }
+              : {}),
           });
         }
       } catch (error) {

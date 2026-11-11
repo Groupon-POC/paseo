@@ -1222,7 +1222,18 @@ the `remove` clears pending, and after it the archive counts as done.
   Its computer selector uses the CLI's shared placement and requires all old copies to acknowledge
   pause before activation on another Mac. Existing-chat schedules retain their own computer.
 
-Shared cron edits update every copy while preserving each Mac's home folder. Deleting a shared
+Shared cron edits update every copy while preserving each Mac's own folder (its home, or its
+checkout of the cron's repository).
+
+A cron may work in a repository (owner, 2026-11-11; `groupon cron new | edit --repository`): its
+schedule targets the Mac's checkout with Paseo's own `isolation: "worktree"` and `archiveOnFinish:
+false`, so each run gets a fresh worktree of the repository's default branch, registered under its
+project and kept after the run. The fork adds `worktreeBranchPrefix` to a new-agent schedule's
+config (protocol `schedule/types.ts`, `rpc-schemas.ts`; server `schedule/service.ts`,
+`bootstrap.ts`): such a run's branch is `<prefix>/<YYYY-MM-DD>` (UTC, `-2` and on when taken), kept
+after the first message instead of renamed from the prompt. Schedules (Cron) shows where each shared
+cron works and offers a Repository picker (`groupon.cron-repositories`, `groupon.cron-repository`)
+and, for a repository cron, only the computers holding a checkout of it. Deleting a shared
 row pauses all copies and removes their registered definitions through the CLI, which retains logs
 and writes the vault deletion tombstones. Failed operations remain visible as errors and refresh
 the list, rather than silently leaving the old row in the cache.

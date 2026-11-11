@@ -1,15 +1,42 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0).
-/** Shared cron templates have one row; a handoff pauses every known copy before activating one. */
+/**
+ * Shared cron templates have one row; a handoff pauses every known copy before activating one. A
+ * cron with a repository (`groupon cron edit --repository`) works in worktrees of each Mac's own
+ * checkout, runs only on a Mac holding one, and has its repository set through the copy's Mac.
+ */
 import type { AggregatedSchedule } from "@/schedules/aggregated-schedules";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { z } from "zod";
+import { GROUPON_PLUGIN_ID, GROUPON_RPC } from "@/groupon/desk-plugin-rpc";
 export const CronCatalogSchema = z.object({
   home: z.string(),
-  jobs: z.array(z.object({ name: z.string(), scheduleId: z.string() })),
+  /** This Mac's hub id; absent from a plugin older than repositories. */
+  machine: z.string().nullable().optional(),
+  jobs: z.array(
+    z.object({
+      name: z.string(),
+      scheduleId: z.string(),
+      repository: z.string().nullable().optional(),
+    }),
+  ),
 });
+export const CronRepositoriesSchema = z.object({
+  repositories: z.array(
+    z.object({
+      repository: z.string(),
+      name: z.string(),
+      checkouts: z.array(z.object({ machine: z.string(), rootPath: z.string() })),
+    }),
+  ),
+});
+export type CronRepository = z.infer<typeof CronRepositoriesSchema>["repositories"][number];
 export interface CronIdentity {
   name: string;
   home: string;
+  /** The repository its runs work in (`github.com/org/repo`); null or absent: the home folder. */
+  repository?: string | null;
+  /** The hub id of the Mac this copy is on. */
+  machine?: string | null;
 }
 export interface CronScheduleGroup {
   schedule: AggregatedSchedule;
@@ -26,14 +53,46 @@ function stable(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 export function portableCron(schedule: AggregatedSchedule): boolean {
+  if (!schedule.cron || schedule.target.type !== "new-agent") return false;
+  const config = schedule.target.config;
+  // Each Mac's own folder: its home, or for a repository cron its checkout, a worktree per run.
+  const ownFolder = schedule.cron.repository
+    ? config.isolation === "worktree"
+    : config.cwd === schedule.cron.home;
   return Boolean(
-    schedule.cron &&
-    schedule.target.type === "new-agent" &&
-    schedule.target.config.cwd === schedule.cron.home &&
-    schedule.target.config.systemPrompt?.startsWith(
-      'You are run unattended by `groupon cron` as the job "',
-    ),
+    ownFolder &&
+    config.systemPrompt?.startsWith('You are run unattended by `groupon cron` as the job "'),
   );
+}
+
+/** The folder a copy's runs work in on its own Mac: its checkout of the repository, or its home. */
+function ownFolderOf(copy: AggregatedSchedule): string {
+  return copy.target.type === "new-agent" ? copy.target.config.cwd : copy.cron!.home;
+}
+
+/** The copies that may run the cron: all of them, or for a repository cron those on a Mac holding a checkout of it. */
+export function copiesHoldingRepository(
+  copies: readonly AggregatedSchedule[],
+  repositories: readonly CronRepository[],
+): AggregatedSchedule[] {
+  return copies.filter((copy) => {
+    const repository = copy.cron?.repository;
+    if (!repository) return true;
+    const held = repositories.find((entry) => entry.repository === repository);
+    return Boolean(held?.checkouts.some((checkout) => checkout.machine === copy.cron?.machine));
+  });
+}
+
+/** The repository a cron works in, set (or cleared with null) through its copy's own Mac; the CLI's refusal is the error. */
+export async function setCronRepository(input: {
+  copy: AggregatedSchedule;
+  repository: string | null;
+  client: Pick<DaemonClient, "invokePluginRpc">;
+}): Promise<void> {
+  await input.client.invokePluginRpc(GROUPON_PLUGIN_ID, GROUPON_RPC.cronRepository, {
+    scheduleId: input.copy.id,
+    repository: input.repository,
+  });
 }
 export function groupCronSchedules(schedules: readonly AggregatedSchedule[]): CronScheduleGroup[] {
   const groups = new Map<string, AggregatedSchedule[]>();
@@ -120,7 +179,7 @@ export async function placeCronGroup(input: {
   }
 }
 
-/** Update every copy with the same definition while preserving each Mac's home directory. */
+/** Update every copy with the same definition while preserving each Mac's own folder (its home, or its checkout). */
 export async function updateCronCopies(input: {
   copies: readonly AggregatedSchedule[];
   update: import("@getpaseo/client/internal/daemon-client").UpdateScheduleOptions;
@@ -137,7 +196,7 @@ export async function updateCronCopies(input: {
       ...input.update,
       id: copy.id,
       ...(input.update.newAgentConfig
-        ? { newAgentConfig: { ...input.update.newAgentConfig, cwd: copy.cron!.home } }
+        ? { newAgentConfig: { ...input.update.newAgentConfig, cwd: ownFolderOf(copy) } }
         : {}),
     });
     if (answer.error) throw new Error(`${copy.serverName}: ${answer.error}`);
@@ -154,4 +213,16 @@ export async function removeCronCopies(input: Parameters<typeof placeCronGroup>[
     if (!z.object({ removed: z.literal(true) }).safeParse(answer).success)
       throw new Error(`${copy.serverName}: the cron could not be removed.`);
   }
+}
+
+/** The repositories a cron may work in and the Macs holding each, asked of one Mac's plugin (the hub's view). */
+export async function readCronRepositories(
+  client: Pick<DaemonClient, "invokePluginRpc">,
+): Promise<CronRepository[]> {
+  const answer = CronRepositoriesSchema.safeParse(
+    await client.invokePluginRpc(GROUPON_PLUGIN_ID, GROUPON_RPC.cronRepositories, {}),
+  );
+  if (!answer.success)
+    throw new Error("Update Groupon Desk on this computer to choose a repository.");
+  return answer.data.repositories;
 }

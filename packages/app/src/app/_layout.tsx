@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in gate in front of the host runtime; the From GitHub sheet; no built-in daemon, the hand owns it; no Paseo update callout, updates arrive with Groupon Desk; the Improve this repository sheet; no built-in daemon, the hand owns it; the "New chat" shortcut's handler. Cmd+Shift+T brings back a closed chat (`groupon/use-reopen-closed-chat.ts`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Groupon sign-in gate in front of the host runtime; the From GitHub sheet; no built-in daemon, the hand owns it; no Paseo update callout, updates arrive with Groupon Desk; the Improve this repository sheet; no built-in daemon, the hand owns it; the "New chat" shortcut's handler; the sheet Create PR opens for a branch with no ticket. Cmd+Shift+T brings back a closed chat (`groupon/use-reopen-closed-chat.ts`).
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useIsExplorerSidebarOpen } from "@/workspace-tabs/explorer-sidebar";
@@ -35,6 +35,7 @@ import { GROUPON_DESK_HAND_OWNS_DAEMON } from "@/groupon/pairing-policy";
 import { GithubProjectSheetHost } from "@/groupon/github-project-sheet";
 import { PASEO_APP_UPDATES } from "@/groupon/app-updates";
 import { ImproveRepositorySheetHost } from "@/groupon/improve-repository-sheet";
+import { TicketPullRequestSheetHost } from "@/groupon/ticket-pull-request-sheet";
 import { WorktreeSetupCalloutSource } from "@/components/worktree-setup-callout-source";
 import { DownloadToast } from "@/components/download-toast";
 import { QuittingOverlay } from "@/components/quitting-overlay";
@@ -512,6 +513,7 @@ function AppContainer({ children, chromeEnabled: chromeEnabledOverride }: AppCon
         <AddProjectFlowHost />
         <GithubProjectSheetHost />
         <ImproveRepositorySheetHost />
+        <TicketPullRequestSheetHost />
         <HostChooserModal />
         <HostConfirmationSheet />
         <ProviderSettingsHost />

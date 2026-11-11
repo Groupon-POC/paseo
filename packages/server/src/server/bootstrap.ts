@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app; a workspace on a shared trunk is matched to no pull request; the reader of MCP tool titles starts and stops with the daemon.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app; a workspace on a shared trunk is matched to no pull request; the reader of MCP tool titles starts and stops with the daemon; a schedule's worktree run keeps the branch the schedule named
 import {
   createFinishSubscriptions,
   createFinishObservation,
@@ -1353,10 +1353,13 @@ export async function createPaseoDaemon(
   const createSchedulePaseoWorktreeExternal = async (input: {
     cwd: string;
     firstAgentContext: FirstAgentContext;
+    branchName?: string;
   }) => {
     const result = await createPaseoWorktreeForTools({
       cwd: input.cwd,
       firstAgentContext: input.firstAgentContext,
+      // A schedule that names its run's branch keeps it: no rename from the first prompt.
+      ...(input.branchName ? { branchName: input.branchName, keepBranchName: true } : {}),
     });
     await emitWorkspaceUpdatesExternal([result.workspace.workspaceId]);
     return result;

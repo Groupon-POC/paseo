@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Create PR refuses a repository on the ticket standard (`groupon/ticket-pull-request.ts`).
 import type pino from "pino";
 import type { SessionDelivery } from "../owned-subscriptions/index.js";
 import { isAbsolute } from "node:path";
@@ -56,6 +57,7 @@ import {
 import { runGitCommand } from "../../../utils/run-git-command.js";
 import { expandTilde } from "../../../utils/path.js";
 import type { GitMetadataGenerator } from "./git-metadata-generator.js";
+import { ticketStandardRefusal } from "../../../groupon/ticket-pull-request.js";
 
 /**
  * The collaborators a checkout command reaches that are NOT part of the checkout
@@ -954,6 +956,12 @@ export class CheckoutSession {
     const { cwd, requestId } = msg;
 
     try {
+      // Groupon Desk: a repository on the ticket standard opens through groupon ticket pr, never here.
+      const refusal = await ticketStandardRefusal(
+        async (args) => (await runGitCommand(args, { cwd })).stdout,
+      );
+      if (refusal) throw new Error(refusal);
+
       let title = msg.title?.trim() ?? "";
       let body = msg.body?.trim() ?? "";
 

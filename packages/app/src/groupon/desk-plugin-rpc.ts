@@ -36,6 +36,7 @@ export const GROUPON_RPC = {
   cronRemove: "groupon.cron-remove",
   cronRepositories: "groupon.cron-repositories",
   cronRepository: "groupon.cron-repository",
+  pullRequest: "groupon.pull-request",
 } as const;
 
 export type PluginRpcClient = Pick<DaemonClient, "invokePluginRpc">;
@@ -319,6 +320,25 @@ export interface TicketStartInput {
   modeId?: string;
 }
 
+/**
+ * Create PR on the ticket standard (the plugin's `server/pull-request.ts`): Paseo's own create, the
+ * ticket the person has to give first, a branch ready to open, the pull request opened, or the
+ * CLI's refusal.
+ */
+export type PullRequestOutcome =
+  | { kind: "paseo"; branch: string | null }
+  | { kind: "needs-ticket"; branch: string; suggested: string | null }
+  | { kind: "ready"; branch: string; ticket: string }
+  | {
+      kind: "opened";
+      branch: string;
+      ticket: string;
+      url: string;
+      title: string | null;
+      created: boolean;
+    }
+  | { kind: "refused"; reason: string };
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -575,6 +595,35 @@ export async function requestEncoreAccess(
 }
 
 /** One page of the person's Jira search, run by the platform inside its scope. */
+export function isPullRequestOutcome(value: unknown): value is PullRequestOutcome {
+  if (!isRecord(value)) return false;
+  switch (value.kind) {
+    case "paseo":
+      return value.branch === null || typeof value.branch === "string";
+    case "needs-ticket":
+      return typeof value.branch === "string";
+    case "ready":
+      return typeof value.branch === "string" && typeof value.ticket === "string";
+    case "opened":
+      return typeof value.url === "string" && typeof value.ticket === "string";
+    case "refused":
+      return typeof value.reason === "string";
+    default:
+      return false;
+  }
+}
+
+/** Which way Create PR goes (`open: false`), or the pull request it opened (`open: true`). */
+export async function pullRequestOnStandard(
+  client: PluginRpcClient,
+  input: { cwd: string; ticket?: string; open: boolean },
+): Promise<PullRequestOutcome> {
+  const output = await call(client, GROUPON_RPC.pullRequest, { ...input });
+  if (!isPullRequestOutcome(output))
+    throw new Error("Create PR came back in a shape this app does not read");
+  return output;
+}
+
 export async function searchJira(
   client: PluginRpcClient,
   input: { jql: string; fields: string[]; cursor: string | null; limit: number },

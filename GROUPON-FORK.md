@@ -321,9 +321,24 @@ name>` until its first message renames it to `<login>/<slug of that message>`. S
   New workspace in groupon-monorepo was cut from a local `staging` 7,208 commits behind origin, and
   its setup failed at once (`pnpm checkout:prepare`: the script did not exist yet at that commit).
 
-A pull request from a `<login>/<slug>` branch is renamed through `groupon ticket name` before it
-opens: the company's branch standard is `<tribe>/<INITIATIVE-KEY>/<TICKET-KEY>-<slug>`, and the
-pull-request prompt in the repository's `.groupon/desk.toml` already says so.
+**Create PR follows the pull-request standard in a repository that asks for it.** A repository
+whose `.groupon/desk.toml` says `[git] pull_requests = "ticket"` opens every pull request through
+`groupon ticket pr` (title `[TICKET-KEY] Text`, against the trunk, never merged), run by the
+Groupon plugin on the workspace's Mac (`groupon.pull-request`, the plugin's
+`server/pull-request.ts`). The window asks it first which way the branch goes
+(`groupon/ticket-pull-request.ts`, from `git/actions-store.ts`'s `createPr`): a branch on
+`<tribe>/<INITIATIVE-KEY>/<TICKET-KEY>-<slug>` opens at once; a branch with no ticket opens nothing,
+and the sheet `groupon/ticket-pull-request-sheet.tsx` asks the person for the ticket (a key or
+link, one of their open tickets, or Jira's own Create screen: the window never creates a ticket),
+then the plugin names the branch with `groupon ticket name <KEY>`, renames it and opens the pull
+request. `baseline-sync/*` and `release/*`, a repository without the key, and a Mac whose plugin
+is missing keep Paseo's own create. Paseo's own create (`checkout_pr_create_request`: a title an
+agent writes from the diff, then `gh pr create`) refuses a repository on the standard outright,
+exempt branches aside (`packages/server/src/groupon/ticket-pull-request.ts`, from
+`checkout-session.ts`), whoever calls it. Measured on 2026-11-11: PR 515 of
+groupon2/engineering-development was opened from the button on
+`ctzaruba/tenhle-ukol-nesouvisi-s-ukolem-v-tomto` with a title carrying no key; the chat's agent
+was idle at the time, and the repository's `[prompts] create_pr` was never sent anywhere.
 
 The workspaces the release trains archived before this are listed per Mac in Settings > Groupon,
 "Archived by a release train" (`groupon/train-archived-section.tsx`), newest first with the archive

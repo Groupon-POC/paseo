@@ -355,6 +355,28 @@ export const GROUPON_TICKET = {
   handLog: "~/.local/state/groupon/hand/serve.log",
 } as const;
 
+export const GROUPON_PULL_REQUEST = {
+  title: "This branch has no ticket",
+  intro:
+    "A pull request here follows the company standard: its branch is named for a Jira ticket and its title starts with the ticket's key. Give the ticket this work belongs to; the branch is renamed for it and the pull request opens with groupon ticket pr. Nothing opens without one.",
+  branchLabel: "Branch",
+  ticketLabel: "Ticket",
+  ticketPlaceholder: "ENC-1234 or the ticket's Jira link",
+  myTasks: "Your open tickets",
+  loadingTasks: "Reading your open tickets...",
+  noTasks: "No open ticket is assigned to you.",
+  createInJira: "Create a ticket in Jira",
+  createHint: "No ticket yet? Create it in Jira yourself, then paste its key here.",
+  notAKey: "Type a Jira key (ENC-1234) or paste the ticket's link.",
+  open: "Rename the branch and open the pull request",
+  cancel: "Cancel",
+  opened: "Pull request opened",
+  alreadyOpen: "The pull request was already open; the branch is pushed",
+  notOpened: "The pull request was not opened. Try Create PR again.",
+  stillNoTicket: (branch: string) =>
+    `${branch} still carries no ticket, so no pull request was opened.`,
+} as const;
+
 export const GROUPON_REPOSITORY = {
   openFile: "The file on GitHub",
   overridesPresent:

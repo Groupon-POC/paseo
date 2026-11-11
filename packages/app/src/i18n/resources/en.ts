@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name wherever the English names it, the engine's included (owner, 2026-10-20: no trace of Paseo a person meets); the project config is .groupon/desk.toml. The desktop notifications switch (`settings.notifications.enabled`, `enabledHint`). The sidebar's Show New workspace toggle (`sidebar.display.showNewWorkspaceRows`). New workspace's isolation reads Local or Worktree. The too-large diff state reads the owner's words (ENC-12144).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name wherever the English names it, the engine's included (owner, 2026-10-20: no trace of Paseo a person meets); the project config is .groupon/desk.toml. The desktop notifications switch (`settings.notifications.enabled`, `enabledHint`). The sidebar's Show New workspace toggle (`sidebar.display.showNewWorkspaceRows`). New workspace's isolation reads Local or Worktree. The sidebar's "More" row folding the header rows (`sidebar.actions.more`). The too-large diff state reads the owner's words (ENC-12144).
 export const en = {
   paneFind: {
     connectionFailure: "Could not search this chat. Check the host connection and retry.",
@@ -1248,6 +1248,7 @@ export const en = {
       searchPlaceholder: "Search hosts...",
     },
     actions: {
+      more: "More",
       addProject: "Add project",
       newWorkspace: "New workspace",
       hosts: "Hosts",

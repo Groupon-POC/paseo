@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `chat.new`, the "New chat" shortcut; back and forward through a workspace's tabs (`workspace.history.*`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `chat.new`, the "New chat" shortcut; back and forward through a workspace's tabs (`workspace.history.*`); `workspace.host.cycle`, the next Mac of New workspace.
 export type KeyboardActionScope = "global" | "message-input" | "sidebar" | "workspace";
 
 export type WorkspacePanelTarget = "changes" | "files" | "pull-request";
@@ -53,6 +53,7 @@ export type KeyboardActionId =
   | "workspace.history.back"
   | "workspace.history.forward"
   | "workspace.project.pick"
+  | "workspace.host.cycle"
   | "worktree.new"
   | "workspace.archive"
   | "workspace.pin"
@@ -114,6 +115,7 @@ export type KeyboardActionDefinition =
   | { id: "workspace.history.back"; scope: KeyboardActionScope }
   | { id: "workspace.history.forward"; scope: KeyboardActionScope }
   | { id: "workspace.project.pick"; scope: KeyboardActionScope }
+  | { id: "workspace.host.cycle"; scope: KeyboardActionScope }
   | { id: "worktree.new"; scope: KeyboardActionScope }
   | { id: "workspace.archive"; scope: KeyboardActionScope }
   | { id: "workspace.pin"; scope: KeyboardActionScope }

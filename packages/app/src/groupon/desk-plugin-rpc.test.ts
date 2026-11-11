@@ -15,6 +15,8 @@ import {
   isProjectSettingsAnswer,
   isPullRequestOutcome,
   jiraSavedView,
+  nameTicketBranch,
+  isTicketNameAnswer,
   pullRequestOnStandard,
   readJiraFields,
   searchJira,
@@ -338,7 +340,31 @@ describe("the Groupon plugin's RPCs", () => {
       cronRepositories: "groupon.cron-repositories",
       cronRepository: "groupon.cron-repository",
       pullRequest: "groupon.pull-request",
+      ticketName: "groupon.ticket-name",
     });
+  });
+
+  it("reads the ticket's branch name and the helper's refusal, and asks with the key", async () => {
+    const named = {
+      kind: "named",
+      ticket: "ENC-1234",
+      branch: "b2b/QR-1742/ENC-1234-fix-the-feed",
+    };
+    const refused = {
+      kind: "refused",
+      reason: "groupon ticket name ENC-1234 gave no branch name: ENC-1234 has no parent",
+    };
+    expect(isTicketNameAnswer(named)).toBe(true);
+    expect(isTicketNameAnswer(refused)).toBe(true);
+    expect(isTicketNameAnswer({ kind: "named", ticket: "ENC-1234" })).toBe(false);
+    const { client, calls } = fakeClient({ [GROUPON_RPC.ticketName]: [named] });
+
+    const answer = await nameTicketBranch(client, "ENC-1234");
+
+    expect(answer).toEqual(named);
+    expect(calls.map(({ method, input }) => [method, input])).toEqual([
+      ["groupon.ticket-name", { ticket: "ENC-1234" }],
+    ]);
   });
 
   it("reads Create PR's sample answers and asks the plugin with the checkout and the ticket", async () => {

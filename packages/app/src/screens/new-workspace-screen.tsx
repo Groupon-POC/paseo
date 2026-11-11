@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`). The composers follow the screen's focus, so a list left open does not float over another page; slash commands open below the input, and the Claude Code profile lists them from the chat's Claude draft. Local stays in the checkout on a shared branch when the person's Groupon setting says so. New workspace on "No project" is a chat: the daemon places it by its first message. Import session and Start a ticket step aside while a workspace is created. The composer takes the dock's width, which widens with a wide window. The page keeps its title and its fields in place while the chosen repository resolves, so it does not jump on opening.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; in a repository that names branches from a Jira ticket (`.groupon/desk.toml`) the ticket step above the composer comes first, the workspace is created on the branch `groupon ticket name` answers, and My tasks' Take fills that step (`groupon/ticket-branch-step.tsx`); "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`). The composers follow the screen's focus, so a list left open does not float over another page; slash commands open below the input, and the Claude Code profile lists them from the chat's Claude draft. Local stays in the checkout on a shared branch when the person's Groupon setting says so. New workspace on "No project" is a chat: the daemon places it by its first message. Import session and Start a ticket step aside while a workspace is created. The composer takes the dock's width, which widens with a wide window. The page keeps its title and its fields in place while the chosen repository resolves, so it does not jump on opening.
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -143,6 +143,7 @@ import { StartTicketButton } from "@/groupon/start-ticket-button";
 import { CreationProgressCaption, useCreationProgress } from "@/groupon/creation-progress";
 import { JiraTasksCard } from "@/groupon/jira-tasks-card";
 import { useStartTicketFromPage } from "@/groupon/start-ticket-sheet";
+import { useNewWorkspaceTicket } from "@/groupon/ticket-branch-step";
 import { useImportSession } from "@/hooks/use-import-session";
 import {
   buildTerminalsQueryKey,
@@ -348,7 +349,8 @@ async function createMultiplicityWorkspace(input: {
   isolation: "local" | "worktree";
   project: HostProjectListItem;
   sourceDirectory: string;
-  checkoutRequest: PickerCheckoutRequest | undefined;
+  /** Groupon Desk: `branchName` is a ticket's branch, as `groupon ticket name` answered it. */
+  checkoutRequest: (PickerCheckoutRequest & { branchName?: string }) | undefined;
   withInitialAgent: boolean;
   agent?: CreateWorkspaceRequestOptions["agent"];
   onEvent?: (snapshot: CreationSnapshot) => void;
@@ -1249,6 +1251,22 @@ export function NewWorkspaceScreen({
     () => selectedItem ?? (checkoutStatus ? defaultBasePickerItem(checkoutStatus) : null),
     [checkoutStatus, selectedItem],
   );
+  // Groupon Desk: a repository that names branches from a Jira ticket asks for the ticket first.
+  const startTicket = useStartTicketFromPage({
+    serverId: selectedServerId,
+    project: selectedProject,
+    composer: composerState,
+  });
+  const ticket = useNewWorkspaceTicket({
+    client,
+    serverId: selectedServerId,
+    sourceDirectory: selectedSourceDirectory,
+    supportsWorkspaceMultiplicity,
+    isolation: effectiveIsolation,
+    checkout: pickerItemToCheckoutRequest(baseItem),
+    disabled: isPending,
+    startTicket,
+  });
   const { options, itemById, selectedOptionId }: PickerOptionData = useMemo(
     () =>
       buildPickerOptionData({
@@ -1419,19 +1437,22 @@ export function NewWorkspaceScreen({
             cwd: selectedSourceDirectory,
           })
         : null;
-      const checkoutRequest = checkoutStatusForCreate
+      const pickedCheckout = checkoutStatusForCreate
         ? pickerItemToCheckoutRequest(
             selectedItem ?? defaultBasePickerItem(checkoutStatusForCreate),
           )
         : undefined;
+      // Groupon Desk: on the ticket's branch when the repository names branches from a ticket.
+      const ticketCreation = ticket.creationFor(pickedCheckout);
+      const onTicketBranch = ticketCreation.kind === "ticket-branch";
       const normalizedWorkspace = await createMultiplicityWorkspace({
         idempotencyKey: creationIdentity.draftId,
         worktreeSlug: creationIdentity.worktreeSlug,
         client: connectedClient,
-        isolation: createsWorktree ? "worktree" : "local",
+        isolation: createsWorktree || onTicketBranch ? "worktree" : "local",
         project: selectedProject,
         sourceDirectory: selectedSourceDirectory,
-        checkoutRequest,
+        checkoutRequest: onTicketBranch ? ticketCreation.checkout : pickedCheckout,
         withInitialAgent: input.withInitialAgent,
         prompt: input.prompt,
         attachments: input.attachments,
@@ -1452,6 +1473,7 @@ export function NewWorkspaceScreen({
       creationResult,
       effectiveIsolation,
       mergeWorkspaces,
+      ticket,
       observeCreation,
       queryClient,
       selectedItem,
@@ -1468,6 +1490,8 @@ export function NewWorkspaceScreen({
     async (payload: MessagePayload) => {
       try {
         setErrorMessage(null);
+        // Groupon Desk: without the ticket a ticket repository needs, nothing starts (throws TICKET_REQUIRED).
+        ticket.creationFor(undefined);
         await composerState?.persistFormPreferences();
         await updateFormPreferences({ launchTarget });
         if (isEmptyWorkspaceSubmission(payload)) {
@@ -1540,6 +1564,7 @@ export function NewWorkspaceScreen({
       startCreation,
       supportsForgeSearch,
       t,
+      ticket,
       toast,
       updateFormPreferences,
       withConnectedClient,
@@ -1549,6 +1574,8 @@ export function NewWorkspaceScreen({
   const handleSubmitTerminalLaunch = useCallback(async () => {
     try {
       setErrorMessage(null);
+      // Groupon Desk: without the ticket a ticket repository needs, nothing starts (throws TICKET_REQUIRED).
+      ticket.creationFor(undefined);
       await updateFormPreferences({ launchTarget });
       setPendingAction("terminal");
       startCreation();
@@ -1618,6 +1645,7 @@ export function NewWorkspaceScreen({
     startCreation,
     t,
     terminalPromptText,
+    ticket,
     toast,
     leaveFullscreen,
     updateFormPreferences,
@@ -1710,11 +1738,6 @@ export function NewWorkspaceScreen({
   });
 
   const importSession = useImportSession({ serverId: selectedServerId });
-  const startTicket = useStartTicketFromPage({
-    serverId: selectedServerId,
-    project: selectedProject,
-    composer: composerState,
-  });
 
   const isComposerFullscreen = composerEditing.isFullscreen(isTerminalLaunch);
   const chatCommandDraft = composerState?.commandDraft;
@@ -1799,6 +1822,7 @@ export function NewWorkspaceScreen({
         onStartTicket={startTicket.open}
         hideEntries={isPending}
       >
+        {ticket.element}
         {composer}
         <CreationProgressCaption
           progress={creationProgress}
@@ -1809,7 +1833,7 @@ export function NewWorkspaceScreen({
       </NewWorkspaceLayout>
       <JiraTasksCard
         serverId={selectedServerId}
-        onTakeTicket={startTicket.openFor}
+        onTakeTicket={ticket.takeTicket}
         composerText={launchTextSource(isTerminalLaunch, terminalTextSource, chatDraft.textSource)}
       />
       {importSession.sheet}

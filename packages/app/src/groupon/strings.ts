@@ -355,6 +355,18 @@ export const GROUPON_TICKET = {
   handLog: "~/.local/state/groupon/hand/serve.log",
 } as const;
 
+export const GROUPON_TICKET_BRANCH = {
+  label: "Ticket",
+  required:
+    "This repository names branches from a Jira ticket: take one from My tasks, type its key, or start one.",
+  optional:
+    "This repository names branches from a Jira ticket: with one, the work gets a worktree on its branch.",
+  placeholder: "ENC-1234 or the ticket's Jira link",
+  naming: "Asking groupon ticket name for the branch",
+  branch: "Branch",
+  startTicket: "Start a ticket",
+} as const;
+
 export const GROUPON_PULL_REQUEST = {
   title: "This branch has no ticket",
   intro:

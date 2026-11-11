@@ -290,7 +290,7 @@ import {
   nodeMonitorStopDeps,
   stopAgentMonitor,
 } from "../groupon/agent-monitors.js";
-import { placeTicketlessWorkspace } from "../groupon/workspace-placement.js";
+import { hasDeskFile, placeTicketlessWorkspace } from "../groupon/workspace-placement.js";
 import { nameWorkspaceBranch } from "../groupon/workspace-branch.js";
 import {
   GROUPON_DESK_RPC,
@@ -7691,6 +7691,7 @@ export class Session {
     if (grouponPlacement) {
       const placementStarted = Date.now();
       const placement = await placeTicketlessWorkspace(creationRequest, {
+        namesBranchesFromTicket: hasDeskFile,
         readFacts: (cwd) => getCheckoutSnapshotFacts(cwd, { paseoHome: this.paseoHome }),
         resolveWorktreeSourceCwd: (source) =>
           resolveWorktreeSourceCwd(source, this.projectRegistry),

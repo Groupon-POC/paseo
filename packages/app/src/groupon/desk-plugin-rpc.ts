@@ -37,6 +37,7 @@ export const GROUPON_RPC = {
   cronRepositories: "groupon.cron-repositories",
   cronRepository: "groupon.cron-repository",
   pullRequest: "groupon.pull-request",
+  ticketName: "groupon.ticket-name",
 } as const;
 
 export type PluginRpcClient = Pick<DaemonClient, "invokePluginRpc">;
@@ -339,6 +340,11 @@ export type PullRequestOutcome =
     }
   | { kind: "refused"; reason: string };
 
+/** The branch `groupon ticket name <KEY>` answers for a ticket, or the helper's reason. */
+export type TicketNameAnswer =
+  | { kind: "named"; ticket: string; branch: string }
+  | { kind: "refused"; reason: string };
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -611,6 +617,24 @@ export function isPullRequestOutcome(value: unknown): value is PullRequestOutcom
     default:
       return false;
   }
+}
+
+export function isTicketNameAnswer(value: unknown): value is TicketNameAnswer {
+  if (!isRecord(value)) return false;
+  if (value.kind === "named")
+    return typeof value.ticket === "string" && typeof value.branch === "string";
+  return value.kind === "refused" && typeof value.reason === "string";
+}
+
+/** The branch a ticket's workspace starts on, as `groupon ticket name` answers it on that Mac. */
+export async function nameTicketBranch(
+  client: PluginRpcClient,
+  ticket: string,
+): Promise<TicketNameAnswer> {
+  const output = await call(client, GROUPON_RPC.ticketName, { ticket });
+  if (!isTicketNameAnswer(output))
+    throw new Error("The ticket's branch name came back in a shape this app does not read");
+  return output;
 }
 
 /** Which way Create PR goes (`open: false`), or the pull request it opened (`open: true`). */

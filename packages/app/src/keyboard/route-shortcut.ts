@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `chat.new` passes through to the dispatcher. Back and forward through a workspace's tabs pass through to the dispatcher. `chat.reopen-closed` calls back, as it works from any screen.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `chat.new` passes through to the dispatcher. Back and forward through a workspace's tabs pass through to the dispatcher. `chat.reopen-closed` calls back, as it works from any screen. `workspace.host.cycle` passes through to New workspace.
 import type { KeyboardShortcutPayload, MessageInputKeyboardActionKind } from "@/keyboard/actions";
 import type { KeyboardActionDefinition } from "@/keyboard/keyboard-action-dispatcher";
 import { buildSettingsRoute, parseHostWorkspaceRouteFromPathname } from "@/utils/host-routes";
@@ -55,6 +55,7 @@ const PASSTHROUGH_DISPATCH: Record<string, KeyboardActionDefinition> = {
   "workspace.history.back": { id: "workspace.history.back", scope: "workspace" },
   "workspace.history.forward": { id: "workspace.history.forward", scope: "workspace" },
   "workspace.project.pick": { id: "workspace.project.pick", scope: "workspace" },
+  "workspace.host.cycle": { id: "workspace.host.cycle", scope: "workspace" },
   "workspace.archive": { id: "workspace.archive", scope: "sidebar" },
   "workspace.pin": { id: "workspace.pin", scope: "sidebar" },
   "worktree.new": { id: "worktree.new", scope: "sidebar" },

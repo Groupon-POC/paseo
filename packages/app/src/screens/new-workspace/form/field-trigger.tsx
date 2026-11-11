@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `badge`, the green "This computer" label after the value of the "On <Mac>" field.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `badge`, the green "This computer" label after the value of the "On <Mac>" field; `shortcut`, the key that switches the field, before its chevron.
 import { forwardRef, useCallback, type ReactElement, type ReactNode } from "react";
 import { Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -40,6 +40,8 @@ export interface FieldTriggerContentProps {
   detail?: string;
   /** Groupon Desk: the green label after the value, "This computer" on this Mac's field. */
   badge?: string | null;
+  /** Groupon Desk: the key that switches the field without opening it, before the chevron. */
+  shortcut?: ReactNode;
 }
 
 export function FieldTriggerContent({
@@ -49,6 +51,7 @@ export function FieldTriggerContent({
   value,
   detail,
   badge,
+  shortcut,
 }: FieldTriggerContentProps): ReactElement {
   const valueLine = (
     <>
@@ -69,6 +72,7 @@ export function FieldTriggerContent({
     return (
       <>
         {valueLine}
+        {shortcut}
         {chevron}
       </>
     );
@@ -81,6 +85,7 @@ export function FieldTriggerContent({
         </Text>
         <View style={styles.fieldValueLine}>{valueLine}</View>
       </View>
+      {shortcut}
       {chevron}
     </>
   );

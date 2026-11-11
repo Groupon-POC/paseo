@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `chat.new`, the "New chat" shortcut. Back and forward through the tabs a workspace showed (`workspace.history.*`). `chat.reopen-closed`, Cmd+Shift+T's closed chat.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `chat.new`, the "New chat" shortcut. Back and forward through the tabs a workspace showed (`workspace.history.*`). `chat.reopen-closed`, Cmd+Shift+T's closed chat. `workspace.host.cycle`, the next Mac of New workspace.
 export type KeyboardFocusScope =
   | "terminal"
   | "message-input"
@@ -54,6 +54,7 @@ export type KeyboardActionId =
   | "workspace.history.back"
   | "workspace.history.forward"
   | "workspace.project.pick"
+  | "workspace.host.cycle"
   | "worktree.new"
   | "workspace.archive"
   | "workspace.pin"

@@ -16,6 +16,7 @@
  * - the tools a Mac's hand cannot find, as amber labels (`missing-tools-model.ts`)
  * - the green "This computer" label on this Mac only, apart from the grey caption (`badge`)
  * - the trigger's text, "On <Mac>"
+ * - the next Mac Cmd+/ switches to
  *
  * Constraints:
  * - Choosing a Mac switches New workspace's host (Paseo's host selection), so the repository list,
@@ -165,4 +166,16 @@ export function macPickerTriggerBadge(
   selectedServerId: string,
 ): string | null {
   return options.find((option) => option.serverId === selectedServerId)?.badge ?? null;
+}
+
+/** The Mac Cmd+/ moves New workspace to: the next one that can be chosen, wrapping; null with none other. */
+export function nextMacServerId(
+  options: readonly MacPickerOption[],
+  selectedServerId: string,
+): string | null {
+  const choosable = options.flatMap((option) =>
+    option.selectable && option.serverId ? [option.serverId] : [],
+  );
+  const next = choosable[(choosable.indexOf(selectedServerId) + 1) % choosable.length];
+  return next && next !== selectedServerId ? next : null;
 }

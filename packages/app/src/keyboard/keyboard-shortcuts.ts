@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "New chat" binding (`chat.new`, no default key). Back and forward through a workspace's tabs: Ctrl+Cmd+Left/Right on a Mac from anywhere, Alt+Left/Right elsewhere outside text fields and terminals. Cmd+Shift+T brings back a closed chat, as in a browser; New terminal moved to Cmd+Shift+Y.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a "New chat" binding (`chat.new`, no default key). Back and forward through a workspace's tabs: Ctrl+Cmd+Left/Right on a Mac from anywhere, Alt+Left/Right elsewhere outside text fields and terminals. Cmd+Shift+T brings back a closed chat, as in a browser; New terminal moved to Cmd+Shift+Y. Cmd+/ (Ctrl+/) switches New workspace to the next Mac.
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import type {
   KeyboardActionId,
@@ -166,6 +166,7 @@ export const SHORTCUT_HELP_ROW_ORDER: Record<ShortcutSectionId, readonly string[
     "new-chat",
     "new-agent",
     "new-workspace",
+    "new-workspace-next-mac",
     "workspace-jump-index",
     "workspace-prev",
     "workspace-next",
@@ -311,6 +312,30 @@ const SHORTCUT_BINDINGS: readonly ShortcutBinding[] = [
       id: "new-workspace",
       section: "workspaces",
       label: "New workspace",
+    },
+  },
+
+  // --- Next Mac on the New Workspace screen (Groupon Desk) ---
+  {
+    id: "workspace-host-cycle-cmd-slash-mac",
+    action: "workspace.host.cycle",
+    combo: "Cmd+/",
+    when: { mac: true, commandCenter: false },
+    help: {
+      id: "new-workspace-next-mac",
+      section: "workspaces",
+      label: "New workspace: next Mac",
+    },
+  },
+  {
+    id: "workspace-host-cycle-ctrl-slash-non-mac",
+    action: "workspace.host.cycle",
+    combo: "Ctrl+/",
+    when: { mac: false, commandCenter: false, terminal: false },
+    help: {
+      id: "new-workspace-next-mac",
+      section: "workspaces",
+      label: "New workspace: next Mac",
     },
   },
 

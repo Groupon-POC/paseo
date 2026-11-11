@@ -13,6 +13,7 @@ import {
   type HubShareRole,
 } from "./hub";
 import { confirmDialog } from "@/utils/confirm-dialog";
+import { startCorePoll } from "./core-backoff";
 import { AuthorLegend } from "./message-author";
 import { presenceLines } from "./presence-model";
 import { useHubMachinesOfServer, useHubPresence } from "./presence-row";
@@ -57,18 +58,20 @@ export function HubShareScreen({ workspaceId, serverId, daemonWorkspaceId, path 
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      setOverview(await fetchOverview());
-    } catch (caught) {
-      setError(errorText(caught));
-    }
-  }, []);
-  useEffect(() => {
-    void load();
-    const timer = setInterval(() => void load(), OVERVIEW_POLL_MS);
-    return () => clearInterval(timer);
-  }, [load]);
+  const read = useCallback(async () => setOverview(await fetchOverview()), []);
+  const load = useCallback(
+    () => read().catch((caught: unknown) => setError(errorText(caught))),
+    [read],
+  );
+  useEffect(
+    () =>
+      startCorePoll({
+        run: read,
+        intervalMs: OVERVIEW_POLL_MS,
+        onError: (caught) => setError(errorText(caught)),
+      }),
+    [read],
+  );
 
   const knownMachines = useHubMachinesOfServer(serverId);
   const workspace = overview

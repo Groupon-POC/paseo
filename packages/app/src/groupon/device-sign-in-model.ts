@@ -5,8 +5,11 @@
  *
  * The desktop may open the sign-in page through its external browser bridge as soon as the code
  * arrives. Browsers and phones keep a tap-driven link because Safari blocks scripted pop-ups.
+ * A poll Core could not serve (429, 5xx, unreachable) does not end the sign-in: the next poll
+ * waits the back-off of `core-backoff.ts` on top of the interval, until the code expires.
  */
 
+import { Backoff, retryableFailure } from "./core-backoff";
 import { CoreError, type DeviceAuthPoll, type DeviceAuthStart } from "./core-client";
 import { GROUPON_GATE } from "./strings";
 
@@ -95,10 +98,22 @@ export async function runDeviceSignIn(
   }
   const deadline = deps.now() + started.expiresIn * 1000;
   const intervalMs = Math.max(started.pollIntervalSeconds, POLL_FLOOR_SECONDS) * 1000;
+  const backoff = new Backoff({ now: deps.now });
+  let waitMs = intervalMs;
   while (!deps.isCancelled() && deps.now() < deadline) {
-    await deps.sleep(intervalMs);
+    await deps.sleep(waitMs);
     if (deps.isCancelled()) return null;
-    const answer = await deps.poll(coreUrl, started.deviceCode);
+    let answer: DeviceAuthPoll;
+    try {
+      answer = await deps.poll(coreUrl, started.deviceCode);
+    } catch (error) {
+      const failure = retryableFailure(error);
+      if (!failure) throw error;
+      waitMs = Math.max(intervalMs, backoff.fail(failure.retryAfterMs));
+      continue;
+    }
+    backoff.succeed();
+    waitMs = intervalMs;
     if (answer.status === "approved") return answer;
     if (answer.status === "denied") throw new CoreError(GROUPON_GATE.denied, null);
     if (answer.status === "expired") break;

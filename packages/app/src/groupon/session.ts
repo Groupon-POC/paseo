@@ -23,10 +23,20 @@
  *
  * The signed-in Core is also the relay every Paseo host can be reached through
  * (`core-relay.ts`): this module names it there, with a token getter that refreshes first.
+ *
+ * Under an overloaded Core (2026-11-10: every request answered 429) the window must not ask again
+ * at once (`core-backoff.ts`):
+ * - one refresh at a time per window; a refresh Core could not serve (429, 5xx, unreachable) keeps
+ *   the current token while it is still good and is not tried again before its back-off passes; a
+ *   refresh Core refused (any other 4xx) still means the session is over, as before
+ * - every request to Core waits per endpoint (method and path without the query): after a retryable
+ *   failure the next one to that endpoint fails here, without a request, until its back-off passes,
+ *   and then one request alone tries it while the others still fail here
  */
 
 import { Platform } from "react-native";
 import { create } from "zustand";
+import { Backoff, retryableFailure } from "./core-backoff";
 import {
   CoreError,
   coreRequest,
@@ -186,6 +196,7 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
       accessExpiresAt: String(poll.accessTokenExpiresAt),
     };
     await writeSecret(SESSION_KEY, JSON.stringify(session));
+    forgetCoreBackoff();
     const identity = identityOf(session.accessToken);
     set({ session, identity, signInError: null });
     const vaultKey = await keptVaultKey(session.coreUrl, identity);
@@ -242,6 +253,7 @@ export const useGrouponStore = create<GrouponState>((set, get) => ({
   },
 
   signOut: async () => {
+    forgetCoreBackoff();
     await deleteSecret(SESSION_KEY);
     await deleteSecret(VAULT_KEY_KEY);
     set({
@@ -372,6 +384,21 @@ function refreshLapsed(session: GrouponSession): boolean {
 }
 
 let refreshing: Promise<GrouponSession> | null = null;
+/** The refresh's own back-off: Core could not serve the last one, so the next waits. */
+const refreshBackoff = new Backoff();
+
+/** Whether the session's access token is still good now (no margin). */
+function accessStillGood(session: GrouponSession): boolean {
+  const expiresAt = Date.parse(session.accessExpiresAt);
+  return Number.isFinite(expiresAt) && expiresAt > Date.now();
+}
+
+/** Core is busy: the call fails here, without a request, until `waitMs` has passed. */
+function busyError(waitMs: number): CoreError {
+  return new CoreError(`Core is busy. Trying again in ${Math.ceil(waitMs / 1000)} s.`, 429, {
+    retryAfterMs: waitMs,
+  });
+}
 
 /**
  * A borrowed session is asked for again, never renewed here; when the Mac has none left, the
@@ -393,38 +420,66 @@ async function retakeMacSession(session: GrouponSession): Promise<GrouponSession
   return next;
 }
 
-async function refreshSession(session: GrouponSession): Promise<GrouponSession> {
-  if (session.origin === "mac") {
-    refreshing ??= retakeMacSession(session).finally(() => {
+async function renewOwnSession(session: GrouponSession): Promise<GrouponSession> {
+  try {
+    const answer = await tokenRefresh(session.coreUrl, session.refreshToken);
+    const next: GrouponSession = {
+      coreUrl: session.coreUrl,
+      accessToken: answer.token,
+      refreshToken: answer.refreshTokenValue ?? session.refreshToken,
+      accessExpiresAt: String(answer.expiresAt),
+    };
+    await writeSecret(SESSION_KEY, JSON.stringify(next));
+    useGrouponStore.setState({ session: next, identity: identityOf(next.accessToken) });
+    return next;
+  } catch (error) {
+    if (error instanceof CoreError && error.status !== null && !error.retryable) {
+      // Core refused the window's own session: this Mac's sign-in, if it has one, takes over.
+      await deleteSecret(SESSION_KEY);
+      await useGrouponStore.getState().hydrate();
+      const next = useGrouponStore.getState().session;
+      if (next) return next;
+    }
+    throw error;
+  }
+}
+
+/**
+ * One refresh in flight per window: every caller in the meantime awaits the same one, and a caller
+ * still holding the token it replaced gets the new one. While the
+ * refresh's back-off runs, the current token is handed out as long as it is good, else the call
+ * fails as busy. A Mac that hands back the token it already had (its main process could not renew
+ * it either) counts as a failed refresh, so the window does not ask it again on every request.
+ */
+function refreshSession(session: GrouponSession): Promise<GrouponSession> {
+  if (refreshing) return refreshing;
+  // A 401 that arrives after another caller's refresh finished takes that token, not a second one.
+  const current = useGrouponStore.getState().session;
+  if (current && current.coreUrl === session.coreUrl && current.accessToken !== session.accessToken)
+    return Promise.resolve(current);
+  const wait = refreshBackoff.waitMs();
+  if (wait > 0) {
+    return accessStillGood(session) ? Promise.resolve(session) : Promise.reject(busyError(wait));
+  }
+  const renewal = session.origin === "mac" ? retakeMacSession(session) : renewOwnSession(session);
+  refreshing = renewal
+    .then(
+      (next) => {
+        if (next.accessToken === session.accessToken) refreshBackoff.fail();
+        else refreshBackoff.succeed();
+        return next;
+      },
+      (error: unknown) => {
+        const failure = retryableFailure(error);
+        if (!failure) throw error;
+        refreshBackoff.fail(failure.retryAfterMs);
+        if (accessStillGood(session)) return session;
+        throw error;
+      },
+    )
+    .finally(() => {
       refreshing = null;
     });
-    return refreshing;
-  }
-  refreshing ??= (async () => {
-    try {
-      const answer = await tokenRefresh(session.coreUrl, session.refreshToken);
-      const next: GrouponSession = {
-        coreUrl: session.coreUrl,
-        accessToken: answer.token,
-        refreshToken: answer.refreshTokenValue ?? session.refreshToken,
-        accessExpiresAt: String(answer.expiresAt),
-      };
-      await writeSecret(SESSION_KEY, JSON.stringify(next));
-      useGrouponStore.setState({ session: next, identity: identityOf(next.accessToken) });
-      return next;
-    } catch (error) {
-      if (error instanceof CoreError && error.status !== null && error.status < 500) {
-        // Core refused the window's own session: this Mac's sign-in, if it has one, takes over.
-        await deleteSecret(SESSION_KEY);
-        await useGrouponStore.getState().hydrate();
-        const next = useGrouponStore.getState().session;
-        if (next) return next;
-      }
-      throw error;
-    } finally {
-      refreshing = null;
-    }
-  })();
   return refreshing;
 }
 
@@ -451,6 +506,18 @@ export async function grouponRequest<T>(path: string): Promise<T> {
   return grouponSend<T>(path, "GET");
 }
 
+/**
+ * Each failing endpoint's back-off, by method, Core and path without the query, and whether a
+ * request is trying it now; gone once it succeeds.
+ */
+const endpointBackoffs = new Map<string, { backoff: Backoff; trying: boolean }>();
+
+/** A new sign-in, or a sign-out, starts with no back-off left from the session before. */
+function forgetCoreBackoff(): void {
+  refreshBackoff.succeed();
+  endpointBackoffs.clear();
+}
+
 /** A call to the signed-in person's Core with a body, with one refresh and retry on a 401. */
 export async function grouponSend<T>(
   path: string,
@@ -458,6 +525,39 @@ export async function grouponSend<T>(
   body?: unknown,
 ): Promise<T> {
   const session = await freshSession();
+  const key = `${method} ${session.coreUrl}${path.split("?")[0]}`;
+  const failing = endpointBackoffs.get(key);
+  if (failing) {
+    const wait = failing.backoff.waitMs();
+    if (wait > 0 || failing.trying) throw busyError(Math.max(wait, 1_000));
+    failing.trying = true;
+  }
+  try {
+    const answer = await sendWithRefresh<T>(session, path, method, body);
+    endpointBackoffs.delete(key);
+    return answer;
+  } catch (error) {
+    const failure = retryableFailure(error);
+    if (failure) {
+      const entry = endpointBackoffs.get(key) ?? { backoff: new Backoff(), trying: false };
+      entry.backoff.fail(failure.retryAfterMs);
+      endpointBackoffs.set(key, entry);
+    } else {
+      // Core answered (a 4xx it means): it is serving this endpoint again.
+      endpointBackoffs.delete(key);
+    }
+    throw error;
+  } finally {
+    if (failing) failing.trying = false;
+  }
+}
+
+async function sendWithRefresh<T>(
+  session: GrouponSession,
+  path: string,
+  method: "GET" | "POST" | "PUT",
+  body: unknown,
+): Promise<T> {
   try {
     return await coreRequest<T>(session.coreUrl, path, {
       method,
@@ -467,6 +567,8 @@ export async function grouponSend<T>(
   } catch (error) {
     if (!(error instanceof CoreError) || error.status !== 401) throw error;
     const next = await refreshSession(session);
+    // No new token (the refresh is backing off): the same token would only be refused again.
+    if (next.accessToken === session.accessToken) throw error;
     return coreRequest<T>(next.coreUrl, path, { method, body, token: next.accessToken });
   }
 }

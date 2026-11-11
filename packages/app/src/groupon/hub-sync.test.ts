@@ -55,6 +55,7 @@ const {
   useHubMachinesStore,
 } = await import("./hub-sync");
 const { sealKeyFromVaultKey } = await import("./crypto");
+const { CoreError } = await import("./core-client");
 
 const LABEL = "groupon-desk-relay/1";
 const vaultKey = Buffer.alloc(32, 3);
@@ -318,6 +319,54 @@ describe("createHubResync", () => {
     const resync = createHubResync({ sync });
     resync.setForeground(true);
     await vi.advanceTimersByTimeAsync(HUB_RESYNC_MS);
+    expect(sync).toHaveBeenCalledTimes(2);
+    resync.stop();
+  });
+});
+
+describe("createHubResync under an overloaded Core", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("waits the back-off, never less than 30 s, and holds nudges until it has passed", async () => {
+    const sync = vi.fn(async (): Promise<void> => {
+      throw new CoreError("Rate exceeded", 429);
+    });
+    const resync = createHubResync({ sync, random: () => 0.999 });
+    resync.setForeground(true);
+
+    // 0, 30, 60, 90, 120, 150 s: the interval is longer than the back-off so far.
+    await vi.advanceTimersByTimeAsync(150_000);
+    expect(sync).toHaveBeenCalledTimes(6);
+    // The sixth failure waits about 32 s: a nudge at 180 s adds nothing, the timer reads at 182 s.
+    await vi.advanceTimersByTimeAsync(30_000);
+    resync.nudge();
+    expect(sync).toHaveBeenCalledTimes(6);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(sync).toHaveBeenCalledTimes(7);
+
+    // The seventh waits about 60 s; once a read succeeds, 30 s again.
+    sync.mockImplementation(async () => undefined);
+    await vi.advanceTimersByTimeAsync(58_000);
+    expect(sync).toHaveBeenCalledTimes(7);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(sync).toHaveBeenCalledTimes(8);
+    await vi.advanceTimersByTimeAsync(HUB_RESYNC_MS);
+    expect(sync).toHaveBeenCalledTimes(9);
+    resync.stop();
+  });
+
+  it("honours Core's Retry-After", async () => {
+    const sync = vi.fn(async () => {
+      throw new CoreError("Busy", 503, { retryAfterMs: 120_000 });
+    });
+    const resync = createHubResync({ sync, random: () => 0.5 });
+    resync.setForeground(true);
+
+    await vi.advanceTimersByTimeAsync(119_000);
+    resync.nudge();
+    expect(sync).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
     expect(sync).toHaveBeenCalledTimes(2);
     resync.stop();
   });

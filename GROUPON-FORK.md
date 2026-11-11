@@ -1281,3 +1281,31 @@ in `groupon2/engineering-development`.
   socket.
 - The too-large diff state reads "This workspace's changes are too large to show here. Open them on
   the machine, or narrow the comparison." (the owner's words, English only).
+
+## The window backs off Core instead of asking again at once
+
+On 2026-11-10 from 21:25:47 to about 21:48 UTC production Core answered every request with 429
+"Rate exceeded" (all 240 request slots held, many by long-lived streams), and Groupon Desk's
+clients asked again without waiting: about 100 requests a second of 429s, token refreshes first
+(2,250 in 20 minutes; Cloud Run logs). Every Core call the window makes now waits by one helper,
+`packages/app/src/groupon/core-backoff.ts`, with the numbers the `groupon` CLI's daemon uses:
+attempt n waits `random() * min(60 s, 1 s * 2^n)`, at least a `Retry-After`, at most 300 s;
+408, 429, 502, 503, 504 and an unreachable Core are retried, any other 4xx fails at once.
+
+- Token refresh (`session.ts`): one in flight per window, and a 401 that arrives after it finished
+  takes its token. A refresh Core could not serve keeps the current token while it is good and is
+  not tried again before its back-off; a 429 no longer deletes the web build's session (it was read
+  as a refusal, being under 500). A Mac that hands back the token it already had counts as a failed
+  refresh, so the window does not ask the main process, and through it Core, on every request.
+- Every request (`grouponSend`): per endpoint (method and path without the query), a retryable
+  failure makes the next call fail here, without a request, until its back-off passes; then one
+  request alone tries it. Five screens polling the overview send 2 requests a minute between them.
+- Polls: the hub resync (`createHubResync`, never under 30 s, nudges held), Your Macs, the load
+  card, the shared sidebar and the Share screen (`startCorePoll`), the shared chat (its interval
+  gated), presence and the overview queries (`coreQueryRetry`, `coreQueryRetryDelay`,
+  `coreRefetchInterval`), the device sign-in poll (a 429 no longer ends the sign-in) and the startup
+  sign-in recovery (never under 3 s).
+- The relay stream (`core-relay.ts`): each stream URL waits its back-off before it asks Core again.
+  Every end counts as a failure, and a stream that stayed up 30 s starts the count over first, so a
+  rollover or a redeploy reopens within a jittered second and a Core that refuses every stream is
+  asked up to a minute apart. A close Paseo asked for on an open stream counts for nothing.

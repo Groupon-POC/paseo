@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a schedule's update may set or clear `worktreeBranchPrefix`.
 import { z } from "zod";
 import {
   ScheduleCadenceSchema,
@@ -84,6 +85,7 @@ const ScheduleUpdateNewAgentConfigSchema = z.object({
   thinkingOptionId: z.string().trim().min(1).nullable().optional(),
   archiveOnFinish: z.boolean().optional(),
   isolation: z.enum(["local", "worktree"]).optional(),
+  worktreeBranchPrefix: z.string().trim().min(1).nullable().optional(),
   cwd: z.string().trim().min(1).optional(),
 });
 

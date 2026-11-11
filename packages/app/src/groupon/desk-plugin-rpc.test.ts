@@ -335,6 +335,8 @@ describe("the Groupon plugin's RPCs", () => {
       cronCatalog: "groupon.cron-catalog",
       cronPlace: "groupon.cron-place",
       cronRemove: "groupon.cron-remove",
+      cronRepositories: "groupon.cron-repositories",
+      cronRepository: "groupon.cron-repository",
       pullRequest: "groupon.pull-request",
     });
   });

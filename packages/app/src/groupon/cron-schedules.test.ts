@@ -4,8 +4,10 @@ import { z } from "zod";
 import { describe, expect, it, vi } from "vitest";
 import type { AggregatedSchedule } from "@/schedules/aggregated-schedules";
 import {
+  copiesHoldingRepository,
   groupCronSchedules,
   placeCronGroup,
+  setCronRepository,
   updateCronCopies,
   removeCronCopies,
 } from "./cron-schedules";
@@ -204,5 +206,104 @@ describe("shared cron edits and removal", () => {
       allHostsLoaded: true,
     });
     expect(calls).toEqual(["one:false", "two:false", "one:remove", "two:remove"]);
+  });
+});
+
+const REPOSITORY = "github.com/groupon2/engineering-development";
+
+/** A copy of a cron that works in worktrees of its Mac's checkout of a repository. */
+function repositoryCopy(
+  serverId: string,
+  id: string,
+  status: "active" | "paused" = "paused",
+): AggregatedSchedule {
+  const base = copy(serverId, id, status);
+  return {
+    ...base,
+    cron: {
+      name: "refactoring",
+      home: `/home/${serverId}`,
+      repository: REPOSITORY,
+      machine: `MAC-${serverId}`,
+    },
+    target: {
+      type: "new-agent",
+      config: {
+        provider: "claude",
+        cwd: `/home/${serverId}/git/engineering`,
+        model: "sonnet",
+        isolation: "worktree",
+        archiveOnFinish: false,
+        worktreeBranchPrefix: "cron/refactoring",
+        systemPrompt:
+          'You are run unattended by `groupon cron` as the job "refactoring", on a schedule.',
+      },
+    },
+  };
+}
+
+describe("crons that work in a repository", () => {
+  it("are one row across Macs although each Mac's checkout sits elsewhere", () => {
+    const groups = groupCronSchedules([
+      repositoryCopy("air", "one"),
+      repositoryCopy("mini", "two", "active"),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.schedule.serverId).toBe("mini");
+  });
+
+  it("offer only the Macs holding a checkout of the repository", () => {
+    const copies = [repositoryCopy("air", "one"), repositoryCopy("mini", "two")];
+    const repositories = [
+      {
+        repository: REPOSITORY,
+        name: "engineering-development",
+        checkouts: [{ machine: "MAC-mini", rootPath: "/r" }],
+      },
+    ];
+    expect(copiesHoldingRepository(copies, repositories).map((entry) => entry.serverId)).toEqual([
+      "mini",
+    ]);
+    expect(copiesHoldingRepository([copy("air", "one")], repositories)).toHaveLength(1);
+  });
+
+  it("edits every copy in its own Mac's checkout", async () => {
+    const scheduleUpdate = vi.fn(
+      async (_input: import("@getpaseo/client/internal/daemon-client").UpdateScheduleOptions) => ({
+        requestId: "test",
+        schedule: null,
+        error: null,
+      }),
+    );
+    await updateCronCopies({
+      copies: [repositoryCopy("air", "one"), repositoryCopy("mini", "two")],
+      update: { id: "one", newAgentConfig: { cwd: "/home/air", model: "new-model" } },
+      getClient: () => ({ scheduleUpdate }),
+    });
+    expect(scheduleUpdate.mock.calls.map((call) => call[0].newAgentConfig?.cwd)).toEqual([
+      "/home/air/git/engineering",
+      "/home/mini/git/engineering",
+    ]);
+  });
+
+  it("sets the repository through the copy's own Mac and passes its refusal on", async () => {
+    const invokePluginRpc = vi.fn(async () => ({ scheduleId: "s9" }));
+    await setCronRepository({
+      copy: copy("air", "one"),
+      repository: REPOSITORY,
+      client: { invokePluginRpc },
+    });
+    expect(invokePluginRpc).toHaveBeenCalledWith("groupon", "groupon.cron-repository", {
+      scheduleId: "one",
+      repository: REPOSITORY,
+    });
+    invokePluginRpc.mockRejectedValueOnce(new Error("this Mac holds no checkout"));
+    await expect(
+      setCronRepository({
+        copy: copy("air", "one"),
+        repository: null,
+        client: { invokePluginRpc },
+      }),
+    ).rejects.toThrow("no checkout");
   });
 });

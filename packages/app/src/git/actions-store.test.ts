@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Create PR on the pull-request standard.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { queryClient as appQueryClient } from "@/data/query-client";
@@ -6,6 +7,7 @@ import {
   __resetCheckoutGitActionsStoreForTests,
   useCheckoutGitActionsStore,
 } from "@/git/actions-store";
+import { useTicketPullRequestStore } from "@/groupon/ticket-pull-request";
 
 vi.mock("@react-native-async-storage/async-storage", () => ({
   default: {
@@ -302,5 +304,103 @@ describe("checkout-git-actions-store", () => {
         .getState()
         .getStatus({ serverId, cwd, actionId: "enable-pr-auto-merge-merge" }),
     ).toBe("idle");
+  });
+  describe("Create PR on the pull-request standard (Groupon Desk)", () => {
+    const opened = {
+      kind: "opened",
+      branch: "b2b/QR-1742/ENC-1234-fix",
+      ticket: "ENC-1234",
+      url: "https://github.com/groupon2/engineering-development/pull/600",
+      title: "[ENC-1234] Fix",
+      created: true,
+    };
+
+    function withClient(
+      answers: unknown[],
+      checkoutPrCreate = vi.fn(async () => ({ error: null })),
+    ) {
+      const invokePluginRpc = vi.fn(async (_plugin: string, _method: string, _input: unknown) => {
+        const next = answers.shift();
+        if (next instanceof Error) throw next;
+        return next;
+      });
+      const client = { invokePluginRpc, checkoutPrCreate };
+      useSessionStore.setState((state) => ({
+        ...state,
+        sessions: {
+          ...state.sessions,
+          [serverId]: { client } as unknown as (typeof state.sessions)[string],
+        },
+      }));
+      return { invokePluginRpc, checkoutPrCreate };
+    }
+
+    afterEach(() => {
+      useTicketPullRequestStore.getState().close();
+    });
+
+    it("asks the person for a ticket and opens nothing when the branch carries none", async () => {
+      const branch = "ctzaruba/tenhle-ukol-nesouvisi-s-ukolem-v-tomto";
+      const { invokePluginRpc, checkoutPrCreate } = withClient([
+        { kind: "needs-ticket", branch, suggested: null },
+      ]);
+
+      const result = await useCheckoutGitActionsStore.getState().createPr({ serverId, cwd });
+
+      expect(result).toBe("asked");
+      expect(invokePluginRpc).toHaveBeenCalledTimes(1);
+      expect(invokePluginRpc).toHaveBeenCalledWith("groupon", "groupon.pull-request", {
+        cwd,
+        open: false,
+      });
+      expect(checkoutPrCreate).not.toHaveBeenCalled();
+      expect(useTicketPullRequestStore.getState().request).toMatchObject({
+        serverId,
+        cwd,
+        branch,
+        suggested: null,
+      });
+    });
+
+    it("opens a branch on the standard through the plugin, never Paseo's own create", async () => {
+      const { invokePluginRpc, checkoutPrCreate } = withClient([
+        { kind: "ready", branch: opened.branch, ticket: "ENC-1234" },
+        opened,
+      ]);
+
+      const result = await useCheckoutGitActionsStore.getState().createPr({ serverId, cwd });
+
+      expect(result).toBe("created");
+      expect(invokePluginRpc).toHaveBeenLastCalledWith("groupon", "groupon.pull-request", {
+        cwd,
+        open: true,
+      });
+      expect(checkoutPrCreate).not.toHaveBeenCalled();
+    });
+
+    it("shows the CLI's refusal as the error", async () => {
+      withClient([
+        { kind: "ready", branch: opened.branch, ticket: "ENC-1234" },
+        { kind: "refused", reason: "Error: no pull request: there are uncommitted changes" },
+      ]);
+
+      await expect(
+        useCheckoutGitActionsStore.getState().createPr({ serverId, cwd }),
+      ).rejects.toThrow("there are uncommitted changes");
+    });
+
+    it("keeps Paseo's own create for an exempt branch, a repository off the standard, or a Mac without the plugin", async () => {
+      const exempt = withClient([{ kind: "paseo", branch: "release/2026-11-11" }]);
+      expect(await useCheckoutGitActionsStore.getState().createPr({ serverId, cwd })).toBe(
+        "created",
+      );
+      expect(exempt.checkoutPrCreate).toHaveBeenCalledWith(cwd, {});
+
+      const missing = withClient([new Error("Plugin is not available: groupon")]);
+      expect(await useCheckoutGitActionsStore.getState().createPr({ serverId, cwd })).toBe(
+        "created",
+      );
+      expect(missing.checkoutPrCreate).toHaveBeenCalledWith(cwd, {});
+    });
   });
 });

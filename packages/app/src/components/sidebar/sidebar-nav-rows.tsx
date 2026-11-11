@@ -1,7 +1,14 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "New chat" leads the sidebar header rows, set off by a line, unless the person hid it in Settings > Sidebar; New workspace never opens on a project-less chat's "No project".
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "New chat" leads the sidebar header rows, set off by a line, unless the person hid it in Settings > Sidebar; New workspace never opens on a project-less chat's "No project". Every row past New chat and New workspace folds under one "More" row, folded by default (owner, 2026-11-11: the header took ten lines).
 import { isChatsProjectRoot } from "@/groupon/project-less-chats";
 import { router, usePathname } from "expo-router";
-import { CalendarClock, History, Plus, Search } from "lucide-react-native";
+import {
+  CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  History,
+  Plus,
+  Search,
+} from "lucide-react-native";
 import { memo, useCallback, useMemo, useRef, type ComponentType, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { View, type StyleProp, type ViewStyle } from "react-native";
@@ -19,9 +26,11 @@ import {
   type BuiltinSidebarNavId,
 } from "@/sidebar-nav/model";
 import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
+import type { SidebarNavItem } from "@/sidebar-nav/model";
 import { useKeyboardShortcutsStore } from "@/stores/keyboard-shortcuts-store";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspace } from "@/stores/session-store-hooks";
+import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import {
   buildNewWorkspaceRoute,
   buildSchedulesRoute,
@@ -39,17 +48,43 @@ interface SidebarNavRowsProps extends SidebarNavRowProps {
   firstRowTrailing?: ReactNode;
 }
 
+/** The header rows that never fold under "More". */
+const ALWAYS_SHOWN_HEADER_ROWS: ReadonlySet<string> = new Set(["new-workspace"]);
+
+/**
+ * Splits the visible header rows into those always shown and those folded under "More", each
+ * keeping the order the person chose in Settings > Sidebar.
+ */
+export function partitionHeaderRows<T extends SidebarNavItem<"header">>(
+  items: readonly T[],
+): { shown: T[]; folded: T[] } {
+  const shown: T[] = [];
+  const folded: T[] = [];
+  for (const item of items) {
+    if (!item.visible) continue;
+    if (item.kind === "builtin" && ALWAYS_SHOWN_HEADER_ROWS.has(item.id)) {
+      shown.push(item);
+    } else {
+      folded.push(item);
+    }
+  }
+  return { shown, folded };
+}
+
 /**
  * Top-level sidebar navigation: Groupon Desk's "New chat", then the rows ordered and filtered by
- * the user's `sidebarNavItems` preference.
+ * the user's `sidebarNavItems` preference. Only New workspace stays out; the rest fold under
+ * "More". Folding hides rows only: their shortcuts and routes work folded too.
  */
 export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: SidebarNavRowsProps) {
   const { items } = useSidebarNavItems("header");
   const showNewChat = useSettings((settings) => settings.sidebarNewChatRow);
-  const visibleItems = useMemo(() => items.filter((item) => item.visible), [items]);
+  const { shown, folded } = useMemo(() => partitionHeaderRows(items), [items]);
+  const expanded = useSidebarViewStore((state) => state.headerRowsExpanded);
+  const setExpanded = useSidebarViewStore((state) => state.setHeaderRowsExpanded);
   const groupRef = useRef<View | null>(null);
 
-  const rows = visibleItems.map((item) => {
+  const renderRow = (item: SidebarNavItem<"header">) => {
     if (item.kind === "plugin") {
       return (
         <PluginSidebarItem
@@ -63,7 +98,12 @@ export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: Si
     }
     const Row = BUILTIN_ROWS[item.id];
     return <Row key={item.key} onBeforeNavigate={onBeforeNavigate} />;
-  });
+  };
+  const rows = shown.map(renderRow);
+  if (folded.length > 0) {
+    rows.push(<SidebarMoreRow key="groupon-more" expanded={expanded} onToggle={setExpanded} />);
+    if (expanded) rows.push(...folded.map(renderRow));
+  }
   // Groupon Desk: "New chat" leads, set off from the rows the person orders; hidden, the trailing
   // control keeps the first line to itself.
   const firstRow = showNewChat ? <SidebarNewChatRow onBeforeNavigate={onBeforeNavigate} /> : null;
@@ -81,6 +121,26 @@ export function SidebarNavRows({ style, onBeforeNavigate, firstRowTrailing }: Si
       {firstRow && rows.length > 0 ? <View style={styles.separator} /> : null}
       {rows}
     </View>
+  );
+}
+
+function SidebarMoreRow({
+  expanded,
+  onToggle,
+}: {
+  expanded: boolean;
+  onToggle: (expanded: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const handlePress = useCallback(() => onToggle(!expanded), [expanded, onToggle]);
+  return (
+    <SidebarHeaderRow
+      icon={expanded ? ChevronDown : ChevronRight}
+      label={t("sidebar.actions.more")}
+      onPress={handlePress}
+      testID="sidebar-header-more"
+      variant="compact"
+    />
   );
 }
 

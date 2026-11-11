@@ -1252,3 +1252,32 @@ and, for a repository cron, only the computers holding a checkout of it. Deletin
 row pauses all copies and removes their registered definitions through the CLI, which retains logs
 and writes the vault deletion tombstones. Failed operations remain visible as errors and refresh
 the list, rather than silently leaving the old row in the cache.
+
+## One relay frame is Groupon Desk's 8 MiB, not upstream's 32 MiB
+
+Core's relay and the relay door in the groupon CLI accept frames of 8 MiB
+(`PASEO_RELAY_MAX_FRAME_BYTES` in `groupon2/engineering-development`), while the fork still sized
+against upstream Paseo's 32 MiB relay. A highlighted diff of up to about 23 MiB passed the
+daemon's cap, closed its relay socket with 1009, and the window asked for it again at once, so a
+work window on a fleet server reconnected every few seconds (ENC-12144, measured on pjakl-dev on
+9 and 10 November 2026). Design: `_documentation/design/groupon-desk-relay-frame-limit-design.md`
+in `groupon2/engineering-development`.
+
+- `MAX_RELAY_WEBSOCKET_MESSAGE_BYTES` is 8 MiB (`packages/protocol/src/websocket-message-limit.ts`),
+  so upstream's structured-diff cap becomes 5,240,552 B and the window refuses an outbound frame
+  over the ceiling without closing its transport. A test in `checkout-git.test.ts` pins the figure;
+  an upstream merge that resets the constant fails it.
+- A file whose highlighted diff would cross the cap is a `too_large` placeholder and the files
+  around it still show (`appendStructuredFile`, `packages/server/src/utils/checkout-git.ts`).
+- The daemon never sends a relay or hub socket a JSON message over one frame
+  (`packages/server/src/server/websocket/relay-frame-ceiling.ts`, called from
+  `prepareJsonDelivery`): it logs `relay_outbound_frame_too_large` with the type, bytes, cwd and
+  ids, and fails the message's request with `rpc_error`, code `relay_frame_too_large`, through
+  `SessionDelivery.protocolFailure`; a message that answers no request closes that relay socket with
+  1009 instead, so the window refetches.
+- The reconnect back-off (1.5 s doubling to 30 s) starts over only after a connection stayed up
+  30 s, not on every hello (`STABLE_CONNECTION_MS`, `packages/client/src/daemon-client.ts`), so a
+  server that drops each connection at once is retried ever more slowly. The window cannot see the 1009: Core closes a daemon's clients with 1012 whatever ended its data
+  socket.
+- The too-large diff state reads "This workspace's changes are too large to show here. Open them on
+  the machine, or narrow the comparison." (the owner's words, English only).

@@ -8310,3 +8310,45 @@ test("archiveWorkspace outwaits the removal of a large worktree", async () => {
   await vi.advanceTimersByTimeAsync(60_000);
   await expect(responsePromise).rejects.toThrow("Timeout waiting for message (600000ms)");
 });
+
+test("a connection the server drops at once does not reset the reconnect back-off; one that stays up does (ENC-12144)", async () => {
+  useHeartbeatClock();
+  try {
+    const transports = Array.from({ length: 5 }, () => createMockTransport());
+    let opened = 0;
+    const client = new DaemonClient({
+      url: "ws://test",
+      clientId: "clsk_backoff_survives_hello",
+      reconnect: { enabled: true, baseDelayMs: 1_500, maxDelayMs: 30_000 },
+      transportFactory: () => {
+        const transport = transports[opened];
+        if (!transport) throw new Error("unexpected extra reconnect");
+        opened += 1;
+        return transport.transport;
+      },
+    });
+    clients.push(client);
+    const connected = client.connect();
+    transports[0]!.triggerOpen();
+    await connected;
+
+    transports[0]!.triggerClose({ code: 1012, reason: "Server disconnected" });
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(opened).toBe(2);
+    transports[1]!.triggerOpen();
+    transports[1]!.triggerClose({ code: 1012, reason: "Server disconnected" });
+    await vi.advanceTimersByTimeAsync(2_999);
+
+    expect(opened).toBe(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(opened).toBe(3);
+
+    transports[2]!.triggerOpen();
+    await vi.advanceTimersByTimeAsync(30_000);
+    transports[2]!.triggerClose({ code: 1012, reason: "Server disconnected" });
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(opened).toBe(4);
+  } finally {
+    vi.useRealTimers();
+  }
+});

@@ -1,5 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a diff can be limited to paths and taken from any commit (`getPathsDiffSince`), and HEAD can be read at a past moment (`resolveHeadAt`), for an agent session's own changes; `getWorktreeRoot` is exported; `getUncommittedShortstat` counts only what is not committed yet, for the archive warning.
-import { MAX_RELAY_WEBSOCKET_MESSAGE_BYTES } from "@getpaseo/protocol/websocket-message-limit";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a diff can be limited to paths and taken from any commit (`getPathsDiffSince`), and HEAD can be read at a past moment (`resolveHeadAt`), for an agent session's own changes; `getWorktreeRoot` is exported; `getUncommittedShortstat` counts only what is not committed yet, for the archive warning. A file whose highlighted diff would cross the reply cap, the relay's 8 MiB less its envelope, is listed as `too_large` instead of failing the whole diff, without highlighting one whose text alone cannot fit (ENC-12144).
 import { resolve, dirname, basename } from "path";
 import { existsSync, realpathSync } from "fs";
 import { open as openFile, readFile, stat as statFile, mkdtemp, copyFile, rm } from "fs/promises";
@@ -8,7 +7,7 @@ import { setImmediate } from "node:timers/promises";
 import { TTLCache } from "@isaacs/ttlcache";
 import type { CheckoutCommit, CheckoutCommitFile } from "@getpaseo/protocol/messages";
 import { parseGitHubRemoteIdentity, parseGitRemoteLocation } from "@getpaseo/protocol/git-remote";
-import { maxSecuredPlaintextByteLength } from "@getpaseo/relay";
+import { RELAY_MAX_PLAINTEXT_BYTES } from "../server/websocket/relay-frame-ceiling.js";
 import type { Logger } from "pino";
 import type { ParsedDiffFile } from "../server/utils/diff-highlighter.js";
 import {
@@ -2174,12 +2173,11 @@ export async function getCheckoutSnapshotFacts(
 const PER_FILE_DIFF_MAX_BYTES = 1024 * 1024; // 1MB
 const TOTAL_DIFF_MAX_BYTES = 2 * 1024 * 1024; // 2MB
 const CHECKOUT_DIFF_FRAME_HEADROOM_BYTES = 1024 * 1024;
-// Temporary until diffs load lazily per file. The Paseo relay's 32 MiB frame limit is
+// Temporary until diffs load lazily per file. The relay's frame limit (Groupon Desk's 8 MiB) is
 // binding: string frames are encrypted and base64-encoded. Reserve 1 MiB plaintext for
 // the surrounding WebSocket JSON envelope after inverting that exact wire expansion.
 export const CHECKOUT_DIFF_MAX_STRUCTURED_BYTES =
-  maxSecuredPlaintextByteLength(MAX_RELAY_WEBSOCKET_MESSAGE_BYTES) -
-  CHECKOUT_DIFF_FRAME_HEADROOM_BYTES;
+  RELAY_MAX_PLAINTEXT_BYTES - CHECKOUT_DIFF_FRAME_HEADROOM_BYTES;
 
 interface StructuredDiffAccumulator {
   files: ParsedDiffFile[];
@@ -2194,6 +2192,28 @@ function appendStructuredFile(
   structured: StructuredDiffAccumulator,
   file: ParsedDiffFile,
 ): boolean {
+  if (pushStructuredFile(structured, file)) return true;
+  // A file whose highlighted diff would cross the cap is listed without its hunks, so the files
+  // around it still show; only a list too long for even that fails the whole diff.
+  if (file.status === "too_large") return false;
+  return pushStructuredFile(structured, { ...file, hunks: [], status: "too_large" });
+}
+
+/**
+ * Whether a file whose diff text alone is `textBytes` can no longer fit under the cap: its
+ * highlighted form is larger still, so it is listed as `too_large` without being highlighted.
+ */
+function cannotFitStructured(structured: StructuredDiffAccumulator, textBytes: number): boolean {
+  return structured.serializedBytes + textBytes > CHECKOUT_DIFF_MAX_STRUCTURED_BYTES;
+}
+
+function diffTextBytes(file: ParsedDiffFile): number {
+  let bytes = 0;
+  for (const hunk of file.hunks) for (const line of hunk.lines) bytes += line.content.length;
+  return bytes;
+}
+
+function pushStructuredFile(structured: StructuredDiffAccumulator, file: ParsedDiffFile): boolean {
   const separatorBytes = structured.files.length > 0 ? 1 : 0;
   const fileBytes = Buffer.byteLength(JSON.stringify(file), "utf8");
   const nextBytes = structured.serializedBytes + separatorBytes + fileBytes;
@@ -2204,6 +2224,7 @@ function appendStructuredFile(
   structured.serializedBytes = nextBytes;
   return true;
 }
+
 const UNTRACKED_BINARY_SNIFF_BYTES = 16 * 1024;
 
 async function isLikelyBinaryFile(absolutePath: string): Promise<boolean> {
@@ -3282,13 +3303,15 @@ async function appendStructuredTrackedDiffs(
       const stat = trackedNumstatByPath.get(change.path) ?? null;
       const parsedFile = parsedTrackedByPath.get(change.path);
       if (parsedFile) {
-        const file = await buildHighlightedTrackedDiffFile({
-          cwd,
-          change,
-          parsedFile,
-          refsForDiff,
-          contents: contents ?? undefined,
-        });
+        const file = cannotFitStructured(structured, diffTextBytes(parsedFile))
+          ? buildPlaceholderParsedDiffFile(change, { status: "too_large", stat: stat ?? undefined })
+          : await buildHighlightedTrackedDiffFile({
+              cwd,
+              change,
+              parsedFile,
+              refsForDiff,
+              contents: contents ?? undefined,
+            });
         if (!appendStructuredFile(structured, file)) {
           return false;
         }
@@ -3374,6 +3397,12 @@ async function processUntrackedChange(input: ProcessUntrackedChangeInput): Promi
   }
 
   appendDiff(text);
+  if (cannotFitStructured(structured, Buffer.byteLength(text, "utf8"))) {
+    return appendStructuredFile(
+      structured,
+      buildPlaceholderParsedDiffFile(change, { status: "too_large", stat }),
+    );
+  }
   const parsed = await parseAndHighlightDiff(text, cwd);
   const parsedFile =
     parsed[0] ??

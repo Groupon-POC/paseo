@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `protocolFailure` also carries `relay_frame_too_large`, the reply the daemon sends for a message too big for one relay frame (ENC-12144).
 import { isReply } from "./replies.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
@@ -221,7 +222,7 @@ export class SessionDelivery {
       requestId?: string;
       requestType?: string;
       error: string;
-      code: "invalid_message" | "unknown_schema";
+      code: "invalid_message" | "unknown_schema" | "relay_frame_too_large";
     },
   ): void {
     const source = this.sources.get(socket);

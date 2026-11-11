@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a message over one relay frame is not sent to a relay socket; it is logged and its request fails (ENC-12144).
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import {
   createAgentMessageDelivery,
@@ -127,6 +128,12 @@ import {
   sendBoundedPhysicalFrame,
   sendBoundedPhysicalFrameAndWait,
 } from "./websocket/physical-socket.js";
+import {
+  describeOversizedMessage,
+  RELAY_FRAME_TOO_LARGE_CODE,
+  RELAY_MAX_PLAINTEXT_BYTES,
+  relayFrameTooLargeError,
+} from "./websocket/relay-frame-ceiling.js";
 
 const WS_CLOSE_DAEMON_AUTH_FAILED = 4401;
 
@@ -1270,7 +1277,57 @@ export class VoiceAssistantWebSocketServer {
       return null;
     }
 
-    return { sockets: writableSockets, payload, bytes: outboundFrameByteLength(payload) };
+    const bytes = outboundFrameByteLength(payload);
+    const sendable = this.withoutOversizedRelaySockets(writableSockets, message, bytes);
+    if (sendable.length === 0) return null;
+    return { sockets: sendable, payload, bytes };
+  }
+
+  // Groupon Desk (ENC-12144): a message over one relay frame would close the relay socket with
+  // 1009 and the window would ask again, in a loop. It is never sent there: one line is logged per
+  // refused message, and its request fails with an error reply, or, when it answers no request,
+  // the socket closes with 1009 so the window refetches.
+  private withoutOversizedRelaySockets(
+    sockets: WebSocketLike[],
+    message: WSOutboundMessage,
+    bytes: number,
+  ): WebSocketLike[] {
+    if (bytes <= RELAY_MAX_PLAINTEXT_BYTES) return sockets;
+    const sendable: WebSocketLike[] = [];
+    const refused: Array<{ ws: WebSocketLike; identity: WebSocketConnectionIdentity }> = [];
+    for (const ws of sockets) {
+      const identity = this.socketIdentities.get(ws);
+      if (identity && identity.transport !== "direct") refused.push({ ws, identity });
+      else sendable.push(ws);
+    }
+    if (refused.length === 0) return sockets;
+    const facts = describeOversizedMessage(message);
+    this.logger.warn(
+      {
+        ...toConnectionLogFields(refused[0].identity),
+        ...facts,
+        bytes,
+        maxBytes: RELAY_MAX_PLAINTEXT_BYTES,
+        refusedSockets: refused.length,
+      },
+      "relay_outbound_frame_too_large",
+    );
+    for (const { ws } of refused) {
+      if (facts.requestId !== undefined) {
+        // The delivery grants the reply its own proof, so a modern window receives it too.
+        this.sessions.get(ws)?.session.delivery.protocolFailure(ws, {
+          requestId: facts.requestId,
+          error: relayFrameTooLargeError(bytes),
+          code: RELAY_FRAME_TOO_LARGE_CODE,
+        });
+      } else {
+        // No request to fail: an update the window never gets would leave its screen stale, so
+        // the socket closes, named, and the window refetches; its reconnect back-off grows while
+        // connections keep dropping.
+        ws.close(1009, "Frame too large");
+      }
+    }
+    return sendable;
   }
 
   private async sendMessageToClientAndWait(

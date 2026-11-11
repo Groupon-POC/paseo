@@ -623,7 +623,8 @@ async function waitForCapturedLog(
       const statuses: string[] = [];
       client.subscribeConnectionStatus((state) => statuses.push(state.status));
       for (const imageMiB of [30, 61]) {
-        // Attachments are base64 in the JSON, then E2EE base64 expands the frame again.
+        // Attachments are base64 in the JSON, then E2EE base64 expands the frame again. Groupon
+        // Desk's relay frame is 8 MiB (ENC-12144), so the window refuses these before sending.
         const images = [
           { data: "A".repeat(4 * Math.ceil((imageMiB * 1024 * 1024) / 3)), mimeType: "image/png" },
         ];
@@ -641,7 +642,7 @@ async function waitForCapturedLog(
             10000,
             "Workspace creation did not settle",
           ),
-        ).rejects.toThrow(/too large.*32\.0 MiB/);
+        ).rejects.toThrow(/too large.*8\.0 MiB/);
         expect((await client.fetchAgents()).entries).toEqual([]);
       }
       const agent = await client.createAgent({ provider: "claude", cwd: daemon.staticDir });
@@ -649,7 +650,7 @@ async function waitForCapturedLog(
         client.sendMessage(agent.id, "Describe these screens.", {
           images: [{ data: "A".repeat(40 * 1024 * 1024), mimeType: "image/png" }],
         }),
-      ).rejects.toThrow(/too large.*32\.0 MiB/);
+      ).rejects.toThrow(/too large.*8\.0 MiB/);
       await client.sendMessage(agent.id, "A small follow-up still works.");
       expect((await client.fetchAgents()).entries).toHaveLength(1);
       expect(statuses).toEqual(["connected"]);

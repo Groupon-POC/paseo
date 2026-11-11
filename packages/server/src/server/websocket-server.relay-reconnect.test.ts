@@ -50,8 +50,12 @@ const sessionMock = vi.hoisted(() => {
 
   class MockSession {
     readonly delivery = new SessionDelivery((source, message) => {
-      const send = this.args.onMessageToSource as (source: object, message: unknown) => void;
-      send(source, message);
+      // Returned like the real Session's, so the delivery handles a refused send.
+      const send = this.args.onMessageToSource as (
+        source: object,
+        message: unknown,
+      ) => void | Promise<void>;
+      return send(source, message);
     });
     cleanup = vi.fn(async () => {
       await this.delivery.close();
@@ -1339,6 +1343,155 @@ describe("relay external socket reconnect behavior", () => {
     expect(frame.opcode).toBe(TerminalStreamOpcode.Output);
     expect(frame.slot).toBe(12);
     expect(new TextDecoder().decode(frame.payload ?? new Uint8Array())).toBe("ok");
+
+    await server.close();
+  });
+
+  // About 7 MB of plaintext: over the largest plaintext an 8 MiB encrypted relay frame carries.
+  const OVERSIZED_TEXT = "x".repeat(7_000_000);
+  const rpcFrameTooLarge = (requestId: string) => ({
+    type: "session",
+    message: {
+      type: "rpc_error",
+      payload: {
+        requestId,
+        error: expect.stringContaining("too large for the relay"),
+        code: "relay_frame_too_large",
+      },
+    },
+  });
+  const noFrameOver = (socket: MockSocket, from: number) =>
+    socket.sent.slice(from).every((frame) => typeof frame !== "string" || frame.length < 1_000_000);
+
+  test("never sends a relay socket a reply over the relay ceiling: it logs it and fails its request (ENC-12144)", async () => {
+    const logger = createLogger();
+    const server = createServer({ logger });
+    const clientId = "cid-oversized-reply";
+    const directSocket = new MockSocket();
+    const relaySocket = new MockSocket();
+    await attachDirectAndHello({ server, socket: directSocket, clientId });
+    await attachRelayAndHello({ server, socket: relaySocket, clientId });
+    const onMessage = sessionMock.instances[0].args.onMessage as (message: unknown) => void;
+    const relaySentBefore = relaySocket.sent.length;
+    const directSentBefore = directSocket.sent.length;
+
+    onMessage({
+      type: "checkout.diff.get.response",
+      payload: {
+        requestId: "diff-1",
+        cwd: "/repo",
+        files: [{ path: "big.txt", text: OVERSIZED_TEXT }],
+      },
+    });
+    onMessage({ type: "status", payload: { status: "ok" } });
+
+    await vi.waitFor(() => {
+      expect(sentEnvelopes(relaySocket).slice(relaySentBefore)).toContainEqual(
+        rpcFrameTooLarge("diff-1"),
+      );
+    });
+    expect(noFrameOver(relaySocket, relaySentBefore)).toBe(true);
+    expect(sentEnvelopes(relaySocket).slice(relaySentBefore)).toContainEqual({
+      type: "session",
+      message: { type: "status", payload: { status: "ok" } },
+    });
+    expect(relaySocket.readyState).toBe(1);
+    expect(directSocket.sent.slice(directSentBefore)).toHaveLength(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageType: "checkout.diff.get.response",
+        requestId: "diff-1",
+        cwd: "/repo",
+        bytes: expect.any(Number),
+        maxBytes: expect.any(Number),
+        transport: "relay",
+      }),
+      "relay_outbound_frame_too_large",
+    );
+
+    await server.close();
+  });
+
+  test("fails an oversized reply's request on a window with owned subscriptions too (ENC-12144)", async () => {
+    const server = createServer();
+    const relaySocket = new MockSocket();
+    await server.attachExternalSocket(relaySocket, { transport: "relay" });
+    relaySocket.emit(
+      "message",
+      JSON.stringify(
+        createHelloMessage("cid-modern-oversized", {
+          capabilities: { [CLIENT_CAPS.ownedSubscriptions]: true },
+        }),
+      ),
+    );
+    await vi.waitFor(() => expect(sessionMock.instances).toHaveLength(1));
+    const { delivery } = sessionMock.instances[0];
+    expect(delivery.isModern(relaySocket)).toBe(true);
+    const sentBefore = relaySocket.sent.length;
+
+    await delivery.request(
+      relaySocket,
+      {
+        type: "checkout.diff.get.request",
+        cwd: "/repo",
+        compare: { mode: "uncommitted" },
+        requestId: "diff-modern",
+      } as never,
+      async () => {
+        delivery.reply({
+          type: "checkout.diff.get.response",
+          payload: {
+            requestId: "diff-modern",
+            cwd: "/repo",
+            files: [{ path: "big.txt", text: OVERSIZED_TEXT }],
+          },
+        } as never);
+      },
+    );
+
+    await vi.waitFor(() => {
+      expect(sentEnvelopes(relaySocket).slice(sentBefore)).toContainEqual(
+        rpcFrameTooLarge("diff-modern"),
+      );
+    });
+    expect(noFrameOver(relaySocket, sentBefore)).toBe(true);
+
+    await server.close();
+  });
+
+  test("closes a relay socket with 1009 for an oversized message that answers no request, so the window refetches (ENC-12144)", async () => {
+    const logger = createLogger();
+    const server = createServer({ logger });
+    const clientId = "cid-oversized-update";
+    const directSocket = new MockSocket();
+    const relaySocket = new MockSocket();
+    await attachDirectAndHello({ server, socket: directSocket, clientId });
+    await attachRelayAndHello({ server, socket: relaySocket, clientId });
+    const closes: unknown[] = [];
+    relaySocket.on("close", (code) => closes.push(code));
+    const onMessage = sessionMock.instances[0].args.onMessage as (message: unknown) => void;
+    const relaySentBefore = relaySocket.sent.length;
+
+    onMessage({
+      type: "checkout_diff_update",
+      payload: {
+        subscriptionId: "sub-1",
+        cwd: "/repo",
+        files: [{ path: "big.txt", text: OVERSIZED_TEXT }],
+      },
+    });
+
+    expect(noFrameOver(relaySocket, relaySentBefore)).toBe(true);
+    expect(closes).toEqual([1009]);
+    expect(directSocket.readyState).toBe(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageType: "checkout_diff_update",
+        subscriptionId: "sub-1",
+        cwd: "/repo",
+      }),
+      "relay_outbound_frame_too_large",
+    );
 
     await server.close();
   });

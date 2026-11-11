@@ -1646,8 +1646,9 @@ const x = 1;
     );
   });
 
-  it("keeps the structured diff cap below the relay frame limit", () => {
-    const relayFrameBytes = 32 * 1024 * 1024;
+  it("keeps the structured diff cap below Groupon Desk's 8 MiB relay frame (ENC-12144)", () => {
+    // Core's relay and the relay door accept 8 MiB (`PASEO_RELAY_MAX_FRAME_BYTES`), not upstream's 32 MiB.
+    const relayFrameBytes = 8 * 1024 * 1024;
     const frameEnvelopeHeadroomBytes = 1024 * 1024;
     const diffWireBytes = base64EncryptedWireByteLength(CHECKOUT_DIFF_MAX_STRUCTURED_BYTES);
     const maximumFrameWireBytes = base64EncryptedWireByteLength(
@@ -1658,10 +1659,32 @@ const x = 1;
     expect(CHECKOUT_DIFF_MAX_STRUCTURED_BYTES).toBe(
       maxSecuredPlaintextByteLength(relayFrameBytes) - frameEnvelopeHeadroomBytes,
     );
-    expect(CHECKOUT_DIFF_MAX_STRUCTURED_BYTES).toBeLessThanOrEqual(24_117_208);
-    expect(CHECKOUT_DIFF_MAX_STRUCTURED_BYTES).toBeGreaterThan(24_000_000);
+    expect(CHECKOUT_DIFF_MAX_STRUCTURED_BYTES).toBeLessThanOrEqual(5_242_840);
+    expect(CHECKOUT_DIFF_MAX_STRUCTURED_BYTES).toBeGreaterThan(5_200_000);
     expect(diffWireBytes).toBeLessThan(relayFrameBytes);
     expect(maximumFrameWireBytes).toBeLessThanOrEqual(relayFrameBytes);
+  });
+
+  it("lists a file whose highlighted diff would cross the reply cap as too_large and keeps the files around it (ENC-12144)", async () => {
+    // About 400 KB of text, under the 1 MB per-file cap, but about 6 MB once every line is a parsed diff line.
+    writeFileSync(join(repoDir, "a-small.ts"), `export const a = 1;\n`);
+    writeFileSync(join(repoDir, "b-lines.txt"), "x\n".repeat(200_000));
+    writeFileSync(join(repoDir, "c-small.ts"), `export const c = 3;\n`);
+
+    const diff = await getCheckoutDiff(repoDir, { mode: "uncommitted", includeStructured: true });
+
+    expect(diff.diffTooLarge).not.toBe(true);
+    const byPath = new Map((diff.structured ?? []).map((file) => [file.path, file]));
+    expect(byPath.get("b-lines.txt")).toMatchObject({
+      status: "too_large",
+      hunks: [],
+      additions: 200_000,
+    });
+    expect(byPath.get("a-small.ts")?.hunks.length).toBeGreaterThan(0);
+    expect(byPath.get("c-small.ts")?.hunks.length).toBeGreaterThan(0);
+    expect(Buffer.byteLength(JSON.stringify(diff.structured), "utf8")).toBeLessThanOrEqual(
+      CHECKOUT_DIFF_MAX_STRUCTURED_BYTES,
+    );
   });
 
   it("marks tracked generated one-line diffs as too_large by content size", async () => {

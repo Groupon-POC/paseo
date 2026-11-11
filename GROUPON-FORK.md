@@ -312,6 +312,19 @@ name>` until its first message renames it to `<login>/<slug of that message>`. S
   named `feat/x` or `feature/x` is renamed by Paseo's generated name (`workspace-auto-title-flow`),
   never to `feat/<slug of the prompt>` (the fork's rule once read any prefix as an owner; measured
   on 2026-10-21 by three failing `create_agent` tests in `mcp-server.test.ts`).
+- **A repository that names branches from a Jira ticket never gets that name.** In a checkout
+  carrying `.groupon/desk.toml` (`hasDeskFile`) the placement above names nothing: Local on the
+  trunk and a worktree branching off without a name fail with the Groupon plugin's sentence
+  (`TICKET_REQUIRED`, "This repository names branches from a Jira ticket: pick or start one in
+  New workspace"), and the plugin's `before("workspace.create")` hook refuses the same request
+  first for every caller. New workspace asks for the ticket before Create
+  (`groupon/ticket-branch-step.tsx`, the rule in `groupon/ticket-branch-model.ts`): a key typed
+  or taken from My tasks (Take fills the step there), the branch `groupon ticket name` answers on
+  the Mac (`groupon.ticket-name`), and Start a ticket beside it; Create then branches off the
+  picked base onto that branch, Local with a ticket included. The composer's text stays the
+  task's first message. A pull request's checkout and Local on the person's own branch need none.
+  Measured on 2026-11-11: groupon/groupon-monorepo PR 11455 came from a window workspace on
+  `tomas-zaruba/partner-feed-service-single-and-batch-of`.
 - **A base given by a bare name is origin's branch, never the local copy.** The trunk a worktree
   is cut from above, the repository's default branch and a hub execution's `base` arrive as a bare
   name (`staging`); `utils/worktree.ts`'s `resolveBaseBranchForWorktree` takes
@@ -543,7 +556,8 @@ mounting `groupon/jira-tasks-card.tsx`), a card lists the person's Jira tasks: a
 modelled on Jira's (Assignee = Current user, Type, Status, Created in the last N days, More
 filters as free JQL, Clear filters; `groupon/jira-tasks-filters.tsx`), the table with the person's
 columns (Jira's own nine by default, picked in `groupon/jira-tasks-columns.tsx`), paging, and as
-the last column "Take", which opens Start a ticket with that key. Every change is
+the last column "Take", which opens Start a ticket with that key (in a repository that names
+branches from a ticket it fills New workspace's ticket step instead). Every change is
 saved, after a pause, as the person's default view on the internal plane, so every window opens
 the same. The Groupon plugin on the page's Mac answers `groupon.jira-search`,
 `groupon.jira-fields` and `groupon.jira-saved-view` through that Mac's `groupon` CLI; the filter

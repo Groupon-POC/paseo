@@ -5,6 +5,7 @@ import type { CheckoutSnapshotFacts } from "../utils/checkout-git.js";
 import { runWithCreationSteps } from "./creation-steps.js";
 import {
   placeTicketlessWorkspace,
+  TICKET_REQUIRED,
   type WorkspaceCreateRequest,
   type WorkspacePlacementDeps,
 } from "./workspace-placement.js";
@@ -31,10 +32,14 @@ function facts(currentBranch: string): CheckoutSnapshotFacts {
   };
 }
 
-function deps(currentBranch: string): WorkspacePlacementDeps & {
+function deps(
+  currentBranch: string,
+  namesBranchesFromTicket = false,
+): WorkspacePlacementDeps & {
   nameBranch: ReturnType<typeof vi.fn>;
 } {
   return {
+    namesBranchesFromTicket: () => namesBranchesFromTicket,
     readFacts: vi.fn(async () => facts(currentBranch)),
     resolveWorktreeSourceCwd: vi.fn(async (source) => source.cwd ?? REPO),
     nameBranch: vi.fn(async (input) => ({
@@ -134,5 +139,33 @@ describe("a workspace started without a ticket", () => {
     expect(steps).toEqual([]);
     await place({ kind: "directory", path: REPO }, "staging");
     expect(steps).toEqual(["naming_branch"]);
+  });
+});
+
+describe("a repository that names branches from a Jira ticket", () => {
+  test("refuses a worktree Groupon Desk would name from the prompt, naming nothing", async () => {
+    const d = deps("staging", true);
+
+    await expect(
+      placeTicketlessWorkspace(request({ kind: "worktree", cwd: REPO, refName: "staging" }), d),
+    ).rejects.toThrow(TICKET_REQUIRED);
+    expect(d.nameBranch).not.toHaveBeenCalled();
+  });
+
+  test("refuses Local on the trunk, which would become such a worktree", async () => {
+    await expect(
+      placeTicketlessWorkspace(request({ kind: "directory", path: REPO }), deps("staging", true)),
+    ).rejects.toThrow(TICKET_REQUIRED);
+  });
+
+  test("leaves a ticket's branch, a checkout, Local in place and Local on the person's own branch alone", async () => {
+    for (const [original, branch] of [
+      [request({ kind: "worktree", cwd: REPO, branchName: "pe/ENC-1/ENC-2-fix" }), "staging"],
+      [request({ kind: "worktree", cwd: REPO, action: "checkout", refName: "x/y" }), "staging"],
+      [request({ kind: "directory", path: REPO, inPlaceOnTrunk: true }), "staging"],
+      [request({ kind: "directory", path: REPO }), "ctzaruba/fix-the-login"],
+    ] as const) {
+      expect((await placeTicketlessWorkspace(original, deps(branch, true))).request).toBe(original);
+    }
   });
 });

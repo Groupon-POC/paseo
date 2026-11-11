@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the seed unfolds the sidebar header rows folded under "More".
 import { test as base, expect, type Page } from "@playwright/test";
 import { hideDeveloperToasts } from "./developer-ui.mjs";
 import { startOutdatedDaemon, type OutdatedDaemon } from "./helpers/daemon-update";
@@ -180,6 +181,14 @@ const test = daemonTest.extend<{
           localStorage.setItem("@paseo:daemon-registry", JSON.stringify([daemon, ...extraHosts]));
           localStorage.removeItem("@paseo:settings");
           localStorage.setItem("@paseo:create-agent-preferences", JSON.stringify(preferences));
+          // Groupon Desk: the specs find History and Search in the sidebar header, which folds them
+          // under "More" by default; unfold it, keeping the rest of the sidebar view.
+          const sidebarView = JSON.parse(localStorage.getItem("sidebar-view") ?? "null") ?? {
+            state: {},
+            version: 8,
+          };
+          sidebarView.state = { ...sidebarView.state, headerRowsExpanded: true };
+          localStorage.setItem("sidebar-view", JSON.stringify(sidebarView));
         },
         {
           daemon: testDaemon,

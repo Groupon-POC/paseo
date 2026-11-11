@@ -42,6 +42,10 @@ import {
 } from "./repository-settings-model";
 import { GROUPON_IMPROVE, GROUPON_REPOSITORY } from "./strings";
 
+export function repositoryStandardQueryKey(serverId: string, repoRoot: string) {
+  return ["groupon-project-settings", serverId, repoRoot] as const;
+}
+
 /** The repository's committed standard, read by the Groupon plugin on the Mac; undefined while it loads. */
 export function useRepositoryStandard(
   client: PluginRpcClient | null,
@@ -49,7 +53,7 @@ export function useRepositoryStandard(
   repoRoot: string,
 ): { answer: ProjectSettingsAnswer | undefined; settled: boolean } {
   const query = useFetchQuery({
-    queryKey: ["groupon-project-settings", serverId, repoRoot],
+    queryKey: repositoryStandardQueryKey(serverId, repoRoot),
     queryFn: async () => {
       if (!client) throw new Error("This Mac is not connected.");
       return readProjectSettings(client, repoRoot, false);

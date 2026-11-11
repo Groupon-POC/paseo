@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "On <Mac>", the hub Macs' picker, in place of Host, never Paseo's Host picker; Repository, each repository of all the person's Macs once, in place of Project, with the line under the fields when the chosen Mac lacks it; the "On <Mac>" field carries the green "This computer" label on this Mac.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): "On <Mac>", the hub Macs' picker, in place of Host, never Paseo's Host picker; Repository, each repository of all the person's Macs once, in place of Project, with the line under the fields when the chosen Mac lacks it; the "On <Mac>" field carries the green "This computer" label on this Mac; Local / Worktree is a plain list, without a search field; the "On <Mac>" field shows the key that moves it to the next Mac.
 import { useCallback, useMemo, type ReactElement, type ReactNode, type RefObject } from "react";
 import { View } from "react-native";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,8 @@ import { StyleSheet } from "react-native-unistyles";
 import type { TerminalProfile } from "@getpaseo/protocol/messages";
 import { Combobox, type ComboboxOption, type ComboboxProps } from "@/components/ui/combobox";
 import { HostStatusDot } from "@/components/host-status-dot";
+import { Shortcut } from "@/components/ui/shortcut";
+import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { MacPicker } from "@/groupon/mac-picker";
 import {
   macPickerTriggerBadge,
@@ -212,6 +214,12 @@ function HostField({
     () => <HostStatusDot serverId={host.selectedServerId} />,
     [host.selectedServerId],
   );
+  const cycleKeys = useShortcutKeys("new-workspace-next-mac");
+  const canCycle = host.macOptions.filter((option) => option.selectable).length > 1;
+  const shortcut = useMemo(
+    () => (cycleKeys && canCycle ? <Shortcut chord={cycleKeys} /> : null),
+    [canCycle, cycleKeys],
+  );
   return (
     <MacPicker
       options={host.macOptions}
@@ -229,6 +237,7 @@ function HostField({
         icon={hostIcon}
         value={macPickerTriggerLabel(host.macOptions, host.selectedServerId)}
         badge={macPickerTriggerBadge(host.macOptions, host.selectedServerId)}
+        shortcut={shortcut}
         onPress={host.open}
         disabled={isPending}
         testID="new-workspace-mac-picker-trigger"
@@ -358,6 +367,7 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
         options={isolationPicker.options}
         value={isolation.effectiveIsolation}
         onSelect={isolationPicker.onSelect}
+        searchable={false}
         title={t("newWorkspace.isolation.label")}
         open={isolation.openState}
         onOpenChange={isolation.onOpenChange}

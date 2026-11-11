@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; in a repository that names branches from a Jira ticket (`.groupon/desk.toml`) the ticket step above the composer comes first, the workspace is created on the branch `groupon ticket name` answers, and My tasks' Take fills that step (`groupon/ticket-branch-step.tsx`); "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`). The composers follow the screen's focus, so a list left open does not float over another page; slash commands open below the input, and the Claude Code profile lists them from the chat's Claude draft. Local stays in the checkout on a shared branch when the person's Groupon setting says so. New workspace on "No project" is a chat: the daemon places it by its first message. Import session and Start a ticket step aside while a workspace is created. The composer takes the dock's width, which widens with a wide window. The page keeps its title and its fields in place while the chosen repository resolves, so it does not jump on opening.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`). The composers follow the screen's focus, so a list left open does not float over another page; slash commands open below the input, and the Claude Code profile lists them from the chat's Claude draft. Local stays in the checkout on a shared branch when the person's Groupon setting says so. New workspace on "No project" is a chat: the daemon places it by its first message. Import session and Start a ticket step aside while a workspace is created. The composer takes the dock's width, which widens with a wide window. The page keeps its title and its fields in place while the chosen repository resolves, so it does not jump on opening. A worktree branches off the repository's target branch unless the person picks another; Cmd+/ moves it to the next Mac. New chat moved to another Mac reopens on that Mac's own "No project".
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -119,8 +119,12 @@ import { useHubMachinesStore } from "@/groupon/hub-sync";
 import {
   defaultMacServerId,
   macPickerOptions,
+  nextMacServerId,
   type MacPickerOption,
 } from "@/groupon/mac-picker-model";
+import { projectBasePickerItem } from "@/groupon/default-base-branch";
+import { useProjectBaseBranch } from "@/groupon/use-project-base-branch";
+import { useMoveNewChat } from "@/groupon/use-start-new-chat";
 import { useGrouponPreferences } from "@/groupon/preferences";
 import { GROUPON_CHATS } from "@/groupon/strings";
 import {
@@ -215,6 +219,30 @@ function noopClearDraft() {}
 
 // Stable reference so the keyboard-action handler doesn't re-register each render.
 const PROJECT_PICK_ACTIONS: readonly KeyboardActionId[] = ["workspace.project.pick"];
+const HOST_CYCLE_ACTIONS: readonly KeyboardActionId[] = ["workspace.host.cycle"];
+
+/** Groupon Desk: Cmd+/ moves the workspace to the next Mac, as choosing it in "On <Mac>" does. */
+function useNextMacShortcut(input: {
+  macOptions: readonly MacPickerOption[];
+  selectedServerId: string;
+  disabled: boolean;
+  onSelect: (serverId: string) => void;
+}): void {
+  const { onSelect } = input;
+  const nextMac = input.disabled ? null : nextMacServerId(input.macOptions, input.selectedServerId);
+  const handle = useCallback(() => {
+    if (!nextMac) return false;
+    onSelect(nextMac);
+    return true;
+  }, [nextMac, onSelect]);
+  useKeyboardActionHandler({
+    handlerId: "new-workspace-host-cycle",
+    actions: HOST_CYCLE_ACTIONS,
+    enabled: nextMac !== null,
+    priority: 0,
+    handle,
+  });
+}
 
 interface WorkspaceIsolationState {
   isolation: "local" | "worktree";
@@ -1247,9 +1275,20 @@ export function NewWorkspaceScreen({
     return githubPrSearchQuery.data?.items ?? [];
   }, [forgeSearchAuthenticated, githubPrSearchQuery.data?.items]);
 
+  // Groupon Desk: the repository's target branch (`staging` in the monorepo) comes before Paseo's default.
+  const projectBase = useProjectBaseBranch({
+    client,
+    serverId: selectedServerId,
+    repoRoot: selectedSourceDirectory,
+    enabled: showRefPicker,
+  });
+  const ensureProjectBaseBranch = projectBase.ensure;
   const baseItem = useMemo(
-    () => selectedItem ?? (checkoutStatus ? defaultBasePickerItem(checkoutStatus) : null),
-    [checkoutStatus, selectedItem],
+    () =>
+      selectedItem ??
+      projectBasePickerItem(projectBase.branch) ??
+      (checkoutStatus ? defaultBasePickerItem(checkoutStatus) : null),
+    [checkoutStatus, projectBase.branch, selectedItem],
   );
   // Groupon Desk: a repository that names branches from a Jira ticket asks for the ticket first.
   const startTicket = useStartTicketFromPage({
@@ -1338,14 +1377,29 @@ export function NewWorkspaceScreen({
   }, [clearPickerSelectionForTargetChange, repositoryEntryId]);
 
   const repositoryMacChosen = repositoryChoice.macChosen;
+  const chosenEntry = repositoryChoice.entry;
+  const moveNewChat = useMoveNewChat();
   const handleSelectWorkspaceHost = useCallback(
     (id: string) => {
+      // New chat's "No project" folder is per Mac: the chat reopens on the other Mac's own.
+      if (id !== selectedServerId && isChatsProject(chosenEntry?.project)) {
+        void moveNewChat(id, draftId);
+        return;
+      }
       handleSelectHost(id);
       clearPickerSelectionForTargetChange(selectedServerId, id);
       // A Mac without the chosen repository offers its clone right there.
       repositoryMacChosen(id);
     },
-    [clearPickerSelectionForTargetChange, handleSelectHost, repositoryMacChosen, selectedServerId],
+    [
+      chosenEntry,
+      clearPickerSelectionForTargetChange,
+      draftId,
+      handleSelectHost,
+      moveNewChat,
+      repositoryMacChosen,
+      selectedServerId,
+    ],
   );
 
   const handleAddProject = useCallback(() => {
@@ -1379,6 +1433,13 @@ export function NewWorkspaceScreen({
     enabled: repositoryChoice.options.length > 0,
     priority: 0,
     handle: handleProjectPick,
+  });
+
+  useNextMacShortcut({
+    macOptions: repositoryChoice.macOptions,
+    selectedServerId,
+    disabled: isPending,
+    onSelect: handleSelectWorkspaceHost,
   });
 
   const openIsolationPicker = useCallback(() => {
@@ -1439,7 +1500,9 @@ export function NewWorkspaceScreen({
         : null;
       const pickedCheckout = checkoutStatusForCreate
         ? pickerItemToCheckoutRequest(
-            selectedItem ?? defaultBasePickerItem(checkoutStatusForCreate),
+            selectedItem ??
+              projectBasePickerItem(await ensureProjectBaseBranch()) ??
+              defaultBasePickerItem(checkoutStatusForCreate),
           )
         : undefined;
       // Groupon Desk: on the ticket's branch when the repository names branches from a ticket.
@@ -1472,6 +1535,7 @@ export function NewWorkspaceScreen({
       creationIdentity,
       creationResult,
       effectiveIsolation,
+      ensureProjectBaseBranch,
       mergeWorkspaces,
       ticket,
       observeCreation,

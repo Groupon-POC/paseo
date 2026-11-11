@@ -12,6 +12,7 @@ import {
   macPickerOptions,
   macPickerTriggerBadge,
   macPickerTriggerLabel,
+  nextMacServerId,
   thisComputerBadgeForHost,
 } from "./mac-picker-model";
 import { GROUPON_MAC_PICKER, GROUPON_THIS_COMPUTER } from "./strings";
@@ -215,6 +216,28 @@ describe("defaultMacServerId", () => {
     );
     expect(defaultMacServerId(options, "srv_studio")).toBe("srv_studio");
     expect(defaultMacServerId([], "srv_any")).toBe("srv_any");
+  });
+});
+
+describe("nextMacServerId", () => {
+  const options = macPickerOptions(
+    [added("laptop", { direct: "127.0.0.1:6770" }), added("studio"), added("mini")],
+    online("srv_laptop", "srv_mini"),
+  );
+
+  it("moves to the next Mac that can be chosen, past one that cannot, and wraps", () => {
+    expect(nextMacServerId(options, "srv_laptop")).toBe("srv_mini");
+    expect(nextMacServerId(options, "srv_mini")).toBe("srv_laptop");
+  });
+
+  it("starts from the first Mac when the chosen host is none of them", () => {
+    expect(nextMacServerId(options, "srv_gone")).toBe("srv_laptop");
+  });
+
+  it("has nowhere to go with one Mac or none", () => {
+    const one = macPickerOptions([added("laptop")], online("srv_laptop"));
+    expect(nextMacServerId(one, "srv_laptop")).toBeNull();
+    expect(nextMacServerId([], "srv_laptop")).toBeNull();
   });
 });
 

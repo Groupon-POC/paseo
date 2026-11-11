@@ -13,7 +13,9 @@ import {
   isJiraSavedViewAnswer,
   isJiraSearchAnswer,
   isProjectSettingsAnswer,
+  isPullRequestOutcome,
   jiraSavedView,
+  pullRequestOnStandard,
   readJiraFields,
   searchJira,
   isEncoreAppsAnswer,
@@ -219,6 +221,29 @@ const SAMPLE_JIRA_SEARCH = {
   problem: null,
 };
 
+const SAMPLE_PULL_REQUESTS = [
+  { kind: "paseo", branch: "release/2026-11-11" },
+  {
+    kind: "needs-ticket",
+    branch: "ctzaruba/tenhle-ukol-nesouvisi-s-ukolem-v-tomto",
+    suggested: null,
+  },
+  { kind: "ready", branch: "b2b/QR-1742/ENC-1234-fix", ticket: "ENC-1234" },
+  {
+    kind: "opened",
+    branch: "b2b/QR-1742/ENC-1234-fix",
+    ticket: "ENC-1234",
+    url: "https://github.com/groupon2/engineering-development/pull/600",
+    title: "[ENC-1234] Fix the checkout watch",
+    created: true,
+  },
+  {
+    kind: "refused",
+    reason:
+      "Error: no pull request: there are uncommitted changes Commit them (or drop them), then run this again.",
+  },
+];
+
 const SAMPLE_JIRA_SIGNED_OUT = {
   page: null,
   problem: {
@@ -310,7 +335,25 @@ describe("the Groupon plugin's RPCs", () => {
       cronCatalog: "groupon.cron-catalog",
       cronPlace: "groupon.cron-place",
       cronRemove: "groupon.cron-remove",
+      pullRequest: "groupon.pull-request",
     });
+  });
+
+  it("reads Create PR's sample answers and asks the plugin with the checkout and the ticket", async () => {
+    for (const answer of SAMPLE_PULL_REQUESTS) expect(isPullRequestOutcome(answer)).toBe(true);
+    expect(isPullRequestOutcome({ kind: "merged" })).toBe(false);
+    const { client, calls } = fakeClient({ [GROUPON_RPC.pullRequest]: [SAMPLE_PULL_REQUESTS[3]] });
+
+    const outcome = await pullRequestOnStandard(client, {
+      cwd: "/r",
+      ticket: "ENC-1234",
+      open: true,
+    });
+
+    expect(outcome.kind).toBe("opened");
+    expect(calls.map(({ method, input }) => [method, input])).toEqual([
+      ["groupon.pull-request", { cwd: "/r", ticket: "ENC-1234", open: true }],
+    ]);
   });
 
   it("reads My tasks' sample answers and refuses another shape", () => {

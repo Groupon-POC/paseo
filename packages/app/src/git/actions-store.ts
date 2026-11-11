@@ -1,9 +1,16 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Create PR follows the pull-request standard in a repository on it (`groupon/ticket-pull-request.ts`).
 import type { CheckoutPrMergeMethod } from "@getpaseo/protocol/messages";
 import { create } from "zustand";
 import { queryClient as appQueryClient } from "@/data/query-client";
 import { useSessionStore } from "@/stores/session-store";
 import { invalidateCheckoutGitQueriesForClient } from "@/git/query-keys";
 import { i18n } from "@/i18n/i18next";
+import { pullRequestOnStandard } from "@/groupon/desk-plugin-rpc";
+import {
+  createPrRoute,
+  openedProblem,
+  useTicketPullRequestStore,
+} from "@/groupon/ticket-pull-request";
 
 const SUCCESS_DISPLAY_MS = 1000;
 
@@ -107,7 +114,8 @@ interface CheckoutGitActionsStoreState {
   push: (params: { serverId: string; cwd: string }) => Promise<void>;
   pullAndPush: (params: { serverId: string; cwd: string }) => Promise<void>;
   refresh: (params: { serverId: string; cwd: string }) => Promise<void>;
-  createPr: (params: { serverId: string; cwd: string }) => Promise<void>;
+  /** "asked": the branch carries no ticket, and the window asks the person for one; nothing opened. */
+  createPr: (params: { serverId: string; cwd: string }) => Promise<"created" | "asked">;
   mergePr: (params: {
     serverId: string;
     cwd: string;
@@ -262,18 +270,33 @@ export const useCheckoutGitActionsStore = create<CheckoutGitActionsStoreState>()
   },
 
   createPr: async ({ serverId, cwd }) => {
+    const client = resolveClient(serverId);
+    // Groupon Desk: a repository on the ticket standard opens through the Groupon plugin.
+    const route = await createPrRoute(client, cwd);
+    if (route.kind === "needs-ticket") {
+      useTicketPullRequestStore
+        .getState()
+        .open({ serverId, cwd, branch: route.branch, suggested: route.suggested });
+      return "asked";
+    }
+    if (route.kind === "refused") throw new Error(route.reason);
     await runCheckoutAction({
       serverId,
       cwd,
       actionId: "create-pr",
       run: async () => {
-        const client = resolveClient(serverId);
+        if (route.kind !== "paseo") {
+          const problem = openedProblem(await pullRequestOnStandard(client, { cwd, open: true }));
+          if (problem) throw new Error(problem);
+          return;
+        }
         const payload = await client.checkoutPrCreate(cwd, {});
         if (payload.error) {
           throw new Error(payload.error.message);
         }
       },
     });
+    return "created";
   },
 
   mergePr: async ({ serverId, cwd, method }) => {

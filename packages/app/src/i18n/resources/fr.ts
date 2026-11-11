@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name where Paseo's stood, and the project config's file name (owner, 2026-10-20: no trace of Paseo a person meets). The desktop notifications switch (`settings.notifications.enabled`, `enabledHint`). The sidebar's Show New workspace toggle (`sidebar.display.showNewWorkspaceRows`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the product's name where Paseo's stood, and the project config's file name (owner, 2026-10-20: no trace of Paseo a person meets). The desktop notifications switch (`settings.notifications.enabled`, `enabledHint`). The sidebar's Show New workspace toggle (`sidebar.display.showNewWorkspaceRows`). The sidebar's "More" row folding the header rows (`sidebar.actions.more`).
 import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
@@ -1270,6 +1270,7 @@ export const fr: TranslationResources = {
       searchPlaceholder: "Rechercher des hôtes…",
     },
     actions: {
+      more: "Plus",
       addProject: "Ajouter un projet",
       newWorkspace: "Nouvel espace de travail",
       hosts: "Hôtes",

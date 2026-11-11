@@ -1,9 +1,9 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): starting a chat that names no project, shared by the sidebar's "New chat" row and its keyboard shortcut.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): starting a chat that names no project, shared by the sidebar's "New chat" row and its keyboard shortcut; moving New chat to another Mac.
 
 import { router } from "expo-router";
 import { useCallback, useRef } from "react";
 import { useToast } from "@/contexts/toast-context";
-import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
+import { getHostRuntimeStore, useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { buildNewWorkspaceRoute } from "@/utils/host-routes";
 import { ensureChatsProject } from "./project-less-chats";
@@ -52,4 +52,40 @@ export function useStartNewChat(): {
   );
 
   return { canStart: hosts.length > 0, startNewChat };
+}
+
+/**
+ * New chat moved to another Mac: reopens on that Mac's own "No project", made there when the Mac
+ * has none yet, since the chats folder of one Mac does not exist on another. The draft stays.
+ */
+export function useMoveNewChat(): (serverId: string, draftId?: string) => Promise<void> {
+  const toast = useToast();
+  const busy = useRef(false);
+  return useCallback(
+    async (serverId: string, draftId?: string) => {
+      if (busy.current) return;
+      const client = getHostRuntimeStore().getClient(serverId);
+      if (!client) {
+        toast.error(GROUPON_CHATS.noHost);
+        return;
+      }
+      busy.current = true;
+      try {
+        const project = await ensureChatsProject(client);
+        router.replace(
+          buildNewWorkspaceRoute({
+            serverId,
+            sourceDirectory: project.rootPath,
+            projectId: project.projectId,
+            draftId,
+          }),
+        );
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : GROUPON_CHATS.startFailed);
+      } finally {
+        busy.current = false;
+      }
+    },
+    [toast],
+  );
 }

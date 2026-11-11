@@ -1,7 +1,9 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a worktree run of a schedule with `worktreeBranchPrefix` starts on `<prefix>/<YYYY-MM-DD>`, kept after the first message.
 import { formatSystemNotificationPrompt } from "../agent/agent-messages/index.js";
 import { randomUUID } from "node:crypto";
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
+import { localBranchExists } from "../../utils/checkout-git.js";
 import type { Logger } from "pino";
 import type { AgentManager } from "../agent/agent-manager.js";
 import type { AgentSessionConfig } from "../agent/agent-sdk-types.js";
@@ -136,6 +138,14 @@ function applyNewAgentConfig(
   if (patch.isolation !== undefined) {
     config.isolation = patch.isolation;
   }
+  if (patch.worktreeBranchPrefix !== undefined) {
+    const trimmed = patch.worktreeBranchPrefix?.trim();
+    if (trimmed) {
+      config.worktreeBranchPrefix = trimmed;
+    } else {
+      delete config.worktreeBranchPrefix;
+    }
+  }
   return { ...target, config };
 }
 
@@ -246,6 +256,27 @@ type ScheduleAgentManager = Pick<
 interface ScheduleWorkspaceCreateInput {
   cwd: string;
   firstAgentContext: FirstAgentContext;
+  /** Groupon Desk: the run's worktree branch, kept after the first message (`worktreeBranchPrefix`). */
+  branchName?: string;
+}
+
+/**
+ * Groupon Desk: the branch a worktree run of a schedule with `worktreeBranchPrefix` starts on,
+ * `<prefix>/<YYYY-MM-DD>` (UTC), and `-2`, `-3` and on for a later run the same day whose branch
+ * is taken (a run started by hand beside the scheduled one).
+ */
+export async function scheduleRunBranchName(
+  prefix: string,
+  now: Date,
+  branchExists: (branchName: string) => Promise<boolean>,
+): Promise<string> {
+  const base = `${prefix}/${now.toISOString().slice(0, 10)}`;
+  if (!(await branchExists(base))) return base;
+  for (let attempt = 2; attempt < 100; attempt += 1) {
+    const candidate = `${base}-${attempt}`;
+    if (!(await branchExists(candidate))) return candidate;
+  }
+  throw new Error(`Every branch name ${base}-2 to ${base}-99 is taken`);
 }
 
 export interface ScheduleServiceOptions {
@@ -261,6 +292,8 @@ export interface ScheduleServiceOptions {
     input: ScheduleWorkspaceCreateInput,
   ) => Promise<CreatePaseoWorktreeWorkflowResult>;
   archiveWorkspace: (workspaceId: string) => Promise<void>;
+  /** Groupon Desk: whether a local branch exists in the repository at `cwd` (a run's branch name is free). */
+  branchExists?: (cwd: string, branchName: string) => Promise<boolean>;
   now?: () => Date;
   runner?: (schedule: StoredSchedule, runId: string) => Promise<ScheduleExecutionResult>;
 }
@@ -278,6 +311,7 @@ export class ScheduleService {
     input: ScheduleWorkspaceCreateInput,
   ) => Promise<CreatePaseoWorktreeWorkflowResult>;
   private readonly archiveWorkspace: (workspaceId: string) => Promise<void>;
+  private readonly branchExists: (cwd: string, branchName: string) => Promise<boolean>;
   private readonly now: () => Date;
   private readonly runner: (
     schedule: StoredSchedule,
@@ -295,6 +329,7 @@ export class ScheduleService {
     this.createDirectoryWorkspace = options.createDirectoryWorkspace;
     this.createPaseoWorktreeWorkspace = options.createPaseoWorktreeWorkspace;
     this.archiveWorkspace = options.archiveWorkspace;
+    this.branchExists = options.branchExists ?? localBranchExists;
     this.now = options.now ?? (() => new Date());
     this.runner = options.runner ?? ((schedule, runId) => this.executeSchedule(schedule, runId));
   }
@@ -1066,9 +1101,21 @@ export class ScheduleService {
     switch (config.isolation ?? "local") {
       case "local":
         return this.createDirectoryWorkspace({ cwd: config.cwd, firstAgentContext });
-      case "worktree":
-        return (await this.createPaseoWorktreeWorkspace({ cwd: config.cwd, firstAgentContext }))
-          .workspace;
+      case "worktree": {
+        const prefix = config.worktreeBranchPrefix;
+        const branchName = prefix
+          ? await scheduleRunBranchName(prefix, this.now(), (name) =>
+              this.branchExists(config.cwd, name),
+            )
+          : undefined;
+        return (
+          await this.createPaseoWorktreeWorkspace({
+            cwd: config.cwd,
+            firstAgentContext,
+            ...(branchName ? { branchName } : {}),
+          })
+        ).workspace;
+      }
     }
   }
 

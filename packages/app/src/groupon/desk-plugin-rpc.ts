@@ -35,6 +35,8 @@ export const GROUPON_RPC = {
   cronPlace: "groupon.cron-place",
   cronRemove: "groupon.cron-remove",
   pullRequest: "groupon.pull-request",
+  cronRepositories: "groupon.cron-repositories",
+  cronRepository: "groupon.cron-repository",
 } as const;
 
 export type PluginRpcClient = Pick<DaemonClient, "invokePluginRpc">;

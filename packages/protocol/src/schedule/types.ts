@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a worktree schedule's runs may branch as `<worktreeBranchPrefix>/<YYYY-MM-DD>`.
 import { z } from "zod";
 import { AgentProviderSchema } from "../provider-manifest.js";
 
@@ -32,6 +33,7 @@ export const ScheduleTargetSchema = z.discriminatedUnion("type", [
       thinkingOptionId: z.string().trim().min(1).optional(),
       archiveOnFinish: z.boolean().optional(),
       isolation: z.enum(["local", "worktree"]).optional(),
+      worktreeBranchPrefix: z.string().trim().min(1).optional(),
       title: z.string().trim().min(1).nullable().optional(),
       providerOptions: z.record(z.string(), z.unknown()).optional(),
       featureValues: z.record(z.string(), z.unknown()).optional(),
@@ -95,6 +97,7 @@ export interface UpdateScheduleNewAgentConfig {
   thinkingOptionId?: string | null;
   archiveOnFinish?: boolean;
   isolation?: "local" | "worktree";
+  worktreeBranchPrefix?: string | null;
   cwd?: string;
 }
 

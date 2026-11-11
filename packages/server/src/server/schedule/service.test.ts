@@ -33,6 +33,7 @@ import {
 } from "../workspace-registry.js";
 import { archiveByScope, type ActiveWorkspaceRef } from "../workspace-archive-service.js";
 import {
+  scheduleRunBranchName,
   ScheduleService,
   ScheduleTargetGoneError,
   type ScheduleServiceOptions,
@@ -897,6 +898,131 @@ describe("ScheduleService", () => {
         archivedAt: null,
       }),
     ]);
+  });
+
+  // Added for Groupon Desk: a `groupon cron` job with a repository runs in a worktree on `cron/<name>/<date>`.
+  test("scheduleRunBranchName takes the day's branch, then the next free suffix", async () => {
+    const day = new Date("2026-11-11T08:30:00.000Z");
+    expect(await scheduleRunBranchName("cron/refactoring", day, async () => false)).toBe(
+      "cron/refactoring/2026-11-11",
+    );
+    const taken = new Set(["cron/refactoring/2026-11-11", "cron/refactoring/2026-11-11-2"]);
+    expect(
+      await scheduleRunBranchName("cron/refactoring", day, async (name) => taken.has(name)),
+    ).toBe("cron/refactoring/2026-11-11-3");
+  });
+
+  test("a worktree run with worktreeBranchPrefix names its branch and keeps its workspace", async () => {
+    const manager = new AgentManager({
+      logger: createTestLogger(),
+      clients: createTestAgentClients(),
+      registry: agentStorage,
+    });
+    const asked: { cwd: string; branchName?: string }[] = [];
+    const archived: string[] = [];
+    const checked: string[] = [];
+    const service = createScheduleService({
+      paseoHome: tempDir,
+      logger: createTestLogger(),
+      agentManager: manager,
+      agentStorage,
+      providerSnapshotManager: NO_UNATTENDED_SCHEDULE_POLICY,
+      now: () => now,
+      branchExists: async (cwd, name) => {
+        checked.push(`${cwd}:${name}`);
+        return false;
+      },
+      createPaseoWorktreeWorkspace: async (input) => {
+        asked.push({ cwd: input.cwd, branchName: input.branchName });
+        const workspace: PersistedWorkspaceRecord = {
+          workspaceId: "wks_cron_run",
+          projectId: "proj_repo",
+          cwd: join(tempDir, "worktree"),
+          kind: "worktree",
+          displayName: "cron run",
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+          archivedAt: null,
+        } as PersistedWorkspaceRecord;
+        await mkdir(workspace.cwd, { recursive: true });
+        return {
+          workspace,
+          worktree: { branchName: input.branchName ?? "x", worktreePath: workspace.cwd },
+          intent: {
+            kind: "branch-off",
+            baseBranch: "staging",
+            branchName: input.branchName ?? "x",
+          },
+          repoRoot: tempDir,
+          created: true,
+        } as Awaited<ReturnType<ScheduleServiceOptions["createPaseoWorktreeWorkspace"]>>;
+      },
+      archiveWorkspace: async (workspaceId) => {
+        archived.push(workspaceId);
+      },
+    });
+
+    const created = await service.create({
+      prompt: "refactor",
+      cadence: { type: "every", everyMs: 60_000 },
+      target: {
+        type: "new-agent",
+        config: {
+          provider: "claude",
+          model: "test-model",
+          cwd: tempDir,
+          archiveOnFinish: false,
+          isolation: "worktree",
+          worktreeBranchPrefix: "cron/refactoring",
+        },
+      },
+      maxRuns: 1,
+    });
+    await service.tick();
+
+    const inspected = await service.inspect(created.id);
+    expect(inspected.runs).toHaveLength(1);
+    expect(asked).toEqual([{ cwd: tempDir, branchName: "cron/refactoring/2026-01-01" }]);
+    expect(checked).toEqual([`${tempDir}:cron/refactoring/2026-01-01`]);
+    expect(archived).toEqual([]);
+  });
+
+  test("update sets and clears worktreeBranchPrefix", async () => {
+    const service = createScheduleService({
+      paseoHome: tempDir,
+      logger: createTestLogger(),
+      agentManager: new AgentManager({ logger: createTestLogger() }),
+      agentStorage,
+      providerSnapshotManager: NO_UNATTENDED_SCHEDULE_POLICY,
+      now: () => now,
+      runner: async () => ({ agentId: null, output: "ok" }),
+    });
+    const created = await service.create({
+      prompt: "p",
+      cadence: { type: "every", everyMs: 60_000 },
+      target: { type: "new-agent", config: { provider: "claude", cwd: tempDir } },
+    });
+    const set = await service.update({
+      id: created.id,
+      newAgentConfig: { isolation: "worktree", worktreeBranchPrefix: "cron/nightly" },
+    });
+    expect(set.target).toEqual({
+      type: "new-agent",
+      config: {
+        provider: "claude",
+        cwd: tempDir,
+        isolation: "worktree",
+        worktreeBranchPrefix: "cron/nightly",
+      },
+    });
+    const cleared = await service.update({
+      id: created.id,
+      newAgentConfig: { worktreeBranchPrefix: null },
+    });
+    expect(cleared.target).toEqual({
+      type: "new-agent",
+      config: { provider: "claude", cwd: tempDir, isolation: "worktree" },
+    });
   });
 
   test("archiveOnFinish=true archives the run workspace through workspace archive", async () => {

@@ -3,7 +3,7 @@ import {
   IDBObjectStore as FakeIDBObjectStore,
   indexedDB as fakeIndexedDb,
 } from "fake-indexeddb";
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runReplicaRowStoreContract } from "./row-store.contract";
 import { createIndexedDbReplicaRowStore } from "./row-store.web";
 
@@ -48,4 +48,44 @@ it("uses exact IndexedDB keys for targeted rows instead of scanning the host", a
 
   get.mockRestore();
   getAll.mockRestore();
+});
+
+describe("a read whose transaction aborts", () => {
+  async function abortedRead(
+    read: (store: ReturnType<typeof createIndexedDbReplicaRowStore>) => Promise<unknown>,
+  ) {
+    const store = createIndexedDbReplicaRowStore({
+      databaseName: `replica-row-store-aborted-${databaseSequence++}`,
+      schemaVersion: 1,
+    });
+    await store.open();
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    const getAll = vi
+      .spyOn(FakeIDBObjectStore.prototype, "getAll")
+      .mockImplementationOnce(function (this: IDBObjectStore, ...args) {
+        const request = FakeIDBObjectStore.prototype.getAll.call(this, ...args);
+        this.transaction.abort();
+        return request;
+      });
+    try {
+      await expect(read(store)).rejects.toThrow();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      return unhandled;
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      getAll.mockRestore();
+    }
+  }
+
+  it("readAll rejects and leaves no unhandled rejection", async () => {
+    expect(await abortedRead((store) => store.readAll())).toEqual([]);
+  });
+
+  it("read rejects and leaves no unhandled rejection", async () => {
+    expect(await abortedRead((store) => store.read("server-a", ["agent"]))).toEqual([]);
+  });
 });

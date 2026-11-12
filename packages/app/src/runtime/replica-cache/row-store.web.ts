@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a read whose transaction fails or aborts settles its completion promise too, so no rejection goes unhandled (Sentry FRONTEND-DESK-TS-3).
 import type { ReplicaHostRows, ReplicaRow, ReplicaRowChanges, ReplicaRowStore } from "./row-store";
 import { REPLICA_ROW_STORE_SCHEMA_VERSION } from "./row-store-schema";
 
@@ -43,16 +44,18 @@ function transactionComplete(transaction: IDBTransaction): Promise<void> {
   });
 }
 
-async function runTransaction(
+async function withTransaction<Result>(
   database: IDBDatabase,
   storeNames: string | string[],
-  operation: (transaction: IDBTransaction) => Promise<void>,
-): Promise<void> {
-  const transaction = database.transaction(storeNames, "readwrite");
+  mode: IDBTransactionMode,
+  operation: (transaction: IDBTransaction) => Promise<Result>,
+): Promise<Result> {
+  const transaction = database.transaction(storeNames, mode);
   const completion = transactionComplete(transaction);
   try {
-    await operation(transaction);
+    const result = await operation(transaction);
     await completion;
+    return result;
   } catch (error) {
     try {
       transaction.abort();
@@ -62,6 +65,14 @@ async function runTransaction(
     await completion.catch(() => undefined);
     throw error;
   }
+}
+
+function runTransaction(
+  database: IDBDatabase,
+  storeNames: string | string[],
+  operation: (transaction: IDBTransaction) => Promise<void>,
+): Promise<void> {
+  return withTransaction(database, storeNames, "readwrite", operation);
 }
 
 async function openDatabase(databaseName: string): Promise<IDBDatabase> {
@@ -123,10 +134,9 @@ export function createIndexedDbReplicaRowStore(
   }
 
   async function readAll(): Promise<ReplicaHostRows[]> {
-    const transaction = getDatabase().transaction(ROWS_STORE, "readonly");
-    const completion = transactionComplete(transaction);
-    const rows = await requestResult<ReplicaRow[]>(transaction.objectStore(ROWS_STORE).getAll());
-    await completion;
+    const rows = await withTransaction(getDatabase(), ROWS_STORE, "readonly", (transaction) =>
+      requestResult<ReplicaRow[]>(transaction.objectStore(ROWS_STORE).getAll()),
+    );
     const hosts = new Map<string, ReplicaRow[]>();
     for (const row of rows) {
       const hostRows = hosts.get(row.serverId) ?? [];
@@ -142,25 +152,29 @@ export function createIndexedDbReplicaRowStore(
     ids?: readonly string[],
   ): Promise<ReplicaRow[]> {
     if (kinds.length === 0 || ids?.length === 0) return [];
-    const transaction = getDatabase().transaction(ROWS_STORE, "readonly");
-    const completion = transactionComplete(transaction);
-    const store = transaction.objectStore(ROWS_STORE);
-    const requests = ids
-      ? kinds.flatMap((kind) =>
-          ids.map(async (id) => {
-            const row = await requestResult<ReplicaRow | undefined>(
-              store.get([serverId, kind, id]),
+    const rows = await withTransaction(
+      getDatabase(),
+      ROWS_STORE,
+      "readonly",
+      async (transaction) => {
+        const store = transaction.objectStore(ROWS_STORE);
+        const requests = ids
+          ? kinds.flatMap((kind) =>
+              ids.map(async (id) => {
+                const row = await requestResult<ReplicaRow | undefined>(
+                  store.get([serverId, kind, id]),
+                );
+                return row ? [row] : [];
+              }),
+            )
+          : kinds.map((kind) =>
+              requestResult<ReplicaRow[]>(
+                store.getAll(IDBKeyRange.bound([serverId, kind], [serverId, kind, []])),
+              ),
             );
-            return row ? [row] : [];
-          }),
-        )
-      : kinds.map((kind) =>
-          requestResult<ReplicaRow[]>(
-            store.getAll(IDBKeyRange.bound([serverId, kind], [serverId, kind, []])),
-          ),
-        );
-    const rows = (await Promise.all(requests)).flat();
-    await completion;
+        return (await Promise.all(requests)).flat();
+      },
+    );
     return rows.sort((left, right) =>
       left.kind === right.kind
         ? left.id.localeCompare(right.id)

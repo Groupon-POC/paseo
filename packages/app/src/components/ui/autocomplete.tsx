@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a `position` prop; below the input the list is not pinned to its end and the detail card sits under it.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a `position` prop; below the input the list is not pinned to its end and the detail card sits under it; the selected row and the detail card carry an accent bar.
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   ScrollView,
@@ -76,13 +76,14 @@ function AutocompleteRow({
   const pressableStyle = useCallback(
     ({ hovered = false, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
       styles.item,
-      (hovered || pressed || isSelected) && styles.itemActive,
+      isSelected ? styles.itemSelected : (hovered || pressed) && styles.itemActive,
     ],
     [isSelected],
   );
 
   return (
     <Pressable onLayout={handleLayout} onPress={handlePress} style={pressableStyle}>
+      {isSelected ? <View pointerEvents="none" style={styles.itemSelectedTint} /> : null}
       {isFileOrDir ? (
         <>
           <View style={styles.itemLeading}>
@@ -94,7 +95,9 @@ function AutocompleteRow({
           </View>
           <View style={styles.itemMain}>
             <View style={styles.itemHeader}>
-              <Text style={styles.itemLabel}>{optionLabel}</Text>
+              <Text style={isSelected ? styles.itemLabelSelected : styles.itemLabel}>
+                {optionLabel}
+              </Text>
               {removeBoltGlyphs(option.detail) ? (
                 <Text style={styles.itemDetail}>{removeBoltGlyphs(option.detail)}</Text>
               ) : null}
@@ -108,7 +111,9 @@ function AutocompleteRow({
         </>
       ) : (
         <View style={styles.itemMainRow}>
-          <Text style={styles.itemLabel}>{optionLabel}</Text>
+          <Text style={isSelected ? styles.itemLabelSelected : styles.itemLabel}>
+            {optionLabel}
+          </Text>
           {optionDescription ? (
             <Text style={styles.itemDescriptionInline} numberOfLines={1}>
               {optionDescription}
@@ -293,6 +298,11 @@ export function Autocomplete({
   );
 }
 
+// accentBright is too pale for text on light surfaces and accent too dark on dark ones.
+function selectionAccent(theme: Theme): string {
+  return theme.colorScheme === "light" ? theme.colors.accent : theme.colors.accentBright;
+}
+
 const styles = StyleSheet.create((theme: Theme) => ({
   outerWrapper: {
     flexShrink: 1,
@@ -303,6 +313,8 @@ const styles = StyleSheet.create((theme: Theme) => ({
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
     borderColor: theme.colors.borderAccent,
+    borderLeftWidth: theme.borderWidth[2],
+    borderLeftColor: selectionAccent(theme),
     borderRadius: theme.borderRadius.lg,
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[3],
@@ -344,8 +356,11 @@ const styles = StyleSheet.create((theme: Theme) => ({
     flexDirection: "row",
     alignItems: "center",
     minHeight: 36,
-    paddingHorizontal: theme.spacing[3],
+    paddingLeft: theme.spacing[3] - theme.borderWidth[2],
+    paddingRight: theme.spacing[3],
     paddingVertical: theme.spacing[2],
+    borderLeftWidth: theme.borderWidth[2],
+    borderLeftColor: "transparent",
   },
   itemLeading: {
     width: 18,
@@ -355,6 +370,14 @@ const styles = StyleSheet.create((theme: Theme) => ({
   },
   itemActive: {
     backgroundColor: theme.colors.surface2,
+  },
+  itemSelected: {
+    borderLeftColor: selectionAccent(theme),
+  },
+  itemSelectedTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: theme.colors.accent,
+    opacity: theme.colorScheme === "light" ? 0.1 : 0.2,
   },
   itemMain: {
     flex: 1,
@@ -374,6 +397,11 @@ const styles = StyleSheet.create((theme: Theme) => ({
   },
   itemLabel: {
     color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.normal,
+  },
+  itemLabelSelected: {
+    color: selectionAccent(theme),
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.normal,
   },

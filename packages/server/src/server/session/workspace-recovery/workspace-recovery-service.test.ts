@@ -83,6 +83,7 @@ function createHarness(input?: {
   const project = input?.project === undefined ? createProject() : input.project;
   const directories = new Set(input?.directories ?? ["/repo"]);
   const unarchived: string[] = [];
+  const created: string[] = [];
   const service = createWorkspaceRecoveryService({
     paseoHome: input?.paseoHome ?? "/paseo-home",
     worktreesRoot: input?.worktreesRoot ?? "/worktrees",
@@ -93,8 +94,11 @@ function createHarness(input?: {
     unarchiveWorkspace: async (record) => {
       unarchived.push(record.workspaceId);
     },
+    createDirectory: async (path) => {
+      created.push(path);
+    },
   });
-  return { service, unarchived };
+  return { service, unarchived, created };
 }
 
 describe("workspace recovery", () => {
@@ -135,6 +139,29 @@ describe("workspace recovery", () => {
       reason: "workspace_directory_missing",
       message: "The archived workspace directory no longer exists and cannot be recreated.",
     });
+  });
+
+  test("makes a project-less chat's removed folder again and unarchives the chat", async () => {
+    const workspace = createWorkspace({
+      kind: "directory",
+      branch: null,
+      cwd: "/paseo-home/chats/202611111015-look-at-your-setup",
+      worktreeRoot: null,
+      isPaseoOwnedWorktree: false,
+      mainRepoRoot: null,
+    });
+    const { service, unarchived, created } = createHarness({ workspace });
+
+    await expect(service.inspect(workspace.workspaceId)).resolves.toMatchObject({
+      kind: "recoverable",
+      action: "unarchive",
+    });
+    await expect(service.restore(workspace.workspaceId)).resolves.toEqual({
+      workspaceId: workspace.workspaceId,
+      action: "unarchive",
+    });
+    expect(created).toEqual([workspace.cwd]);
+    expect(unarchived).toEqual([workspace.workspaceId]);
   });
 
   test("uses the persisted source repository instead of the owning project to restore an exact subdirectory", async () => {

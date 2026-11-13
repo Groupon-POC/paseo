@@ -312,19 +312,18 @@ name>` until its first message renames it to `<login>/<slug of that message>`. S
   named `feat/x` or `feature/x` is renamed by Paseo's generated name (`workspace-auto-title-flow`),
   never to `feat/<slug of the prompt>` (the fork's rule once read any prefix as an owner; measured
   on 2026-10-21 by three failing `create_agent` tests in `mcp-server.test.ts`).
-- **A repository that names branches from a Jira ticket never gets that name.** In a checkout
-  carrying `.groupon/desk.toml` (`hasDeskFile`) the placement above names nothing: Local on the
-  trunk and a worktree branching off without a name fail with the Groupon plugin's sentence
-  (`TICKET_REQUIRED`, "This repository names branches from a Jira ticket: pick or start one in
-  New workspace"), and the plugin's `before("workspace.create")` hook refuses the same request
-  first for every caller. New workspace asks for the ticket before Create
-  (`groupon/ticket-branch-step.tsx`, the rule in `groupon/ticket-branch-model.ts`): a key typed
-  or taken from My tasks (Take fills the step there), the branch `groupon ticket name` answers on
-  the Mac (`groupon.ticket-name`), and Start a ticket beside it; Create then branches off the
-  picked base onto that branch, Local with a ticket included. The composer's text stays the
-  task's first message. A pull request's checkout and Local on the person's own branch need none.
-  Measured on 2026-11-11: groupon/groupon-monorepo PR 11455 came from a window workspace on
-  `tomas-zaruba/partner-feed-service-single-and-batch-of`.
+- **A Jira ticket is optional, never a condition (the owner's ruling, 2026-11-13).** In a checkout
+  carrying `.groupon/desk.toml` New workspace shows an optional ticket step above the composer
+  (`groupon/ticket-branch-step.tsx`, the rule in `groupon/ticket-branch-model.ts`): a key typed or
+  taken from My tasks (Take fills the step there), the branch `groupon ticket name` answers on the
+  Mac (`groupon.ticket-name`), and Start a ticket beside it. With a ticket the branch is the
+  helper's: Create branches off the picked base onto it, Local with a ticket included. Without one
+  the workspace is Paseo's own as before: the placement above names the branch, the rename after
+  the first message stays, and the person may tell the agent in the chat which ticket and where.
+  Create is never disabled for want of a ticket, and the daemon never refuses a ticketless
+  worktree (the refusal of the fork's pull request 26 is gone: the owner ruled
+  on 2026-11-13 that a ticket is never a condition). The composer's text stays the task's first
+  message. A pull request's checkout and an existing branch's checkout need no ticket step.
 - **A base given by a bare name is origin's branch, never the local copy.** The trunk a worktree
   is cut from above, the repository's default branch and a hub execution's `base` arrive as a bare
   name (`staging`); `utils/worktree.ts`'s `resolveBaseBranchForWorktree` takes

@@ -357,10 +357,8 @@ export const GROUPON_TICKET = {
 
 export const GROUPON_TICKET_BRANCH = {
   label: "Ticket",
-  required:
-    "This repository names branches from a Jira ticket: take one from My tasks, type its key, or start one.",
   optional:
-    "This repository names branches from a Jira ticket: with one, the work gets a worktree on its branch.",
+    "Optional: a Jira ticket names the branch; without one the workspace starts on your own branch and the ticket can come later in the chat.",
   placeholder: "ENC-1234 or the ticket's Jira link",
   naming: "Asking groupon ticket name for the branch",
   branch: "Branch",

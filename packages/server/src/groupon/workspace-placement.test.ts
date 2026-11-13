@@ -5,7 +5,6 @@ import type { CheckoutSnapshotFacts } from "../utils/checkout-git.js";
 import { runWithCreationSteps } from "./creation-steps.js";
 import {
   placeTicketlessWorkspace,
-  TICKET_REQUIRED,
   type WorkspaceCreateRequest,
   type WorkspacePlacementDeps,
 } from "./workspace-placement.js";
@@ -32,14 +31,10 @@ function facts(currentBranch: string): CheckoutSnapshotFacts {
   };
 }
 
-function deps(
-  currentBranch: string,
-  namesBranchesFromTicket = false,
-): WorkspacePlacementDeps & {
+function deps(currentBranch: string): WorkspacePlacementDeps & {
   nameBranch: ReturnType<typeof vi.fn>;
 } {
   return {
-    namesBranchesFromTicket: () => namesBranchesFromTicket,
     readFacts: vi.fn(async () => facts(currentBranch)),
     resolveWorktreeSourceCwd: vi.fn(async (source) => source.cwd ?? REPO),
     nameBranch: vi.fn(async (input) => ({
@@ -142,20 +137,19 @@ describe("a workspace started without a ticket", () => {
   });
 });
 
-describe("a repository that names branches from a Jira ticket", () => {
-  test("refuses a worktree Groupon Desk would name from the prompt, naming nothing", async () => {
-    const d = deps("staging", true);
+describe("a repository that names branches from a Jira ticket (the owner's ruling, 2026-11-13: a ticket is never a condition)", () => {
+  test("places a worktree without a ticket as before: Groupon Desk names the branch", async () => {
+    const d = deps("staging");
 
-    await expect(
-      placeTicketlessWorkspace(request({ kind: "worktree", cwd: REPO, refName: "staging" }), d),
-    ).rejects.toThrow(TICKET_REQUIRED);
-    expect(d.nameBranch).not.toHaveBeenCalled();
-  });
+    const placed = await placeTicketlessWorkspace(
+      request({ kind: "worktree", cwd: REPO, refName: "staging" }),
+      d,
+    );
 
-  test("refuses Local on the trunk, which would become such a worktree", async () => {
-    await expect(
-      placeTicketlessWorkspace(request({ kind: "directory", path: REPO }), deps("staging", true)),
-    ).rejects.toThrow(TICKET_REQUIRED);
+    expect(d.nameBranch).toHaveBeenCalledTimes(1);
+    expect(placed.request).not.toEqual(
+      request({ kind: "worktree", cwd: REPO, refName: "staging" }),
+    );
   });
 
   test("leaves a ticket's branch, a checkout, Local in place and Local on the person's own branch alone", async () => {
@@ -165,7 +159,7 @@ describe("a repository that names branches from a Jira ticket", () => {
       [request({ kind: "directory", path: REPO, inPlaceOnTrunk: true }), "staging"],
       [request({ kind: "directory", path: REPO }), "ctzaruba/fix-the-login"],
     ] as const) {
-      expect((await placeTicketlessWorkspace(original, deps(branch, true))).request).toBe(original);
+      expect((await placeTicketlessWorkspace(original, deps(branch))).request).toBe(original);
     }
   });
 });

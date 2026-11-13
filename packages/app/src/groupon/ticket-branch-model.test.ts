@@ -3,7 +3,6 @@
 import { describe, expect, it } from "vitest";
 import {
   namesBranchesFromTicket,
-  TICKET_REQUIRED,
   ticketBranchAfter,
   ticketCreationOf,
   ticketRuleOf,
@@ -24,9 +23,9 @@ describe("which repositories name branches from a ticket", () => {
 });
 
 describe("the ticket rule", () => {
-  it("requires a ticket for a worktree that branches off in a ticket repository", () => {
+  it("offers a ticket, never requires one, for a worktree that branches off in a ticket repository", () => {
     expect(ticketRuleOf({ namesFromTicket: true, createsWorktree: true, checkout: BASE })).toBe(
-      "required",
+      "optional",
     );
   });
 
@@ -40,7 +39,7 @@ describe("the ticket rule", () => {
     );
   });
 
-  it("takes a ticket for Local without requiring one", () => {
+  it("offers a ticket for Local too", () => {
     expect(
       ticketRuleOf({ namesFromTicket: true, createsWorktree: false, checkout: undefined }),
     ).toBe("optional");
@@ -76,7 +75,7 @@ describe("the ticket step", () => {
 describe("the creation", () => {
   it("branches off the picked base onto the ticket's branch", () => {
     const creation = ticketCreationOf({
-      rule: "required",
+      rule: "optional",
       step: { status: "named", ticket: "ENC-1234", branch: BRANCH },
       checkout: BASE,
     });
@@ -90,10 +89,10 @@ describe("the creation", () => {
     { status: "empty" as const },
     { status: "naming" as const, ticket: "ENC-1234" },
     { status: "refused" as const, ticket: "ENC-1234", reason: "no parent" },
-  ])("refuses to create without a named branch when the ticket is required ($status)", (step) => {
-    expect(() => ticketCreationOf({ rule: "required", step, checkout: BASE })).toThrow(
-      TICKET_REQUIRED,
-    );
+  ])("creates as chosen, never throws, when no branch is named ($status)", (step) => {
+    expect(ticketCreationOf({ rule: "optional", step, checkout: BASE })).toEqual({
+      kind: "as-chosen",
+    });
   });
 
   it("makes Local with a ticket a worktree on the ticket's branch, from the default branch", () => {

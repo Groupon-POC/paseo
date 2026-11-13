@@ -1,7 +1,7 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): New workspace's ticket step in a real browser.
 /**
- * Tests that the ticket step above New workspace's composer asks for the ticket in a repository
- * that names branches from one, shows the branch `groupon ticket name` answers on the Mac (or the
+ * Tests that the ticket step above New workspace's composer offers the ticket (optional) in a
+ * repository that names branches from one, shows the branch `groupon ticket name` answers on the Mac (or the
  * helper's reason), and stays away where no ticket is asked for.
  *
  * Covers: packages/app/src/groupon/ticket-branch-step.tsx
@@ -82,10 +82,11 @@ async function typeAndLeave(view: ReturnType<typeof within>, text: string) {
   });
 }
 
-it("asks for the ticket and shows the branch the helper answers for it", async () => {
+it("offers the ticket as optional and shows the branch the helper answers for it", async () => {
   const { client, asked } = pluginClient({ kind: "named", ticket: "ENC-1234", branch: BRANCH });
-  const view = renderStep("required", client);
-  expect(view.getByText(/names branches from a Jira ticket/)).toBeTruthy();
+  const view = renderStep("optional", client);
+  expect(view.getByText(/^Optional: a Jira ticket names the branch/)).toBeTruthy();
+  expect(view.queryByText(/required/i)).toBeNull();
 
   await typeAndLeave(view, "enc-1234");
 
@@ -97,7 +98,7 @@ it("asks for the ticket and shows the branch the helper answers for it", async (
 
 it("shows the helper's reason when it gives no branch", async () => {
   const { client } = pluginClient({ kind: "refused", reason: "ENC-1234 has no parent" });
-  const view = renderStep("required", client);
+  const view = renderStep("optional", client);
 
   await typeAndLeave(view, "ENC-1234");
 

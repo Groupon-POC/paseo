@@ -13,11 +13,6 @@
  *   first message is skipped). A workspace started empty gets `<owner>/<worktree name>`, renamed
  *   to `<owner>/<slug of its first message>` when that message comes.
  *
- * - In a repository whose checkout carries `.groupon/desk.toml` (branches named from a Jira ticket,
- *   `_documentation/engineering-standards/branching.md` there) no branch is named this way: the
- *   creation fails with `TICKET_REQUIRED`, the Groupon plugin's own sentence, and the person picks
- *   or starts the ticket on New workspace.
- *
  * Constraints:
  * - Never touches a checkout of an existing branch, a pull request's checkout, a request that
  *   names its branch (Start a ticket's, through the Groupon plugin), an agent's request
@@ -25,8 +20,6 @@
  * - When a fact cannot be read the request is left as Paseo would run it; nothing is made up.
  */
 
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { createNameId } from "mnemonic-id";
 import type { SessionInboundMessage } from "@getpaseo/protocol/messages";
 import type { CheckoutSnapshotFacts } from "../utils/checkout-git.js";
@@ -41,18 +34,7 @@ export type WorkspaceCreateRequest = Extract<
 >;
 type WorktreeSource = Extract<WorkspaceCreateRequest["source"], { kind: "worktree" }>;
 
-/** The Groupon plugin's sentence for the same refusal (`shared/branch.ts` there), word for word. */
-export const TICKET_REQUIRED =
-  "This repository names branches from a Jira ticket: pick or start one in New workspace";
-
-/** True when the checkout at `repoRoot` carries `.groupon/desk.toml`. */
-export function hasDeskFile(repoRoot: string): boolean {
-  return existsSync(join(repoRoot, ".groupon", "desk.toml"));
-}
-
 export interface WorkspacePlacementDeps {
-  /** True when the repository at `repoRoot` names branches from a Jira ticket (`.groupon/desk.toml`). */
-  namesBranchesFromTicket: (repoRoot: string) => boolean;
   readFacts: (cwd: string) => Promise<CheckoutSnapshotFacts>;
   resolveWorktreeSourceCwd: (source: WorktreeSource) => Promise<string>;
   nameBranch: (
@@ -120,9 +102,6 @@ async function nameForWorktree(
   }
   const facts = await readFactsOrNull(deps, sourceCwd);
   if (!facts) return null;
-  if (deps.namesBranchesFromTicket(facts.mainRepoRoot ?? facts.worktreeRoot)) {
-    throw new Error(TICKET_REQUIRED);
-  }
   const worktreeSlug = source.worktreeSlug?.trim() || (deps.createSlug ?? createNameId)();
   const named = await deps
     .nameBranch({

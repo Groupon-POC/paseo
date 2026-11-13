@@ -3,27 +3,28 @@
 /**
  * A repository whose `.groupon/desk.toml` is on its default branch or in the checkout names every
  * branch from a Jira ticket (the company's branch standard, `groupon ticket name`). On New
- * workspace its ticket step comes before Create: the person picks one of My tasks or types a key,
- * the page shows the branch the helper answers, and the workspace is created on that branch. The
- * composer's text stays the task's first message and names the workspace, never the branch.
+ * workspace its ticket step sits above the composer and is OPTIONAL: the person picks one of My
+ * tasks or types a key, the page shows the branch the helper answers, and the workspace is created
+ * on that branch. The composer's text stays the task's first message and names the workspace,
+ * never the branch.
  *
- * - A worktree that branches off needs the ticket: without one Create answers `TICKET_REQUIRED`
- *   (the Groupon plugin's sentence, which the daemon's branch hook gives any other caller too).
- * - A pull request's checkout keeps its own branch: no ticket step.
- * - Local takes a ticket when one is given (a ticket's work is a worktree on its branch); without
- *   one it stays Local, and the daemon refuses it only where it would branch off the trunk.
+ * The owner ruled on 2026-11-13 that a ticket is never a condition: the person may tell the agent
+ * which ticket, and where, during the conversation. So Create is never refused for want of one;
+ * without a ticket the workspace is Paseo's own (its naming, the fork's rename after the first
+ * message).
+ *
+ * - A worktree that branches off, and Local, take a ticket when one is given (a ticket's work is a
+ *   worktree on its branch); without one the creation is as chosen.
+ * - A pull request's checkout and an existing branch's checkout keep their own branch: no ticket
+ *   step.
  *
  * Pure, so the rule is tested without a screen.
  */
 
 import type { TicketNameAnswer } from "./desk-plugin-rpc";
 
-/** The Groupon plugin's sentence (`shared/branch.ts` there), word for word. */
-export const TICKET_REQUIRED =
-  "This repository names branches from a Jira ticket: pick or start one in New workspace";
-
 /** What New workspace asks of the ticket for the chosen repository and way of working. */
-export type TicketRule = "none" | "required" | "optional";
+export type TicketRule = "none" | "optional";
 
 /** The ticket step's state: nothing picked, the helper asked, its branch, or its reason. */
 export type TicketBranch =
@@ -60,7 +61,7 @@ export function ticketRuleOf(input: {
 }): TicketRule {
   if (!input.namesFromTicket) return "none";
   if (!input.createsWorktree) return "optional";
-  return checksOutExisting(input.checkout) ? "none" : "required";
+  return checksOutExisting(input.checkout) ? "none" : "optional";
 }
 
 /** The step after the helper answered for `asked`; an answer for a key no longer in the field is dropped. */
@@ -84,8 +85,8 @@ export type TicketCreation =
     };
 
 /**
- * The creation for the rule and the step; throws `TICKET_REQUIRED` when the ticket is required and
- * no branch is named yet. The base the person picked stays the new branch's base.
+ * The creation for the rule and the step; never throws: with no branch named it is as chosen. The
+ * base the person picked stays the new branch's base.
  */
 export function ticketCreationOf(input: {
   rule: TicketRule;
@@ -105,6 +106,5 @@ export function ticketCreationOf(input: {
       },
     };
   }
-  if (rule === "required") throw new Error(TICKET_REQUIRED);
   return { kind: "as-chosen" };
 }

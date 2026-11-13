@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`). The composers follow the screen's focus, so a list left open does not float over another page; slash commands open below the input, and the Claude Code profile lists them from the chat's Claude draft. Local stays in the checkout on a shared branch when the person's Groupon setting says so. New workspace on "No project" is a chat: the daemon places it by its first message. Import session and Start a ticket step aside while a workspace is created. The composer takes the dock's width, which widens with a wide window. The page keeps its title and its fields in place while the chosen repository resolves, so it does not jump on opening. A worktree branches off the repository's target branch unless the person picks another; Cmd+/ moves it to the next Mac. New chat moved to another Mac reopens on that Mac's own "No project".
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): Start a ticket, beside Import session; an optional ticket step above the composer in a repository that names branches from a Jira ticket (a ticket is never a condition of Create; `groupon/ticket-branch-step.tsx`); "On <Mac>" from the hub, one row per Mac; Repository, one repository on every Mac, preselected from where the person is, the Mac following it; My tasks under the composer; while a workspace is created, the step it waits on and for how long, under the composer (`groupon/creation-progress.tsx`). The composers follow the screen's focus, so a list left open does not float over another page; slash commands open below the input, and the Claude Code profile lists them from the chat's Claude draft. Local stays in the checkout on a shared branch when the person's Groupon setting says so. New workspace on "No project" is a chat: the daemon places it by its first message. Import session and Start a ticket step aside while a workspace is created. The composer takes the dock's width, which widens with a wide window. The page keeps its title and its fields in place while the chosen repository resolves, so it does not jump on opening. A worktree branches off the repository's target branch unless the person picks another; Cmd+/ moves it to the next Mac. New chat moved to another Mac reopens on that Mac's own "No project".
 import type {
   CreateAgentRequestOptions,
   CreateWorkspaceRequestOptions,
@@ -1290,7 +1290,7 @@ export function NewWorkspaceScreen({
       (checkoutStatus ? defaultBasePickerItem(checkoutStatus) : null),
     [checkoutStatus, projectBase.branch, selectedItem],
   );
-  // Groupon Desk: a repository that names branches from a Jira ticket asks for the ticket first.
+  // Groupon Desk: a repository that names branches from a Jira ticket offers an optional ticket step; a ticket is never a condition.
   const startTicket = useStartTicketFromPage({
     serverId: selectedServerId,
     project: selectedProject,
@@ -1554,8 +1554,6 @@ export function NewWorkspaceScreen({
     async (payload: MessagePayload) => {
       try {
         setErrorMessage(null);
-        // Groupon Desk: without the ticket a ticket repository needs, nothing starts (throws TICKET_REQUIRED).
-        ticket.creationFor(undefined);
         await composerState?.persistFormPreferences();
         await updateFormPreferences({ launchTarget });
         if (isEmptyWorkspaceSubmission(payload)) {
@@ -1628,7 +1626,6 @@ export function NewWorkspaceScreen({
       startCreation,
       supportsForgeSearch,
       t,
-      ticket,
       toast,
       updateFormPreferences,
       withConnectedClient,
@@ -1638,8 +1635,6 @@ export function NewWorkspaceScreen({
   const handleSubmitTerminalLaunch = useCallback(async () => {
     try {
       setErrorMessage(null);
-      // Groupon Desk: without the ticket a ticket repository needs, nothing starts (throws TICKET_REQUIRED).
-      ticket.creationFor(undefined);
       await updateFormPreferences({ launchTarget });
       setPendingAction("terminal");
       startCreation();
@@ -1709,7 +1704,6 @@ export function NewWorkspaceScreen({
     startCreation,
     t,
     terminalPromptText,
-    ticket,
     toast,
     leaveFullscreen,
     updateFormPreferences,

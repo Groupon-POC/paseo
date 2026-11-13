@@ -1,10 +1,10 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): New workspace's ticket step, above the composer in a repository that names branches from a Jira ticket.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): New workspace's ticket step, above the composer in a repository that names branches from a Jira ticket; optional, Create never waits on it.
 
 /**
  * The ticket the new workspace is for, before anything is created: a key typed or taken from My
  * tasks, the branch `groupon ticket name` answers for it on the chosen Mac (or the helper's
  * reason), and Start a ticket beside it. The rule and the creation it leads to are
- * `ticket-branch-model.ts`.
+ * `ticket-branch-model.ts`. The step is optional: Create never waits on it.
  */
 
 import { type ReactElement, useCallback, useMemo, useRef, useState } from "react";
@@ -77,7 +77,7 @@ export interface NewWorkspaceTicket {
   element: ReactElement | null;
   /** My tasks' Take: fills the step where the repository needs a ticket, else opens Start a ticket. */
   takeTicket: (ticket: string) => void;
-  /** The creation for the picked base; throws `TICKET_REQUIRED` while a required ticket has no branch. */
+  /** The creation for the picked base; never throws: without a named branch it is as chosen. */
   creationFor: (checkout: CheckoutLike | undefined) => TicketCreation;
 }
 
@@ -160,9 +160,7 @@ export function TicketBranchStep({
   if (rule === "none") return null;
   return (
     <View style={styles.step} testID="new-workspace-ticket-step">
-      <Text style={styles.muted}>
-        {rule === "required" ? GROUPON_TICKET_BRANCH.required : GROUPON_TICKET_BRANCH.optional}
-      </Text>
+      <Text style={styles.muted}>{GROUPON_TICKET_BRANCH.optional}</Text>
       <View style={styles.row}>
         <Text style={styles.label}>{GROUPON_TICKET_BRANCH.label}</Text>
         <EditingTextInput

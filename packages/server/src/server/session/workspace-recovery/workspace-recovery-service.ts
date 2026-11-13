@@ -1,7 +1,9 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace archived on a shared trunk is restored from the trunk's current head.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace archived on a shared trunk is restored from the trunk's current head; a project-less chat's folder, removed on archive, is made again.
 import { randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
 import { basename } from "node:path";
 
+import { chatsRootOf, isUnderChatsRoot } from "../../../groupon/project-less-chats.js";
 import { trunkRestoreSource } from "../../../groupon/train-archived.js";
 import { resolveRepositoryDefaultBranch } from "../../../utils/checkout-git.js";
 import { createRealpathAwarePathMatcher } from "../../../utils/path.js";
@@ -70,7 +72,15 @@ export function createWorkspaceRecoveryService(deps: {
   getProject: (projectId: string) => Promise<PersistedProjectRecord | null>;
   isDirectory: (path: string) => Promise<boolean>;
   unarchiveWorkspace: (workspace: PersistedWorkspaceRecord) => Promise<void>;
+  createDirectory?: (path: string) => Promise<void>;
 }): WorkspaceRecoveryService {
+  const createDirectory =
+    deps.createDirectory ??
+    (async (path: string) => {
+      await mkdir(path, { recursive: true });
+    });
+  const isChatFolder = (path: string) => isUnderChatsRoot(chatsRootOf(deps.paseoHome), path);
+
   async function resolveRecovery(
     workspaceId: string,
   ): Promise<UnavailableRecoveryState | RecoveryPlan> {
@@ -102,7 +112,8 @@ export function createWorkspaceRecoveryService(deps: {
       };
     }
 
-    if (await deps.isDirectory(workspace.cwd)) {
+    // A project-less chat's folder holds nothing but the chat; restore makes it again.
+    if ((await deps.isDirectory(workspace.cwd)) || isChatFolder(workspace.cwd)) {
       return createRecoveryPlan({ action: "unarchive", workspace });
     }
 
@@ -144,6 +155,8 @@ export function createWorkspaceRecoveryService(deps: {
 
     if (resolved.kind === "restore") {
       await recreateArchivedWorktree(resolved.workspace, resolved.sourceRepoRoot);
+    } else if (isChatFolder(resolved.workspace.cwd)) {
+      await createDirectory(resolved.workspace.cwd);
     }
     await deps.unarchiveWorkspace(resolved.workspace);
     return { workspaceId, action: resolved.kind };

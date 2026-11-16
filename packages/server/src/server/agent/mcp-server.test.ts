@@ -49,6 +49,7 @@ import {
 import {
   createPersistedProjectRecord,
   createPersistedWorkspaceRecord,
+  FileBackedWorkspaceRegistry,
   type PersistedProjectRecord,
   type PersistedWorkspaceRecord,
   type ProjectRegistry,
@@ -83,6 +84,7 @@ import { MutableDaemonConfigSchema, type AgentProfile } from "@getpaseo/protocol
 import type { DaemonConfigStore } from "../daemon-config-store.js";
 import type { BrowserToolsBroker, BrowserToolsExecuteInput } from "../browser-tools/broker.js";
 import type { BrowserToolsResponsePayload } from "../browser-tools/errors.js";
+import { createWorkspaceLabelService } from "../workspace-labels/index.js";
 import { createWorkspaceProvisioningService } from "../session/workspace-provisioning/workspace-provisioning-service.js";
 
 const REPO_CWD = resolvePath("/tmp/repo");
@@ -4934,6 +4936,106 @@ describe("rename_workspace MCP tool", () => {
     ).rejects.toThrow("Workspace wks_archived is archived");
     expect(upsertedWorkspaces).toEqual([]);
     expect(emittedWorkspaceIds).toEqual([]);
+  });
+});
+
+describe("set_workspace_label MCP tool", () => {
+  const logger = createTestLogger();
+
+  async function createLabelHost() {
+    const paseoHome = await mkdtemp(join(tmpdir(), "paseo-mcp-labels-"));
+    const workspaceRegistry = new FileBackedWorkspaceRegistry(
+      join(paseoHome, "projects", "workspaces.json"),
+      logger,
+    );
+    for (const workspaceId of ["wks_parent", "wks_other"]) {
+      await workspaceRegistry.upsert(
+        createPersistedWorkspaceRecord({
+          workspaceId,
+          projectId: "proj_parent",
+          cwd: REPO_CWD,
+          kind: "local_checkout",
+          displayName: workspaceId,
+          createdAt: "2026-11-16T09:00:00.000Z",
+          updatedAt: "2026-11-16T09:00:00.000Z",
+        }),
+      );
+    }
+    const workspaceLabels = createWorkspaceLabelService({ paseoHome, workspaceRegistry });
+    await workspaceLabels.initialize();
+    const { agentManager, agentStorage, spies } = createTestDeps();
+    spies.agentManager.getAgent.mockReturnValue(
+      createManagedAgent({ id: "parent-agent", cwd: REPO_CWD, workspaceId: "wks_parent" }),
+    );
+    const server = await createAgentMcpServer({
+      agentManager,
+      agentStorage,
+      providerSnapshotManager: createOpenCodeManager().manager,
+      workspaceLabels,
+      callerAgentId: "parent-agent",
+      logger,
+    });
+    return {
+      tool: registeredTool(server, "set_workspace_label"),
+      workspaceRegistry,
+      workspaceLabels,
+      cleanup: () => rm(paseoHome, { recursive: true, force: true }),
+    };
+  }
+
+  it("labels the caller workspace, creating the label once and keeping its color", async () => {
+    const host = await createLabelHost();
+    try {
+      const first = await invokeToolWithParsedInput(host.tool, { name: "Reviews" });
+      expect(first.structuredContent).toEqual({
+        success: true,
+        workspaceId: "wks_parent",
+        label: { name: "Reviews", color: "sky" },
+        workspaceLabels: ["Reviews"],
+      });
+
+      const other = await invokeToolWithParsedInput(host.tool, {
+        workspaceId: "wks_other",
+        name: "reviews",
+        color: "red",
+      });
+      expect(other.structuredContent).toMatchObject({
+        workspaceId: "wks_other",
+        label: { name: "Reviews", color: "sky" },
+      });
+      expect((await host.workspaceRegistry.get("wks_other"))?.labels).toEqual(["Reviews"]);
+      expect((await host.workspaceLabels.list()).labels).toEqual([
+        { name: "Reviews", color: "sky" },
+      ]);
+    } finally {
+      await host.cleanup();
+    }
+  });
+
+  it("removes the label when assigned is false", async () => {
+    const host = await createLabelHost();
+    try {
+      await invokeToolWithParsedInput(host.tool, { name: "Reviews", color: "amber" });
+      const removed = await invokeToolWithParsedInput(host.tool, {
+        name: "Reviews",
+        assigned: false,
+      });
+      expect(removed.structuredContent).toMatchObject({ workspaceLabels: [] });
+      expect((await host.workspaceRegistry.get("wks_parent"))?.labels).toBeUndefined();
+    } finally {
+      await host.cleanup();
+    }
+  });
+
+  it("rejects an unknown workspace", async () => {
+    const host = await createLabelHost();
+    try {
+      await expect(
+        invokeToolWithParsedInput(host.tool, { workspaceId: "wks_missing", name: "Reviews" }),
+      ).rejects.toThrow("Workspace wks_missing not found or archived");
+    } finally {
+      await host.cleanup();
+    }
   });
 });
 

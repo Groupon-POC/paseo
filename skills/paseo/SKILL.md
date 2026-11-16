@@ -54,6 +54,8 @@ Choose `baseBranch` explicitly: `origin/main` selects the remote-tracking branch
 
 **`rename_workspace`** — `{ workspaceId, name }`. Rename workspace.
 
+**`set_workspace_label`** — `{ name, assigned?, color?, workspaceId? }`. Add (default) or remove a sidebar label on your current or the given workspace. A new label gets `color` (default `sky`); an existing label keeps its color.
+
 ## Workspace scripts
 
 Configured `paseo.json` scripts use the same supervised lifecycle from tools and the CLI.

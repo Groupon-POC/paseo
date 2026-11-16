@@ -97,6 +97,8 @@ import type {
   WorkspaceRegistry,
 } from "../../workspace-registry.js";
 import { resolveWorktreeSourceCwd } from "../../workspace-source.js";
+import { WorkspaceLabelError, type WorkspaceLabelService } from "../../workspace-labels/index.js";
+import { WORKSPACE_LABEL_COLORS } from "@getpaseo/protocol/workspace-labels";
 import type { WorkspaceScriptsService } from "../../session/workspace-scripts/workspace-scripts-service.js";
 import {
   type ArchiveCommandDependencies,
@@ -138,6 +140,7 @@ export interface PaseoToolHostDependencies {
   archiveWorkspaceRecord?: ArchiveDependencies["archiveWorkspaceRecord"];
   emitWorkspaceUpdatesForWorkspaceIds?: ArchiveDependencies["emitWorkspaceUpdatesForWorkspaceIds"];
   workspaceRegistry?: Pick<WorkspaceRegistry, "get" | "list" | "upsert">;
+  workspaceLabels?: Pick<WorkspaceLabelService, "setAssignment">;
   projectRegistry?: Pick<ProjectRegistry, "get" | "list">;
   createDirectoryWorkspace?: (
     cwd: string,
@@ -2359,6 +2362,64 @@ function createToolCatalog(
           title,
         }),
       };
+    },
+  );
+
+  registerTool(
+    "set_workspace_label",
+    {
+      title: "Set workspace label",
+      description:
+        "Add a label to a workspace or remove it, as the sidebar's label menu does. A label the host does not have yet is created with the given color; an existing label keeps its color. Omit workspaceId to label your current workspace.",
+      inputSchema: {
+        workspaceId: z
+          .string()
+          .trim()
+          .min(1)
+          .optional()
+          .describe("Workspace id to label. Omit to label your current workspace."),
+        name: z.string().trim().min(1, "name is required").describe("Label name, e.g. Reviews."),
+        assigned: z
+          .boolean()
+          .optional()
+          .describe("true (default) adds the label, false removes it."),
+        color: z
+          .enum(WORKSPACE_LABEL_COLORS)
+          .optional()
+          .describe("Color for a label that does not exist yet (default sky)."),
+      },
+      outputSchema: {
+        success: z.boolean(),
+        workspaceId: z.string(),
+        label: z.object({ name: z.string(), color: z.string() }),
+        workspaceLabels: z.array(z.string()),
+      },
+    },
+    async ({ workspaceId: requestedWorkspaceId, name, assigned, color }) => {
+      if (!options.workspaceLabels) {
+        throw new Error("Workspace labels are not available on this host");
+      }
+      const workspaceId = resolveWorkspaceIdForRename(requestedWorkspaceId);
+      try {
+        const result = await options.workspaceLabels.setAssignment({
+          workspaceId,
+          label: { name, color: color ?? "sky" },
+          assigned: assigned ?? true,
+        });
+        return {
+          content: [],
+          structuredContent: ensureValidJson({ success: true, workspaceId, ...result }),
+        };
+      } catch (error) {
+        if (error instanceof WorkspaceLabelError) {
+          throw new PaseoToolInputError(
+            error.code === "workspace_not_found"
+              ? `Workspace ${workspaceId} not found or archived`
+              : error.message,
+          );
+        }
+        throw error;
+      }
     },
   );
 

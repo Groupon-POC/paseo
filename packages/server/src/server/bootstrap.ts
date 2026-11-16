@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app; a workspace on a shared trunk is matched to no pull request; the reader of MCP tool titles starts and stops with the daemon; a schedule's worktree run keeps the branch the schedule named
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app; a workspace on a shared trunk is matched to no pull request; the reader of MCP tool titles starts and stops with the daemon; a schedule's worktree run keeps the branch the schedule named; the agent tools get the workspace label service.
 import {
   createFinishSubscriptions,
   createFinishObservation,

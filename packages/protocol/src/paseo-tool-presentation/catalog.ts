@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the timeline entry of set_workspace_label.
 /**
  * One entry per Paseo MCP tool: the timeline label, the context shown after it,
  * and how the expanded details lay out the call.

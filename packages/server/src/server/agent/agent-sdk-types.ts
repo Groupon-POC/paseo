@@ -416,8 +416,15 @@ export type AgentTimelineItem =
   | CompactionTimelineItem
   | PluginTimelineItem;
 
+export interface AgentBackgroundTask {
+  id: string;
+  type: string;
+  description: string;
+}
+
 export type AgentStreamEvent =
   | { type: "thread_started"; sessionId: string; provider: AgentProvider }
+  | { type: "background_tasks_changed"; provider: AgentProvider; tasks: AgentBackgroundTask[] }
   | { type: "turn_started"; provider: AgentProvider; turnId?: string }
   | { type: "turn_completed"; provider: AgentProvider; usage?: AgentUsage; turnId?: string }
   | { type: "usage_updated"; provider: AgentProvider; usage: AgentUsage; turnId?: string }

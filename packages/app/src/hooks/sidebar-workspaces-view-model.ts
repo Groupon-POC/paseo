@@ -36,6 +36,8 @@ export interface SidebarWorkspacePlacement {
 export interface SidebarStatusWorkspacePlacement extends SidebarWorkspacePlacement {
   statusBucket: SidebarStateBucket;
   statusEnteredAt: Date | null;
+  // The turn ended but the agent still has background work (a shell, a monitor) that can wake it.
+  waitingInBackground?: boolean;
 }
 
 export interface SidebarWorkspaceEntry extends SidebarStatusWorkspacePlacement {
@@ -170,6 +172,9 @@ export function createSidebarWorkspaceEntry(input: {
     currentBranch: normalizeCurrentBranch(input.workspace.gitRuntime?.currentBranch),
     statusBucket: effectiveStatus.status,
     statusEnteredAt: effectiveStatus.enteredAt,
+    waitingInBackground:
+      (input.workspace.backgroundTaskCount ?? 0) > 0 &&
+      (effectiveStatus.status === "attention" || effectiveStatus.status === "done"),
     archivingAt: input.workspace.archivingAt,
     diffStat: input.workspace.diffStat,
     prHint: selectPrHintFromStatus(

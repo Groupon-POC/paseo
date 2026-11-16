@@ -1175,6 +1175,7 @@ export const ar: TranslationResources = {
       failed: "فشل",
       readyToReview: "جاهزة للمراجعة",
       working: "قيد العمل",
+      waiting: "في الانتظار",
       done: "تم",
     },
     display: {

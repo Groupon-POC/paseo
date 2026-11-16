@@ -1204,6 +1204,7 @@ export const fr: TranslationResources = {
       failed: "Échec",
       readyToReview: "À relire",
       working: "En cours",
+      waiting: "En attente",
       done: "Terminé",
     },
     display: {

@@ -38,6 +38,7 @@ import {
   CircleCheck,
   CircleDot,
   CircleX,
+  Hourglass,
 } from "lucide-react-native";
 import { useToast } from "@/contexts/toast-context";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
@@ -106,6 +107,7 @@ const ThemedCircleAlert = withUnistyles(CircleAlert);
 const ThemedCircleCheck = withUnistyles(CircleCheck);
 const ThemedCircleDot = withUnistyles(CircleDot);
 const ThemedCircleX = withUnistyles(CircleX);
+const ThemedHourglass = withUnistyles(Hourglass);
 const EMPTY_SHORTCUT_INDEX = new Map<string, number>();
 
 function statusWorkspaceKeyExtractor(workspace: SidebarWorkspaceEntry): string {
@@ -496,6 +498,8 @@ function StatusGroupIcon({ bucket }: { bucket: StatusBucket }) {
       return <ThemedCircleCheck uniProps={attentionGroupIconProps} />;
     case "running":
       return <ThemedCircleDot uniProps={runningGroupIconProps} />;
+    case "waiting":
+      return <ThemedHourglass uniProps={mutedGroupIconProps} />;
     case "done":
       return <ThemedCircleCheck uniProps={mutedGroupIconProps} />;
   }

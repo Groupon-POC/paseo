@@ -20,6 +20,15 @@ describe("shouldEmitPendingBootstrapUpdate", () => {
     ).toBe(true);
   });
 
+  test("emits when only the background task count changed", () => {
+    expect(
+      shouldEmitPendingBootstrapUpdate({
+        snapshot: SNAPSHOT_DONE_10_30,
+        update: { ...SNAPSHOT_DONE_10_30, backgroundTaskCount: 1 },
+      }),
+    ).toBe(true);
+  });
+
   test("emits when status changed (unmask case: needs_input → done)", () => {
     expect(
       shouldEmitPendingBootstrapUpdate({

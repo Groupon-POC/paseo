@@ -149,7 +149,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
             projectViewKey={workspace.projectViewKey}
             statusBucket={workspace.statusBucket}
             backdrop={backdrop}
-            loading={isLoading}
+            loading={isLoading || workspace.waitingInBackground === true}
             testID={`sidebar-row-project-icon-${workspace.workspaceKey}`}
           />
         ) : (
@@ -159,6 +159,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
             bucket={workspace.statusBucket}
             workspaceKind={workspace.workspaceKind}
             loading={isLoading}
+            waiting={workspace.waitingInBackground === true}
             reserveIdleSpace={reserveIdleStatusIndicatorSpace}
           />
         )}
@@ -194,6 +195,7 @@ function WorkspaceStatusIndicator({
   bucket,
   workspaceKind,
   loading = false,
+  waiting = false,
   reserveIdleSpace = true,
 }: {
   serverId: string;
@@ -201,6 +203,7 @@ function WorkspaceStatusIndicator({
   bucket: SidebarWorkspaceEntry["statusBucket"];
   workspaceKind: SidebarWorkspaceEntry["workspaceKind"];
   loading?: boolean;
+  waiting?: boolean;
   reserveIdleSpace?: boolean;
 }) {
   // Busy is the only status that moves, and it is the ring rather than a dot for the same
@@ -219,6 +222,14 @@ function WorkspaceStatusIndicator({
   if (shouldRenderSyncedStatusLoader({ bucket })) {
     return (
       <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-running">
+        <StatusRing />
+      </View>
+    );
+  }
+
+  if (waiting) {
+    return (
+      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-waiting">
         <StatusRing />
       </View>
     );

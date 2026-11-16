@@ -379,6 +379,7 @@ export class WorkspaceDirectory {
         continue;
       }
       const isWorkspaceRoot = workspaceAgent.id === agent.id;
+      const backgroundTaskCount = isWorkspaceRoot ? (agent.backgroundTasks?.length ?? 0) : 0;
       if (!isWorkspaceRoot && agent.status !== "running") {
         continue;
       }
@@ -398,6 +399,9 @@ export class WorkspaceDirectory {
       const existing = descriptorsByWorkspaceId.get(workspaceId);
       if (!existing) {
         continue;
+      }
+      if (backgroundTaskCount > 0) {
+        existing.backgroundTaskCount = (existing.backgroundTaskCount ?? 0) + backgroundTaskCount;
       }
       if (
         getWorkspaceStateBucketPriority(bucket) < getWorkspaceStateBucketPriority(existing.status)

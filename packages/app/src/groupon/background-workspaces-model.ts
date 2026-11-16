@@ -1,4 +1,4 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): which workspaces have an agent's background task running (a Monitor watch, a background command), read from the daemon for the sidebar.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): which workspaces have an agent's background task running (a Monitor watch, a background command), read from the daemon for the sidebar; which of them the status groups file under Waiting.
 
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 
@@ -22,4 +22,26 @@ export async function readBackgroundWorkspaceIds(
       ? (answer as { workspaceIds: unknown }).workspaceIds
       : [];
   return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+}
+
+interface WaitingCandidate {
+  serverId: string;
+  workspaceId: string;
+  statusBucket: string;
+  waitingInBackground?: boolean;
+}
+
+// Unchanged rows keep their identity, so the memoized groups downstream stay put.
+export function markWaitingInBackground<T extends WaitingCandidate>(
+  rows: readonly T[],
+  backgroundIdsByServer: ReadonlyMap<string, readonly string[]>,
+): T[] {
+  return rows.map((row) => {
+    const waiting =
+      (row.statusBucket === "done" || row.statusBucket === "attention") &&
+      (backgroundIdsByServer.get(row.serverId)?.includes(row.workspaceId) ?? false);
+    return waiting === (row.waitingInBackground === true)
+      ? row
+      : { ...row, waitingInBackground: waiting };
+  });
 }

@@ -2301,7 +2301,6 @@ class ClaudeAgentSession implements AgentSession {
   private readonly subscribers = new Set<(event: AgentStreamEvent) => void>();
   private readonly timelineAssembler = new TimelineAssembler();
   private readonly taskState = new ClaudeTaskState();
-  private hasBackgroundTasks = false;
   private readonly taskProtocolSource = new ClaudeTaskProtocolSource({
     getToolInput: (toolUseId) => this.toolUseCache.get(toolUseId)?.input ?? null,
     readWorkflowResult: readClaudeWorkflowResultFile,
@@ -4026,15 +4025,11 @@ class ClaudeAgentSession implements AgentSession {
   }
 
   private failRunningRuntimeTasks(): void {
-    const events = foldSubagentObservations(this.taskProtocolSource.failRunningTasks()).map(
-      (event): AgentStreamEvent => ({ type: "provider_subagent", provider: "claude", event }),
+    this.dispatchEvents(
+      foldSubagentObservations(this.taskProtocolSource.failRunningTasks()).map(
+        (event): AgentStreamEvent => ({ type: "provider_subagent", provider: "claude", event }),
+      ),
     );
-    // The CLI sends no background set on startup, so a retired process must clear its own.
-    if (this.hasBackgroundTasks) {
-      this.hasBackgroundTasks = false;
-      events.push({ type: "background_tasks_changed", provider: "claude", tasks: [] });
-    }
-    this.dispatchEvents(events);
   }
 
   private startQueryPump(): void {
@@ -4738,18 +4733,6 @@ class ClaudeAgentSession implements AgentSession {
     }
     if (message.subtype === "task_progress") {
       return;
-    }
-    if (message.subtype === "background_tasks_changed") {
-      this.hasBackgroundTasks = message.tasks.length > 0;
-      events.push({
-        type: "background_tasks_changed",
-        provider: "claude",
-        tasks: message.tasks.map((task) => ({
-          id: task.task_id,
-          type: task.task_type,
-          description: task.description,
-        })),
-      });
     }
   }
 

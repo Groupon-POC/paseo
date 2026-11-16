@@ -837,12 +837,6 @@ const AgentRuntimeInfoSchema: z.ZodType<AgentRuntimeInfo> = z.object({
   extra: z.record(z.string(), z.unknown()).optional(),
 });
 
-const AgentBackgroundTaskPayloadSchema = z.object({
-  id: z.string(),
-  type: z.string(),
-  description: z.string(),
-});
-
 const AgentActiveTurnPayloadSchema = z.object({
   turnId: z.string(),
   startedAt: z.string().nullable(),
@@ -862,8 +856,6 @@ export const AgentSnapshotPayloadSchema = z.object({
   lastUserMessageAt: z.string().nullable(),
   status: AgentStatusSchema,
   activeTurn: AgentActiveTurnPayloadSchema.nullable().optional(),
-  // Background work still alive after the turn; absent when there is none or the daemon predates it.
-  backgroundTasks: z.array(AgentBackgroundTaskPayloadSchema).optional(),
   capabilities: AgentCapabilityFlagsSchema,
   currentModeId: z.string().nullable(),
   availableModes: z.array(AgentModeSchema),
@@ -4141,8 +4133,6 @@ export const WorkspaceDescriptorPayloadSchema = z
     background: z.boolean().optional(),
     archivingAt: z.string().nullable().optional().default(null),
     status: WorkspaceStateBucketSchema,
-    // Background tasks of the workspace's root agents. Kept out of `status` so old apps still parse it.
-    backgroundTaskCount: z.number().int().nonnegative().optional(),
     // Best-effort workspace status entry timestamp. Old daemons omit the
     // field; old clients treat missing and null equivalently. The transform
     // coerces a missing field to `null` so downstream code never has to

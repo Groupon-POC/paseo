@@ -352,10 +352,7 @@ import {
   WorkspaceDirectory,
   type WorkspaceUpdatesFilter,
 } from "./workspace-directory.js";
-import {
-  type BootstrapUpdateSnapshot,
-  shouldEmitPendingBootstrapUpdate,
-} from "./workspace-bootstrap-dedupe.js";
+import { shouldEmitPendingBootstrapUpdate } from "./workspace-bootstrap-dedupe.js";
 import {
   createPaseoWorktree,
   type CreatePaseoWorktreeInput,
@@ -6754,7 +6751,10 @@ export class Session {
   private flushBootstrappedWorkspaceUpdates(
     subscription: WorkspaceUpdatesSubscriptionState,
     options?: {
-      snapshotByWorkspaceId?: Map<string, BootstrapUpdateSnapshot>;
+      snapshotByWorkspaceId?: Map<
+        string,
+        { status: string; statusEnteredAt: string | null; activityAtMs: number | null }
+      >;
     },
   ): void {
     if (
@@ -6780,14 +6780,12 @@ export class Session {
                 status: snapshot.status,
                 statusEnteredAt: snapshot.statusEnteredAt,
                 activityAtMs: snapshot.activityAtMs,
-                backgroundTaskCount: snapshot.backgroundTaskCount,
               }
             : null,
           update: {
             status: payload.workspace.status,
             statusEnteredAt: payload.workspace.statusEnteredAt ?? null,
             activityAtMs: Number.isNaN(updateActivityAtMs) ? null : updateActivityAtMs,
-            backgroundTaskCount: payload.workspace.backgroundTaskCount,
           },
         });
         if (!shouldEmit) {
@@ -7595,16 +7593,21 @@ export class Session {
   // change (e.g. a fresh unmask time), AND a fresher activity all still
   // ship to the client.
   private buildBootstrapSnapshot(entries: FetchWorkspacesResponseEntry[]): {
-    snapshotByWorkspaceId: Map<string, BootstrapUpdateSnapshot>;
+    snapshotByWorkspaceId: Map<
+      string,
+      { status: string; statusEnteredAt: string | null; activityAtMs: number | null }
+    >;
   } {
-    const snapshotByWorkspaceId = new Map<string, BootstrapUpdateSnapshot>();
+    const snapshotByWorkspaceId = new Map<
+      string,
+      { status: string; statusEnteredAt: string | null; activityAtMs: number | null }
+    >();
     for (const entry of entries) {
       const parsedActivity = entry.activityAt ? Date.parse(entry.activityAt) : null;
       snapshotByWorkspaceId.set(entry.id, {
         status: entry.status,
         statusEnteredAt: entry.statusEnteredAt ?? null,
         activityAtMs: Number.isNaN(parsedActivity) ? null : parsedActivity,
-        backgroundTaskCount: entry.backgroundTaskCount,
       });
     }
     return { snapshotByWorkspaceId };

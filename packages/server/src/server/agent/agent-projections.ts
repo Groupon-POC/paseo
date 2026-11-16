@@ -139,9 +139,6 @@ export function toAgentPayload(
           startedAt: agent.activeTurnStartedAt?.toISOString() ?? null,
         }
       : null,
-    ...(agent.backgroundTasks?.length
-      ? { backgroundTasks: agent.backgroundTasks.map((task) => ({ ...task })) }
-      : {}),
     capabilities: cloneCapabilities(agent.capabilities),
     currentModeId: agent.currentModeId,
     availableModes: cloneAvailableModes(agent.availableModes),

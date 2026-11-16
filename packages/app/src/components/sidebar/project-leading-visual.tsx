@@ -1,4 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a finished workspace whose agent still runs a background task breathes in the project badge, as its own row does.
 import { ActivityIndicator, View, type ViewStyle } from "react-native";
+import { BackgroundPulse } from "@/groupon/background-pulse";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ChevronRight, CircleAlert } from "lucide-react-native";
@@ -117,6 +119,7 @@ export function ProjectStatusIndicator({
   statusBucket,
   backdrop,
   loading = false,
+  runsInBackground = false,
   testID,
 }: {
   iconDataUri: string | null;
@@ -126,6 +129,7 @@ export function ProjectStatusIndicator({
   /** The row's current background, so the status badge can knock out of it. */
   backdrop: SidebarSurfaceBackdrop;
   loading?: boolean;
+  runsInBackground?: boolean;
   testID?: string;
 }) {
   const placeholderInitial = projectIconPlaceholderLabelFromDisplayName(displayName)
@@ -136,6 +140,8 @@ export function ProjectStatusIndicator({
   // and they share one badge.
   const badgeBucket = loading ? "running" : statusBucket;
   const badgeContent = getProjectStatusBadgeContent(badgeBucket);
+  const showsBackground =
+    runsInBackground && !loading && (statusBucket === "done" || statusBucket === "attention");
 
   return (
     <View
@@ -153,7 +159,8 @@ export function ProjectStatusIndicator({
           placeholderInitial={placeholderInitial}
           projectViewKey={projectViewKey}
         />
-        {badgeContent === null || badgeBucket === null ? null : (
+        {showsBackground ? <ProjectBackgroundBadge backdrop={backdrop} /> : null}
+        {showsBackground || badgeContent === null || badgeBucket === null ? null : (
           <ProjectStatusBadge
             content={badgeContent}
             statusBucket={badgeBucket}
@@ -161,6 +168,20 @@ export function ProjectStatusIndicator({
           />
         )}
       </View>
+    </View>
+  );
+}
+
+function ProjectBackgroundBadge({ backdrop }: { backdrop: SidebarSurfaceBackdrop }) {
+  const { t } = useTranslation();
+  return (
+    <View
+      role="status"
+      accessibilityLabel={t("sidebar.statusBucket.waiting")}
+      style={[styles.statusBadge, getStatusBadgeBackdropStyle(backdrop)]}
+      testID="project-status-badge-background"
+    >
+      <BackgroundPulse />
     </View>
   );
 }

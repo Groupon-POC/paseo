@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Waiting group.
 import { describe, expect, it } from "vitest";
 import { i18n } from "@/i18n/i18next";
 import type { SidebarWorkspaceEntry } from "./sidebar-workspaces-view-model";

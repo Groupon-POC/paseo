@@ -1182,6 +1182,7 @@ export const ko: TranslationResources = {
       failed: "실패",
       readyToReview: "검토 대기",
       working: "실행 중",
+      waiting: "대기 중",
       done: "완료",
     },
     display: {

@@ -1,18 +1,36 @@
 import type { TFunction } from "i18next";
 import { STATUS_BUCKET_ORDER } from "@/utils/sidebar-agent-state";
-import type { SidebarWorkspaceEntry } from "@/hooks/sidebar-workspaces-view-model";
+import type {
+  SidebarStatusWorkspacePlacement,
+  SidebarWorkspaceEntry,
+} from "@/hooks/sidebar-workspaces-view-model";
 
-export type StatusBucket = SidebarWorkspaceEntry["statusBucket"];
+// Sidebar-only group: the daemon sends a background task count, not a new `status` value.
+export type StatusBucket = SidebarWorkspaceEntry["statusBucket"] | "waiting";
 
 export { STATUS_BUCKET_ORDER };
+
+const STATUS_GROUP_ORDER: readonly StatusBucket[] = [
+  "needs_input",
+  "failed",
+  "attention",
+  "running",
+  "waiting",
+  "done",
+];
 
 const STATUS_BUCKET_LABEL_KEYS = {
   needs_input: "sidebar.statusBucket.needsInput",
   failed: "sidebar.statusBucket.failed",
   attention: "sidebar.statusBucket.readyToReview",
   running: "sidebar.statusBucket.working",
+  waiting: "sidebar.statusBucket.waiting",
   done: "sidebar.statusBucket.done",
 } as const satisfies Record<StatusBucket, string>;
+
+export function getStatusGroupBucket(workspace: SidebarStatusWorkspacePlacement): StatusBucket {
+  return workspace.waitingInBackground ? "waiting" : workspace.statusBucket;
+}
 
 export function getStatusBucketLabel(bucket: StatusBucket, t: TFunction): string {
   return t(STATUS_BUCKET_LABEL_KEYS[bucket]);
@@ -32,7 +50,7 @@ export function buildStatusGroups(
   const bucketRows = new Map<StatusBucket, SidebarWorkspaceEntry[]>();
 
   for (const ws of workspaces) {
-    const bucket: StatusBucket = ws.statusBucket;
+    const bucket = getStatusGroupBucket(ws);
     let rows = bucketRows.get(bucket);
     if (!rows) {
       rows = [];
@@ -43,7 +61,7 @@ export function buildStatusGroups(
 
   const groups: StatusGroup[] = [];
 
-  for (const bucket of STATUS_BUCKET_ORDER) {
+  for (const bucket of STATUS_GROUP_ORDER) {
     const rows = bucketRows.get(bucket);
     if (!rows || rows.length === 0) continue;
 

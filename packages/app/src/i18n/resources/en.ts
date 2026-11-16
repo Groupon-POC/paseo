@@ -1183,6 +1183,7 @@ export const en = {
       failed: "Failed",
       readyToReview: "Ready to review",
       working: "Working",
+      waiting: "Waiting",
       done: "Done",
     },
     display: {

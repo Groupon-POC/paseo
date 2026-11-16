@@ -1192,6 +1192,7 @@ export const ru: TranslationResources = {
       failed: "Ошибка",
       readyToReview: "На проверку",
       working: "В работе",
+      waiting: "В фоне",
       done: "Готово",
     },
     display: {

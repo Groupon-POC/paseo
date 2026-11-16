@@ -1168,6 +1168,7 @@ export const zhCN: TranslationResources = {
       failed: "失败",
       readyToReview: "待查看",
       working: "运行中",
+      waiting: "等待中",
       done: "已完成",
     },
     display: {

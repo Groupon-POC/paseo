@@ -48,6 +48,7 @@ import {
   type AgentSessionConfig,
   type SteerResult,
   type AgentStreamEvent,
+  type AgentBackgroundTask,
   type AgentTimelineItem,
   type AgentUsage,
   type AgentRuntimeInfo,
@@ -452,6 +453,8 @@ interface ManagedAgentBase {
   lastUserMessageAt: Date | null;
   activeTurnId: string | null;
   activeTurnStartedAt: Date | null;
+  // Live background work (shells, monitors, backgrounded subagents) the provider keeps after a turn.
+  backgroundTasks?: AgentBackgroundTask[];
   lastUsage?: AgentUsage;
   lastError?: string;
   attention: AttentionState;
@@ -3856,6 +3859,7 @@ export class AgentManager {
       ...agent,
       lifecycle: "closed",
       session: null,
+      backgroundTasks: undefined,
       activeForegroundTurnId: null,
       activeTurnId: null,
       activeTurnStartedAt: null,
@@ -4460,6 +4464,10 @@ export class AgentManager {
         agent.lastUsage = event.usage;
         this.emitState(agent);
         return undefined;
+      case "background_tasks_changed":
+        flags.shouldDispatchEvent = false;
+        this.onStreamBackgroundTasksChanged(agent, event, options);
+        return undefined;
       case "mode_changed":
         this.applyObservedMode(agent, event.currentModeId);
         agent.availableModes = event.availableModes;
@@ -4470,16 +4478,8 @@ export class AgentManager {
         this.emitState(agent);
         return undefined;
       case "model_changed":
-        agent.runtimeInfo = event.runtimeInfo;
-        if (!agent.persistence && event.runtimeInfo.sessionId) {
-          agent.persistence = attachPersistenceCwd(
-            { provider: agent.provider, sessionId: event.runtimeInfo.sessionId },
-            agent.cwd,
-          );
-        }
-        this.applyObservedMode(agent, event.runtimeInfo.modeId ?? agent.currentModeId);
         flags.shouldDispatchEvent = false;
-        this.emitState(agent);
+        this.onStreamModelChanged(agent, event);
         return undefined;
       case "thinking_option_changed":
         agent.config.thinkingOptionId = event.thinkingOptionId ?? undefined;
@@ -4534,6 +4534,32 @@ export class AgentManager {
       default:
         return undefined;
     }
+  }
+
+  private onStreamModelChanged(
+    agent: ActiveManagedAgent,
+    event: Extract<AgentStreamEvent, { type: "model_changed" }>,
+  ): void {
+    agent.runtimeInfo = event.runtimeInfo;
+    if (!agent.persistence && event.runtimeInfo.sessionId) {
+      agent.persistence = attachPersistenceCwd(
+        { provider: agent.provider, sessionId: event.runtimeInfo.sessionId },
+        agent.cwd,
+      );
+    }
+    this.applyObservedMode(agent, event.runtimeInfo.modeId ?? agent.currentModeId);
+    this.emitState(agent);
+  }
+
+  private onStreamBackgroundTasksChanged(
+    agent: ActiveManagedAgent,
+    event: Extract<AgentStreamEvent, { type: "background_tasks_changed" }>,
+    options: HandleStreamEventOptions | undefined,
+  ): void {
+    // A replayed set describes a process that no longer runs.
+    if (options?.fromHistory) return;
+    agent.backgroundTasks = event.tasks.length > 0 ? event.tasks : undefined;
+    this.emitState(agent);
   }
 
   private onStreamThreadStarted(agent: ActiveManagedAgent): void {

@@ -124,6 +124,7 @@ export interface WorkspaceDescriptor {
   labels?: string[];
   status: WorkspaceDescriptorPayload["status"];
   statusEnteredAt: Date | null;
+  backgroundTaskCount?: number;
   archivingAt: string | null;
   diffStat: { additions: number; deletions: number } | null;
   scripts: WorkspaceDescriptorPayload["scripts"];
@@ -168,6 +169,7 @@ export function normalizeWorkspaceDescriptor(
     labels: payload.labels ?? [],
     status: payload.status,
     statusEnteredAt,
+    backgroundTaskCount: payload.backgroundTaskCount ?? 0,
     archivingAt: payload.archivingAt ?? null,
     // A shared checkout's diff is every session's there and the person's own, never one session's.
     diffStat: payload.workspaceKind === "worktree" ? (payload.diffStat ?? null) : null,

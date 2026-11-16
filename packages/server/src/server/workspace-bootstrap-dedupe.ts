@@ -10,6 +10,7 @@
  *   - the status changed from the snapshot
  *   - the statusEnteredAt changed from the snapshot (including the
  *     null↔value transition that the unmask case produces)
+ *   - the background task count changed from the snapshot
  *   - the update's activityAtMs is strictly newer than the snapshot's
  *   - the snapshot has no activityAtMs and the update has one (new activity
  *     where there was none)
@@ -22,6 +23,7 @@ export interface BootstrapUpdateSnapshot {
   status: string;
   statusEnteredAt: string | null;
   activityAtMs: number | null;
+  backgroundTaskCount?: number;
 }
 
 export interface BootstrapUpdateCheckInput {
@@ -45,6 +47,10 @@ export function shouldEmitPendingBootstrapUpdate(input: BootstrapUpdateCheckInpu
   const snapshotEnteredAt = snapshot.statusEnteredAt ?? null;
   const updateEnteredAt = update.statusEnteredAt ?? null;
   if (snapshotEnteredAt !== updateEnteredAt) {
+    return true;
+  }
+
+  if ((snapshot.backgroundTaskCount ?? 0) !== (update.backgroundTaskCount ?? 0)) {
     return true;
   }
 

@@ -27,6 +27,7 @@ function ws(
     currentBranch: input.currentBranch ?? null,
     statusBucket: input.statusBucket ?? "done",
     statusEnteredAt: input.statusEnteredAt ?? null,
+    waitingInBackground: input.waitingInBackground,
     archivingAt: null,
     diffStat: null,
     prHint: null,
@@ -192,6 +193,26 @@ describe("buildStatusGroups", () => {
       expect(group.rows).toHaveLength(1);
       expect(group.rows[0]?.statusBucket).toBe(group.bucket);
     }
+  });
+});
+
+describe("waiting status group", () => {
+  it("puts finished workspaces with background work in their own group after Working", () => {
+    const workspaces = [
+      ws({ workspaceKey: "srv:dn", statusBucket: "done" }),
+      ws({ workspaceKey: "srv:wait-done", statusBucket: "done", waitingInBackground: true }),
+      ws({ workspaceKey: "srv:wait-att", statusBucket: "attention", waitingInBackground: true }),
+      ws({ workspaceKey: "srv:run", statusBucket: "running" }),
+    ];
+
+    const groups = buildStatusGroups(workspaces, emptyProjectNames, i18n.t);
+
+    expect(groups.map((g) => g.bucket)).toEqual(["running", "waiting", "done"]);
+    expect(groups[1]?.label).toBe("Waiting");
+    expect(groups[1]?.rows.map((row) => row.workspaceKey).sort()).toEqual([
+      "srv:wait-att",
+      "srv:wait-done",
+    ]);
   });
 });
 

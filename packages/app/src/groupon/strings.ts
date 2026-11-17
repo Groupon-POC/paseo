@@ -933,3 +933,15 @@ export const GROUPON_CLOSE_CHAT = {
   hostDisconnected: "The chat's host is not connected",
   reopenFailed: "Could not bring the chat back",
 } as const;
+
+/** The Switch on each Groupon subscriptions card of the Usage modal (`usage-subscription-switch.tsx`). */
+export const GROUPON_USAGE_SWITCH = {
+  inUse: "In use",
+  inUseNote: (machine: string) => `Claude Code on ${machine} runs on this subscription`,
+  switchAction: "Switch",
+  switchLabel: (machine: string, email: string) => `Switch ${machine} to ${email}`,
+  switching: "Switching",
+  switchingNote: (machine: string) => `Groupon Desk on ${machine} is switching to it`,
+  signInAgain: "Sign in again",
+  couldNotSwitch: (email: string) => `Could not switch to ${email}.`,
+} as const;

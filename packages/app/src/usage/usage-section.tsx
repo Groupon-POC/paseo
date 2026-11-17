@@ -1,5 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): `UsageBody` passes `renderCardAction` on to the cards.
 import { useTranslation } from "react-i18next";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { Alert } from "@/components/ui/alert";
@@ -9,7 +10,7 @@ import { SettingsSection } from "@/components/settings/headings/settings-section
 import type { UsageDisplay } from "./display";
 import { UsageControls } from "./controls";
 import { UsageList } from "./list";
-import type { UsageView } from "./types";
+import type { UsageReportEntry, UsageView } from "./types";
 
 export function UsageSection({
   serverId,
@@ -44,11 +45,13 @@ export function UsageBody({
   view,
   display,
   onRefresh,
+  renderCardAction,
 }: {
   serverId: string;
   view: UsageView;
   display: UsageDisplay;
   onRefresh: () => void;
+  renderCardAction?: (entry: UsageReportEntry) => ReactNode;
 }) {
   const { t } = useTranslation();
   if (view.kind === "unavailable") {
@@ -78,7 +81,14 @@ export function UsageBody({
     return <UsageMessage text={t("providerUsage.empty")} />;
   }
 
-  return <UsageList serverId={serverId} reports={view.reports} display={display} />;
+  return (
+    <UsageList
+      serverId={serverId}
+      reports={view.reports}
+      display={display}
+      renderCardAction={renderCardAction}
+    />
+  );
 }
 
 export function UsageMessage({ text }: { text: string }) {

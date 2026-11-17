@@ -1,5 +1,6 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a card takes a `footerAction` row (the Groupon subscription switch).
 import { RotateCw } from "lucide-react-native";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Text, View, type StyleProp, type TextStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -42,6 +43,7 @@ export function UsageCard({
   pinnable,
   refreshable,
   compact = false,
+  footerAction,
 }: {
   serverId: string;
   agentId?: string;
@@ -52,6 +54,8 @@ export function UsageCard({
   /** Whether the header has a Refresh button. Without one the freshness shows on the card. */
   refreshable: boolean;
   compact?: boolean;
+  /** Groupon Desk: a row under the account line, such as the subscription switch. */
+  footerAction?: ReactNode;
 }) {
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
@@ -158,6 +162,8 @@ export function UsageCard({
           ) : null}
         </View>
       ) : null}
+
+      {footerAction}
 
       {refreshState === "failed" ? (
         <Text style={styles.error} testID="usage-refresh-error">

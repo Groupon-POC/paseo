@@ -1,12 +1,15 @@
-import { useMemo, type ReactNode } from "react";
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): each Groupon subscription card has a Switch for the selected Mac.
+import { useCallback, useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { View } from "react-native";
 import { AdaptiveModalSheet } from "@/components/adaptive-modal-sheet";
+import { UsageSubscriptionSwitch } from "@/groupon/usage-subscription-switch";
 import { builtinSidebarNavLabelKey } from "@/sidebar-nav/model";
 import { useHostUsageWithControls } from "./controls";
 import { useUsagePreferences } from "./display";
 import { useUsageHostSelection } from "./hosts";
 import type { UsageHost } from "./model";
+import type { UsageReportEntry } from "./types";
 import { UsageBody, UsageMessage } from "./usage-section";
 
 interface UsageModalProps {
@@ -58,10 +61,20 @@ function HostUsageModal({
     [hosts, onSelectHost, serverId],
   );
   const { view, refresh, controls } = useHostUsageWithControls(hostSelection);
+  const renderCardAction = useCallback(
+    (entry: UsageReportEntry) => <UsageSubscriptionSwitch serverId={serverId} entry={entry} />,
+    [serverId],
+  );
   return (
     <UsageModalFrame {...props} actions={controls}>
       <View testID={`usage-host-${serverId}`}>
-        <UsageBody serverId={serverId} view={view} display={display} onRefresh={refresh} />
+        <UsageBody
+          serverId={serverId}
+          view={view}
+          display={display}
+          onRefresh={refresh}
+          renderCardAction={renderCardAction}
+        />
       </View>
     </UsageModalFrame>
   );

@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the icons the fork's sidebar, 0.13's plugin UI and the diff viewer's browser test reach.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the icons the fork's sidebar, 0.13's plugin UI and the diff viewer's and the Usage card's browser tests reach.
 import type { ComponentType } from "react";
 
 export type LucideIcon = ComponentType<{
@@ -55,6 +55,7 @@ export const FolderMinus = StubIcon;
 export const FolderOpen = StubIcon;
 export const FolderPlus = StubIcon;
 export const FolderTree = StubIcon;
+export const Gauge = StubIcon;
 export const Gift = StubIcon;
 export const GitBranch = StubIcon;
 export const GitCommitHorizontal = StubIcon;

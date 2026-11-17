@@ -38,6 +38,8 @@ export const GROUPON_RPC = {
   cronRepository: "groupon.cron-repository",
   pullRequest: "groupon.pull-request",
   ticketName: "groupon.ticket-name",
+  macSubscription: "groupon.mac-subscription",
+  macSubscriptionSwitch: "groupon.mac-subscription-switch",
 } as const;
 
 export type PluginRpcClient = Pick<DaemonClient, "invokePluginRpc">;
@@ -766,4 +768,90 @@ export async function readDeskUpdate(
     problem: typeof output.problem === "string" ? output.problem : null,
     install,
   };
+}
+
+/** One Claude Code subscription registered in Groupon Desk, as `groupon.mac-subscription` lists it. */
+export interface MacSubscriptionRow {
+  email: string;
+  name: string;
+  plan: string | null;
+  /** The provider alias a chat may run on (`claude-<8 hex>`); null when the hand made none. */
+  providerId: string | null;
+  /** The Mac's default Claude Code sign-in is this subscription. */
+  active: boolean;
+  sessionPct: number | null;
+  weeklyPct: number | null;
+  modelWindows: { label: string; usedPct: number | null }[];
+}
+
+export type MacSwitchState = "switching" | "done" | "failed";
+
+/** A Mac's default Claude Code subscription and every registered one (the plugin's `shared/subscription.ts`). */
+export interface MacSubscriptionAnswer {
+  machine: string | null;
+  unregisteredEmail: string | null;
+  subscriptions: MacSubscriptionRow[];
+  rotation: { autoRotate: boolean; effective: boolean };
+  /** The last switch the window asked for, when it was asked in the last few minutes. */
+  lastSwitch: {
+    id: string;
+    email: string;
+    state: MacSwitchState;
+    message: string | null;
+    at: string;
+  } | null;
+}
+
+export interface MacSubscriptionSwitchAnswer {
+  state: MacSwitchState;
+  message: string | null;
+}
+
+const isSwitchState = (value: unknown): value is MacSwitchState =>
+  value === "switching" || value === "done" || value === "failed";
+
+const isNullableString = (value: unknown): value is string | null =>
+  value === null || typeof value === "string";
+
+export function isMacSubscriptionAnswer(value: unknown): value is MacSubscriptionAnswer {
+  if (!isRecord(value) || !Array.isArray(value.subscriptions) || !isRecord(value.rotation))
+    return false;
+  const last = value.lastSwitch;
+  return (
+    isNullableString(value.machine) &&
+    value.subscriptions.every(
+      (row) =>
+        isRecord(row) &&
+        typeof row.email === "string" &&
+        isNullableString(row.providerId) &&
+        typeof row.active === "boolean",
+    ) &&
+    (last === null ||
+      (isRecord(last) && typeof last.email === "string" && isSwitchState(last.state)))
+  );
+}
+
+export function isMacSubscriptionSwitchAnswer(
+  value: unknown,
+): value is MacSubscriptionSwitchAnswer {
+  return isRecord(value) && isSwitchState(value.state) && isNullableString(value.message);
+}
+
+/** Which Claude Code subscription a Mac runs on, and every one registered in Groupon Desk. */
+export async function readMacSubscription(client: PluginRpcClient): Promise<MacSubscriptionAnswer> {
+  const output = await call(client, GROUPON_RPC.macSubscription, {});
+  if (!isMacSubscriptionAnswer(output))
+    throw new Error("The Mac's subscription came back in a shape this app does not read");
+  return output;
+}
+
+/** Asks Groupon Desk on that Mac to switch its default Claude Code sign-in; waits up to 45 s. */
+export async function switchMacSubscription(
+  client: PluginRpcClient,
+  email: string,
+): Promise<MacSubscriptionSwitchAnswer> {
+  const output = await call(client, GROUPON_RPC.macSubscriptionSwitch, { email });
+  if (!isMacSubscriptionSwitchAnswer(output))
+    throw new Error("The switch came back in a shape this app does not read");
+  return output;
 }

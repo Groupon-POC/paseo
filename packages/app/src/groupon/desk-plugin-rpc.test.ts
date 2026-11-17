@@ -25,7 +25,9 @@ import {
   readEncoreApps,
   readStandards,
   readEncoreState,
+  readMacSubscription,
   requestEncoreAccess,
+  switchMacSubscription,
   pluginProblemText,
   readGithubAccess,
   readGithubRepositories,
@@ -194,6 +196,36 @@ function fakeClient(answers: Record<string, unknown[]>) {
   return { client, calls };
 }
 
+/** `groupon.mac-subscription`: one subscription in use, one the hand made no provider for. */
+const SAMPLE_MAC_SUBSCRIPTION = {
+  machine: "Tomas's MacBook",
+  unregisteredEmail: null,
+  subscriptions: [
+    {
+      email: "a@skunks.cz",
+      name: "a",
+      plan: "Max",
+      providerId: "claude-58de8b7a",
+      active: true,
+      sessionPct: 12,
+      weeklyPct: 40,
+      modelWindows: [{ label: "Fable", usedPct: 7 }],
+    },
+    {
+      email: "b@skunks.cz",
+      name: "b",
+      plan: null,
+      providerId: null,
+      active: false,
+      sessionPct: null,
+      weeklyPct: null,
+      modelWindows: [],
+    },
+  ],
+  rotation: { autoRotate: false, effective: false },
+  lastSwitch: null,
+};
+
 const SAMPLE_JIRA_FIELD = {
   id: "summary",
   name: "Summary",
@@ -341,6 +373,8 @@ describe("the Groupon plugin's RPCs", () => {
       cronRepository: "groupon.cron-repository",
       pullRequest: "groupon.pull-request",
       ticketName: "groupon.ticket-name",
+      macSubscription: "groupon.mac-subscription",
+      macSubscriptionSwitch: "groupon.mac-subscription-switch",
     });
   });
 
@@ -509,6 +543,27 @@ describe("the Groupon plugin's RPCs", () => {
       ["groupon.standards", { projectRoot: "/r", action: "list" }],
       ["groupon.standards", { projectRoot: "/r", action: "read", document: "branching.md" }],
       ["groupon.standards", { projectRoot: "/r", action: "pull" }],
+    ]);
+  });
+
+  it("reads a Mac's subscriptions and switches its default sign-in through the plugin", async () => {
+    const { client, calls } = fakeClient({
+      [GROUPON_RPC.macSubscription]: [SAMPLE_MAC_SUBSCRIPTION, { subscriptions: "none" }],
+      [GROUPON_RPC.macSubscriptionSwitch]: [{ state: "done", message: null }, { state: "maybe" }],
+    });
+    const view = await readMacSubscription(client);
+    expect(view.subscriptions.map((row) => row.providerId)).toEqual(["claude-58de8b7a", null]);
+    await expect(readMacSubscription(client)).rejects.toThrow(/shape/);
+    expect(await switchMacSubscription(client, "b@skunks.cz")).toEqual({
+      state: "done",
+      message: null,
+    });
+    await expect(switchMacSubscription(client, "b@skunks.cz")).rejects.toThrow(/shape/);
+    expect(calls.map(({ method, input }) => [method, input])).toEqual([
+      ["groupon.mac-subscription", {}],
+      ["groupon.mac-subscription", {}],
+      ["groupon.mac-subscription-switch", { email: "b@skunks.cz" }],
+      ["groupon.mac-subscription-switch", { email: "b@skunks.cz" }],
     ]);
   });
 

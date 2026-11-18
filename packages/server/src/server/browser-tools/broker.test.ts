@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the broker's host log.
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type {
   BrowserAutomationCommand,
@@ -723,6 +724,56 @@ describe("BrowserToolsBroker", () => {
       },
     });
     expect(replacement.receivedRequests).toEqual([]);
+  });
+
+  // Groupon Desk: a host's registration and loss are logged, with what it held.
+  test("logs a host's registration and loss with its tabs and the requests it ended", async () => {
+    const lines: Array<{ fields: Record<string, unknown>; message: string }> = [];
+    const broker = new BrowserToolsBroker({
+      defaultTimeoutMs: 100,
+      createRequestId: () => "req-1",
+      logger: { info: (fields, message) => lines.push({ fields, message }) },
+    });
+    const host = new FakeBrowserHostClient("host-1");
+    const unregister = broker.registerClient(host);
+    const newTab = broker.execute({ command: { command: "new_tab", args: {} }, workspaceId: "w" });
+    host.resolveLatestWith(broker, {
+      requestId: "req-1",
+      ok: true,
+      result: {
+        command: "new_tab",
+        browserId: BROWSER_ID,
+        workspaceId: "w",
+        url: "https://example.com",
+      },
+    });
+    await newTab;
+    const pending = broker.execute({ command: snapshotCommand(), workspaceId: "w" });
+
+    unregister();
+    await pending;
+    broker.registerClient(new FakeBrowserHostClient("host-1"));
+
+    expect(lines).toEqual([
+      {
+        message: "browser_host_registered",
+        fields: { browserHostId: "host-1", hostKind: "desktop app", hosts: 1, strandedTabs: 0 },
+      },
+      {
+        message: "browser_host_unregistered",
+        fields: {
+          browserHostId: "host-1",
+          reason: "released",
+          hosts: 0,
+          strandedTabs: 1,
+          endedRequests: 1,
+        },
+      },
+      {
+        message: "browser_host_registered",
+        fields: { browserHostId: "host-1", hostKind: "desktop app", hosts: 1, strandedTabs: 1 },
+      },
+    ]);
   });
 
   test("reconnecting the same host reclaims its stranded browser ids", async () => {

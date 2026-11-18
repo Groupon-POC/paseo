@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app; a workspace on a shared trunk is matched to no pull request; the reader of MCP tool titles starts and stops with the daemon; a schedule's worktree run keeps the branch the schedule named
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the packaged work window's origin is groupon-desk://app; a workspace on a shared trunk is matched to no pull request; the reader of MCP tool titles starts and stops with the daemon; a schedule's worktree run keeps the branch the schedule named The browser tools broker logs its hosts.
 import {
   createFinishSubscriptions,
   createFinishObservation,
@@ -642,7 +642,9 @@ export async function createPaseoDaemon(
     logger.error({ err: error }, "Failed to maintain orchestration skills at startup");
   });
   const browserToolsPolicy = new DaemonConfigBrowserToolsPolicy(daemonConfigStore);
-  const browserToolsBroker = new BrowserToolsBroker({});
+  const browserToolsBroker = new BrowserToolsBroker({
+    logger: logger.child({ module: "browser-tools" }),
+  });
   const pluginRuntime: PluginService = new PluginService(logger, daemonConfigStore, daemonVersion, {
     usageAgents: {
       hasAgent: (id) => agentManager.getAgent(id) !== null,

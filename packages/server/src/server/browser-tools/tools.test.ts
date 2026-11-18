@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): browser_wait's five-minute ceiling.
 import { describe, expect, test } from "vitest";
 import { z } from "zod";
 import type { BrowserToolsBroker, BrowserToolsExecuteInput } from "./broker.js";
@@ -911,6 +912,26 @@ describe("registerBrowserTools", () => {
         browserId: BROWSER_ID,
       },
     });
+  });
+
+  // Groupon Desk: a page that needs a person to sign in can be waited on for five minutes.
+  test("wait accepts up to five minutes and no more", () => {
+    const harness = new BrowserToolHarness();
+
+    expect(
+      harness.validate("browser_wait", {
+        browserId: BROWSER_ID,
+        text: "Ready",
+        timeoutMs: 300_000,
+      }),
+    ).toMatchObject({ success: true });
+    expect(
+      harness.validate("browser_wait", {
+        browserId: BROWSER_ID,
+        text: "Ready",
+        timeoutMs: 300_001,
+      }),
+    ).toMatchObject({ success: false });
   });
 
   test("wait rejects calls without a condition", () => {

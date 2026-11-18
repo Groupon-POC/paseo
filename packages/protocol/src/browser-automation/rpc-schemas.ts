@@ -1,4 +1,8 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): browser_wait may wait up to five minutes, long enough for a person to sign in on the page.
 import { z } from "zod";
+
+/** The longest browser_wait: a sign-in a person completes takes minutes, not 30 s. */
+export const BROWSER_WAIT_MAX_TIMEOUT_MS = 300_000;
 
 export const BrowserAutomationErrorCodeSchema = z.enum([
   "browser_disabled",
@@ -112,7 +116,7 @@ export const BrowserAutomationWaitCommandSchema = z.object({
   args: BrowserAutomationTabTargetSchema.extend({
     text: z.string().min(1).optional(),
     url: z.string().min(1).optional(),
-    timeoutMs: z.number().int().positive().max(30_000).optional(),
+    timeoutMs: z.number().int().positive().max(BROWSER_WAIT_MAX_TIMEOUT_MS).optional(),
   }).refine((args) => Number(Boolean(args.text)) + Number(Boolean(args.url)) === 1, {
     message: BROWSER_AUTOMATION_WAIT_CONDITION_MESSAGE,
   }),

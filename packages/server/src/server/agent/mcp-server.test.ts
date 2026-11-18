@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): set_workspace_label on the real label service.
 import {
   createFinishSubscriptions,
   createFinishObservation,

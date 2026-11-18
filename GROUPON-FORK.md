@@ -16,6 +16,7 @@ comment are listed here instead (Apache-2.0, section 4(b)):
 | `packages/app/package.json`, `package-lock.json`                                                                                                                                                       | `tweetnacl` as the app's own dependency: a colleague's device opens a shared workspace's key from the NaCl box the owner's hand made                                                                                                                                                                                  |
 | `packages/server/package.json`, `packages/app/package.json` (development), `package-lock.json`                                                                                                         | `smol-toml`: the daemon reads and writes a project's config in `.groupon/desk.toml`; the app's end-to-end helpers write it                                                                                                                                                                                            |
 | `paseo.json` (removed)                                                                                                                                                                                 | This repository's own worktree setup and scripts moved to `.groupon/desk.toml`                                                                                                                                                                                                                                        |
+| `public-docs/mcp.md`, `skills/paseo/SKILL.md`                                                                                                                                                          | The `set_workspace_label` tool is listed (see the section on an agent labelling its chat)                                                                                                                                                                                                                             |
 | `packages/desktop/package.json`                                                                                                                                                                        | `productName` Groupon Desk Work                                                                                                                                                                                                                                                                                       |
 | `packages/app/eas.json`                                                                                                                                                                                | Paseo's App Store Connect id removed                                                                                                                                                                                                                                                                                  |
 | `packages/app/public/manifest.json`                                                                                                                                                                    | The web app's name, short name Desk, description and icons (any and maskable)                                                                                                                                                                                                                                         |
@@ -1015,6 +1016,16 @@ as this move carries them out (a second ask of a move already waiting answers th
 (`groupon-cli`'s `desk_move`, `desk_project`) tells the agent its message starts the next turn only
 on that echo, so a daemon older than the follow-up, which answers the workspace alone, never has a
 dropped message promised.
+
+## An agent labels its chat
+
+An agent puts its own chat under a sidebar label with the MCP tool `set_workspace_label`
+(`{ name, assigned?, color?, workspaceId? }`, `packages/server/src/server/agent/tools/paseo-tools.ts`),
+so a skill can file its work where the person looks for it: `/principal-gate` files its review
+chat under Reviews. The tool goes through the label service the sidebar's menu uses, so the catalog
+and the workspace change in one commit and every window shows the label. Without `workspaceId` it
+labels the caller's workspace; a label the host lacks is created with `color` (sky when omitted),
+an existing one keeps its color, and `assigned: false` takes the label off.
 
 ## A session's shell changes are its own
 

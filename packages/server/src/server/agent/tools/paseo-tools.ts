@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): script tools name .groupon/desk.toml.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): script tools name .groupon/desk.toml; the set_workspace_label tool labels a workspace as the sidebar's label menu does.
 import type { FinishSubscriptions, FinishRegistration } from "../finish-subscriptions/index.js";
 import type { AgentMessageDelivery } from "../agent-messages/index.js";
 import {

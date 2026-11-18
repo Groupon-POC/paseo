@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): upsertTrustedOffer, a host from the hub's sealed pairing offer, over the hand's door or over Groupon's Core, with the daemon's password the hand sealed beside it; the window asks for Groupon's workspace placement (a ticketless workspace gets its own branch); no default localhost probe while manual hosts are off (it is a connection the policy does not allow, and no host is added by address).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): upsertTrustedOffer, a host from the hub's sealed pairing offer, over the hand's door or over Groupon's Core, with the daemon's password the hand sealed beside it; the window asks for Groupon's workspace placement (a ticketless workspace gets its own branch); no default localhost probe while manual hosts are off (it is a connection the policy does not allow, and no host is added by address). A window hosts browser tabs only for its own Mac's daemon (`groupon/browser-host-placement.ts`).
 import { watchdog } from "@/watchdog";
 import { createHostChannelTransport } from "@getpaseo/client/internal/hosts";
 import type { OwnedSubscription } from "@getpaseo/client";
@@ -72,6 +72,7 @@ import {
   mountServerDataPushRouter,
 } from "@/data/push-router";
 import { mountBrowserAutomationDaemonClientHandler } from "@/desktop/browser/automation/handler";
+import { mountBrowserHostOnThisMac } from "@/groupon/browser-host-placement";
 import { schedulesQueryBaseKey } from "@/schedules/aggregated-schedules";
 import { dispatchComposerAgentMessage, sendQueuedComposerMessageNow } from "@/composer/actions";
 import { createMessageSubmissionWriter } from "@/composer/submission/writer";
@@ -702,8 +703,13 @@ function createDefaultDeps(
       if (!browserAutomationCapabilities) {
         return unmountServerData;
       }
-      const unmountBrowserAutomation = mountBrowserAutomationDaemonClientHandler(client, {
+      const unmountBrowserAutomation = mountBrowserHostOnThisMac({
         serverId: host.serverId,
+        mount: () =>
+          mountBrowserAutomationDaemonClientHandler(client, {
+            serverId: host.serverId,
+          }),
+        onError: (error) => console.warn("[browser-host] could not read this Mac's daemons", error),
       });
       return () => {
         unmountBrowserAutomation();

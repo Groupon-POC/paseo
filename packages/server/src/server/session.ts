@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository. A title a hook or /rename gives a Claude session becomes its chat's at the end of a turn (`groupon/hook-title.ts`); a moved chat carries the Changes comparison its agent asked for, and a message that starts its next turn; an agent moves its own chat into another project, or out of every project (`desk_project`); the window learns which workspaces worked on their checkout's branch; a moved chat's workspace takes the chat's title; the git timeline reads a commit's or a push's details; the window reads the titles MCP servers give their tools (`groupon/mcp-tool-titles.ts`); the archive warning reads what a worktree has not committed yet (`groupon/uncommitted-stat.ts`).
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a person-facing text names Groupon Desk, not Paseo; a ticketless workspace from the work window gets its own branch, never the trunk; the groupon-desk built-in RPCs; a sent prompt's author rides to its user_message; a workspace being created reports its branch-naming step; a new agent learns that the worktree's setup still runs beside it, with its initial prompt or with the first prompt a hub or door sends later, and when it ends (`groupon/worktree-setup-state.ts`, `groupon/first-prompt-notice.ts`, `groupon/setup-notice-courier.ts`). Chats without a project: placed by their first message, kept under "No project", movable into a project with their conversation. A chat moves into another worktree of its own repository once its turn ends (`groupon/chat-relocation.ts`), on the agent's word or when its turn's edits all lie there (`groupon/worktree-follow.ts`) What a workspace's sessions changed, per repository (`groupon/session-changes.ts`) The window may read a file a session of the workspace edited in another repository. A title a hook or /rename gives a Claude session becomes its chat's at the end of a turn (`groupon/hook-title.ts`); a moved chat carries the Changes comparison its agent asked for, and a message that starts its next turn; an agent moves its own chat into another project, or out of every project (`desk_project`); the window learns which workspaces worked on their checkout's branch; a moved chat's workspace takes the chat's title; the git timeline reads a commit's or a push's details; the window reads the titles MCP servers give their tools (`groupon/mcp-tool-titles.ts`); the archive warning reads what a worktree has not committed yet (`groupon/uncommitted-stat.ts`). A browser host registers under the app's client id, so a reconnecting window keeps its tabs.
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory } from "./agent/directory.js";
@@ -2564,8 +2564,10 @@ export class Session {
     let unregister: (() => void) | undefined;
     const owner = this.delivery.begin("browser-host", undefined, () => unregister?.());
     try {
+      // Groupon Desk: the app's client id, not the subscription's, so a reconnecting window
+      // takes its tabs back (the broker's registerClient).
       unregister = this.browserToolsBroker.registerClient({
-        id: owner.id,
+        id: this.clientId,
         hostKind: request.hostKind,
         supportedCommands: request.supportedCommands,
         sendBrowserAutomationRequest: (message) => owner.emit(message),
@@ -2630,7 +2632,7 @@ export class Session {
       if (source)
         this.browserToolsBroker?.receiveResponse(
           msg,
-          this.delivery.subscriptionIds(source, "browser-host"),
+          this.delivery.subscriptionIds(source, "browser-host").length > 0 ? [this.clientId] : [],
         );
       return Promise.resolve();
     }

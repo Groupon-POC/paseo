@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a reconnecting window keeps its tabs.
 import { createWorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
 import { createServer, type Server as HTTPServer } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -170,6 +171,64 @@ describe("WebSocketServer browser tools wiring", () => {
     });
   });
 
+  // Groupon Desk: a window whose socket rolled over keeps its tabs, even with another window connected.
+  it("routes a tab back to its window after that window reconnects", async () => {
+    const harness = await startBrowserToolsDaemonHarness();
+    const clientId = "browser-host-client-1";
+    const original = await harness.connectBrowserHostClient({
+      clientId,
+      capabilities: browserHostCapabilities(),
+    });
+
+    const newTab = harness.broker.execute({
+      command: { command: "new_tab", args: {} },
+      workspaceId: "workspace-1",
+    });
+    const newTabRequest = await original.nextBrowserRequest();
+    original.respondToBrowserRequest({
+      type: "browser.automation.execute.response",
+      payload: {
+        requestId: newTabRequest.requestId,
+        ok: true,
+        result: {
+          command: "new_tab",
+          browserId: BROWSER_ID,
+          workspaceId: "workspace-1",
+          url: "https://example.com",
+        },
+      },
+    });
+    await expect(newTab).resolves.toMatchObject({ ok: true });
+
+    await harness.connectBrowserHostClient({
+      clientId: "browser-host-client-2",
+      capabilities: browserHostCapabilities(),
+    });
+    await original.disconnect();
+    const resumed = await harness.connectBrowserHostClient({
+      clientId,
+      capabilities: browserHostCapabilities(),
+    });
+
+    const click = harness.broker.execute({
+      command: { command: "click", args: { browserId: BROWSER_ID, ref: "@e1" } },
+    });
+    const request = await resumed.nextBrowserRequest();
+    resumed.respondToBrowserRequest({
+      type: "browser.automation.execute.response",
+      payload: {
+        requestId: request.requestId,
+        ok: true,
+        result: { command: "click", browserId: BROWSER_ID, ref: "@e1" },
+      },
+    });
+
+    await expect(click).resolves.toMatchObject({
+      ok: true,
+      result: { command: "click", browserId: BROWSER_ID, ref: "@e1" },
+    });
+  });
+
   it("clears pending browser commands when a browser host changes capabilities", async () => {
     const harness = await startBrowserToolsDaemonHarness();
     const clientId = "browser-host-client-1";
@@ -240,11 +299,12 @@ async function startBrowserToolsDaemonHarness(): Promise<BrowserToolsDaemonHarne
         respondToBrowserRequest: (response) =>
           client.sendBrowserAutomationExecuteResponse(response),
         async disconnect() {
+          const remaining = broker.getRegisteredClientCount() - 1;
           await observation.release();
           requests.close();
           clients.delete(client);
           await client.close();
-          await waitFor(() => broker.getRegisteredClientCount() === 0);
+          await waitFor(() => broker.getRegisteredClientCount() === remaining);
         },
       };
     },

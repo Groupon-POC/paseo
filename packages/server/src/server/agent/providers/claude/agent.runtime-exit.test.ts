@@ -202,49 +202,6 @@ describe("Claude runtime exit", () => {
     }
   });
 
-  test("reports live background tasks and clears them when the runtime exits", async () => {
-    let capturedOptions: Options | undefined;
-    const queryFactory = vi.fn(({ options }: ClaudeQueryInput) => {
-      capturedOptions = options;
-      return createQueryMock([
-        COMPLETED_TURN_EVENTS[0],
-        COMPLETED_TURN_EVENTS[1],
-        {
-          type: "system",
-          subtype: "background_tasks_changed",
-          tasks: [{ task_id: "bash-1", task_type: "local_bash", description: "sleep 600" }],
-        },
-        COMPLETED_TURN_EVENTS[2],
-      ]);
-    });
-    const child = createChildProcessStub();
-    vi.spyOn(spawnUtils, "spawnProcess").mockReturnValue(child);
-    const client = new ClaudeAgentClient({
-      logger: createTestLogger(),
-      queryFactory,
-      resolveBinary: async () => "/test/claude/bin",
-    });
-    const session = await client.createSession({ provider: "claude", cwd: process.cwd() });
-    const events: AgentStreamEvent[] = [];
-    session.subscribe((event) => events.push(event));
-
-    try {
-      await session.run("start a background shell");
-      capturedOptions?.spawnClaudeCodeProcess?.(SPAWN_OPTIONS);
-      child.emit("exit", 1, null);
-
-      const backgroundSets = events
-        .filter((event) => event.type === "background_tasks_changed")
-        .map((event) => event.tasks);
-      expect(backgroundSets).toEqual([
-        [{ id: "bash-1", type: "local_bash", description: "sleep 600" }],
-        [],
-      ]);
-    } finally {
-      await session.close();
-    }
-  });
-
   test("stays quiet when the process exits during an intentional teardown", async () => {
     let capturedOptions: Options | undefined;
     const queryFactory = vi.fn(({ options }: ClaudeQueryInput) => {

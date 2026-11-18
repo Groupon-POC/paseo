@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a Waiting group for a finished chat whose agent still runs a background task.
 import type { TFunction } from "i18next";
 import { STATUS_BUCKET_ORDER } from "@/utils/sidebar-agent-state";
 import type {

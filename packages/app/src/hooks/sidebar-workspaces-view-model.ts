@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a row may carry waitingInBackground for the status groups.
 import { deriveEffectiveWorkspaceStatus } from "@/workspace-status";
 import equal from "fast-deep-equal";
 import type { PrHint } from "@/git/pr-hint";
@@ -36,7 +37,7 @@ export interface SidebarWorkspacePlacement {
 export interface SidebarStatusWorkspacePlacement extends SidebarWorkspacePlacement {
   statusBucket: SidebarStateBucket;
   statusEnteredAt: Date | null;
-  // The turn ended but the agent still has background work (a shell, a monitor) that can wake it.
+  // Set by `markWaitingInBackground` from the fork's background-task read, for the status groups.
   waitingInBackground?: boolean;
 }
 
@@ -172,9 +173,6 @@ export function createSidebarWorkspaceEntry(input: {
     currentBranch: normalizeCurrentBranch(input.workspace.gitRuntime?.currentBranch),
     statusBucket: effectiveStatus.status,
     statusEnteredAt: effectiveStatus.enteredAt,
-    waitingInBackground:
-      (input.workspace.backgroundTaskCount ?? 0) > 0 &&
-      (effectiveStatus.status === "attention" || effectiveStatus.status === "done"),
     archivingAt: input.workspace.archivingAt,
     diffStat: input.workspace.diffStat,
     prHint: selectPrHintFromStatus(

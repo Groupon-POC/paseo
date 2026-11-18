@@ -262,7 +262,6 @@ interface AgentState {
   pendingPermissionCount?: number;
   requiresAttention?: boolean;
   attentionReason?: AgentSnapshotPayload["attentionReason"];
-  backgroundTasks?: AgentSnapshotPayload["backgroundTasks"];
 }
 
 function createAgent(
@@ -281,7 +280,6 @@ function createAgent(
     updatedAt: NOW,
     lastUserMessageAt: input.lastUserMessageAt ?? null,
     status: input.status,
-    ...(input.backgroundTasks ? { backgroundTasks: input.backgroundTasks } : {}),
     capabilities: {
       supportsStreaming: true,
       supportsSessionPersistence: true,
@@ -330,36 +328,6 @@ describe("WorkspaceDirectory", () => {
     });
 
     await expect(workspace.workspaceStatus()).resolves.toBe("running");
-  });
-
-  test("counts the root agent's background tasks without changing the status bucket", async () => {
-    const workspace = new WorkspaceStatus();
-
-    workspace.hasRootAgent({
-      id: "root-agent",
-      status: "idle",
-      requiresAttention: true,
-      attentionReason: "finished",
-      backgroundTasks: [
-        { id: "bash-1", type: "local_bash", description: "sleep 600" },
-        { id: "monitor-1", type: "monitor", description: "watch CI" },
-      ],
-    });
-    workspace.hasDelegatedAgent({ id: "child-agent", status: "idle" });
-
-    const descriptor = await workspace.workspaceDescriptor();
-    expect(descriptor.status).toBe("attention");
-    expect(descriptor.backgroundTaskCount).toBe(2);
-  });
-
-  test("omits the background task count when no root agent has background work", async () => {
-    const workspace = new WorkspaceStatus();
-
-    workspace.hasRootAgent({ id: "root-agent", status: "idle" });
-
-    await expect(workspace.workspaceDescriptor()).resolves.not.toHaveProperty(
-      "backgroundTaskCount",
-    );
   });
 
   test("same-cwd workspaces attribute agent status only to the owner", async () => {

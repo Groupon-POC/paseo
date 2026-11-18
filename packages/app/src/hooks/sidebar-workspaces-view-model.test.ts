@@ -71,25 +71,6 @@ describe("createSidebarWorkspaceEntry forge threading", () => {
   });
 });
 
-describe("createSidebarWorkspaceEntry background work", () => {
-  it("marks a finished workspace with background tasks as waiting", () => {
-    const base = workspaceWithForge(undefined, "https://github.com/acme/repo/pull/1");
-    const waiting = createSidebarWorkspaceEntry({
-      serverId: "srv",
-      workspace: { ...base, status: "attention", backgroundTaskCount: 1 },
-    });
-    const running = createSidebarWorkspaceEntry({
-      serverId: "srv",
-      workspace: { ...base, status: "running", backgroundTaskCount: 1 },
-    });
-    const idle = createSidebarWorkspaceEntry({ serverId: "srv", workspace: base });
-
-    expect(waiting).toMatchObject({ statusBucket: "attention", waitingInBackground: true });
-    expect(running.waitingInBackground).toBe(false);
-    expect(idle.waitingInBackground).toBe(false);
-  });
-});
-
 describe("createSidebarWorkspaceEntry workspace directory label", () => {
   it("uses the daemon-provided slug for a Paseo-owned worktree", () => {
     const descriptor = workspaceWithForge(undefined, "https://github.com/acme/repo/pull/42");

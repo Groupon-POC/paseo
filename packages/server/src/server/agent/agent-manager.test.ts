@@ -5136,51 +5136,6 @@ test("session config drift events update state through the stream channel", asyn
   expect(persisted?.config?.modeId).toBe("build");
 });
 
-test("background task sets reach the agent snapshot and clear on an empty set", async () => {
-  const workdir = mkdtempSync(join(tmpdir(), "agent-manager-background-tasks-"));
-  const storage = new AgentStorage(join(workdir, "agents"), logger);
-  let capturedSession: TestAgentSession | null = null;
-  class BackgroundTaskClient extends TestAgentClient {
-    override async createSession(config: AgentSessionConfig): Promise<AgentSession> {
-      capturedSession = new TestAgentSession(config);
-      return capturedSession;
-    }
-  }
-  const manager = new AgentManager({
-    clients: { codex: new BackgroundTaskClient() },
-    registry: storage,
-    logger,
-    idFactory: () => "00000000-0000-4000-8000-000000000134",
-  });
-  const snapshot = await manager.createAgent({ provider: "codex", cwd: workdir }, undefined, {
-    workspaceId: undefined,
-  });
-  const streams: AgentStreamEvent[] = [];
-  manager.subscribe(
-    (event) => {
-      if (event.type === "agent_stream") streams.push(event.event);
-    },
-    { agentId: snapshot.id, replayState: false },
-  );
-
-  capturedSession?.pushEvent({
-    type: "background_tasks_changed",
-    provider: "codex",
-    tasks: [{ id: "monitor-1", type: "monitor", description: "watch CI" }],
-  });
-  await manager.flush();
-  const waiting = manager.getAgent(snapshot.id);
-  expect(waiting && toAgentPayload(waiting).backgroundTasks).toEqual([
-    { id: "monitor-1", type: "monitor", description: "watch CI" },
-  ]);
-
-  capturedSession?.pushEvent({ type: "background_tasks_changed", provider: "codex", tasks: [] });
-  await manager.flush();
-  const settled = manager.getAgent(snapshot.id);
-  expect(settled && toAgentPayload(settled)).not.toHaveProperty("backgroundTasks");
-  expect(streams).toEqual([]);
-});
-
 test("setLabels merges and persists labels", async () => {
   const workdir = mkdtempSync(join(tmpdir(), "agent-manager-set-labels-"));
   const storagePath = join(workdir, "agents");

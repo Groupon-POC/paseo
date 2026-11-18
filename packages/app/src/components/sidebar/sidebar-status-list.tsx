@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Waiting group's hourglass.
 import {
   memo,
   useCallback,

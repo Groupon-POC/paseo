@@ -902,6 +902,13 @@ with the workspaces of loaded agents that have such a task alive, one process li
 (`backgroundWorkspaceIdsOf` in `packages/server/src/groupon/agent-monitors.ts`); the window asks
 once per host every 15 s (`packages/app/src/groupon/background-workspaces.ts`).
 
+Grouped by status, such a session has its own group, Waiting, between Working and Done, with an
+hourglass in its header (`markWaitingInBackground` in `groupon/background-workspaces-model.ts`, read
+by `components/sidebar/sidebar-model.tsx` for every host of the list; only a done or ready-to-review
+session moves there). A row that shows its project's icon instead of the status dot (status groups,
+hoisted rows) breathes in the icon's corner badge (`ProjectStatusIndicator`), so the same session
+looks the same in both groupings.
+
 ## A short tail fills the screen
 
 A long session opened after a restart shows its tail only, twenty rows to the last user message,

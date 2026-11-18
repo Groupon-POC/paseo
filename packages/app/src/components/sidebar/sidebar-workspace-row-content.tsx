@@ -1,4 +1,4 @@
-// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace whose agent runs a background task (a Monitor watch, a background command) breathes in the status band's teal; a pull request shows only on the chats that worked on a shared checkout's branch.
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a workspace whose agent runs a background task (a Monitor watch, a background command) breathes in the status band's teal; a pull request shows only on the chats that worked on a shared checkout's branch; the project badge of a hoisted or status-grouped row breathes too.
 import { memo, useMemo, useCallback, useState, type ReactNode } from "react";
 import { Text, View, type ViewStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -130,6 +130,7 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
   // where the two meet — the meta line is handed finished definitions.
   const labels = useWorkspaceLabelDefinitions(workspace.serverId, workspace.labels);
   const prHint = useShownPrHint(workspace);
+  const runsInBackground = useWorkspaceRunsInBackground(workspace.serverId, workspace.workspaceId);
   const workspaceBranchTextStyle = useMemo(
     () => [
       styles.workspaceBranchText,
@@ -149,7 +150,8 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
             projectViewKey={workspace.projectViewKey}
             statusBucket={workspace.statusBucket}
             backdrop={backdrop}
-            loading={isLoading || workspace.waitingInBackground === true}
+            loading={isLoading}
+            runsInBackground={runsInBackground}
             testID={`sidebar-row-project-icon-${workspace.workspaceKey}`}
           />
         ) : (
@@ -159,7 +161,6 @@ export const SidebarWorkspaceRowContent = memo(function SidebarWorkspaceRowConte
             bucket={workspace.statusBucket}
             workspaceKind={workspace.workspaceKind}
             loading={isLoading}
-            waiting={workspace.waitingInBackground === true}
             reserveIdleSpace={reserveIdleStatusIndicatorSpace}
           />
         )}
@@ -195,7 +196,6 @@ function WorkspaceStatusIndicator({
   bucket,
   workspaceKind,
   loading = false,
-  waiting = false,
   reserveIdleSpace = true,
 }: {
   serverId: string;
@@ -203,7 +203,6 @@ function WorkspaceStatusIndicator({
   bucket: SidebarWorkspaceEntry["statusBucket"];
   workspaceKind: SidebarWorkspaceEntry["workspaceKind"];
   loading?: boolean;
-  waiting?: boolean;
   reserveIdleSpace?: boolean;
 }) {
   // Busy is the only status that moves, and it is the ring rather than a dot for the same
@@ -222,14 +221,6 @@ function WorkspaceStatusIndicator({
   if (shouldRenderSyncedStatusLoader({ bucket })) {
     return (
       <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-running">
-        <StatusRing />
-      </View>
-    );
-  }
-
-  if (waiting) {
-    return (
-      <View style={styles.workspaceStatusDot} testID="workspace-status-indicator-waiting">
         <StatusRing />
       </View>
     );

@@ -1,4 +1,7 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the status groups file a finished chat whose agent still runs a background task under Waiting.
 import { arrangeChatsProject } from "@/groupon/project-less-chats";
+import { useBackgroundWorkspaceIdsByServer } from "@/groupon/background-workspaces";
+import { markWaitingInBackground } from "@/groupon/background-workspaces-model";
 import { groupSidebarProjects } from "@/groupon/sidebar-project-sections";
 import { useProjectSectionsStore } from "@/groupon/sidebar-project-sections-store";
 import { useTranslation } from "react-i18next";
@@ -117,6 +120,27 @@ export function SidebarModelProvider({
     });
     return new Map(filtered.map((workspace) => [workspace.workspaceKey, workspace]));
   }, [showBackground, labelFilter, resolvedProjectFilters, workspaceEntriesByKey]);
+  const entryServerIdsKey = useMemo(
+    () =>
+      [...new Set([...workspaceEntriesByKey.values()].map((entry) => entry.serverId))].join("\n"),
+    [workspaceEntriesByKey],
+  );
+  const entryServerIds = useMemo(
+    () => (entryServerIdsKey.length > 0 ? entryServerIdsKey.split("\n") : []),
+    [entryServerIdsKey],
+  );
+  const backgroundIdsByServer = useBackgroundWorkspaceIdsByServer(
+    entryServerIds,
+    groupMode === "status",
+  );
+  const groupedWorkspaceEntriesByKey = useMemo(() => {
+    if (groupMode !== "status") return filteredWorkspaceEntriesByKey;
+    const marked = markWaitingInBackground(
+      [...filteredWorkspaceEntriesByKey.values()],
+      backgroundIdsByServer,
+    );
+    return new Map(marked.map((workspace) => [workspace.workspaceKey, workspace]));
+  }, [backgroundIdsByServer, filteredWorkspaceEntriesByKey, groupMode]);
   const visibleWorkspaceKeys = useMemo(
     () => new Set(filteredWorkspaceEntriesByKey.keys()),
     [filteredWorkspaceEntriesByKey],
@@ -164,7 +188,7 @@ export function SidebarModelProvider({
       projects: sectionOrderedProjects,
       pinnedKeys,
       pinnedWorkspaceOrder,
-      workspaceEntriesByKey: filteredWorkspaceEntriesByKey,
+      workspaceEntriesByKey: groupedWorkspaceEntriesByKey,
       projectNamesByViewKey: list.projectNamesByViewKey,
       groupMode,
       pinnedCollapsed,
@@ -181,7 +205,7 @@ export function SidebarModelProvider({
       pinnedCollapsed,
       pinnedKeys,
       pinnedWorkspaceOrder,
-      filteredWorkspaceEntriesByKey,
+      groupedWorkspaceEntriesByKey,
       t,
     ],
   );

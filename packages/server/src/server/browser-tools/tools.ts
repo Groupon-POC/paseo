@@ -1,5 +1,9 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): browser_wait takes up to BROWSER_WAIT_MAX_TIMEOUT_MS (five minutes).
 import { z } from "zod";
-import { BrowserAutomationBrowserIdSchema } from "@getpaseo/protocol/browser-automation/rpc-schemas";
+import {
+  BROWSER_WAIT_MAX_TIMEOUT_MS,
+  BrowserAutomationBrowserIdSchema,
+} from "@getpaseo/protocol/browser-automation/rpc-schemas";
 import type { BrowserToolsBroker } from "./broker.js";
 import type { BrowserToolsResponsePayload } from "./errors.js";
 import type {
@@ -56,7 +60,7 @@ const BrowserWaitInputSchema = z
   .object({
     text: z.string().min(1).optional(),
     url: z.string().min(1).optional(),
-    timeoutMs: z.number().int().positive().max(30_000).optional(),
+    timeoutMs: z.number().int().positive().max(BROWSER_WAIT_MAX_TIMEOUT_MS).optional(),
     browserId: BrowserAutomationBrowserIdSchema,
   })
   .refine((input) => Number(Boolean(input.text)) + Number(Boolean(input.url)) === 1, {
@@ -221,7 +225,7 @@ export function registerBrowserTools(options: RegisterBrowserToolsOptions): void
     {
       title: "Wait for browser condition",
       description:
-        "Wait until a Paseo browser tab contains text or reaches a URL fragment. Use browserId from browser_new_tab or browser_list_tabs; waits up to 5s by default on the browser host.",
+        "Wait until a Paseo browser tab contains text or reaches a URL fragment. Use browserId from browser_new_tab or browser_list_tabs; waits up to 5s by default on the browser host, and up to 300000 ms (five minutes) with timeoutMs, long enough for a person to sign in.",
       inputSchema: BrowserWaitInputSchema,
     },
     async ({ text, url, timeoutMs, browserId }) => {

@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a host is keyed by its app's client id, so a window that reconnects takes its tabs back; every host registration and loss is logged with its tabs and the requests it ended.
 import { randomUUID } from "node:crypto";
 import {
   BrowserAutomationExecuteRequestSchema,
@@ -38,9 +39,15 @@ interface RegisteredBrowserHost {
   supportedCommands: ReadonlySet<BrowserAutomationCommandName>;
 }
 
+/** The slice of pino the broker logs through. */
+export interface BrowserToolsBrokerLogger {
+  info(fields: Record<string, unknown>, message: string): void;
+}
+
 export interface BrowserToolsBrokerOptions {
   defaultTimeoutMs?: number;
   createRequestId?: () => string;
+  logger?: BrowserToolsBrokerLogger;
 }
 
 const DEFAULT_BROWSER_TOOLS_TIMEOUT_MS = 15_000;
@@ -53,37 +60,64 @@ export class BrowserToolsBroker {
   private readonly browserHostByBrowserId = new Map<string, string>();
   private readonly strandedBrowserHostByBrowserId = new Map<string, string>();
   private registrationSequence = 0;
+  private readonly logger: BrowserToolsBrokerLogger | null;
 
   public constructor(options: BrowserToolsBrokerOptions) {
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_BROWSER_TOOLS_TIMEOUT_MS;
     this.createRequestId = options.createRequestId ?? (() => `browser_${randomUUID()}`);
+    this.logger = options.logger ?? null;
   }
 
+  /**
+   * Registers a browser host. `client.id` is the app's own client id, the same across its
+   * reconnects: a window whose socket dropped registers again under the same id, and its tabs,
+   * stranded meanwhile, are routed to it again.
+   */
   public registerClient(client: BrowserHostClient): () => void {
-    this.unregisterClient(client.id);
+    this.unregisterClient(client.id, undefined, "replaced by a new registration");
     const registeredAt = ++this.registrationSequence;
     this.clients.set(client.id, {
       client,
       registeredAt,
       supportedCommands: new Set(client.supportedCommands),
     });
+    this.logger?.info(
+      {
+        browserHostId: client.id,
+        hostKind: client.hostKind,
+        hosts: this.clients.size,
+        strandedTabs: this.countStrandedTabs(client.id),
+      },
+      "browser_host_registered",
+    );
     return () => this.unregisterClient(client.id, registeredAt);
   }
 
-  public unregisterClient(clientId: string, registeredAt?: number): void {
+  public unregisterClient(clientId: string, registeredAt?: number, reason = "released"): void {
     const current = this.clients.get(clientId);
     if (!current || (registeredAt !== undefined && current.registeredAt !== registeredAt)) {
       return;
     }
     this.clients.delete(clientId);
 
+    let strandedTabs = 0;
     for (const [browserId, ownerClientId] of this.browserHostByBrowserId) {
       if (ownerClientId !== clientId) {
         continue;
       }
       this.browserHostByBrowserId.delete(browserId);
       this.strandedBrowserHostByBrowserId.set(browserId, clientId);
+      strandedTabs += 1;
     }
+
+    let endedRequests = 0;
+    for (const [, pending] of this.pending) {
+      if (pending.clientId === clientId) endedRequests += 1;
+    }
+    this.logger?.info(
+      { browserHostId: clientId, reason, hosts: this.clients.size, strandedTabs, endedRequests },
+      "browser_host_unregistered",
+    );
 
     for (const [requestId, pending] of this.pending) {
       if (pending.clientId !== clientId) {
@@ -100,6 +134,14 @@ export class BrowserToolsBroker {
         }),
       );
     }
+  }
+
+  private countStrandedTabs(clientId: string): number {
+    let count = 0;
+    for (const owner of this.strandedBrowserHostByBrowserId.values()) {
+      if (owner === clientId) count += 1;
+    }
+    return count;
   }
 
   public getPendingRequestCount(): number {

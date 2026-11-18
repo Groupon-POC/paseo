@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): a new tab may take 20 s to register its webview, not 5.
 import { BROWSER_AUTOMATION_COMMAND_NAMES } from "@getpaseo/protocol/browser-automation/rpc-schemas";
 import type { SessionInboundMessage, SessionOutboundMessage } from "@getpaseo/protocol/messages";
 import { getDesktopHost, type DesktopHostBridge } from "@/desktop/host";
@@ -14,6 +15,13 @@ import {
 } from "@/desktop/browser/store";
 import { collectAllTabs, useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
+
+/**
+ * How long a new tab may take to register its webview. 5 s was too short on a busy Mac: new_tab
+ * failed with "Timed out waiting for browser tab ... to register" and the retry, a moment later,
+ * worked (2026-11-17).
+ */
+const NEW_TAB_REGISTRATION_TIMEOUT_MS = 20_000;
 
 type BrowserAutomationExecuteRequest = Extract<
   SessionOutboundMessage,
@@ -402,7 +410,7 @@ async function waitForBrowserRegistration(params: {
   timeoutMs?: number;
   pollIntervalMs?: number;
 }): Promise<boolean> {
-  const deadline = Date.now() + (params.timeoutMs ?? 5_000);
+  const deadline = Date.now() + (params.timeoutMs ?? NEW_TAB_REGISTRATION_TIMEOUT_MS);
   while (Date.now() < deadline) {
     const payload = await params.executeAutomationCommand({
       type: "browser.automation.execute.request",

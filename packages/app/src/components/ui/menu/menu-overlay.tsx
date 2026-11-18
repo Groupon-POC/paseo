@@ -1,3 +1,4 @@
+// Changed for Groupon Desk (fork of Paseo, Apache-2.0): the height snapshot is released again after Reanimated's keyframe cleanup, so content that arrives during the entering animation is not clipped.
 import {
   useCallback,
   useEffect,
@@ -41,6 +42,11 @@ import {
 
 const SCROLL_CONTENT_STYLE = { flexGrow: 1 } as const;
 const CONTENT_ENTERING_DURATION_MS = 150;
+// Reanimated's web cleanup of a custom keyframe runs at five times its duration
+// (`scheduleAnimationCleanup`, `timeoutScale = 5`) and writes the rect it snapshotted when the
+// animation ended back as inline width/height. Content that changed size between the two keeps
+// the old height unless it is released once more after that write.
+const CONTENT_ENTERING_CLEANUP_MS = CONTENT_ENTERING_DURATION_MS * 5 + 100;
 
 const contentEntering = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.97 }] },
@@ -64,15 +70,21 @@ function releaseFixedMenuHeight(surfaceNativeID: string): void {
  *
  * `revision` is what makes that second case work: bump it whenever the rendered content changes
  * identity (a page push, for instance) and the snapshot is released again.
+ *
+ * `placed` restarts the timers when the entering animation starts, so the last release lands after
+ * Reanimated's cleanup has written its snapshot back: content that arrives during the animation
+ * (a plugin popover answered over the relay) would otherwise stay at its first height.
  */
 function useReleaseFixedMenuHeight({
   contentSize,
   enabled,
+  placed,
   surfaceNativeID,
   revision,
 }: {
   contentSize: Size | null;
   enabled: boolean;
+  placed: boolean;
   surfaceNativeID: string;
   revision?: string | number;
 }): void {
@@ -87,6 +99,7 @@ function useReleaseFixedMenuHeight({
     };
     const timers: ReturnType<typeof setTimeout>[] = [
       setTimeout(release, CONTENT_ENTERING_DURATION_MS),
+      setTimeout(release, CONTENT_ENTERING_CLEANUP_MS),
     ];
 
     if (contentSize) {
@@ -96,7 +109,7 @@ function useReleaseFixedMenuHeight({
     return () => {
       for (const timer of timers) clearTimeout(timer);
     };
-  }, [contentSize, enabled, surfaceNativeID, revision]);
+  }, [contentSize, enabled, placed, surfaceNativeID, revision]);
 }
 
 /**
@@ -281,13 +294,6 @@ export function AnchoredSurface({
       maxHeight,
     });
 
-  useReleaseFixedMenuHeight({
-    contentSize,
-    enabled: open,
-    surfaceNativeID,
-    revision,
-  });
-
   // The surface is placed once both measurements land. Until then it sits off-screen so it can
   // be measured, and it must not animate: Reanimated's web entering path snapshots the element's
   // rect when the animation ends and writes that rect back as inline top/left when it cleans the
@@ -295,6 +301,14 @@ export function AnchoredSurface({
   // off-screen rect and the menu jumps back off-screen. Remounting on placement starts the
   // animation from the final position.
   const placed = position !== null;
+
+  useReleaseFixedMenuHeight({
+    contentSize,
+    enabled: open,
+    placed,
+    surfaceNativeID,
+    revision,
+  });
 
   useEffect(() => {
     if (!isWeb || !open || !placed || typeof document === "undefined") return undefined;

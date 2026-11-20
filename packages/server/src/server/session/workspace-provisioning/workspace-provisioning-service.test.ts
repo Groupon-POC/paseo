@@ -1035,6 +1035,28 @@ describe("backfillProjectRemoteKey", () => {
     );
   });
 
+  test("a stale mixed-case GitHub remote key is lowercased, even with the folder gone", async () => {
+    // GitHub URLs are case-insensitive; a key written as Groupon-POC split the same
+    // repository across Macs and desk_start refused with "matches several repositories".
+    const gone = path.join(tmpDir, "paseo-mixed-case");
+    await projectRegistry.upsert(keyed(gone, "remote:github.com/Groupon-POC/paseo"));
+
+    const refreshed = await provisioning.backfillProjectRemoteKey(
+      (await projectRegistry.list())[0]!,
+    );
+
+    expect(refreshed.projectKey).toBe("remote:github.com/groupon-poc/paseo");
+    expect((await projectRegistry.list())[0]!.projectKey).toBe(
+      "remote:github.com/groupon-poc/paseo",
+    );
+  });
+
+  test("a mixed-case remote key on a non-GitHub host keeps its case", async () => {
+    const repo = path.join(tmpDir, "ghes-cased");
+    const project = keyed(repo, "remote:git.example.com/Groupon/Repo");
+    expect(await provisioning.backfillProjectRemoteKey(project)).toBe(project);
+  });
+
   test("a project whose folder is gone, has no remote, or is keyed by a remote already is left alone", async () => {
     const gone = path.join(tmpDir, "gone");
     const plain = path.join(tmpDir, "plain");

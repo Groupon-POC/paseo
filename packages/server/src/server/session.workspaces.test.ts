@@ -5839,6 +5839,104 @@ test("legacy refresh_agent_request restores a real deleted worktree", async () =
   rmSync(tempDir, { recursive: true, force: true });
 });
 
+test("refresh_agent_request restores an archived project-less chat's workspace and folder", async () => {
+  // Groupon Desk: archiving a chat under <paseoHome>/chats removes its folder, and the chat's
+  // Unarchive button only sends refresh_agent_request — the refresh must bring the workspace back.
+  const tempDir = realpathSync(mkdtempSync(path.join(tmpdir(), "paseo-chat-restore-")));
+  const paseoHome = path.join(tempDir, "paseo-home");
+  const chatsRoot = path.join(paseoHome, "chats");
+  const chatCwd = path.join(chatsRoot, "202611131422-3d");
+
+  const emitted: SessionOutboundMessage[] = [];
+  const session = createSessionForWorkspaceTests({
+    paseoHome,
+    onMessage: (message) => {
+      if (isSessionOutboundMessage(message)) emitted.push(message);
+    },
+  });
+  // Real directory probe: the removed chat folder reads as gone until restore recreates it.
+  session.filesystem.isDirectory = async (target: string) =>
+    existsSync(target) && statSync(target).isDirectory();
+
+  const projects = new Map<string, ReturnType<typeof createPersistedProjectRecord>>();
+  const workspaces = new Map<string, ReturnType<typeof createPersistedWorkspaceRecord>>();
+  const workspaceId = "ws-chat-restore";
+  const agentId = "agent-chat-restore";
+  projects.set(
+    chatsRoot,
+    createPersistedProjectRecord({
+      projectId: chatsRoot,
+      rootPath: chatsRoot,
+      kind: "non_git",
+      displayName: "No project",
+      createdAt: "2026-03-01T12:00:00.000Z",
+      updatedAt: "2026-03-10T00:00:00.000Z",
+    }),
+  );
+  workspaces.set(
+    workspaceId,
+    createPersistedWorkspaceRecord({
+      workspaceId,
+      projectId: chatsRoot,
+      cwd: chatCwd,
+      kind: "directory",
+      displayName: "3d",
+      createdAt: "2026-03-01T12:00:00.000Z",
+      updatedAt: "2026-03-10T00:00:00.000Z",
+      archivedAt: "2026-03-10T00:00:00.000Z",
+    }),
+  );
+
+  const storedAgent: StoredAgentRecord = {
+    ...makeStoredAgent({ id: agentId, cwd: chatCwd, updatedAt: "2026-03-10T00:00:00.000Z" }),
+    workspaceId,
+    archivedAt: "2026-03-10T00:00:00.000Z",
+  };
+
+  session.projectRegistry.get = async (id: string) => projects.get(id) ?? null;
+  session.projectRegistry.upsert = async (
+    record: ReturnType<typeof createPersistedProjectRecord>,
+  ) => {
+    projects.set(record.projectId, record);
+  };
+  session.workspaceRegistry.get = async (id: string) => workspaces.get(id) ?? null;
+  session.workspaceRegistry.upsert = async (
+    record: ReturnType<typeof createPersistedWorkspaceRecord>,
+  ) => {
+    workspaces.set(record.workspaceId, record);
+  };
+  session.projectRegistry.list = async () => Array.from(projects.values());
+  session.workspaceRegistry.list = async () => Array.from(workspaces.values());
+  session.agentStorage.get = async (id: string) => (id === agentId ? storedAgent : null);
+  session.agentStorage.upsert = async () => {};
+
+  const managed = makeManagedAgent({
+    id: agentId,
+    cwd: chatCwd,
+    workspaceId,
+    lifecycle: "idle",
+    updatedAt: "2026-03-10T00:00:00.000Z",
+  });
+  session.agentManager.getAgent = () => managed;
+  session.interruptAgentIfRunning = async () => undefined;
+  session.agentManager.reloadAgentSession = async () => managed;
+  session.agentManager.hydrateTimelineFromProvider = async () => undefined;
+  session.agentManager.getTimeline = () => [];
+  session.agentUpdates.forwardLiveAgent = async () => undefined;
+
+  await session.handleMessage({
+    type: "refresh_agent_request",
+    agentId,
+    requestId: "req-refresh-chat-restore",
+  });
+
+  expect(findByType(emitted, "rpc_error")).toBeUndefined();
+  expect(existsSync(chatCwd)).toBe(true);
+  expect(workspaces.get(workspaceId)?.archivedAt).toBeNull();
+
+  rmSync(tempDir, { recursive: true, force: true });
+});
+
 test.skip("open_project_request collapses a git subdirectory onto the repo root workspace", async () => {
   const emitted: SessionOutboundMessage[] = [];
   const session = createSessionForWorkspaceTests();

@@ -306,6 +306,7 @@ import {
   chatFolderName,
   chatsRootOf,
   describeProject,
+  isUnderChatsRoot,
   moveChatAgent,
   placeChat,
   type ChatsProject,
@@ -2137,6 +2138,8 @@ export class Session {
           return;
         }
 
+        this.observeGrouponTurnForWorktreeFollow(event);
+
         if (
           this.voiceSessions.isActiveForAgent(event.agentId) &&
           event.event.type === "permission_requested" &&
@@ -2206,33 +2209,24 @@ export class Session {
       // listings see them; everything else above filters them out.
       { replayState: false, includeInternal: true },
     );
-    // Groupon Desk: a chat follows its turn into another worktree of its repository.
-    const unsubscribeEvents = this.unsubscribeAgentEvents;
-    const unsubscribeFollow = this.subscribeToGrouponWorktreeFollow();
-    this.unsubscribeAgentEvents = () => {
-      unsubscribeEvents();
-      unsubscribeFollow();
-    };
   }
 
   /**
    * Groupon Desk: when a turn ends whose edits in the chat's repository all lie in one other
    * worktree, the chat moves there (`groupon/worktree-follow.ts`). Every session hears the turn's
-   * events; the first to claim one handles it.
+   * events; the first to claim one handles it. It rides the session's one agent subscription:
+   * upstream code and tests assume a session subscribes once.
    */
-  private subscribeToGrouponWorktreeFollow(): () => void {
-    return this.agentManager.subscribe(
-      (event) => {
-        if (event.type !== "agent_stream") return;
-        const kind = event.event.type;
-        if (kind !== "turn_started" && kind !== "turn_completed") return;
-        if (!claimTurnEvent(event)) return;
-        if (kind === "turn_started") noteTurnStart(event.agentId, Date.now());
-        // After the dispatch that ended the turn, never inside it.
-        else setTimeout(() => void this.followGrouponWorktree(event.agentId), 0);
-      },
-      { replayState: false },
-    );
+  private observeGrouponTurnForWorktreeFollow(
+    event: Extract<AgentManagerEvent, { type: "agent_stream" }>,
+  ): void {
+    const kind = event.event.type;
+    if (kind !== "turn_started" && kind !== "turn_completed") return;
+    if (this.agentManager.getAgent(event.agentId)?.internal) return;
+    if (!claimTurnEvent(event)) return;
+    if (kind === "turn_started") noteTurnStart(event.agentId, Date.now());
+    // After the dispatch that ended the turn, never inside it.
+    else setTimeout(() => void this.followGrouponWorktree(event.agentId), 0);
   }
 
   private async followGrouponWorktree(agentId: string): Promise<void> {
@@ -5595,7 +5589,7 @@ export class Session {
     this.sessionLogger.info({ agentId }, `Refreshing agent ${agentId} from persistence`);
 
     try {
-      await this.restoreOwningWorkspaceForLegacyAgentRefresh(agentId);
+      await this.restoreOwningWorkspaceForAgentRefresh(agentId);
       await unarchiveAgentState(this.agentStorage, this.agentManager, agentId);
       let snapshot: ManagedAgent;
       const existing = this.agentManager.getAgent(agentId);
@@ -6836,14 +6830,16 @@ export class Session {
     await this.refreshRecoveredWorkspaceForExternalMutation(workspace);
   }
 
-  private async restoreOwningWorkspaceForLegacyAgentRefresh(agentId: string): Promise<void> {
-    // COMPAT(worktreeRestore): clients older than v0.1.105 used refresh_agent_request
-    // as their explicit recovery RPC. Remove after 2027-01-11.
-    if (!clientUsesLegacyWorkspaceRestore(this.appVersion)) {
-      return;
-    }
+  private async restoreOwningWorkspaceForAgentRefresh(agentId: string): Promise<void> {
     const record = await this.agentStorage.get(agentId);
     if (!record?.workspaceId) {
+      return;
+    }
+    // COMPAT(worktreeRestore): clients older than v0.1.105 used refresh_agent_request
+    // as their explicit recovery RPC. Remove after 2027-01-11.
+    // Groupon Desk: a project-less chat has no workspace recovery UI, so unarchiving it restores its archived workspace for every client.
+    const ownsChatFolder = isUnderChatsRoot(chatsRootOf(this.paseoHome), record.cwd);
+    if (!clientUsesLegacyWorkspaceRestore(this.appVersion) && !ownsChatFolder) {
       return;
     }
     const recovery = await this.workspaceRecovery.inspect(record.workspaceId);
@@ -7353,14 +7349,11 @@ export class Session {
     }
   }
 
-  /** Groupon Desk: a path-keyed project is read from git once per session, so every list carries its remote key. */
+  /** Groupon Desk: a project's remote key is backfilled or case-normalized once per session, so every list carries it. */
   private async projectWithRemoteKey(
     project: PersistedProjectRecord,
   ): Promise<PersistedProjectRecord> {
-    if (
-      project.projectKey?.startsWith("remote:") ||
-      this.projectRemoteKeyTried.has(project.projectId)
-    ) {
+    if (this.projectRemoteKeyTried.has(project.projectId)) {
       return project;
     }
     this.projectRemoteKeyTried.add(project.projectId);

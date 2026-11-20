@@ -32,6 +32,22 @@ export function deriveProjectKey(input: {
   return input.serverId ? `host:${input.serverId}:${localPath}` : localPath;
 }
 
+/**
+ * The lowercase form of a stored GitHub `remote:` key written before paths were
+ * lowercased, or null when the key is not a GitHub remote key or already matches.
+ * GitHub owner/repo paths are case-insensitive; a `#subdir:` suffix is a
+ * filesystem path and keeps its case.
+ */
+export function caseNormalizedRemoteProjectKey(projectKey: string): string | null {
+  const match = /^remote:([^/]+)\/([^#]*)(#subdir:.*)?$/u.exec(projectKey);
+  if (!match) return null;
+  const [, hostWithPort = "", remotePath = "", subdir = ""] = match;
+  const host = hostWithPort.split(":")[0] ?? "";
+  if (!isGitHubHost(host)) return null;
+  const normalized = `remote:${hostWithPort}/${remotePath.toLowerCase()}${subdir}`;
+  return normalized === projectKey ? null : normalized;
+}
+
 export function deriveProjectGroupingDisplayName(input: {
   rootPath: string;
   remoteUrl: string | null;

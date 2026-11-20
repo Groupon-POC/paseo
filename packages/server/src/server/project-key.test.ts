@@ -2,7 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
-import { deriveProjectGroupingDisplayName, deriveProjectKey } from "./project-key.js";
+import {
+  caseNormalizedRemoteProjectKey,
+  deriveProjectGroupingDisplayName,
+  deriveProjectKey,
+} from "./project-key.js";
 
 describe("deriveProjectKey", () => {
   const rootPath = path.resolve("repo");
@@ -103,6 +107,28 @@ describe("deriveProjectKey", () => {
     expect(deriveSubproject(path.resolve("host-a", "repo"))).toBe(
       deriveSubproject(path.resolve("host-b", "different", "repo")),
     );
+  });
+});
+
+describe("caseNormalizedRemoteProjectKey", () => {
+  test("lowercases a stale mixed-case GitHub key", () => {
+    expect(caseNormalizedRemoteProjectKey("remote:github.com/Groupon-POC/paseo")).toBe(
+      "remote:github.com/groupon-poc/paseo",
+    );
+  });
+
+  test("keeps a #subdir suffix's case", () => {
+    expect(
+      caseNormalizedRemoteProjectKey("remote:github.com/Groupon-POC/paseo#subdir:Packages/App"),
+    ).toBe("remote:github.com/groupon-poc/paseo#subdir:Packages/App");
+  });
+
+  test.each([
+    "remote:github.com/groupon-poc/paseo",
+    "remote:git.example.com/Groupon/Repo",
+    "host:srv_mini:/Users/nick/projects/paseo",
+  ])("answers null for %s", (projectKey) => {
+    expect(caseNormalizedRemoteProjectKey(projectKey)).toBeNull();
   });
 });
 

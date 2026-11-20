@@ -2137,6 +2137,8 @@ export class Session {
           return;
         }
 
+        this.observeGrouponTurnForWorktreeFollow(event);
+
         if (
           this.voiceSessions.isActiveForAgent(event.agentId) &&
           event.event.type === "permission_requested" &&
@@ -2206,33 +2208,24 @@ export class Session {
       // listings see them; everything else above filters them out.
       { replayState: false, includeInternal: true },
     );
-    // Groupon Desk: a chat follows its turn into another worktree of its repository.
-    const unsubscribeEvents = this.unsubscribeAgentEvents;
-    const unsubscribeFollow = this.subscribeToGrouponWorktreeFollow();
-    this.unsubscribeAgentEvents = () => {
-      unsubscribeEvents();
-      unsubscribeFollow();
-    };
   }
 
   /**
    * Groupon Desk: when a turn ends whose edits in the chat's repository all lie in one other
    * worktree, the chat moves there (`groupon/worktree-follow.ts`). Every session hears the turn's
-   * events; the first to claim one handles it.
+   * events; the first to claim one handles it. It rides the session's one agent subscription:
+   * upstream code and tests assume a session subscribes once.
    */
-  private subscribeToGrouponWorktreeFollow(): () => void {
-    return this.agentManager.subscribe(
-      (event) => {
-        if (event.type !== "agent_stream") return;
-        const kind = event.event.type;
-        if (kind !== "turn_started" && kind !== "turn_completed") return;
-        if (!claimTurnEvent(event)) return;
-        if (kind === "turn_started") noteTurnStart(event.agentId, Date.now());
-        // After the dispatch that ended the turn, never inside it.
-        else setTimeout(() => void this.followGrouponWorktree(event.agentId), 0);
-      },
-      { replayState: false },
-    );
+  private observeGrouponTurnForWorktreeFollow(
+    event: Extract<AgentManagerEvent, { type: "agent_stream" }>,
+  ): void {
+    const kind = event.event.type;
+    if (kind !== "turn_started" && kind !== "turn_completed") return;
+    if (this.agentManager.getAgent(event.agentId)?.internal) return;
+    if (!claimTurnEvent(event)) return;
+    if (kind === "turn_started") noteTurnStart(event.agentId, Date.now());
+    // After the dispatch that ended the turn, never inside it.
+    else setTimeout(() => void this.followGrouponWorktree(event.agentId), 0);
   }
 
   private async followGrouponWorktree(agentId: string): Promise<void> {

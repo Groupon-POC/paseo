@@ -17,7 +17,7 @@ import {
 } from "../../workspace-registry.js";
 import type { WorkspaceGitService } from "../../workspace-git-service.js";
 import type { CreatePaseoWorktreeWorkflowResult } from "../../worktree-session.js";
-import { deriveProjectKey } from "../../project-key.js";
+import { caseNormalizedRemoteProjectKey, deriveProjectKey } from "../../project-key.js";
 import { areEquivalentPaths, createRealpathAwarePathMatcher } from "../../../utils/path.js";
 import type { UntrustedWorkspaceSource } from "../../workspace-automation-gate.js";
 
@@ -80,8 +80,9 @@ export interface WorkspaceProvisioningService {
   findOrCreateProjectForDirectory(cwd: string): Promise<PersistedProjectRecord>;
   /**
    * Groupon Desk: a project keyed by its path gets its `remote:` key from git when its folder
-   * is a checkout with a remote; a project already keyed by a remote, or whose folder is gone,
-   * is left as it is. The sidebar joins the same repository across Macs by this key alone.
+   * is a checkout with a remote; a stale GitHub `remote:` key is case-normalized; a project
+   * whose folder is gone is left as it is. The sidebar joins the same repository across Macs
+   * by this key alone.
    */
   backfillProjectRemoteKey(project: PersistedProjectRecord): Promise<PersistedProjectRecord>;
   ensureWorkspaceRecordUnarchived(
@@ -511,12 +512,30 @@ export function createWorkspaceProvisioningService(deps: {
 
   // Changed for Groupon Desk (fork of Paseo, Apache-2.0): the Mac Mini's groupon-monorepo project,
   // made by a daemon that wrote no remote key, sat in a group of its own beside the Studio's
-  // (2026-11-08). Only a path-keyed project is read, only a remote key is written, so a project
-  // whose folder is gone or has no remote never loses the identity it has.
+  // (2026-11-08). Only a path-keyed project is read from git, so a project whose folder is gone
+  // or has no remote never loses the identity it has; a remote-keyed project only has its stale
+  // GitHub key case lowered.
   async function backfillProjectRemoteKey(
     project: PersistedProjectRecord,
   ): Promise<PersistedProjectRecord> {
-    if (project.archivedAt || project.projectKey?.startsWith("remote:")) return project;
+    if (project.archivedAt) return project;
+    if (project.projectKey?.startsWith("remote:")) {
+      // A GitHub key written before paths were lowercased splits the same repository
+      // across Macs ("matches several repositories" in desk_start); no git read needed.
+      const normalized = caseNormalizedRemoteProjectKey(project.projectKey);
+      if (!normalized) return project;
+      const refreshed = {
+        ...project,
+        projectKey: normalized,
+        updatedAt: new Date().toISOString(),
+      };
+      await projectRegistry.upsert(refreshed);
+      logger.info(
+        { projectId: project.projectId, from: project.projectKey, to: normalized },
+        "Project remote key case-normalized",
+      );
+      return refreshed;
+    }
     if (!(await deps.isDirectory(project.rootPath))) return project;
     let checkout: Awaited<ReturnType<WorkspaceGitService["getCheckout"]>>;
     try {

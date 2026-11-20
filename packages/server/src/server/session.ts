@@ -7349,14 +7349,11 @@ export class Session {
     }
   }
 
-  /** Groupon Desk: a path-keyed project is read from git once per session, so every list carries its remote key. */
+  /** Groupon Desk: a project's remote key is backfilled or case-normalized once per session, so every list carries it. */
   private async projectWithRemoteKey(
     project: PersistedProjectRecord,
   ): Promise<PersistedProjectRecord> {
-    if (
-      project.projectKey?.startsWith("remote:") ||
-      this.projectRemoteKeyTried.has(project.projectId)
-    ) {
+    if (this.projectRemoteKeyTried.has(project.projectId)) {
       return project;
     }
     this.projectRemoteKeyTried.add(project.projectId);

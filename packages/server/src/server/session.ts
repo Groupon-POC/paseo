@@ -306,6 +306,7 @@ import {
   chatFolderName,
   chatsRootOf,
   describeProject,
+  isUnderChatsRoot,
   moveChatAgent,
   placeChat,
   type ChatsProject,
@@ -5588,7 +5589,7 @@ export class Session {
     this.sessionLogger.info({ agentId }, `Refreshing agent ${agentId} from persistence`);
 
     try {
-      await this.restoreOwningWorkspaceForLegacyAgentRefresh(agentId);
+      await this.restoreOwningWorkspaceForAgentRefresh(agentId);
       await unarchiveAgentState(this.agentStorage, this.agentManager, agentId);
       let snapshot: ManagedAgent;
       const existing = this.agentManager.getAgent(agentId);
@@ -6829,14 +6830,16 @@ export class Session {
     await this.refreshRecoveredWorkspaceForExternalMutation(workspace);
   }
 
-  private async restoreOwningWorkspaceForLegacyAgentRefresh(agentId: string): Promise<void> {
-    // COMPAT(worktreeRestore): clients older than v0.1.105 used refresh_agent_request
-    // as their explicit recovery RPC. Remove after 2027-01-11.
-    if (!clientUsesLegacyWorkspaceRestore(this.appVersion)) {
-      return;
-    }
+  private async restoreOwningWorkspaceForAgentRefresh(agentId: string): Promise<void> {
     const record = await this.agentStorage.get(agentId);
     if (!record?.workspaceId) {
+      return;
+    }
+    // COMPAT(worktreeRestore): clients older than v0.1.105 used refresh_agent_request
+    // as their explicit recovery RPC. Remove after 2027-01-11.
+    // Groupon Desk: a project-less chat has no workspace recovery UI, so unarchiving it restores its archived workspace for every client.
+    const ownsChatFolder = isUnderChatsRoot(chatsRootOf(this.paseoHome), record.cwd);
+    if (!clientUsesLegacyWorkspaceRestore(this.appVersion) && !ownsChatFolder) {
       return;
     }
     const recovery = await this.workspaceRecovery.inspect(record.workspaceId);

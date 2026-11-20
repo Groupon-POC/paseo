@@ -20,6 +20,7 @@ import { useImportSession } from "@/hooks/use-import-session";
 import { useHosts } from "@/runtime/host-runtime";
 import { buildOpenProjectRoute } from "@/utils/host-routes";
 import { useHistoryMacWait } from "@/groupon/history-wait";
+import { isWeb } from "@/constants/platform";
 
 /** Long enough that a typed word is one request, short enough to feel live. */
 const SEARCH_DEBOUNCE_MS = 200;
@@ -173,6 +174,7 @@ function SessionsScreenContent() {
               onChangeText={setSearchInput}
               placeholder={t("sessions.searchPlaceholder")}
               clearAccessibilityLabel={t("sessions.actions.clearSearch")}
+              autoFocus={isWeb}
               testID="sessions-search-input"
               clearTestID="sessions-search-clear"
             />

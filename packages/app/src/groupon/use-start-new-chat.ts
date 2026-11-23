@@ -1,16 +1,22 @@
 // Added for Groupon Desk (fork of Paseo, Apache-2.0): starting a chat that names no project, shared by the sidebar's "New chat" row and its keyboard shortcut; moving New chat to another Mac.
 
 import { router } from "expo-router";
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useToast } from "@/contexts/toast-context";
-import { getHostRuntimeStore, useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
+import {
+  getHostRuntimeStore,
+  useHostRuntimeClient,
+  useHostRuntimeConnectionStatuses,
+  useHosts,
+} from "@/runtime/host-runtime";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { buildNewWorkspaceRoute } from "@/utils/host-routes";
+import { newChatServerId } from "./new-chat-host-model";
 import { ensureChatsProject } from "./project-less-chats";
 import { GROUPON_CHATS } from "./strings";
 
 /**
- * Opens New workspace on the "No project" project of the Mac in use, or the first one; a second
+ * Opens New workspace on the "No project" project of the Mac `newChatServerId` picks; a second
  * start while one is on its way does nothing. Answers whether a Mac was there to start it on.
  */
 export function useStartNewChat(): {
@@ -19,8 +25,10 @@ export function useStartNewChat(): {
 } {
   const toast = useToast();
   const hosts = useHosts();
+  const serverIds = useMemo(() => hosts.map((host) => host.serverId), [hosts]);
+  const statuses = useHostRuntimeConnectionStatuses(serverIds);
   const activeServerId = useActiveWorkspaceSelection()?.serverId ?? null;
-  const serverId = activeServerId ?? hosts[0]?.serverId ?? "";
+  const serverId = newChatServerId(activeServerId, serverIds, statuses);
   const client = useHostRuntimeClient(serverId);
   const busy = useRef(false);
 

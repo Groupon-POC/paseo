@@ -16,6 +16,7 @@ import type { ParsedDiffFile } from "@/git/use-diff-query";
 
 const GROUPON_DESK_RPC_PLUGIN_ID = "groupon-desk";
 const SESSION_CHANGES_RPC = "groupon-desk.session.changes";
+const SESSION_CHANGES_STAT_RPC = "groupon-desk.session.changes.stat";
 
 export interface SessionChangesRepo {
   root: string;
@@ -52,18 +53,100 @@ function repoOf(value: unknown): SessionChangesRepo | null {
   };
 }
 
+interface HeldAnswer {
+  revision: string;
+  value: unknown;
+}
+
+/** The last answer per client and query, so the next poll's `knownRevision` can cost nothing. */
+const heldAnswers = new WeakMap<object, Map<string, HeldAnswer>>();
+
+function heldFor(client: object): Map<string, HeldAnswer> {
+  let held = heldAnswers.get(client);
+  if (!held) {
+    held = new Map();
+    heldAnswers.set(client, held);
+  }
+  return held;
+}
+
+/**
+ * One poll: the held revision rides along as `knownRevision`; a daemon that answers `unchanged`
+ * costs no diff and no payload, and the held value is returned. A daemon without revisions (an
+ * older Mac) answers in full every time, and nothing is held.
+ */
+async function invokeWithRevision<T>(
+  client: Pick<DaemonClient, "invokePluginRpc">,
+  method: string,
+  input: { workspaceId: string; mode: SessionChangesMode },
+  parse: (answer: unknown) => T,
+): Promise<T> {
+  const key = `${method}|${input.workspaceId}|${input.mode}`;
+  const held = heldFor(client).get(key);
+  let answer = await client.invokePluginRpc(
+    GROUPON_DESK_RPC_PLUGIN_ID,
+    method,
+    held ? { ...input, knownRevision: held.revision } : input,
+  );
+  if (isRecord(answer) && answer.unchanged === true) {
+    if (held) return held.value as T;
+    // An `unchanged` this client holds nothing for: ask again in full.
+    answer = await client.invokePluginRpc(GROUPON_DESK_RPC_PLUGIN_ID, method, input);
+  }
+  const value = parse(answer);
+  const full = isRecord(answer) && answer.unchanged !== true;
+  const revision = full ? text((answer as Record<string, unknown>).revision) : null;
+  if (revision) heldFor(client).set(key, { revision, value });
+  else heldFor(client).delete(key);
+  return value;
+}
+
 /** The daemon's answer, checked: the repositories in the order the session first touched them. */
 export async function readSessionChanges(
   client: Pick<DaemonClient, "invokePluginRpc">,
   workspaceId: string,
   mode: SessionChangesMode = "all",
 ): Promise<SessionChangesRepo[]> {
-  const answer = await client.invokePluginRpc(GROUPON_DESK_RPC_PLUGIN_ID, SESSION_CHANGES_RPC, {
-    workspaceId,
-    mode,
+  return invokeWithRevision(client, SESSION_CHANGES_RPC, { workspaceId, mode }, (answer) => {
+    const repos = isRecord(answer) && Array.isArray(answer.repos) ? answer.repos : [];
+    return repos.map(repoOf).filter((repo): repo is SessionChangesRepo => repo !== null);
   });
-  const repos = isRecord(answer) && Array.isArray(answer.repos) ? answer.repos : [];
-  return repos.map(repoOf).filter((repo): repo is SessionChangesRepo => repo !== null);
+}
+
+/** One repository's +/− totals, as the stat RPC answers them: no files, no content. */
+export interface SessionChangesStatRepo {
+  root: string;
+  name: string;
+  branch: string | null;
+  additions: number;
+  deletions: number;
+  error: string | null;
+}
+
+function statRepoOf(value: unknown): SessionChangesStatRepo | null {
+  if (!isRecord(value) || typeof value.root !== "string" || typeof value.name !== "string") {
+    return null;
+  }
+  return {
+    root: value.root,
+    name: value.name,
+    branch: text(value.branch),
+    additions: typeof value.additions === "number" ? value.additions : 0,
+    deletions: typeof value.deletions === "number" ? value.deletions : 0,
+    error: text(value.error),
+  };
+}
+
+/** The session diff's totals for the pill and the hover card; tiny, safe to poll. */
+export async function readSessionChangesStat(
+  client: Pick<DaemonClient, "invokePluginRpc">,
+  workspaceId: string,
+  mode: SessionChangesMode = "all",
+): Promise<SessionChangesStatRepo[]> {
+  return invokeWithRevision(client, SESSION_CHANGES_STAT_RPC, { workspaceId, mode }, (answer) => {
+    const repos = isRecord(answer) && Array.isArray(answer.repos) ? answer.repos : [];
+    return repos.map(statRepoOf).filter((repo): repo is SessionChangesStatRepo => repo !== null);
+  });
 }
 
 /** Each repository's label: its name, with its branch when two share a name (two worktrees). */

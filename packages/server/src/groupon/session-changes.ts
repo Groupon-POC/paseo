@@ -9,6 +9,10 @@
  * Responsibilities:
  * - `sessionEditsOf`: the edited files of a session's timeline, absolute, with when they were edited
  * - `readSessionChanges`: those files grouped by repository, each with its baseline and its diff
+ * - `readSessionChangesStat`: the same grouping with numstat totals only, for the pill's poll
+ * - Both answers carry a `revision` (the mode, each repository's baseline and HEAD, each file's
+ *   mtime and size, hashed); a client that sends it back as `knownRevision` gets `unchanged: true`
+ *   with no diff computed, no file highlighted and no payload sent while nothing moved
  * - `sessionRootHolding`: which of those repositories holds a path, so the window may read it
  *
  * A session that changes files from a shell (a script, `git commit`) shows them too
@@ -20,11 +24,14 @@
  * - Only completed edits count: a failed or cancelled Write changed nothing
  */
 
+import { createHash } from "node:crypto";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { ParsedDiffFile } from "../server/utils/diff-highlighter.js";
 
 /** The Groupon Desk plugin RPC the window calls: `{ workspaceId }`, answered `{ repos }`. */
 export const SESSION_CHANGES_RPC = "groupon-desk.session.changes";
+/** The totals-only sibling: `{ workspaceId, mode, knownRevision? }`, answered without any file content. */
+export const SESSION_CHANGES_STAT_RPC = "groupon-desk.session.changes.stat";
 
 /** Which part of the sessions' changes the window asks for: everything, their commits, or what is not committed. */
 export type SessionChangesMode = "all" | "committed" | "uncommitted";
@@ -63,17 +70,32 @@ export interface SessionChangesRepo {
   error: string | null;
 }
 
-export interface SessionChangesDeps {
+export interface SessionChangesBaseDeps {
   /** The worktree root a folder belongs to; null outside git. */
   worktreeRootOf(dir: string): Promise<string | null>;
   nameOf(root: string): Promise<string>;
   branchOf(root: string): Promise<string | null>;
   headAt(root: string, at: Date): Promise<string | null>;
+  /** The commit HEAD points at now; part of the answer's revision. */
+  headOf(root: string): Promise<string | null>;
+  /** A file's last change and size, for the revision; null when it is gone. */
+  statOf(path: string): Promise<{ mtimeMs: number; size: number } | null>;
+}
+
+export interface SessionChangesDeps extends SessionChangesBaseDeps {
   diffSince(
     root: string,
     baseCommit: string,
     paths: readonly string[],
   ): Promise<{ structured?: ParsedDiffFile[]; diffTooLarge?: boolean }>;
+}
+
+export interface SessionChangesStatDeps extends SessionChangesBaseDeps {
+  numstatSince(
+    root: string,
+    baseCommit: string,
+    paths: readonly string[],
+  ): Promise<{ additions: number; deletions: number }>;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -230,11 +252,42 @@ export async function sessionRootHolding(
   return null;
 }
 
-/** The edits grouped by repository, the first-touched repository first, each diffed from its baseline. */
-export async function readSessionChanges(
+export interface SessionChangesOptions {
+  mode?: SessionChangesMode;
+  /** The revision the client already holds; matching it answers `unchanged` with nothing computed. */
+  knownRevision?: string | null;
+}
+
+export type SessionChangesAnswer =
+  | { revision: string; unchanged: true }
+  | { revision: string; unchanged: false; repos: SessionChangesRepo[] };
+
+export interface SessionChangesStatRepo {
+  root: string;
+  name: string;
+  branch: string | null;
+  additions: number;
+  deletions: number;
+  error: string | null;
+}
+
+export type SessionChangesStatAnswer =
+  | { revision: string; unchanged: true }
+  | { revision: string; unchanged: false; repos: SessionChangesStatRepo[] };
+
+interface PreparedSessionRepo {
+  root: string;
+  firstAt: Date;
+  /** Repository-relative, sorted. */
+  paths: string[];
+  baseline: string | null;
+}
+
+/** The edits grouped by repository, the first-touched repository first, each with its baseline. */
+async function prepareSessionRepos(
   edits: readonly SessionEdit[],
-  deps: SessionChangesDeps,
-): Promise<{ repos: SessionChangesRepo[] }> {
+  deps: SessionChangesBaseDeps,
+): Promise<PreparedSessionRepo[]> {
   const rootByDir = new Map<string, Promise<string | null>>();
   const byRoot = new Map<string, { firstAt: Date; paths: Set<string> }>();
   for (const edit of edits) {
@@ -257,30 +310,126 @@ export async function readSessionChanges(
   const groups = [...byRoot.entries()].sort(
     (a, b) => a[1].firstAt.getTime() - b[1].firstAt.getTime(),
   );
-  const repos = await Promise.all(
-    groups.map(async ([root, group]): Promise<SessionChangesRepo> => {
-      const [name, branch, baseline] = await Promise.all([
-        deps.nameOf(root),
-        deps.branchOf(root).catch(() => null),
-        deps.headAt(root, group.firstAt).catch(() => null),
+  return Promise.all(
+    groups.map(async ([root, group]) => ({
+      root,
+      firstAt: group.firstAt,
+      paths: [...group.paths].sort(),
+      baseline: await deps.headAt(root, group.firstAt).catch(() => null),
+    })),
+  );
+}
+
+/** What the answer depends on, hashed; a poll whose revision still matches costs no diff. */
+async function sessionChangesRevision(
+  mode: SessionChangesMode,
+  prepared: readonly PreparedSessionRepo[],
+  deps: SessionChangesBaseDeps,
+): Promise<string> {
+  const parts = await Promise.all(
+    prepared.map(async (repo) => {
+      const [head, stats] = await Promise.all([
+        deps.headOf(repo.root).catch(() => null),
+        Promise.all(
+          repo.paths.map(async (path) => {
+            const found = await deps.statOf(resolve(repo.root, path)).catch(() => null);
+            return [path, found?.mtimeMs ?? -1, found?.size ?? -1];
+          }),
+        ),
       ]);
-      const paths = [...group.paths].sort();
+      return [repo.root, repo.baseline, head, stats];
+    }),
+  );
+  return createHash("sha1")
+    .update(JSON.stringify([mode, parts]))
+    .digest("hex");
+}
+
+async function answerSessionChanges<Repo>(
+  edits: readonly SessionEdit[],
+  deps: SessionChangesBaseDeps,
+  options: SessionChangesOptions,
+  buildRepo: (repo: PreparedSessionRepo, name: string, branch: string | null) => Promise<Repo>,
+): Promise<
+  { revision: string; unchanged: true } | { revision: string; unchanged: false; repos: Repo[] }
+> {
+  const prepared = await prepareSessionRepos(edits, deps);
+  const revision = await sessionChangesRevision(options.mode ?? "all", prepared, deps);
+  if (options.knownRevision && options.knownRevision === revision) {
+    return { revision, unchanged: true };
+  }
+  const repos = await Promise.all(
+    prepared.map(async (repo) => {
+      const [name, branch] = await Promise.all([
+        deps.nameOf(repo.root),
+        deps.branchOf(repo.root).catch(() => null),
+      ]);
+      return buildRepo(repo, name, branch);
+    }),
+  );
+  return { revision, unchanged: false, repos };
+}
+
+/** The grouped edits diffed from their baselines, unless `knownRevision` says nothing changed. */
+export async function readSessionChanges(
+  edits: readonly SessionEdit[],
+  deps: SessionChangesDeps,
+  options: SessionChangesOptions = {},
+): Promise<SessionChangesAnswer> {
+  return answerSessionChanges(
+    edits,
+    deps,
+    options,
+    async (repo, name, branch): Promise<SessionChangesRepo> => {
       try {
-        const diff = await deps.diffSince(root, baseline ?? "HEAD", paths);
+        const diff = await deps.diffSince(repo.root, repo.baseline ?? "HEAD", repo.paths);
         return {
-          root,
+          root: repo.root,
           name,
           branch,
-          baseline,
+          baseline: repo.baseline,
           files: diff.structured ?? [],
           diffTooLarge: diff.diffTooLarge === true,
           error: null,
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        return { root, name, branch, baseline, files: [], diffTooLarge: false, error: message };
+        return {
+          root: repo.root,
+          name,
+          branch,
+          baseline: repo.baseline,
+          files: [],
+          diffTooLarge: false,
+          error: message,
+        };
       }
-    }),
+    },
   );
-  return { repos };
+}
+
+/** The same grouping with numstat totals only: no content, no highlighting, a tiny answer. */
+export async function readSessionChangesStat(
+  edits: readonly SessionEdit[],
+  deps: SessionChangesStatDeps,
+  options: SessionChangesOptions = {},
+): Promise<SessionChangesStatAnswer> {
+  return answerSessionChanges(
+    edits,
+    deps,
+    options,
+    async (repo, name, branch): Promise<SessionChangesStatRepo> => {
+      try {
+        const { additions, deletions } = await deps.numstatSince(
+          repo.root,
+          repo.baseline ?? "HEAD",
+          repo.paths,
+        );
+        return { root: repo.root, name, branch, additions, deletions, error: null };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return { root: repo.root, name, branch, additions: 0, deletions: 0, error: message };
+      }
+    },
+  );
 }

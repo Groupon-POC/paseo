@@ -15,12 +15,14 @@ import { basename, join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import {
   getPathsDiffSince,
+  getPathsNumstatSince,
   listCommitsSince,
   listUncommittedFiles,
   resolveHeadAt,
 } from "../utils/checkout-git.js";
 import {
   readSessionChanges,
+  readSessionChangesStat,
   sessionEditsOf,
   sessionChangesModeOf,
   sessionDiffRange,
@@ -28,6 +30,8 @@ import {
   shellEditsOf,
   shellWindowsOf,
   type SessionChangesDeps,
+  type SessionChangesStatDeps,
+  type SessionEdit,
 } from "./session-changes.js";
 
 const homes: string[] = [];
@@ -81,8 +85,29 @@ const deps: SessionChangesDeps = {
   nameOf: async (root) => basename(root),
   branchOf: async () => "main",
   headAt: resolveHeadAt,
+  headOf: async (root) => git(root, ["rev-parse", "HEAD"], "2026-01-01T10:00:00Z"),
+  statOf: async (path) => {
+    try {
+      const found = statSync(path);
+      return { mtimeMs: found.mtimeMs, size: found.size };
+    } catch {
+      return null;
+    }
+  },
   diffSince: (root, base, paths) => getPathsDiffSince(root, { baseCommit: base, paths }),
 };
+
+const statDeps: SessionChangesStatDeps = {
+  ...deps,
+  numstatSince: (root, base, paths) => getPathsNumstatSince(root, { baseCommit: base, paths }),
+};
+
+/** A full answer's repositories; throws on an unexpected `unchanged`. */
+async function fullChanges(edits: SessionEdit[]) {
+  const answer = await readSessionChanges(edits, deps);
+  if (answer.unchanged) throw new Error("expected a full answer");
+  return answer;
+}
 
 const pathsOf = (files: readonly { path: string }[]) => files.map((f) => f.path).sort();
 const row = (at: string, item: Record<string, unknown>) => ({ timestamp: at, item });
@@ -129,15 +154,12 @@ describe("an agent session's own changes", () => {
     const outside = realpathSync(mkdtempSync(join(tmpdir(), "groupon-outside-")));
     homes.push(outside);
 
-    const { repos } = await readSessionChanges(
-      [
-        { path: join(second.root, "a.ts"), at: new Date("2026-01-01T11:30:00Z") },
-        { path: join(first.root, "a.ts"), at: new Date("2026-01-01T11:00:00Z") },
-        { path: join(first.root, "new.ts"), at: new Date("2026-01-01T12:30:00Z") },
-        { path: join(outside, "notes.md"), at: new Date("2026-01-01T11:10:00Z") },
-      ],
-      deps,
-    );
+    const { repos } = await fullChanges([
+      { path: join(second.root, "a.ts"), at: new Date("2026-01-01T11:30:00Z") },
+      { path: join(first.root, "a.ts"), at: new Date("2026-01-01T11:00:00Z") },
+      { path: join(first.root, "new.ts"), at: new Date("2026-01-01T12:30:00Z") },
+      { path: join(outside, "notes.md"), at: new Date("2026-01-01T11:10:00Z") },
+    ]);
 
     expect(repos.map((r) => [r.name, r.baseline, pathsOf(r.files)])).toEqual([
       ["paseo", first.start, ["a.ts", "new.ts"]],
@@ -171,6 +193,64 @@ describe("an agent session's own changes", () => {
     expect(inside).toBe(edited.root);
     expect(elsewhere).toBeNull();
     expect(climbing).toBeNull();
+  });
+});
+
+describe("the answer's revision", () => {
+  test("a matching knownRevision answers unchanged; a later edit moves the revision", async () => {
+    const { root } = repo("rev");
+    writeFileSync(join(root, "a.ts"), "two\n");
+    const edits = [{ path: join(root, "a.ts"), at: new Date("2026-01-01T11:00:00Z") }];
+
+    const first = await fullChanges(edits);
+    expect(first.repos.map((found) => pathsOf(found.files))).toEqual([["a.ts"]]);
+
+    const again = await readSessionChanges(edits, deps, { knownRevision: first.revision });
+    expect(again).toEqual({ revision: first.revision, unchanged: true });
+
+    writeFileSync(join(root, "a.ts"), "three\n");
+    utimesSync(
+      join(root, "a.ts"),
+      new Date("2026-01-02T00:00:00Z"),
+      new Date("2026-01-02T00:00:00Z"),
+    );
+    const changed = await readSessionChanges(edits, deps, { knownRevision: first.revision });
+    expect(changed.unchanged).toBe(false);
+    expect(changed.revision).not.toBe(first.revision);
+  });
+
+  test("the mode is part of the revision", async () => {
+    const { root } = repo("rev-mode");
+    writeFileSync(join(root, "a.ts"), "two\n");
+    const edits = [{ path: join(root, "a.ts"), at: new Date("2026-01-01T11:00:00Z") }];
+
+    const all = await readSessionChanges(edits, deps, { mode: "all" });
+    const committed = await readSessionChanges(edits, deps, { mode: "committed" });
+
+    expect(all.revision).not.toBe(committed.revision);
+  });
+});
+
+describe("the stat answer", () => {
+  test("carries each repository's totals, the untracked file counted, and honors the revision", async () => {
+    const { root } = repo("stat");
+    writeFileSync(join(root, "a.ts"), "two\nplus\n");
+    writeFileSync(join(root, "new.ts"), "fresh\n");
+    const edits = [
+      { path: join(root, "a.ts"), at: new Date("2026-01-01T11:00:00Z") },
+      { path: join(root, "new.ts"), at: new Date("2026-01-01T11:05:00Z") },
+    ];
+
+    const answer = await readSessionChangesStat(edits, statDeps);
+    if (answer.unchanged) throw new Error("expected a full answer");
+    expect(
+      answer.repos.map((found) => [found.name, found.additions, found.deletions, found.error]),
+    ).toEqual([["stat", 3, 1, null]]);
+
+    const again = await readSessionChangesStat(edits, statDeps, {
+      knownRevision: answer.revision,
+    });
+    expect(again).toEqual({ revision: answer.revision, unchanged: true });
   });
 });
 

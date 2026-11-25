@@ -3671,6 +3671,77 @@ export async function getPathsDiffSince(
 }
 
 /**
+ * Groupon Desk: the +/− totals of `getPathsDiffSince`, from `--numstat` alone: no file content is
+ * read, parsed or highlighted. What the session-diff pill polls every few seconds.
+ */
+export async function getPathsNumstatSince(
+  cwd: string,
+  input: {
+    baseCommit: string;
+    paths: readonly string[];
+    /** Up to this commit (committed changes only) instead of the working tree. */
+    targetRef?: string;
+  },
+): Promise<{ additions: number; deletions: number }> {
+  cwd = await requireGitWorktreeRoot(cwd);
+  if (input.paths.length === 0) return { additions: 0, deletions: 0 };
+  const pathArgs = getCheckoutDiffPathArgs({ paths: input.paths });
+  if (input.targetRef) {
+    const out = await runGitCommand(
+      ["diff", "--numstat", "--no-renames", input.baseCommit, input.targetRef, ...pathArgs],
+      { cwd, envOverlay: READ_ONLY_GIT_ENV },
+    );
+    return sumNumstat(out.stdout);
+  }
+  // `git diff <base>` never lists untracked files; their lines are counted from the files.
+  const [tracked, untracked] = await Promise.all([
+    runGitCommand(["diff", "--numstat", "--no-renames", input.baseCommit, ...pathArgs], {
+      cwd,
+      envOverlay: READ_ONLY_GIT_ENV,
+    }),
+    runGitCommand(["ls-files", "-z", "--others", "--exclude-standard", ...pathArgs], {
+      cwd,
+      envOverlay: READ_ONLY_GIT_ENV,
+    }),
+  ]);
+  const totals = sumNumstat(tracked.stdout);
+  for (const path of untracked.stdout.split("\0").filter(Boolean)) {
+    totals.additions += await countAddedLines(resolve(cwd, path));
+  }
+  return totals;
+}
+
+/** Groupon Desk: an untracked file's numstat lines; a binary or unreadable file counts nothing. */
+async function countAddedLines(absolutePath: string): Promise<number> {
+  try {
+    if (await isLikelyBinaryFile(absolutePath)) return 0;
+    const content = await readFile(absolutePath, "utf8");
+    if (content.length === 0) return 0;
+    let lines = 0;
+    for (let index = 0; index < content.length; index++) {
+      if (content.charCodeAt(index) === 10) lines++;
+    }
+    if (!content.endsWith("\n")) lines++;
+    return lines;
+  } catch {
+    return 0;
+  }
+}
+
+/** Groupon Desk: the summed columns of `git diff --numstat`; a binary file's `-` counts nothing. */
+function sumNumstat(stdout: string): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of stdout.split("\n")) {
+    const found = /^(\d+|-)\t(\d+|-)\t/.exec(line);
+    if (!found) continue;
+    if (found[1] !== "-") additions += Number(found[1]);
+    if (found[2] !== "-") deletions += Number(found[2]);
+  }
+  return { additions, deletions };
+}
+
+/**
  * Groupon Desk: the commit HEAD pointed at a moment: the newest reflog entry not after it, else the
  * first-parent history's newest commit not after it, else null.
  */

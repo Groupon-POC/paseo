@@ -6,15 +6,18 @@ import type { SessionChangesMode } from "@/git/working-diff-comparison/state";
 import { useHostRuntimeClient, useHostRuntimeIsConnected } from "@/runtime/host-runtime";
 import {
   readSessionChanges,
+  readSessionChangesStat,
   sessionChangesError,
   sessionChangesUnsupported,
   sessionDiffFiles,
   type SessionChangesRepo,
+  type SessionChangesStatRepo,
 } from "./session-changes-model";
 
 /** How often a shown session diff is read again while the session may still be editing. */
 const SESSION_CHANGES_REFRESH_MS = 4_000;
 const NO_REPOS: SessionChangesRepo[] = [];
+const NO_STAT_REPOS: SessionChangesStatRepo[] = [];
 
 export function sessionChangesQueryKey(
   serverId: string,
@@ -64,5 +67,38 @@ export function useSessionChanges(input: {
     /** The Mac's daemon predates the session comparison. */
     unsupported,
     refetch: query.refetch,
+  };
+}
+
+/** The session diff's +/− totals, polled while enabled: what the pill and the hover card show. */
+export function useSessionChangesStat(input: {
+  serverId: string;
+  workspaceId?: string | null;
+  enabled: boolean;
+  mode?: SessionChangesMode;
+}) {
+  const mode = input.mode ?? "all";
+  const client = useHostRuntimeClient(input.serverId);
+  const connected = useHostRuntimeIsConnected(input.serverId);
+  const workspaceId = input.workspaceId ?? null;
+  const active = input.enabled && Boolean(client) && connected && workspaceId !== null;
+  const query = useFetchQuery({
+    queryKey: ["groupon-session-changes-stat", input.serverId, workspaceId ?? "", mode] as const,
+    queryFn: async () => {
+      if (!client || !workspaceId) return NO_STAT_REPOS;
+      return readSessionChangesStat(client, workspaceId, mode);
+    },
+    enabled: active,
+    dataShape: "value",
+    retry: false,
+    staleTimeMs: 0,
+    refetchInterval: (state) =>
+      active && !sessionChangesUnsupported(state.state.error) ? SESSION_CHANGES_REFRESH_MS : false,
+  });
+  return {
+    repos: query.data ?? NO_STAT_REPOS,
+    /** The Mac's daemon predates the stat RPC; read the full session diff instead. */
+    unsupported: query.error !== null && sessionChangesUnsupported(query.error),
+    isLoading: active && query.isLoading,
   };
 }

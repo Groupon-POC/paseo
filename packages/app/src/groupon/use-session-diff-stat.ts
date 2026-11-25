@@ -5,7 +5,7 @@ import { useWorkspaceDirectory } from "@/stores/session-store-hooks";
 import { checkoutModeOf, sessionModeOf } from "@/git/working-diff-comparison/state";
 import { useMemo } from "react";
 import { useWorkingDiffComparison } from "@/git/working-diff-comparison";
-import { useSessionChanges } from "./use-session-changes";
+import { useSessionChanges, useSessionChangesStat } from "./use-session-changes";
 
 export interface DiffCount {
   additions: number;
@@ -46,14 +46,27 @@ function useWorkspaceSessionDiffStat(input: {
   });
   const sessionMode = sessionModeOf(comparison);
   const isSession = sessionMode !== null;
-  const session = useSessionChanges({
+  // The totals come from the stat RPC: no file content, no highlighting on the Mac's daemon.
+  const totals = useSessionChangesStat({
     serverId: input.serverId,
     workspaceId: input.workspaceId,
     enabled: input.active && isSession,
     mode: sessionMode ?? "all",
   });
-  const stat = useMemo(() => countDiff(session.files), [session.files]);
-  return isSession && !session.unsupported ? { stat, loading: session.isLoading } : undefined;
+  // A Mac whose daemon predates the stat RPC answers the full session diff as before.
+  const session = useSessionChanges({
+    serverId: input.serverId,
+    workspaceId: input.workspaceId,
+    enabled: input.active && isSession && totals.unsupported,
+    mode: sessionMode ?? "all",
+  });
+  const stat = useMemo(
+    () => (totals.unsupported ? countDiff(session.files) : countDiff(totals.repos)),
+    [totals.unsupported, totals.repos, session.files],
+  );
+  if (!isSession) return undefined;
+  if (!totals.unsupported) return { stat, loading: totals.isLoading };
+  return session.unsupported ? undefined : { stat, loading: session.isLoading };
 }
 
 /**

@@ -489,6 +489,26 @@ describe("highlightDiffFromHunks", () => {
     expect(contentLines[100].tokens).toContainEqual({ text: "const", style: "keyword" });
   });
 
+  it("leaves a file whose hunks carry too much content untokenized, not blocking the daemon", () => {
+    const sourceLines = Array.from(
+      { length: 350 },
+      (_, index) => `const value${index} = "${"x".repeat(990)}";`,
+    );
+    const [file] = parseDiff(
+      [
+        "diff --git a/example.ts b/example.ts",
+        "--- /dev/null",
+        "+++ b/example.ts",
+        `@@ -0,0 +1,${sourceLines.length} @@`,
+        ...sourceLines.map((line) => `+${line}`),
+      ].join("\n"),
+    );
+
+    const highlighted = highlightDiffFromHunks(file);
+
+    expect(highlighted.hunks[0].lines.every((line) => line.tokens === undefined)).toBe(true);
+  });
+
   it("adds syntax highlighting tokens to TypeScript code", () => {
     const files = parseDiff(SIMPLE_DIFF);
     const highlighted = highlightDiffFromHunks(files[0]);

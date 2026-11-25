@@ -1,9 +1,11 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { highlightCode, isLanguageSupported, type HighlightToken } from "@getpaseo/highlight";
 import { unquoteGitPath } from "../../utils/git-quoted-path.js";
 
 const MAX_DIFF_HIGHLIGHT_LINE_CHARS = 10_000;
+// Groupon Desk: past this much content a file goes out untokenized, not blocking the event loop.
+const MAX_FULL_FILE_HIGHLIGHT_CHARS = 300_000;
 
 export interface DiffLine {
   type: "add" | "remove" | "context" | "header";
@@ -248,6 +250,18 @@ function hasOversizedDiffLine(file: ParsedDiffFile): boolean {
   return false;
 }
 
+/** Groupon Desk: whether a file's hunks alone carry too much content to highlight at all. */
+function hasOversizedHunks(file: ParsedDiffFile): boolean {
+  let chars = 0;
+  for (const hunk of file.hunks) {
+    for (const line of hunk.lines) {
+      chars += line.content.length;
+      if (chars > MAX_FULL_FILE_HIGHLIGHT_CHARS) return true;
+    }
+  }
+  return false;
+}
+
 function buildTokenLookup(
   lineMap: Map<number, string>,
   highlighted: HighlightToken[][],
@@ -273,6 +287,7 @@ function buildFullFileTokenLookup(
   fileContent: string,
   path: string,
 ): Map<number, HighlightToken[]> | null {
+  if (fileContent.length > MAX_FULL_FILE_HIGHLIGHT_CHARS) return null;
   if (hasOversizedLine(fileContent)) return null;
 
   const lookup = new Map<number, HighlightToken[]>();
@@ -307,7 +322,7 @@ function buildReconstructedTokenLookups(file: ParsedDiffFile): {
  * This is the fallback when actual file content is not available.
  */
 export function highlightDiffFromHunks(file: ParsedDiffFile): ParsedDiffFile {
-  if (!isLanguageSupported(file.path) || hasOversizedDiffLine(file)) {
+  if (!isLanguageSupported(file.path) || hasOversizedDiffLine(file) || hasOversizedHunks(file)) {
     return file;
   }
 
@@ -328,7 +343,7 @@ export async function highlightDiffWithFileContent(
   cwd: string,
   options: HighlightDiffWithFileContentOptions = {},
 ): Promise<ParsedDiffFile> {
-  if (!isLanguageSupported(file.path) || hasOversizedDiffLine(file)) {
+  if (!isLanguageSupported(file.path) || hasOversizedDiffLine(file) || hasOversizedHunks(file)) {
     return file;
   }
 
@@ -341,8 +356,12 @@ export async function highlightDiffWithFileContent(
     newTokensByLine = buildFullFileTokenLookup(options.newFileContent, file.path);
   } else {
     try {
-      const fileContent = await readFile(resolve(cwd, file.path), "utf-8");
-      newTokensByLine = buildFullFileTokenLookup(fileContent, file.path);
+      const target = resolve(cwd, file.path);
+      // Groupon Desk: a file past the cap is not even read; its hunks get reconstructed tokens.
+      const info = await stat(target);
+      if (info.size <= MAX_FULL_FILE_HIGHLIGHT_CHARS) {
+        newTokensByLine = buildFullFileTokenLookup(await readFile(target, "utf-8"), file.path);
+      }
     } catch {
       // Deleted or unavailable files use reconstructed tokens below.
     }

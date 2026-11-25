@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ParsedDiffFile } from "@/git/use-diff-query";
 import {
   readSessionChanges,
+  readSessionChangesStat,
   sessionChangesError,
   sessionChangesUnsupported,
   sessionDiffFiles,
@@ -76,6 +77,66 @@ describe("a workspace's session changes in the Changes views", () => {
       { workspaceId: "ws-1", mode: "all" },
     );
     expect(repos.map((r) => [r.name, r.files.length])).toEqual([["paseo", 1]]);
+  });
+
+  it("sends the held revision back, and an unchanged answer keeps the held repositories", async () => {
+    const invoke = vi.fn(async (_plugin: string, _method: string, input: unknown) =>
+      (input as { knownRevision?: string }).knownRevision === "r1"
+        ? { revision: "r1", unchanged: true }
+        : { revision: "r1", repos: [repo({})] },
+    );
+    const client = { invokePluginRpc: invoke };
+
+    const cold = await readSessionChanges(client, "ws-1");
+    const warm = await readSessionChanges(client, "ws-1");
+
+    expect(cold.map((found) => found.name)).toEqual(["paseo"]);
+    expect(warm).toBe(cold);
+    expect(invoke).toHaveBeenNthCalledWith(2, "groupon-desk", "groupon-desk.session.changes", {
+      workspaceId: "ws-1",
+      mode: "all",
+      knownRevision: "r1",
+    });
+  });
+
+  it("asks again in full when the daemon says unchanged for a revision it does not hold", async () => {
+    const invoke = vi.fn(async () => ({ revision: "r2", unchanged: true }));
+    const client = { invokePluginRpc: invoke };
+
+    const repos = await readSessionChanges(client, "ws-1");
+
+    expect(repos).toEqual([]);
+    expect(invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads the stat answer's totals, dropping what is not a repository", async () => {
+    const client = {
+      invokePluginRpc: vi.fn(async () => ({
+        revision: "r1",
+        repos: [
+          {
+            root: "/r/paseo",
+            name: "paseo",
+            branch: "main",
+            additions: 3,
+            deletions: 1,
+            error: null,
+          },
+          { name: "no root" },
+        ],
+      })),
+    };
+
+    const repos = await readSessionChangesStat(client, "ws-1");
+
+    expect(client.invokePluginRpc).toHaveBeenCalledWith(
+      "groupon-desk",
+      "groupon-desk.session.changes.stat",
+      { workspaceId: "ws-1", mode: "all" },
+    );
+    expect(repos).toEqual([
+      { root: "/r/paseo", name: "paseo", branch: "main", additions: 3, deletions: 1, error: null },
+    ]);
   });
 
   it("says which repositories could not be diffed", () => {

@@ -206,6 +206,7 @@ import {
   getCurrentBranch,
   getMainRepoRoot,
   getPathsDiffSince,
+  getPathsNumstatSince,
   getWorktreeRoot,
   renameCurrentBranch as renameCurrentBranchDefault,
   listCommitsSince,
@@ -268,7 +269,9 @@ import {
 } from "../groupon/worktree-follow.js";
 import {
   readSessionChanges,
+  readSessionChangesStat,
   SESSION_CHANGES_RPC,
+  SESSION_CHANGES_STAT_RPC,
   sessionChangesModeOf,
   sessionDiffRange,
   sessionEditsOf,
@@ -2953,11 +2956,9 @@ export class Session {
     if (method === WORKSPACE_COMPARE_RPC) {
       return { requests: await workspaceCompareLedger(this.paseoHome).all() };
     }
-    if (method === SESSION_CHANGES_RPC) {
-      return await this.readGrouponSessionChanges(
-        requiredGrouponRpcString(input, "workspaceId"),
-        sessionChangesModeOf(grouponRpcField(input, "mode")),
-      );
+    // The stat RPC's name extends the full one's, so one prefix check covers both.
+    if (method.startsWith(SESSION_CHANGES_RPC)) {
+      return await this.invokeGrouponSessionChangesRpc(method, input);
     }
     if (method === AGENT_MONITORS_RPC) {
       const agentId = requiredGrouponRpcString(input, "agentId");
@@ -3059,8 +3060,79 @@ export class Session {
     );
   }
 
+  /** The two session-changes RPCs share their input: the workspace, the mode, the held revision. */
+  private async invokeGrouponSessionChangesRpc(method: string, input: unknown) {
+    if (method !== SESSION_CHANGES_RPC && method !== SESSION_CHANGES_STAT_RPC) {
+      throw new Error(`Unknown Groupon Desk method: ${method}`);
+    }
+    const workspaceId = requiredGrouponRpcString(input, "workspaceId");
+    const mode = sessionChangesModeOf(grouponRpcField(input, "mode"));
+    const knownRevision = grouponKnownRevision(input);
+    return method === SESSION_CHANGES_STAT_RPC
+      ? this.readGrouponSessionChangesStat(workspaceId, mode, knownRevision)
+      : this.readGrouponSessionChanges(workspaceId, mode, knownRevision);
+  }
+
   /** What the workspace's sessions changed, per repository (`session-changes.ts`). */
-  private async readGrouponSessionChanges(workspaceId: string, mode: SessionChangesMode = "all") {
+  private async readGrouponSessionChanges(
+    workspaceId: string,
+    mode: SessionChangesMode = "all",
+    knownRevision: string | null = null,
+  ) {
+    const edits = await this.grouponSessionAllEdits(workspaceId);
+    return readSessionChanges(
+      edits,
+      {
+        ...this.grouponSessionChangesBaseDeps(),
+        diffSince: (root, baseCommit, paths) =>
+          getPathsDiffSince(root, sessionDiffRange(mode, baseCommit, paths)),
+      },
+      { mode, knownRevision },
+    );
+  }
+
+  /** The session diff's +/− totals only (`session-changes.ts`): what the pill polls. */
+  private async readGrouponSessionChangesStat(
+    workspaceId: string,
+    mode: SessionChangesMode = "all",
+    knownRevision: string | null = null,
+  ) {
+    const edits = await this.grouponSessionAllEdits(workspaceId);
+    return readSessionChangesStat(
+      edits,
+      {
+        ...this.grouponSessionChangesBaseDeps(),
+        numstatSince: (root, baseCommit, paths) =>
+          getPathsNumstatSince(root, sessionDiffRange(mode, baseCommit, paths)),
+      },
+      { mode, knownRevision },
+    );
+  }
+
+  private grouponSessionChangesBaseDeps() {
+    return {
+      worktreeRootOf: (dir: string) => getWorktreeRoot(dir),
+      nameOf: async (root: string) => basename(await getMainRepoRoot(root).catch(() => root)),
+      branchOf: (root: string) => getCurrentBranch(root),
+      // Groupon Desk: past a branch switch the session made, with what its merges of upstream brought.
+      headAt: resolveSessionBase,
+      headOf: async (root: string) => {
+        const head = await runGitCommand(["rev-parse", "-q", "--verify", "HEAD"], {
+          cwd: root,
+          envOverlay: { GIT_OPTIONAL_LOCKS: "0" },
+          acceptExitCodes: [0, 1],
+        });
+        return head.stdout.trim() || null;
+      },
+      statOf: async (path: string) => {
+        const found = await stat(path).catch(() => null);
+        return found ? { mtimeMs: found.mtimeMs, size: found.size } : null;
+      },
+    };
+  }
+
+  /** The timeline edits plus the shell-made changes of the workspace's loaded sessions. */
+  private async grouponSessionAllEdits(workspaceId: string): Promise<SessionEdit[]> {
     const edits = await this.grouponSessionEdits(workspaceId);
     // Groupon Desk: what the sessions changed from a shell too (scripts, `git commit`), in the
     // repositories they edited and the folders they run in, while their own shell calls ran.
@@ -3084,15 +3156,7 @@ export class Session {
         modifiedAt: async (path) => (await stat(path).catch(() => null))?.mtime ?? null,
       },
     );
-    return readSessionChanges([...edits, ...shellEdits], {
-      worktreeRootOf: (dir) => getWorktreeRoot(dir),
-      nameOf: async (root) => basename(await getMainRepoRoot(root).catch(() => root)),
-      branchOf: (root) => getCurrentBranch(root),
-      // Groupon Desk: past a branch switch the session made, with what its merges of upstream brought.
-      headAt: resolveSessionBase,
-      diffSince: (root, baseCommit, paths) =>
-        getPathsDiffSince(root, sessionDiffRange(mode, baseCommit, paths)),
-    });
+    return [...edits, ...shellEdits];
   }
 
   /**
@@ -9760,6 +9824,12 @@ function hostSource(options: SessionOptions): string {
 /** Groupon Desk: one field of a plugin RPC's input, which crosses a process boundary unchecked. */
 function grouponRpcField(input: unknown, key: string): unknown {
   return typeof input === "object" && input !== null ? Reflect.get(input, key) : null;
+}
+
+/** The session-changes revision a client says it holds; null when absent. */
+function grouponKnownRevision(input: unknown): string | null {
+  const value = grouponRpcField(input, "knownRevision");
+  return typeof value === "string" && value !== "" ? value : null;
 }
 
 /** A text field an RPC may leave out; at most 4000 characters, as a message to an agent. */

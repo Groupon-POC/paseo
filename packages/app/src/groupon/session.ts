@@ -59,11 +59,12 @@ import {
   type DeskIdentity,
   type Pbkdf2Engine,
 } from "./crypto";
-import { setCoreRelayRoute } from "./core-relay";
+import { CORE_RELAY_TICKET_PATH, setCoreRelayRoute } from "./core-relay";
 import {
   defaultEnvironmentId,
   environmentById,
   normaliseCoreUrl,
+  realtimeUrlFor,
   type GrouponEnvironmentId,
 } from "./environments";
 import { readMacSession, readMacVaultKey } from "./mac-session";
@@ -495,9 +496,13 @@ async function freshSession(): Promise<GrouponSession> {
 setCoreRelayRoute(() => {
   const session = useGrouponStore.getState().session;
   if (!session) return null;
+  const realtimeUrl = realtimeUrlFor(session.coreUrl);
+  if (realtimeUrl === null) return null;
   return {
     coreUrl: session.coreUrl,
-    accessToken: async () => (await freshSession()).accessToken,
+    realtimeUrl,
+    relayTicket: async (request) =>
+      (await grouponSend<{ ticket: string }>(CORE_RELAY_TICKET_PATH, "POST", request)).ticket,
   };
 });
 

@@ -6,6 +6,7 @@ import {
   environmentChoiceOffered,
   GROUPON_DESK_WEB_URL,
   normaliseCoreUrl,
+  realtimeUrlFor,
 } from "./environments";
 import { identityOf } from "./core-client";
 
@@ -14,6 +15,23 @@ describe("Core addresses", () => {
     expect(environmentById("production").coreUrl).toBe("https://api-core.livingsocial.com");
     expect(environmentById("staging").coreUrl).toBe("https://api-staging-core.livingsocial.com");
     expect(environmentById("local").coreUrl).toBe("http://localhost:4000");
+  });
+
+  it("names the realtime server beside each Core: the estate table's hosts and its local port", () => {
+    expect(environmentById("production").realtimeUrl).toBe("wss://ws.livingsocial.com");
+    expect(environmentById("staging").realtimeUrl).toBe("wss://ws.grpn.site");
+    expect(environmentById("local").realtimeUrl).toBe("ws://localhost:4002");
+  });
+
+  it("finds the realtime server of the Core a person signed in to, a worktree's slot included", () => {
+    expect(realtimeUrlFor("https://api-core.livingsocial.com")).toBe("wss://ws.livingsocial.com");
+    expect(realtimeUrlFor("https://api-staging-core.livingsocial.com")).toBe("wss://ws.grpn.site");
+    expect(realtimeUrlFor("http://localhost:4000")).toBe("ws://localhost:4002");
+    expect(realtimeUrlFor("http://localhost:4200")).toBe("ws://localhost:4202");
+    expect(realtimeUrlFor("http://127.0.0.1:4100")).toBe("ws://127.0.0.1:4102");
+    expect(realtimeUrlFor("http://localhost:8080")).toBe("ws://localhost:4002");
+    expect(realtimeUrlFor("https://core.example.com")).toBeNull();
+    expect(realtimeUrlFor("not a url")).toBeNull();
   });
 
   it("names the work window's web address per environment", () => {

@@ -1,10 +1,12 @@
-// Added for Groupon Desk (fork of Paseo, Apache-2.0): where Groupon's Core answers, per environment.
+// Added for Groupon Desk (fork of Paseo, Apache-2.0): where Groupon's Core and its realtime server answer, per environment.
 
 /**
  * The three Cores the work window knows; a release build signs in to production alone
  * (`environmentChoiceOffered`), so its gate names no choice. The hosted addresses are the estate
  * table's (`config/estate/src/estate.constants.ts` in the Groupon monorepo: `ESTATE_BACKENDS.core`); the
  * local one is Core's `localPort` 4000, and a worktree's Core (4100, 4200, ...) is typed over it.
+ * Beside each Core, the realtime server its relay tickets open (the estate row `realtime`,
+ * `localPort` 4002): the window's relay sockets go there, never to Core (`core-relay.ts`).
  */
 export type GrouponEnvironmentId = "production" | "staging" | "local";
 
@@ -12,12 +14,28 @@ export interface GrouponEnvironment {
   id: GrouponEnvironmentId;
   label: string;
   coreUrl: string;
+  realtimeUrl: string;
 }
 
 export const GROUPON_ENVIRONMENTS: readonly GrouponEnvironment[] = [
-  { id: "production", label: "Production", coreUrl: "https://api-core.livingsocial.com" },
-  { id: "staging", label: "Staging", coreUrl: "https://api-staging-core.livingsocial.com" },
-  { id: "local", label: "Local", coreUrl: "http://localhost:4000" },
+  {
+    id: "production",
+    label: "Production",
+    coreUrl: "https://api-core.livingsocial.com",
+    realtimeUrl: "wss://ws.livingsocial.com",
+  },
+  {
+    id: "staging",
+    label: "Staging",
+    coreUrl: "https://api-staging-core.livingsocial.com",
+    realtimeUrl: "wss://ws.grpn.site",
+  },
+  {
+    id: "local",
+    label: "Local",
+    coreUrl: "http://localhost:4000",
+    realtimeUrl: "ws://localhost:4002",
+  },
 ];
 
 /**
@@ -59,6 +77,33 @@ export function environmentById(id: GrouponEnvironmentId): GrouponEnvironment {
 }
 
 const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+const LOCAL_CORE_PORT = 4000;
+const LOCAL_REALTIME_PORT = 4002;
+/** The estate's worktree slot: every local port moves by 100 per slot, 0 to 9. */
+const SLOT_PORT_STEP = 100;
+const SLOT_COUNT = 10;
+
+/**
+ * The realtime server beside a Core as the person signed in to it: a hosted Core's own, and on
+ * this machine the server of the same worktree slot (Core on 4200 is slot 2, so 4202); a loopback
+ * Core outside the slots' ports is read as slot 0. Null for a Core the table does not name.
+ */
+export function realtimeUrlFor(coreUrl: string): string | null {
+  const known = GROUPON_ENVIRONMENTS.find((env) => env.coreUrl === coreUrl);
+  if (known && known.id !== "local") return known.realtimeUrl;
+  let url: URL;
+  try {
+    url = new URL(coreUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "http:" || !LOOPBACK_HOSTS.has(url.hostname)) return null;
+  const offset = Number(url.port || "80") - LOCAL_CORE_PORT;
+  const slot =
+    offset >= 0 && offset < SLOT_PORT_STEP * SLOT_COUNT ? Math.floor(offset / SLOT_PORT_STEP) : 0;
+  return `ws://${url.hostname}:${LOCAL_REALTIME_PORT + SLOT_PORT_STEP * slot}`;
+}
 
 /**
  * A Core address as typed, normalised to `scheme://host[:port]`; null when it is not one. Only
